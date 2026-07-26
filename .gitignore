@@ -47,3 +47,7 @@ wp-content/themes/*
 
 # 強制保留自製/修改的子佈景主題
 !wp-content/themes/blocksy-child/
+
+# ���� LiteSpeed �֨��ɮ�
+wp-content/litespeed/
+wp-content/cache/

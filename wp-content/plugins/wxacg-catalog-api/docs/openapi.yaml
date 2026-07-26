@@ -1,0 +1,874 @@
+openapi: 3.0.3
+
+info:
+  title: Weixiao Anime API
+  version: 2.0.0-beta1
+  description: |
+    Weixiao Anime API（微笑動漫 API）is an Asian-first anime data API
+    centred on Traditional Chinese.
+
+    This OpenAPI document describes the current read-only v2 Beta endpoints.
+
+    WordPress plugin version: 1.1.0-beta1
+
+    The production v2 API has not been released yet.
+  contact:
+    name: Weixiao ACG
+    url: https://github.com/smaacg/hostingerphp8.3wordpress7.0
+
+servers:
+  - url: https://test.weixiaoacg.com/wp-json/wxacg-catalog/v2
+    description: Test environment — Beta validation only
+
+tags:
+  - name: Anime
+    description: Published anime catalog records
+  - name: Search
+    description: Multilingual anime search
+
+paths:
+  /anime:
+    get:
+      tags:
+        - Anime
+      summary: List anime
+      description: |
+        Returns published anime records with multilingual titles,
+        external ID mappings and pagination.
+      operationId: listAnime
+      parameters:
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Genre'
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Format'
+        - $ref: '#/components/parameters/Series'
+        - $ref: '#/components/parameters/Studio'
+        - $ref: '#/components/parameters/Tag'
+        - $ref: '#/components/parameters/Status'
+        - $ref: '#/components/parameters/Year'
+        - $ref: '#/components/parameters/OrderBy'
+        - $ref: '#/components/parameters/Order'
+      responses:
+        '200':
+          description: Anime collection returned successfully
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-WXACG-API-Version:
+              $ref: '#/components/headers/ApiVersion'
+            X-WXACG-Catalog-Version:
+              $ref: '#/components/headers/PluginVersion'
+            X-WP-Total:
+              $ref: '#/components/headers/Total'
+            X-WP-TotalPages:
+              $ref: '#/components/headers/TotalPages'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnimeCollectionResponse'
+        '304':
+          description: Representation has not changed
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-WXACG-API-Version:
+              $ref: '#/components/headers/ApiVersion'
+            X-WXACG-Catalog-Version:
+              $ref: '#/components/headers/PluginVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /anime/{id}:
+    get:
+      tags:
+        - Anime
+      summary: Get anime detail
+      description: Returns a single published anime record.
+      operationId: getAnime
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Positive WXACG/WordPress anime ID
+          schema:
+            type: integer
+            minimum: 1
+          example: 751
+        - $ref: '#/components/parameters/Language'
+      responses:
+        '200':
+          description: Anime detail returned successfully
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-WXACG-API-Version:
+              $ref: '#/components/headers/ApiVersion'
+            X-WXACG-Catalog-Version:
+              $ref: '#/components/headers/PluginVersion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnimeDetailResponse'
+        '304':
+          description: Representation has not changed
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-WXACG-API-Version:
+              $ref: '#/components/headers/ApiVersion'
+            X-WXACG-Catalog-Version:
+              $ref: '#/components/headers/PluginVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /search:
+    get:
+      tags:
+        - Search
+      summary: Search anime
+      description: |
+        Searches published anime using multilingual and partial title matching.
+
+        Query parameters should be URL encoded by the client.
+      operationId: searchAnime
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Multilingual search term, maximum 100 characters
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          examples:
+            chinese:
+              summary: Traditional Chinese partial search
+              value: 無職
+            romaji:
+              summary: Romanised search
+              value: Mushoku
+        - $ref: '#/components/parameters/Language'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Genre'
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Format'
+        - $ref: '#/components/parameters/Series'
+        - $ref: '#/components/parameters/Studio'
+        - $ref: '#/components/parameters/Tag'
+        - $ref: '#/components/parameters/Status'
+        - $ref: '#/components/parameters/Year'
+        - $ref: '#/components/parameters/OrderBy'
+        - $ref: '#/components/parameters/Order'
+      responses:
+        '200':
+          description: Search completed successfully
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-WXACG-API-Version:
+              $ref: '#/components/headers/ApiVersion'
+            X-WXACG-Catalog-Version:
+              $ref: '#/components/headers/PluginVersion'
+            X-WP-Total:
+              $ref: '#/components/headers/Total'
+            X-WP-TotalPages:
+              $ref: '#/components/headers/TotalPages'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnimeCollectionResponse'
+        '304':
+          description: Representation has not changed
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-WXACG-API-Version:
+              $ref: '#/components/headers/ApiVersion'
+            X-WXACG-Catalog-Version:
+              $ref: '#/components/headers/PluginVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    Language:
+      name: lang
+      in: query
+      required: false
+      description: Requested response language
+      schema:
+        type: string
+        default: zh-TW
+        enum:
+          - zh-TW
+          - zh-HK
+          - zh-CN
+          - ja-JP
+          - ja-Latn
+          - en
+
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Page number
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PerPage:
+      name: per_page
+      in: query
+      required: false
+      description: Number of records per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+
+    Genre:
+      name: genre
+      in: query
+      required: false
+      description: Genre slug or name
+      schema:
+        type: string
+
+    Season:
+      name: season
+      in: query
+      required: false
+      description: Season slug or name
+      schema:
+        type: string
+
+    Format:
+      name: format
+      in: query
+      required: false
+      description: Anime format
+      schema:
+        type: string
+
+    Series:
+      name: series
+      in: query
+      required: false
+      description: Series slug or name
+      schema:
+        type: string
+
+    Studio:
+      name: studio
+      in: query
+      required: false
+      description: Studio slug or name
+      schema:
+        type: string
+
+    Tag:
+      name: tag
+      in: query
+      required: false
+      description: Tag slug or name
+      schema:
+        type: string
+
+    Status:
+      name: status
+      in: query
+      required: false
+      description: Anime status
+      schema:
+        type: string
+
+    Year:
+      name: year
+      in: query
+      required: false
+      description: Release or season year
+      schema:
+        type: integer
+        minimum: 1
+
+    OrderBy:
+      name: orderby
+      in: query
+      required: false
+      description: Collection ordering field
+      schema:
+        type: string
+        default: date
+        enum:
+          - date
+          - modified
+          - title
+          - popularity
+          - score
+          - site_score
+          - season_year
+          - start_date
+
+    Order:
+      name: order
+      in: query
+      required: false
+      description: Collection ordering direction
+      schema:
+        type: string
+        default: DESC
+        enum:
+          - ASC
+          - DESC
+
+  headers:
+    ETag:
+      description: Weak entity tag for conditional requests
+      schema:
+        type: string
+      example: 'W/"33b9f684d28aa7a7a5045f54c5c541ad"'
+
+    CacheControl:
+      description: HTTP cache policy
+      schema:
+        type: string
+      example: public, max-age=60
+
+    ApiVersion:
+      description: Public API response-contract version
+      schema:
+        type: string
+      example: '2.0'
+
+    PluginVersion:
+      description: Installed WXACG Catalog API plugin version
+      schema:
+        type: string
+      example: 1.1.0-beta1
+
+    Total:
+      description: Total number of matching records
+      schema:
+        type: integer
+        minimum: 0
+      example: 221
+
+    TotalPages:
+      description: Total number of result pages
+      schema:
+        type: integer
+        minimum: 0
+      example: 111
+
+  responses:
+    BadRequest:
+      description: Missing or invalid request parameter
+      headers:
+        Cache-Control:
+          description: Error responses must not be publicly cached
+          schema:
+            type: string
+          example: no-store, no-cache, must-revalidate
+        X-WXACG-API-Version:
+          $ref: '#/components/headers/ApiVersion'
+        X-WXACG-Catalog-Version:
+          $ref: '#/components/headers/PluginVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidLanguage:
+              value:
+                success: false
+                code: 400
+                message: 不支援指定的語言。
+                error:
+                  type: invalid_parameter
+                  details:
+                    parameter: lang
+                    allowed:
+                      - zh-TW
+                      - zh-HK
+                      - zh-CN
+                      - ja-JP
+                      - ja-Latn
+                      - en
+                meta:
+                  api_version: '2.0'
+                  language: zh-TW
+                  generated_at: '2026-07-22T22:26:14+00:00'
+            missingQuery:
+              value:
+                success: false
+                code: 400
+                message: 缺少搜尋關鍵字。
+                error:
+                  type: missing_parameter
+                  details:
+                    parameter: q
+                meta:
+                  api_version: '2.0'
+                  language: zh-TW
+                  generated_at: '2026-07-22T22:26:14+00:00'
+
+    NotFound:
+      description: Published anime record not found
+      headers:
+        X-WXACG-API-Version:
+          $ref: '#/components/headers/ApiVersion'
+        X-WXACG-Catalog-Version:
+          $ref: '#/components/headers/PluginVersion'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: 404
+            message: 找不到已發布的動畫。
+            error:
+              type: not_found
+              details: []
+            meta:
+              api_version: '2.0'
+              language: zh-TW
+              generated_at: '2026-07-22T22:10:52+00:00'
+
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ExternalIds:
+      type: object
+      required:
+        - wxacg
+        - anilist
+        - mal
+        - bangumi
+        - tmdb
+      properties:
+        wxacg:
+          type: integer
+          minimum: 1
+          example: 751
+        anilist:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: 166873
+        mal:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: 55888
+        bangumi:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: 444557
+        tmdb:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: null
+
+    OfficialTitles:
+      type: object
+      required:
+        - zh-TW
+        - zh-HK
+        - zh-CN
+        - ja-JP
+        - ja-Latn
+        - en
+      properties:
+        zh-TW:
+          type: string
+          nullable: true
+        zh-HK:
+          type: string
+          nullable: true
+        zh-CN:
+          type: string
+          nullable: true
+        ja-JP:
+          type: string
+          nullable: true
+        ja-Latn:
+          type: string
+          nullable: true
+        en:
+          type: string
+          nullable: true
+
+    Title:
+      type: object
+      required:
+        - display
+        - locale
+        - requested_locale
+        - official
+        - aliases
+      properties:
+        display:
+          type: string
+          example: 無職轉生 第二季 ～到了異世界就拿出真本事～ 第2部分
+        locale:
+          type: string
+          enum:
+            - zh-TW
+            - zh-HK
+            - zh-CN
+            - ja-JP
+            - ja-Latn
+            - en
+          example: zh-TW
+        requested_locale:
+          type: string
+          enum:
+            - zh-TW
+            - zh-HK
+            - zh-CN
+            - ja-JP
+            - ja-Latn
+            - en
+          example: zh-HK
+        official:
+          $ref: '#/components/schemas/OfficialTitles'
+        aliases:
+          type: array
+          items:
+            type: string
+
+    Season:
+      type: object
+      nullable: true
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: SPRING
+        year:
+          type: integer
+          nullable: true
+          example: 2024
+      additionalProperties: true
+
+    Counts:
+      type: object
+      properties:
+        episodes:
+          type: integer
+          minimum: 0
+          example: 12
+        volumes:
+          type: integer
+          minimum: 0
+          example: 0
+        chapters:
+          type: integer
+          minimum: 0
+          example: 0
+      additionalProperties: true
+
+    Scores:
+      type: object
+      properties:
+        anilist:
+          type: number
+          nullable: true
+          example: 8.3
+        mal:
+          type: number
+          nullable: true
+          example: 8.4
+        bangumi:
+          type: number
+          nullable: true
+        site:
+          type: number
+          nullable: true
+      additionalProperties: true
+
+    FlexibleObject:
+      type: object
+      additionalProperties: true
+
+    AnimeSummary:
+      type: object
+      required:
+        - id
+        - type
+        - ids
+        - slug
+        - url
+        - title
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          example: 751
+        type:
+          type: string
+          enum:
+            - anime
+        ids:
+          $ref: '#/components/schemas/ExternalIds'
+        slug:
+          type: string
+          example: mushoku-tensei-ii-isekai-ittara-honki-dasu-part-2
+        url:
+          type: string
+          format: uri
+        title:
+          $ref: '#/components/schemas/Title'
+        image:
+          type: string
+          format: uri
+          nullable: true
+        format:
+          type: string
+          nullable: true
+          example: TV
+        status:
+          type: string
+          nullable: true
+          example: FINISHED
+        season:
+          $ref: '#/components/schemas/Season'
+        counts:
+          $ref: '#/components/schemas/Counts'
+        scores:
+          $ref: '#/components/schemas/Scores'
+        genres:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlexibleObject'
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlexibleObject'
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    AnimeDetail:
+      allOf:
+        - $ref: '#/components/schemas/AnimeSummary'
+        - type: object
+          properties:
+            source:
+              nullable: true
+            dates:
+              nullable: true
+            duration:
+              nullable: true
+            synopsis:
+              type: string
+              nullable: true
+            images:
+              nullable: true
+            trailer_url:
+              type: string
+              format: uri
+              nullable: true
+            popularity:
+              type: integer
+              nullable: true
+            taxonomies:
+              nullable: true
+            production:
+              nullable: true
+            streaming:
+              nullable: true
+            themes:
+              nullable: true
+            relations:
+              nullable: true
+            characters:
+              nullable: true
+            staff:
+              nullable: true
+            episodes:
+              nullable: true
+          additionalProperties: true
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          example: 1
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 50
+          example: 2
+        total:
+          type: integer
+          minimum: 0
+          example: 221
+        total_pages:
+          type: integer
+          minimum: 0
+          example: 111
+
+    Meta:
+      type: object
+      required:
+        - api_version
+        - language
+        - generated_at
+      properties:
+        api_version:
+          type: string
+          example: '2.0'
+        language:
+          type: string
+          enum:
+            - zh-TW
+            - zh-HK
+            - zh-CN
+            - ja-JP
+            - ja-Latn
+            - en
+          example: zh-TW
+        cached:
+          type: boolean
+          example: false
+        generated_at:
+          type: string
+          format: date-time
+          example: '2026-07-22T22:00:00+00:00'
+
+    AnimeCollectionResponse:
+      type: object
+      required:
+        - success
+        - code
+        - message
+        - data
+        - pagination
+        - meta
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        code:
+          type: integer
+          enum:
+            - 200
+        message:
+          type: string
+          example: OK
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnimeSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AnimeDetailResponse:
+      type: object
+      required:
+        - success
+        - code
+        - message
+        - data
+        - meta
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        code:
+          type: integer
+          enum:
+            - 200
+        message:
+          type: string
+          example: OK
+        data:
+          $ref: '#/components/schemas/AnimeDetail'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    Error:
+      type: object
+      required:
+        - type
+        - details
+      properties:
+        type:
+          type: string
+          example: invalid_parameter
+        details:
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: array
+              items: {}
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - code
+        - message
+        - error
+        - meta
+      properties:
+        success:
+          type: boolean
+          enum:
+            - false
+        code:
+          type: integer
+          minimum: 400
+          maximum: 599
+        message:
+          type: string
+        error:
+          $ref: '#/components/schemas/Error'
+        meta:
+          $ref: '#/components/schemas/Meta'
