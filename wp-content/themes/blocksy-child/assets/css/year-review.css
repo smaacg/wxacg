@@ -1,0 +1,851 @@
+/**
+ * Year Review · Full Override v3.1.0 (2026-05-16)
+ * --------------------------------------------------
+ * Changelog:
+ * - v3.1.0 (2026-05-16): 對齊 page-year-review.php v1.0.3 實際 class 命名。
+ *   修正：.yr-year-switch/.yr-year-pill、.yr-stat-grid/.yr-stat-card、
+ *        .yr-section-title、.yr-month-chart/.yr-month-col/.yr-month-bar(--h)、
+ *        .yr-top-list/.yr-top-item、.yr-toprated-*、.yr-share/.yr-btn-share。
+ * - v3.0.0: 深色霓虹風格 + 玻璃擬態整合。
+ * - v2.0.0: Hero 炫炮版。
+ * - v1.0.0: 初版。
+ */
+
+/* ============ 0. 設計 Token ============ */
+:root {
+  --yr-bg: #0d0f17;
+  --yr-card: rgba(28, 32, 46, 0.72);
+  --yr-card-solid: #1c202e;
+  --yr-card-border: rgba(155, 125, 255, 0.18);
+  --yr-card-border-hover: rgba(155, 125, 255, 0.45);
+
+  --yr-text: #eef1f6;
+  --yr-text-soft: #c2c8d2;
+  --yr-text-muted: #8a91a0;
+
+  --yr-primary: #9b7dff;
+  --yr-primary-2: #c4b0ff;
+  --yr-accent: #ff8fc4;
+  --yr-cyan: #5ee6ff;
+  --yr-gold: #ffd86b;
+  --yr-success: #4ade80;
+
+  --yr-radius: 18px;
+  --yr-radius-sm: 12px;
+  --yr-radius-pill: 999px;
+
+  --yr-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --yr-shadow-glow: 0 0 24px rgba(155, 125, 255, 0.35);
+
+  --yr-gradient-primary: linear-gradient(135deg, #9b7dff 0%, #ff8fc4 100%);
+  --yr-gradient-cool: linear-gradient(135deg, #5ee6ff 0%, #9b7dff 100%);
+  --yr-gradient-warm: linear-gradient(135deg, #ff8fc4 0%, #ffd86b 100%);
+  --yr-gradient-success: linear-gradient(135deg, #4ade80 0%, #5ee6ff 100%);
+}
+
+/* ============ 1. 基底容器 ============ */
+.yr-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+  color: var(--yr-text);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.yr-wrap *,
+.yr-wrap *::before,
+.yr-wrap *::after {
+  box-sizing: border-box;
+}
+
+/* ============ 2. 通用 Section ============ */
+.yr-section {
+  position: relative;
+  background: var(--yr-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--yr-card-border);
+  border-radius: var(--yr-radius);
+  padding: 32px 28px;
+  margin-bottom: 22px;
+  box-shadow: var(--yr-shadow);
+  animation: yr-fade-up 0.6s ease both;
+}
+
+.yr-section:hover {
+  border-color: var(--yr-card-border-hover);
+}
+
+.yr-section-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 20px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: 0.02em;
+}
+
+.yr-section-title::before {
+  content: '';
+  width: 4px;
+  height: 22px;
+  border-radius: 2px;
+  background: var(--yr-gradient-primary);
+  box-shadow: 0 0 10px rgba(155, 125, 255, 0.6);
+}
+
+.yr-section p {
+  color: var(--yr-text-soft);
+  margin: 0 0 12px;
+}
+
+.yr-section p strong {
+  color: #fff;
+  font-weight: 800;
+}
+
+/* ============ 3. Hero 區（炫炮版）============ */
+.yr-hero {
+  position: relative;
+  text-align: center;
+  padding: clamp(60px, 10vw, 110px) 24px clamp(60px, 8vw, 100px);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(155, 125, 255, 0.35), transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(255, 143, 196, 0.3), transparent 55%),
+    radial-gradient(ellipse at 50% 50%, rgba(94, 230, 255, 0.15), transparent 60%),
+    linear-gradient(135deg, #1a1640 0%, #2d1f4a 50%, #3d1f33 100%);
+  border: 1px solid rgba(155, 125, 255, 0.25);
+  box-shadow: var(--yr-shadow), inset 0 0 80px rgba(0, 0, 0, 0.4);
+  animation: yr-hero-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* 旋轉光環 */
+.yr-hero-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.yr-hero-bg::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(155, 125, 255, 0.18) 60deg,
+    transparent 120deg,
+    rgba(255, 143, 196, 0.18) 200deg,
+    transparent 260deg,
+    rgba(94, 230, 255, 0.12) 320deg,
+    transparent 360deg
+  );
+  animation: yr-aura-rotate 30s linear infinite;
+}
+
+/* 星塵 */
+.yr-hero-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 15% 20%, #fff 50%, transparent),
+    radial-gradient(1px 1px at 35% 60%, #fff 50%, transparent),
+    radial-gradient(1.5px 1.5px at 60% 30%, #c4b0ff 50%, transparent),
+    radial-gradient(1px 1px at 80% 70%, #fff 50%, transparent),
+    radial-gradient(1.5px 1.5px at 90% 15%, #ffd1e5 50%, transparent),
+    radial-gradient(1px 1px at 25% 85%, #5ee6ff 50%, transparent),
+    radial-gradient(1px 1px at 70% 90%, #fff 50%, transparent),
+    radial-gradient(1.5px 1.5px at 50% 50%, #fff 50%, transparent);
+  background-size: 100% 100%;
+  opacity: 0.6;
+  animation: yr-stars-drift 60s linear infinite;
+}
+
+.yr-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* 大年份 */
+.yr-hero-year {
+  font-size: clamp(80px, 16vw, 180px);
+  font-weight: 900;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  margin: 0 0 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #c4b0ff 40%, #9b7dff 70%, #ff8fc4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 0 30px rgba(155, 125, 255, 0.6))
+    drop-shadow(0 0 60px rgba(255, 143, 196, 0.3));
+  background-size: 100% 200%;
+  animation: yr-year-shine 6s ease-in-out infinite;
+}
+
+/* 主標題 */
+.yr-hero-title {
+  font-size: clamp(20px, 3vw, 30px);
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: #fff;
+  line-height: 1.4;
+  text-shadow: 0 0 20px rgba(155, 125, 255, 0.5);
+  letter-spacing: 0.02em;
+}
+
+.yr-hero-sub {
+  font-size: clamp(14px, 1.6vw, 17px);
+  color: var(--yr-text-soft);
+  margin: 0 0 28px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+/* 年份切換玻璃膠囊 */
+.yr-year-switch {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--yr-radius-pill);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  margin-bottom: 8px;
+}
+
+.yr-year-pill {
+  display: inline-block;
+  padding: 10px 22px;
+  border-radius: var(--yr-radius-pill);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--yr-text-soft);
+  text-decoration: none;
+  transition: all 0.25s ease;
+  letter-spacing: 0.05em;
+}
+
+.yr-year-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.yr-year-pill.is-active {
+  background: var(--yr-gradient-primary);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(155, 125, 255, 0.5);
+  animation: yr-pill-pulse 2.5s ease-in-out infinite;
+}
+
+/* 滾動提示 */
+.yr-hero-scroll {
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--yr-text-muted);
+  letter-spacing: 0.2em;
+  animation: yr-scroll-bounce 2s ease-in-out infinite;
+}
+
+/* ============ 4. Empty State ============ */
+.yr-empty {
+  text-align: center;
+  padding: 70px 28px;
+}
+
+.yr-empty-icon {
+  font-size: 64px;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 0 20px rgba(155, 125, 255, 0.5));
+  line-height: 1;
+}
+
+.yr-empty h2 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 12px;
+}
+
+.yr-empty p {
+  font-size: 15px;
+  margin-bottom: 24px;
+}
+
+.yr-empty code {
+  padding: 2px 8px;
+  background: rgba(155, 125, 255, 0.15);
+  border-radius: 6px;
+  color: var(--yr-primary-2);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+/* ============ 5. Overview 數字卡 ============ */
+.yr-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.yr-stat-card {
+  position: relative;
+  padding: 24px 18px;
+  background: linear-gradient(180deg, rgba(155, 125, 255, 0.08) 0%, transparent 100%);
+  border: 1px solid var(--yr-card-border);
+  border-radius: var(--yr-radius-sm);
+  text-align: center;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.yr-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--yr-gradient-primary);
+  opacity: 0.8;
+}
+
+.yr-stat-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--yr-card-border-hover);
+  box-shadow: var(--yr-shadow-glow);
+}
+
+.yr-stat-num {
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1;
+  background: var(--yr-gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.yr-stat-label {
+  font-size: 13px;
+  color: var(--yr-text-soft);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+/* 第 2、3、4 個 stat 換漸層 */
+.yr-stat-card:nth-child(2)::before { background: var(--yr-gradient-cool); }
+.yr-stat-card:nth-child(2) .yr-stat-num {
+  background: var(--yr-gradient-cool);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.yr-stat-card:nth-child(3)::before { background: var(--yr-gradient-warm); }
+.yr-stat-card:nth-child(3) .yr-stat-num {
+  background: var(--yr-gradient-warm);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.yr-stat-card:nth-child(4)::before { background: var(--yr-gradient-success); }
+.yr-stat-card:nth-child(4) .yr-stat-num {
+  background: var(--yr-gradient-success);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+.yr-overview-fun {
+  text-align: center;
+  font-size: 16px;
+  padding: 14px 18px;
+  background: rgba(155, 125, 255, 0.08);
+  border: 1px solid var(--yr-card-border);
+  border-radius: var(--yr-radius-sm);
+  margin: 0;
+}
+
+/* ============ 6. 月份分布長條圖 ============ */
+.yr-month-chart {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 8px;
+  align-items: end;
+  min-height: 220px;
+  padding: 10px 0 0;
+  margin-bottom: 16px;
+}
+
+.yr-month-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.yr-month-bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.yr-month-bar {
+  width: 100%;
+  height: var(--h, 0%);
+  min-height: 6px;
+  border-radius: 8px 8px 3px 3px;
+  background: var(--yr-gradient-primary);
+  box-shadow: 0 0 14px rgba(155, 125, 255, 0.45);
+  transition: all 0.3s ease;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 4px;
+  animation: yr-bar-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.yr-month-bar:hover {
+  filter: brightness(1.25);
+  box-shadow: 0 0 24px rgba(155, 125, 255, 0.8);
+  transform: scaleY(1.03);
+  transform-origin: bottom;
+}
+
+.yr-month-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.yr-month-bar:hover .yr-month-num {
+  opacity: 1;
+}
+
+.yr-month-label {
+  font-size: 11px;
+  color: var(--yr-text-muted);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.yr-monthly-peak {
+  text-align: center;
+  font-size: 15px;
+  margin: 0;
+}
+
+/* ============ 7. Top 類型 / 工作室 ============ */
+.yr-top-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.yr-top-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(155, 125, 255, 0.06);
+  border: 1px solid var(--yr-card-border);
+  border-radius: var(--yr-radius-sm);
+  transition: all 0.25s ease;
+}
+
+.yr-top-item:hover {
+  background: rgba(155, 125, 255, 0.12);
+  border-color: var(--yr-card-border-hover);
+  transform: translateX(4px);
+}
+
+.yr-top-rank {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--yr-gradient-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px rgba(155, 125, 255, 0.5);
+}
+
+.yr-top-item:nth-child(1) .yr-top-rank {
+  background: linear-gradient(135deg, #ffd86b, #ff9f43);
+  box-shadow: 0 0 16px rgba(255, 216, 107, 0.65);
+}
+.yr-top-item:nth-child(2) .yr-top-rank {
+  background: linear-gradient(135deg, #e8e8e8, #b0b0b0);
+  color: #333;
+}
+.yr-top-item:nth-child(3) .yr-top-rank {
+  background: linear-gradient(135deg, #d4925b, #a86b3a);
+}
+
+.yr-top-name {
+  flex: 1;
+  font-weight: 700;
+  color: var(--yr-text);
+  font-size: 15px;
+}
+
+.yr-top-count {
+  font-size: 13px;
+  color: var(--yr-primary-2);
+  font-weight: 700;
+  padding: 3px 10px;
+  background: rgba(155, 125, 255, 0.15);
+  border-radius: var(--yr-radius-pill);
+}
+
+/* ============ 8. Top Rated 心頭好 ============ */
+.yr-toprated-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.yr-toprated-card {
+  position: relative;
+  background: var(--yr-card-solid);
+  border: 1px solid var(--yr-card-border);
+  border-radius: var(--yr-radius-sm);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.yr-toprated-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--yr-card-border-hover);
+  box-shadow: var(--yr-shadow-glow);
+}
+
+.yr-toprated-thumb {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: #0a0c14;
+}
+
+.yr-toprated-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+  display: block;
+}
+
+.yr-toprated-card:hover .yr-toprated-thumb img {
+  transform: scale(1.08);
+}
+
+.yr-toprated-noimg {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: var(--yr-text-muted);
+  background: linear-gradient(135deg, #1a1d28, #0a0c14);
+}
+
+.yr-toprated-score {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #ffd86b, #ff9f43);
+  color: #1a1a1a;
+  font-weight: 900;
+  font-size: 14px;
+  border-radius: var(--yr-radius-pill);
+  box-shadow: 0 4px 12px rgba(255, 159, 67, 0.5);
+}
+
+.yr-toprated-title {
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--yr-text);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+  min-height: 56px;
+}
+
+/* ============ 9. Badges 徽章 ============ */
+.yr-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+.yr-badge {
+  position: relative;
+  padding: 22px 14px 16px;
+  background: linear-gradient(180deg, rgba(255, 216, 107, 0.1) 0%, transparent 100%);
+  border: 1px solid rgba(255, 216, 107, 0.25);
+  border-radius: var(--yr-radius-sm);
+  text-align: center;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.yr-badge::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(from 0deg, transparent, rgba(255, 216, 107, 0.18), transparent 50%);
+  animation: yr-aura-rotate 8s linear infinite;
+  pointer-events: none;
+}
+
+.yr-badge > * {
+  position: relative;
+  z-index: 1;
+}
+
+.yr-badge:hover {
+  transform: translateY(-4px) scale(1.02);
+  border-color: rgba(255, 216, 107, 0.55);
+  box-shadow: 0 0 24px rgba(255, 216, 107, 0.35);
+}
+
+.yr-badge-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 12px rgba(255, 216, 107, 0.6));
+  line-height: 1;
+}
+
+.yr-badge-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--yr-gold);
+  margin-bottom: 4px;
+}
+
+.yr-badge-desc {
+  font-size: 11px;
+  color: var(--yr-text-soft);
+  line-height: 1.5;
+}
+
+/* ============ 10. Outro 結尾 ============ */
+.yr-outro {
+  text-align: center;
+  padding: 50px 28px;
+  background:
+    radial-gradient(ellipse at center, rgba(155, 125, 255, 0.15), transparent 70%),
+    var(--yr-card);
+}
+
+.yr-outro .yr-section-title {
+  justify-content: center;
+  font-size: 26px;
+  margin-bottom: 12px;
+}
+
+.yr-outro .yr-section-title::before {
+  display: none;
+}
+
+.yr-outro-text {
+  font-size: 16px;
+  margin-bottom: 28px;
+}
+
+.yr-share {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.yr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: var(--yr-radius-pill);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  border: none;
+  letter-spacing: 0.03em;
+  font-family: inherit;
+}
+
+.yr-btn,
+.yr-btn-share {
+  background: var(--yr-gradient-primary);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(155, 125, 255, 0.4);
+}
+
+.yr-btn:hover,
+.yr-btn-share:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(155, 125, 255, 0.6);
+  filter: brightness(1.1);
+}
+
+.yr-btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--yr-text);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: none;
+}
+
+.yr-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  filter: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.yr-share-msg {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--yr-success);
+  font-weight: 700;
+  min-height: 20px;
+}
+
+/* ============ 11. 動畫 ============ */
+@keyframes yr-hero-in {
+  0%   { opacity: 0; transform: translateY(20px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes yr-aura-rotate {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.yr-badge::before {
+  /* 徽章用獨立旋轉中心 */
+  animation-name: yr-badge-rotate;
+}
+
+@keyframes yr-badge-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes yr-stars-drift {
+  0%   { background-position: 0 0; }
+  100% { background-position: -200px 100px; }
+}
+
+@keyframes yr-year-shine {
+  0%, 100% { background-position: 0 0%; }
+  50%      { background-position: 0 100%; }
+}
+
+@keyframes yr-pill-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(155, 125, 255, 0.5); }
+  50%      { box-shadow: 0 0 32px rgba(255, 143, 196, 0.7); }
+}
+
+@keyframes yr-scroll-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50%      { transform: translateY(6px); opacity: 1; }
+}
+
+@keyframes yr-fade-up {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes yr-bar-grow {
+  0%   { height: 0; opacity: 0; }
+  100% { height: var(--h, 0%); opacity: 1; }
+}
+
+/* 各 section 進場延遲 */
+.yr-section:nth-of-type(1) { animation-delay: 0.0s; }
+.yr-section:nth-of-type(2) { animation-delay: 0.1s; }
+.yr-section:nth-of-type(3) { animation-delay: 0.2s; }
+.yr-section:nth-of-type(4) { animation-delay: 0.3s; }
+.yr-section:nth-of-type(5) { animation-delay: 0.4s; }
+.yr-section:nth-of-type(6) { animation-delay: 0.5s; }
+.yr-section:nth-of-type(7) { animation-delay: 0.6s; }
+
+/* ============ 12. 響應式 ============ */
+@media (max-width: 768px) {
+  .yr-wrap { padding: 16px 14px 60px; font-size: 14px; }
+  .yr-section { padding: 22px 18px; border-radius: 14px; }
+  .yr-section-title { font-size: 19px; }
+  .yr-month-chart { gap: 4px; min-height: 160px; }
+  .yr-month-label { font-size: 10px; }
+  .yr-stat-card { padding: 18px 14px; }
+  .yr-stat-num { font-size: 32px; }
+  .yr-year-pill { padding: 8px 16px; font-size: 14px; }
+}
+
+@media (max-width: 480px) {
+  .yr-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .yr-toprated-grid { grid-template-columns: repeat(2, 1fr); }
+  .yr-badge-grid { grid-template-columns: repeat(2, 1fr); }
+  .yr-top-list { grid-template-columns: 1fr; }
+  .yr-share { flex-direction: column; }
+  .yr-btn { width: 100%; justify-content: center; }
+  .yr-hero-year { font-size: clamp(64px, 22vw, 120px); }
+}
+
+/* ============ 13. 無障礙：尊重 reduced-motion ============ */
+@media (prefers-reduced-motion: reduce) {
+  .yr-hero,
+  .yr-hero-bg::before,
+  .yr-hero-bg::after,
+  .yr-hero-year,
+  .yr-year-pill.is-active,
+  .yr-hero-scroll,
+  .yr-section,
+  .yr-badge::before,
+  .yr-month-bar {
+    animation: none !important;
+  }
+  .yr-toprated-card:hover,
+  .yr-stat-card:hover,
+  .yr-top-item:hover { transform: none; }
+}

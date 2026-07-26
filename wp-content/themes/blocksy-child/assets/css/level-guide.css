@@ -1,0 +1,951 @@
+/**
+ * Level Guide 頁面樣式
+ * File: blocksy-child/assets/css/level-guide.css
+ * Version: 2.3.0
+ * Updated: 2026-05-15
+ * Changelog:
+ *   2.3.0 - 對齊 PHP 模板 class 前綴（guide-xxx），補齊所有區塊樣式
+ *   2.2.0 - 暗色高對比版（class 前綴 lg-，與模板不符已棄用）
+ *   2.0.0 - 初版
+ */
+
+/* ============ 色彩 Token（暗色基底）============ */
+:root {
+  --lg-card-bg:      #232831;
+  --lg-card-bg-2:    #2a3038;
+  --lg-card-border:  #3a4150;
+  --lg-card-shadow:  0 2px 8px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .25);
+  --lg-card-shadow-hover: 0 8px 24px rgba(0, 0, 0, .45);
+
+  --lg-text:         #eef1f6;
+  --lg-text-soft:    #c2c8d2;
+  --lg-text-muted:   #8b929e;
+
+  --lg-primary:      #9b7dff;
+  --lg-primary-soft: #2d2547;
+  --lg-accent:       #ff8fc4;
+  --lg-success:      #4ade80;
+  --lg-warning:      #fbbf24;
+  --lg-danger:       #f87171;
+
+  --lg-divider:      #3a4150;
+  --lg-chip-bg:      #2d3340;
+  --lg-chip-text:    #d4d8e1;
+
+  --lg-radius:    14px;
+  --lg-radius-sm: 8px;
+}
+
+/* ============ 容器基底 ============ */
+.level-guide-page {
+  color: var(--lg-text);
+  padding: 24px 0 80px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.level-guide-page * { box-sizing: border-box; }
+.level-guide-page .container { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+
+.level-guide-page h1,
+.level-guide-page h2,
+.level-guide-page h3,
+.level-guide-page h4 { color: var(--lg-text); line-height: 1.3; margin: 0 0 12px; }
+.level-guide-page p { color: var(--lg-text-soft); margin: 0 0 12px; }
+.level-guide-page strong, .level-guide-page b { color: var(--lg-text); font-weight: 700; }
+.level-guide-page a { color: var(--lg-primary); text-decoration: none; }
+.level-guide-page a:hover { color: var(--lg-accent); text-decoration: underline; }
+.level-guide-page code {
+  background: rgba(155, 125, 255, .15);
+  color: var(--lg-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  border: 1px solid rgba(155, 125, 255, .3);
+}
+
+/* ============ Hero ============ */
+.guide-hero {
+  background:
+    radial-gradient(ellipse at top left, rgba(155, 125, 255, .25), transparent 60%),
+    radial-gradient(ellipse at bottom right, rgba(255, 143, 196, .2), transparent 60%),
+    linear-gradient(135deg, #2a2547 0%, #3d1f33 100%);
+  border-radius: var(--lg-radius);
+  padding: 40px 28px;
+  margin-bottom: 28px;
+  text-align: center;
+  border: 1px solid var(--lg-card-border);
+}
+.guide-hero-title {
+  font-size: 30px;
+  font-weight: 800;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, #c5b3ff, #ffb3d8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.guide-hero-sub { color: #d4d8e1; font-size: 15px; margin-bottom: 22px; }
+
+/* ============ TOC（Hero 內的章節導覽）============ */
+.guide-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 14px;
+}
+.guide-toc-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--lg-text) !important;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all .15s ease;
+  text-decoration: none !important;
+  backdrop-filter: blur(4px);
+}
+.guide-toc-chip:hover {
+  background: rgba(155, 125, 255, .25);
+  border-color: var(--lg-primary);
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+
+/* ============ 我的進度卡（登入者）============ */
+.guide-me-card {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  background: rgba(0, 0, 0, .25);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: var(--lg-radius);
+  padding: 16px;
+  backdrop-filter: blur(8px);
+}
+.guide-me-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+.guide-me-icon {
+  font-size: 32px;
+  width: 48px; height: 48px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  background: rgba(155, 125, 255, .2);
+  border-radius: 12px;
+  border: 1px solid rgba(155, 125, 255, .4);
+}
+.guide-me-info { flex: 1; min-width: 0; }
+.guide-me-name { font-weight: 700; font-size: 14px; color: var(--lg-text); }
+.guide-me-exp { font-size: 12px; color: var(--lg-text-soft); margin-top: 2px; }
+
+/* ============ Section 通用 ============ */
+.guide-section {
+  background: var(--lg-card-bg);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius);
+  padding: 28px 28px;
+  margin-bottom: 22px;
+  box-shadow: var(--lg-card-shadow);
+}
+.guide-section-title {
+  font-size: 22px;
+  font-weight: 800;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--lg-divider);
+  color: var(--lg-text);
+}
+.guide-section-intro { color: var(--lg-text-soft); margin-bottom: 18px; }
+.guide-empty {
+  text-align: center;
+  color: var(--lg-text-muted);
+  padding: 30px;
+  background: rgba(0, 0, 0, .2);
+  border-radius: var(--lg-radius-sm);
+}
+
+/* ============ §1 EXP 卡片網格 ============ */
+.guide-exp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.guide-exp-card {
+  display: flex;
+  gap: 12px;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius-sm);
+  padding: 14px 16px;
+  transition: all .15s ease;
+}
+.guide-exp-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--lg-primary);
+  box-shadow: var(--lg-card-shadow-hover);
+}
+.guide-exp-icon {
+  font-size: 28px;
+  width: 44px; height: 44px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  background: rgba(155, 125, 255, .12);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.guide-exp-body { flex: 1; min-width: 0; }
+.guide-exp-label { font-weight: 700; font-size: 14px; color: var(--lg-text); }
+.guide-exp-desc { font-size: 12px; color: var(--lg-text-muted); margin-top: 2px; }
+.guide-exp-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.guide-exp-value {
+  display: inline-block;
+  padding: 3px 10px;
+  background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.guide-exp-cap { font-size: 11px; color: var(--lg-text-muted); }
+
+/* ============ Callout 提示框 ============ */
+.guide-callout {
+  background: linear-gradient(135deg, rgba(91, 176, 238, .12), rgba(91, 176, 238, .04));
+  border-left: 4px solid #5bb0ee;
+  padding: 14px 18px;
+  border-radius: var(--lg-radius-sm);
+  margin: 18px 0 0;
+  color: #c5e3f7;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.guide-callout strong { color: #5bb0ee; }
+.guide-callout-cta {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 3px 10px;
+  background: var(--lg-primary);
+  color: #fff !important;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none !important;
+}
+.guide-callout-cta:hover { background: var(--lg-accent); }
+
+/* ============ §2 等級稱號卡 ============ */
+.guide-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.guide-tier-card {
+  --tier-color: #9aafbf;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-top: 4px solid var(--tier-color);
+  border-radius: var(--lg-radius-sm);
+  padding: 18px 16px;
+  text-align: center;
+  transition: all .15s ease;
+  position: relative;
+}
+.guide-tier-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--lg-card-shadow-hover);
+}
+.guide-tier-card.is-mine {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tier-color) 18%, var(--lg-card-bg-2)), var(--lg-card-bg-2) 70%);
+  box-shadow: 0 0 0 2px var(--tier-color), var(--lg-card-shadow-hover);
+}
+.guide-tier-icon { font-size: 30px; margin-bottom: 6px; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .4)); }
+.guide-tier-name {
+  font-weight: 800;
+  color: var(--tier-color);
+  font-size: 16px;
+  letter-spacing: .5px;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--tier-color) 40%, transparent);
+}
+.guide-tier-range {
+  font-size: 13px;
+  color: var(--lg-text);
+  margin-top: 4px;
+  font-weight: 700;
+}
+.guide-tier-range small { color: var(--lg-text-muted); font-weight: 400; display: block; font-size: 11px; margin-top: 2px; }
+.guide-tier-mine {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 10px;
+  background: var(--tier-color);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ============ 完整 EXP 對照表 ============ */
+.guide-details {
+  margin-top: 18px;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius-sm);
+  overflow: hidden;
+}
+.guide-details > summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--lg-text);
+  background: rgba(0, 0, 0, .15);
+  list-style: none;
+  user-select: none;
+}
+.guide-details > summary::before { content: '▶ '; color: var(--lg-primary); transition: transform .2s; display: inline-block; }
+.guide-details[open] > summary::before { transform: rotate(90deg); }
+.guide-level-table-wrap { padding: 12px; overflow-x: auto; }
+.guide-level-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.guide-level-table th, .guide-level-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--lg-divider);
+  color: var(--lg-text-soft);
+}
+.guide-level-table th { color: var(--lg-text); font-weight: 700; background: rgba(0, 0, 0, .2); }
+.guide-level-table td.is-mine {
+  background: rgba(155, 125, 255, .2);
+  color: var(--lg-primary);
+  font-weight: 800;
+}
+
+/* ============ §3 4 轉里程碑 ============ */
+.guide-milestone-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 18px 0;
+  padding: 16px;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius-sm);
+  position: relative;
+}
+.guide-milestone {
+  text-align: center;
+  padding: 10px;
+  border-radius: var(--lg-radius-sm);
+  background: rgba(0, 0, 0, .2);
+  opacity: .55;
+  transition: all .2s ease;
+}
+.guide-milestone.is-reached {
+  opacity: 1;
+  background: linear-gradient(180deg, rgba(155, 125, 255, .15), rgba(255, 143, 196, .08));
+  border: 1px solid var(--lg-primary);
+  box-shadow: 0 4px 16px rgba(155, 125, 255, .25);
+}
+.guide-milestone-icon { font-size: 26px; margin-bottom: 4px; }
+.guide-milestone-stage { font-weight: 800; color: var(--lg-primary); font-size: 12px; letter-spacing: 1px; }
+.guide-milestone-level { font-size: 14px; font-weight: 700; color: var(--lg-text); margin: 2px 0; }
+.guide-milestone-label { font-size: 11px; color: var(--lg-text-muted); }
+
+/* ============ §3 8 職業卡 ============ */
+.guide-job-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.guide-job-card {
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius);
+  padding: 18px 20px;
+  box-shadow: var(--lg-card-shadow);
+  transition: all .15s ease;
+  position: relative;
+}
+.guide-job-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--lg-primary);
+  box-shadow: var(--lg-card-shadow-hover);
+}
+.guide-job-card.is-mine {
+  border-color: var(--lg-primary);
+  box-shadow: 0 0 0 2px var(--lg-primary), var(--lg-card-shadow-hover);
+  background: linear-gradient(180deg, var(--lg-primary-soft) 0%, var(--lg-card-bg-2) 50%);
+}
+.guide-job-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--lg-divider);
+  flex-wrap: wrap;
+}
+.guide-job-icon {
+  font-size: 26px;
+  width: 50px; height: 50px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--lg-primary-soft), rgba(255, 143, 196, .15));
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--lg-primary);
+  flex-shrink: 0;
+}
+.guide-job-headinfo { flex: 1; min-width: 0; }
+.guide-job-name { font-weight: 800; font-size: 17px; color: var(--lg-text); margin: 0; }
+.guide-job-desc { font-size: 12px; color: var(--lg-text-muted); margin: 4px 0 0; }
+.guide-job-mine {
+  position: absolute;
+  top: 10px; right: 10px;
+  padding: 3px 10px;
+  background: var(--lg-primary);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.guide-job-titles { list-style: none; padding: 0; margin: 0; }
+.guide-job-title-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px dashed var(--lg-divider);
+  font-size: 13px;
+}
+.guide-job-title-row:first-child { border-top: none; }
+.guide-job-stage { color: var(--lg-text-muted); font-weight: 700; font-size: 12px; }
+.guide-job-tname { color: var(--lg-text-soft); font-weight: 600; }
+.guide-job-tref { color: var(--lg-text-muted); font-size: 11px; text-align: right; }
+.guide-job-title-row.is-done .guide-job-tname { color: var(--lg-text); }
+.guide-job-title-row.is-done .guide-job-stage { color: var(--lg-success); }
+.guide-job-title-row.is-current {
+  background: linear-gradient(90deg, rgba(155, 125, 255, .15), transparent);
+  margin: 0 -8px;
+  padding: 8px;
+  border-radius: var(--lg-radius-sm);
+}
+.guide-job-title-row.is-current .guide-job-tname { color: var(--lg-primary); font-weight: 800; }
+.guide-job-title-row.is-current .guide-job-stage { color: var(--lg-primary); }
+.guide-job-title-row.is-locked { opacity: .45; }
+
+/* ============ §4 賽季段位（10 階）注意：用 lg- 前綴 ============ */
+/* 這段對應 page-level-guide.php 內已用 lg- 前綴的段位卡 */
+.lg-section {
+  background: var(--lg-card-bg);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius);
+  padding: 28px 28px;
+  margin-bottom: 22px;
+  box-shadow: var(--lg-card-shadow);
+}
+.lg-section h2 {
+  font-size: 22px;
+  font-weight: 800;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--lg-divider);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--lg-text);
+}
+.lg-section h2 .lg-num {
+  display: inline-flex;
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));
+  color: #fff;
+  align-items: center; justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+}
+.lg-rank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.lg-rank-card {
+  --rank-color: #9aafbf;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-top: 4px solid var(--rank-color);
+  border-radius: var(--lg-radius-sm);
+  padding: 16px 14px 14px;
+  text-align: center;
+  transition: all .15s ease;
+  position: relative;
+}
+.lg-rank-card:hover { transform: translateY(-3px); box-shadow: var(--lg-card-shadow-hover); }
+.lg-rank-icon { font-size: 30px; line-height: 1; margin-bottom: 8px; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .4)); }
+.lg-rank-name {
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--rank-color);
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--rank-color) 40%, transparent);
+}
+.lg-rank-range { font-size: 12px; color: var(--lg-text); font-weight: 700; margin-bottom: 6px; }
+.lg-rank-divs {
+  font-size: 11px;
+  color: var(--lg-text-muted);
+  border-top: 1px dashed var(--lg-divider);
+  padding-top: 8px;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.lg-rank-note {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rank-color) 20%, transparent);
+  color: var(--rank-color);
+  border: 1px solid color-mix(in srgb, var(--rank-color) 50%, transparent);
+}
+.lg-rank-card.is-apex {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rank-color) 18%, var(--lg-card-bg-2)) 0%, var(--lg-card-bg-2) 70%);
+  border-top-width: 5px;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--rank-color) 25%, transparent);
+}
+.lg-rank-card.is-apex::after {
+  content: '';
+  position: absolute;
+  top: -1px; right: -1px;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 0 20px 20px 0;
+  border-color: transparent var(--rank-color) transparent transparent;
+  opacity: .9;
+}
+.lg-note {
+  background: linear-gradient(135deg, rgba(251, 191, 36, .12), rgba(251, 191, 36, .04));
+  border-left: 4px solid var(--lg-warning);
+  padding: 14px 18px;
+  border-radius: var(--lg-radius-sm);
+  margin: 14px 0 0;
+  color: #fde68a;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.lg-note strong { color: var(--lg-warning); }
+
+/* ============ §5 賽季時程 ============ */
+.guide-season-list {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+  display: grid;
+  gap: 10px;
+}
+.guide-season-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-divider);
+  border-radius: var(--lg-radius-sm);
+  transition: all .15s ease;
+}
+.guide-season-item:hover { border-color: var(--lg-primary); }
+.guide-season-item.is-active {
+  background: linear-gradient(135deg, var(--lg-primary-soft), rgba(255, 143, 196, .08));
+  border-color: var(--lg-primary);
+  box-shadow: 0 0 0 1px var(--lg-primary), 0 4px 16px rgba(155, 125, 255, .2);
+}
+.guide-season-item.is-ended { opacity: .55; }
+.guide-season-label { font-weight: 800; font-size: 15px; color: var(--lg-text); }
+.guide-season-dates { color: var(--lg-text-soft); font-size: 13px; }
+.guide-season-status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, .08);
+  color: var(--lg-text-soft);
+}
+.guide-season-item.is-active .guide-season-status { background: var(--lg-primary); color: #fff; }
+.guide-season-item.is-upcoming .guide-season-status { background: rgba(74, 222, 128, .2); color: var(--lg-success); }
+.guide-season-countdown {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--lg-divider);
+  font-size: 13px;
+  color: var(--lg-text-soft);
+}
+.guide-season-countdown b { color: var(--lg-primary); font-weight: 800; }
+
+/* ============ §6 徽章 ============ */
+.guide-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.guide-badge-card {
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius-sm);
+  padding: 14px 10px;
+  text-align: center;
+  transition: all .15s ease;
+}
+.guide-badge-card:hover { transform: translateY(-3px); border-color: var(--lg-primary); }
+.guide-badge-card.is-locked { opacity: .4; filter: grayscale(.8); }
+.guide-badge-card.is-unlocked { box-shadow: 0 0 12px rgba(155, 125, 255, .25); }
+.guide-badge-icon { font-size: 36px; margin-bottom: 6px; }
+.guide-badge-icon img { width: 56px; height: 56px; object-fit: contain; }
+.guide-badge-name { font-size: 12px; color: var(--lg-text); font-weight: 600; line-height: 1.3; }
+.guide-badge-more { text-align: center; margin-top: 14px; }
+
+/* ============ Footer CTA ============ */
+.guide-cta {
+  background: linear-gradient(135deg, var(--lg-primary-soft), rgba(255, 143, 196, .15));
+  border: 1px solid var(--lg-primary);
+  border-radius: var(--lg-radius);
+  padding: 36px 28px;
+  text-align: center;
+  margin-top: 28px;
+}
+.guide-cta h3 { font-size: 22px; font-weight: 800; color: var(--lg-text); margin-bottom: 10px; }
+.guide-cta p { color: var(--lg-text-soft); margin-bottom: 18px; }
+.guide-cta-btn {
+  display: inline-block;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));
+  color: #fff !important;
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none !important;
+  box-shadow: 0 4px 16px rgba(155, 125, 255, .4);
+  transition: all .2s ease;
+}
+.guide-cta-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(155, 125, 255, .55);
+}
+
+/* ============ 響應式 ============ */
+@media (max-width: 640px) {
+  .level-guide-page { font-size: 14px; padding: 16px 0 60px; }
+  .guide-hero { padding: 28px 18px; }
+  .guide-hero-title { font-size: 22px; }
+  .guide-section { padding: 20px 16px; }
+  .guide-section-title { font-size: 18px; }
+  .lg-section { padding: 20px 16px; }
+  .lg-section h2 { font-size: 18px; }
+
+  .guide-toc { gap: 6px; }
+  .guide-toc-chip { padding: 6px 12px; font-size: 12px; }
+
+  .guide-me-card { grid-template-columns: 1fr; }
+  .guide-tier-grid { grid-template-columns: repeat(2, 1fr); }
+  .guide-exp-grid { grid-template-columns: 1fr; }
+  .guide-job-grid { grid-template-columns: 1fr; }
+  .guide-badge-grid { grid-template-columns: repeat(3, 1fr); }
+  .lg-rank-grid { grid-template-columns: repeat(2, 1fr); }
+  .lg-rank-icon { font-size: 24px; }
+  .lg-rank-name { font-size: 15px; }
+  .lg-rank-divs { font-size: 10px; }
+
+  .guide-milestone-bar { grid-template-columns: repeat(2, 1fr); }
+  .guide-season-item { grid-template-columns: 1fr; gap: 6px; }
+  .guide-job-title-row { grid-template-columns: 50px 1fr; }
+  .guide-job-tref { grid-column: 2; text-align: left; }
+}
+
+
+/* ============================================================
+ * v2.4.0 (2026-05-26)
+ *   - 5 轉里程碑：guide-milestone-bar 4 → 5 欄 + 平板/手機斷點
+ *   - 職業天命整區（#career）視覺強化：
+ *     文字白化、區段背景紫漸層、里程碑與職業卡發光、稱號層次重做
+ * ============================================================ */
+
+/* ============================================================
+ * 1. 里程碑橫條欄數
+ * ============================================================ */
+.guide-milestone-bar {
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 900px) and (min-width: 641px) {
+  .guide-milestone-bar {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .guide-milestone-bar {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
+}
+
+/* ============================================================
+ * 2. 職業天命區（#career）整體背景強化
+ *    從一般暗灰卡片 → 紫粉漸層 + 邊框發光
+ * ============================================================ */
+#career.guide-section {
+  background:
+    radial-gradient(ellipse at top right, rgba(155, 125, 255, .18), transparent 55%),
+    radial-gradient(ellipse at bottom left, rgba(255, 143, 196, .12), transparent 55%),
+    linear-gradient(135deg, #1f1a2e 0%, #2a1e3f 100%);
+  border: 1px solid rgba(155, 125, 255, .35);
+  box-shadow:
+    0 0 0 1px rgba(155, 125, 255, .15),
+    0 8px 32px rgba(155, 125, 255, .15),
+    var(--lg-card-shadow);
+}
+
+/* 區段標題：白色 + 紫粉漸層底線 */
+#career.guide-section .guide-section-title {
+  color: #ffffff;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, var(--lg-primary), var(--lg-accent)) 1;
+  text-shadow: 0 0 18px rgba(155, 125, 255, .35);
+  font-size: 24px;
+}
+
+/* 介紹文：純白 */
+#career.guide-section .guide-section-intro,
+#career.guide-section .guide-section-intro b,
+#career.guide-section .guide-section-intro strong {
+  color: #ffffff;
+}
+
+/* ============================================================
+ * 3. 里程碑橫條：整體與每張卡視覺加強
+ * ============================================================ */
+#career .guide-milestone-bar {
+  background: rgba(0, 0, 0, .35);
+  border: 1px solid rgba(155, 125, 255, .25);
+  padding: 18px;
+}
+
+/* 未達成里程碑：白色文字但半透明 */
+#career .guide-milestone {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .08);
+  opacity: .65;
+}
+#career .guide-milestone-icon  { font-size: 30px; }
+#career .guide-milestone-stage { color: #ffffff; font-size: 13px; }
+#career .guide-milestone-level { color: #ffffff; font-size: 15px; }
+#career .guide-milestone-label { color: #ffffff; font-size: 12px; }
+
+/* 已達成里程碑：紫粉漸層 + 發光 + 圖示放大 */
+#career .guide-milestone.is-reached {
+  opacity: 1;
+  background: linear-gradient(180deg, rgba(155, 125, 255, .28), rgba(255, 143, 196, .15));
+  border: 1px solid var(--lg-primary);
+  box-shadow:
+    0 0 0 1px rgba(155, 125, 255, .4),
+    0 6px 24px rgba(155, 125, 255, .4);
+  transform: translateY(-2px);
+}
+#career .guide-milestone.is-reached .guide-milestone-icon {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, .6));
+  transform: scale(1.1);
+}
+#career .guide-milestone.is-reached .guide-milestone-stage {
+  color: #ffd4ec;
+  text-shadow: 0 0 10px rgba(255, 143, 196, .6);
+}
+
+/* ============================================================
+ * 4. 職業卡網格：間距加大、卡片邊框與陰影強化
+ * ============================================================ */
+#career .guide-job-grid {
+  gap: 16px;
+}
+
+#career .guide-job-card {
+  background: linear-gradient(180deg, #2d2540 0%, #251e35 100%);
+  border: 1px solid rgba(155, 125, 255, .25);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, .4),
+    inset 0 1px 0 rgba(255, 255, 255, .05);
+  transition: all .25s ease;
+}
+#career .guide-job-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--lg-accent);
+  box-shadow:
+    0 0 0 1px var(--lg-accent),
+    0 12px 32px rgba(255, 143, 196, .25);
+}
+
+/* 自己的職業卡：粉色高亮邊框 + 強發光 */
+#career .guide-job-card.is-mine {
+  border-color: var(--lg-accent);
+  box-shadow:
+    0 0 0 2px var(--lg-accent),
+    0 8px 32px rgba(255, 143, 196, .4);
+  background: linear-gradient(180deg, rgba(255, 143, 196, .18) 0%, #251e35 60%);
+}
+
+/* 職業圖示框：放大 + 漸層 + 發光 */
+#career .guide-job-icon {
+  width: 56px;
+  height: 56px;
+  font-size: 30px;
+  background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));
+  border: none;
+  box-shadow: 0 4px 16px rgba(155, 125, 255, .5);
+}
+
+/* 職業卡頂部分隔線：用漸層而非單色 */
+#career .guide-job-head {
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, var(--lg-primary), transparent) 1;
+  padding-bottom: 14px;
+}
+
+/* 職業名稱：白色 + 略大 */
+#career .guide-job-name {
+  color: #ffffff;
+  font-size: 18px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, .5);
+}
+
+/* 職業描述：純白 */
+#career .guide-job-desc {
+  color: #ffffff;
+  opacity: 0.85;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* ============================================================
+ * 5. 稱號列：用顏色表達狀態（鎖定 / 已達成 / 當前）
+ * ============================================================ */
+
+/* 基底：白色但帶透明，分隔線改紫色虛線 */
+#career .guide-job-title-row {
+  border-top: 1px dashed rgba(155, 125, 255, .25);
+  padding: 10px 0;
+}
+#career .guide-job-stage,
+#career .guide-job-tname,
+#career .guide-job-tref,
+#career .guide-job-tref small {
+  color: #ffffff;
+}
+
+/* 鎖定（未到等級）：明顯變灰但仍可讀 */
+#career .guide-job-title-row.is-locked {
+  opacity: 0.55;
+}
+#career .guide-job-title-row.is-locked .guide-job-stage {
+  color: rgba(255, 255, 255, .65);
+}
+
+/* 已達成：白色 + 綠色 Lv 標記 */
+#career .guide-job-title-row.is-done .guide-job-tname,
+#career .guide-job-title-row.is-done .guide-job-tref,
+#career .guide-job-title-row.is-done .guide-job-tref small {
+  color: #ffffff;
+}
+#career .guide-job-title-row.is-done .guide-job-stage {
+  color: #6ee7a8;
+  font-weight: 800;
+}
+
+/* 當前稱號（玩家目前的）：粉色高亮 + 漸層背景 + 左側標籤 */
+#career .guide-job-title-row.is-current {
+  background: linear-gradient(90deg, rgba(255, 143, 196, .25), rgba(155, 125, 255, .08));
+  margin: 2px -10px;
+  padding: 12px 10px;
+  border-radius: var(--lg-radius-sm);
+  border-top: 1px solid var(--lg-accent);
+  box-shadow:
+    0 0 0 1px rgba(255, 143, 196, .3),
+    0 4px 16px rgba(255, 143, 196, .25);
+  position: relative;
+}
+#career .guide-job-title-row.is-current::before {
+  content: '★';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--lg-accent);
+  font-size: 14px;
+  text-shadow: 0 0 8px var(--lg-accent);
+}
+#career .guide-job-title-row.is-current .guide-job-tname {
+  color: #ffd4ec;
+  font-weight: 800;
+  text-shadow: 0 0 10px rgba(255, 143, 196, .6);
+}
+#career .guide-job-title-row.is-current .guide-job-stage {
+  color: #ffd4ec;
+  font-weight: 800;
+}
+
+/* ============================================================
+ * 6. 「⭐ 你的職業」徽章：跟卡片風格呼應
+ * ============================================================ */
+#career .guide-job-mine {
+  background: linear-gradient(135deg, var(--lg-accent), var(--lg-primary));
+  box-shadow: 0 4px 12px rgba(255, 143, 196, .5);
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+/* ============================================================
+ * 7. Callout 提示框：在強化背景下也要顯眼
+ * ============================================================ */
+#career .guide-callout {
+  background: linear-gradient(135deg, rgba(251, 191, 36, .18), rgba(251, 191, 36, .06));
+  border-left: 4px solid var(--lg-warning);
+  color: #ffffff;
+  font-weight: 500;
+}
+#career .guide-callout strong {
+  color: var(--lg-warning);
+}
+#career .guide-callout-cta {
+  background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));
+  box-shadow: 0 4px 12px rgba(155, 125, 255, .4);
+}
+
+/* ============================================================
+ * 8. 手機優化
+ * ============================================================ */
+@media (max-width: 640px) {
+  #career.guide-section .guide-section-title { font-size: 19px; }
+  #career .guide-job-icon { width: 48px; height: 48px; font-size: 26px; }
+  #career .guide-job-name { font-size: 16px; }
+  #career .guide-job-title-row.is-current { margin: 2px -6px; padding: 10px 8px; }
+}
+

@@ -1,0 +1,409 @@
+<?php
+/**
+ * 文章 Slug 處理：Gemini AI 翻譯 + 中文防呆
+ *
+ * 行為與 blocksy-child v2.7.3 inc/content-slug.php 完全一致。
+ *
+ * 相依常數（仍由 blocksy-child/functions.php 或 wp-config.php 定義）：
+ *   - WEIXIAOACG_GEMINI_API_KEY  Gemini API key
+ *   - WEIXIAOACG_ID_CATS         使用日期 slug 的 category slug 陣列
+ *   - WEIXIAOACG_LLM_CATS        使用 Gemini 翻譯的 category slug 陣列
+ *
+ * @package WxacgApi
+ * @version 2.0.0 (2026-05-23)
+ *
+ * v2.0.0 變更：
+ *   - 新增 save_post / wp_after_insert_post 雙重兜底鉤子
+ *     解決 wp_insert_post_data filter 階段分類尚未寫入資料庫，
+ *     導致 wp_get_post_categories() 取不到分類，
+ *     news/announcement 文章未變成日期 slug、review/feature 未翻譯的問題。
+ *   - gemini_slug() 失敗時自動 fallback 為 post-{ID}，
+ *     不再保留中文 slug。
+ *   - 新增 WP-CLI 風格的批次修補 helper：smacg_fix_chinese_slugs()
+ *     可在後台手動執行，掃描舊文章並修正所有中文 slug。
+ *   - 增加詳細 error_log 標記（[smacg-slug] 前綴），方便除錯。
+ *
+ * v1.0.0：原始版本（搬遷自 blocksy-child v2.7.3）
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+class Wxacg_Api_Content_Slug {
+
+    private const TRANSIENT_TTL = DAY_IN_SECONDS;
+    private const GEMINI_MODEL  = 'gemini-2.0-flash';
+
+    /**
+     * 防止 save_post 無限遞迴
+     */
+    private static $processing = [];
+
+    public function register_hooks(): void {
+        // 第 1 道防線：在 insert 階段提早處理（適用於分類已知的情況）
+        add_filter( 'wp_insert_post_data', [ $this, 'filter_insert_post_data' ], 10, 2 );
+
+        // 第 2 道防線：unique slug filter，攔截中文 slug
+        add_filter( 'wp_unique_post_slug', [ $this, 'filter_unique_post_slug' ], 10, 6 );
+
+        // 第 3 道防線（v2.0.0 新增）：分類寫入後再檢查一次
+        // wp_after_insert_post 是 WP 5.6+ 的鉤子，在所有 taxonomy & meta 寫入後觸發，最穩定
+        if ( function_exists( 'wp_after_insert_post' ) || did_action( 'plugins_loaded' ) ) {
+            add_action( 'wp_after_insert_post', [ $this, 'after_insert_post_slug_fix' ], 20, 4 );
+        }
+        // 保險：較舊版本也用 save_post
+        add_action( 'save_post_post', [ $this, 'save_post_slug_fix' ], 99, 3 );
+
+        // Admin Notice
+        add_action( 'admin_notices', [ $this, 'admin_notice_chinese_slug' ] );
+    }
+
+    /* ──────────────────────────────────────────────
+     * Gemini API 呼叫
+     * ────────────────────────────────────────────── */
+    public function gemini_slug( string $title ) {
+        if ( $title === '' ) {
+            return false;
+        }
+
+        $cache_key = 'wxacg_api_slug_' . md5( $title );
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) {
+            return $cached;
+        }
+
+        $api_key = defined( 'WEIXIAOACG_GEMINI_API_KEY' ) ? WEIXIAOACG_GEMINI_API_KEY : '';
+        if ( $api_key === '' ) {
+            error_log( '[smacg-slug] Gemini API Key 未設定，無法翻譯標題：' . $title );
+            return false;
+        }
+
+        $endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/'
+                  . self::GEMINI_MODEL
+                  . ':generateContent?key=' . $api_key;
+
+        $prompt = "Translate this Chinese article title into a short, SEO-friendly English URL slug "
+                . "(lowercase, words separated by hyphens, no special characters, max 60 chars). "
+                . "Only output the slug itself without any explanation.\n\nTitle: {$title}";
+
+        $response = wp_remote_post( $endpoint, [
+            'timeout' => 15,
+            'headers' => [ 'Content-Type' => 'application/json' ],
+            'body'    => wp_json_encode( [
+                'contents' => [ [ 'parts' => [ [ 'text' => $prompt ] ] ] ],
+                'generationConfig' => [
+                    'temperature'     => 0.2,
+                    'maxOutputTokens' => 60,
+                ],
+            ] ),
+        ] );
+
+        if ( is_wp_error( $response ) ) {
+            error_log( '[smacg-slug] Gemini API 錯誤：' . $response->get_error_message() );
+            return false;
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        if ( $code !== 200 ) {
+            error_log( '[smacg-slug] Gemini API HTTP ' . $code . '：' . wp_remote_retrieve_body( $response ) );
+            return false;
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        $slug = trim( $body['candidates'][0]['content']['parts'][0]['text'] ?? '' );
+        $slug = sanitize_title( $slug );
+
+        if ( $slug === '' ) {
+            error_log( '[smacg-slug] Gemini 回傳空 slug，標題：' . $title );
+            return false;
+        }
+
+        set_transient( $cache_key, $slug, self::TRANSIENT_TTL );
+        return $slug;
+    }
+
+    /* ──────────────────────────────────────────────
+     * 取得文章分類 slug 陣列（共用 helper）
+     *
+     * 從 4 個來源依序嘗試：
+     *   1) wp_get_post_categories()：標準方法（資料庫已寫入時）
+     *   2) $postarr['post_category']：傳統編輯器送入
+     *   3) $postarr['tax_input']['category']：Gutenberg / REST API 送入
+     *   4) 直接查 term relationships：以防萬一
+     * ────────────────────────────────────────────── */
+    private function collect_category_slugs( int $post_id, array $postarr = [] ): array {
+        $cats = [];
+
+        // 1) 標準方法
+        if ( $post_id ) {
+            foreach ( wp_get_post_categories( $post_id ) as $tid ) {
+                $term = get_term( $tid, 'category' );
+                if ( $term && ! is_wp_error( $term ) ) {
+                    $cats[] = $term->slug;
+                }
+            }
+        }
+        if ( ! empty( $cats ) ) {
+            return $cats;
+        }
+
+        // 2) post_category 陣列（傳統編輯器）
+        if ( ! empty( $postarr['post_category'] ) ) {
+            foreach ( (array) $postarr['post_category'] as $tid ) {
+                $term = get_term( $tid, 'category' );
+                if ( $term && ! is_wp_error( $term ) ) {
+                    $cats[] = $term->slug;
+                }
+            }
+        }
+        if ( ! empty( $cats ) ) {
+            return $cats;
+        }
+
+        // 3) tax_input（Gutenberg / REST API）
+        if ( ! empty( $postarr['tax_input']['category'] ) ) {
+            foreach ( (array) $postarr['tax_input']['category'] as $tid_or_slug ) {
+                $term = is_numeric( $tid_or_slug )
+                    ? get_term( (int) $tid_or_slug, 'category' )
+                    : get_term_by( 'slug', (string) $tid_or_slug, 'category' );
+                if ( $term && ! is_wp_error( $term ) ) {
+                    $cats[] = $term->slug;
+                }
+            }
+        }
+
+        return $cats;
+    }
+
+    /* ──────────────────────────────────────────────
+     * 取得 ID_CATS / LLM_CATS 常數
+     * ────────────────────────────────────────────── */
+    private function get_id_cats(): array {
+        return defined( 'WEIXIAOACG_ID_CATS' ) ? (array) WEIXIAOACG_ID_CATS : [];
+    }
+    private function get_llm_cats(): array {
+        return defined( 'WEIXIAOACG_LLM_CATS' ) ? (array) WEIXIAOACG_LLM_CATS : [];
+    }
+
+    /* ──────────────────────────────────────────────
+     * 產生日期型 slug（ID_CATS 用）
+     * ────────────────────────────────────────────── */
+    private function make_date_slug(): string {
+        return date( 'Ymd-His' ) . '-' . wp_rand( 100, 999 );
+    }
+
+    /* ──────────────────────────────────────────────
+     * 第 1 道防線：插入/更新文章時處理 slug
+     * ────────────────────────────────────────────── */
+    public function filter_insert_post_data( array $data, array $postarr ): array {
+        if ( $data['post_type'] !== 'post' ) {
+            return $data;
+        }
+        if ( in_array( $data['post_status'], [ 'auto-draft', 'inherit' ], true ) ) {
+            return $data;
+        }
+
+        $post_id = (int) ( $postarr['ID'] ?? 0 );
+        $cats    = $this->collect_category_slugs( $post_id, $postarr );
+        $id_cats = $this->get_id_cats();
+        $llm_cats = $this->get_llm_cats();
+
+        // ID 系列分類 → 日期 slug
+        if ( array_intersect( $cats, $id_cats ) ) {
+            $data['post_name'] = $this->make_date_slug();
+            return $data;
+        }
+
+        $title       = $data['post_title'];
+        $slug        = $data['post_name'];
+        $need_gemini = (bool) array_intersect( $cats, $llm_cats );
+
+        // 強制條件：slug 含中文也送 Gemini
+        if ( ! $need_gemini && preg_match( '/[\x{4e00}-\x{9fff}]/u', $slug ) ) {
+            $need_gemini = true;
+        }
+
+        if ( $need_gemini ) {
+            $new_slug = $this->gemini_slug( $title );
+            if ( $new_slug ) {
+                $data['post_name'] = $new_slug;
+            }
+            // Gemini 失敗時這邊不強制兜底，留給後面的 save_post / unique_post_slug filter 處理
+        }
+
+        return $data;
+    }
+
+    /* ──────────────────────────────────────────────
+     * 第 2 道防線：中文 slug 兜底
+     * ────────────────────────────────────────────── */
+    public function filter_unique_post_slug( $slug, $post_id, $post_status, $post_type, $post_parent, $original_slug ) {
+        if ( $post_type !== 'post' ) {
+            return $slug;
+        }
+        if ( preg_match( '/[\x{4e00}-\x{9fff}]/u', $slug ) ) {
+            return 'post-' . $post_id;
+        }
+        return $slug;
+    }
+
+    /* ──────────────────────────────────────────────
+     * 第 3 道防線：wp_after_insert_post（WP 5.6+）
+     *
+     * 在所有 taxonomy 寫入後執行，能正確抓到文章分類。
+     * 用來補救「Gutenberg / REST API / 同步外掛建立文章」時，
+     * 第 1 道防線分類抓不到、第 2 道只能 fallback 為 post-ID 的情況。
+     * ────────────────────────────────────────────── */
+    public function after_insert_post_slug_fix( $post_id, $post, $update, $post_before ): void {
+        $this->maybe_rewrite_slug( (int) $post_id, 'after_insert' );
+    }
+
+    /* ──────────────────────────────────────────────
+     * 第 4 道防線：save_post_post（保險）
+     *
+     * 較舊版本沒 wp_after_insert_post，這裡兜底。
+     * ────────────────────────────────────────────── */
+    public function save_post_slug_fix( $post_id, $post, $update ): void {
+        // wp_after_insert_post 已處理過就跳過
+        if ( did_action( 'wp_after_insert_post' ) ) {
+            return;
+        }
+        $this->maybe_rewrite_slug( (int) $post_id, 'save_post' );
+    }
+
+    /* ──────────────────────────────────────────────
+     * 核心：依分類重新決定 slug
+     *
+     * 此時 wp_get_post_categories() 一定能拿到正確分類，
+     * 是最可靠的補救點。
+     * ────────────────────────────────────────────── */
+    private function maybe_rewrite_slug( int $post_id, string $source = '' ): void {
+        if ( $post_id <= 0 ) return;
+        if ( ! empty( self::$processing[ $post_id ] ) ) return;  // 防遞迴
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'post' ) return;
+        if ( in_array( $post->post_status, [ 'auto-draft', 'inherit', 'trash' ], true ) ) return;
+
+        $current_slug = (string) $post->post_name;
+        if ( $current_slug === '' ) return;
+
+        $cats     = $this->collect_category_slugs( $post_id );
+        $id_cats  = $this->get_id_cats();
+        $llm_cats = $this->get_llm_cats();
+
+        $new_slug = '';
+
+        // (A) ID 系列分類：必須是日期 slug
+        if ( array_intersect( $cats, $id_cats ) ) {
+            // 若已經是日期格式（20260522-XXXXXX-XXX）就不動
+            if ( preg_match( '/^\d{8}-\d{6}-\d{3,}$/', $current_slug ) ) {
+                return;
+            }
+            $new_slug = $this->make_date_slug();
+        }
+        // (B) LLM 系列分類：Gemini 翻譯
+        elseif ( array_intersect( $cats, $llm_cats ) ) {
+            // 不含中文就不動（信任既有 slug）
+            if ( ! preg_match( '/[\x{4e00}-\x{9fff}]/u', $current_slug ) ) {
+                return;
+            }
+            $gemini = $this->gemini_slug( $post->post_title );
+            $new_slug = $gemini ?: ( 'post-' . $post_id );
+        }
+        // (C) 沒分類但 slug 含中文：兜底
+        elseif ( preg_match( '/[\x{4e00}-\x{9fff}]/u', $current_slug ) ) {
+            $gemini = $this->gemini_slug( $post->post_title );
+            $new_slug = $gemini ?: ( 'post-' . $post_id );
+        }
+        else {
+            return;  // 沒事
+        }
+
+        if ( $new_slug === '' || $new_slug === $current_slug ) return;
+
+        // 確保 slug 在資料庫中唯一
+        $new_slug = wp_unique_post_slug(
+            $new_slug,
+            $post_id,
+            $post->post_status,
+            $post->post_type,
+            $post->post_parent
+        );
+
+        self::$processing[ $post_id ] = true;
+        wp_update_post( [
+            'ID'        => $post_id,
+            'post_name' => $new_slug,
+        ] );
+        unset( self::$processing[ $post_id ] );
+
+        error_log( sprintf(
+            '[smacg-slug] 修正 slug（來源：%s）post_id=%d  %s → %s',
+            $source, $post_id, $current_slug, $new_slug
+        ) );
+    }
+
+    /* ──────────────────────────────────────────────
+     * Admin Notice
+     * ────────────────────────────────────────────── */
+    public function admin_notice_chinese_slug(): void {
+        global $post;
+        if ( ! $post || $post->post_type !== 'post' ) {
+            return;
+        }
+        if ( ! preg_match( '/[\x{4e00}-\x{9fff}]/u', $post->post_name ) ) {
+            return;
+        }
+        echo '<div class="notice notice-warning"><p><strong>⚠️ 警告：</strong>'
+           . '此文章 slug 仍含中文（<code>' . esc_html( $post->post_name ) . '</code>），'
+           . '請檢查分類設定或 Gemini API。</p></div>';
+    }
+}
+
+
+/* ============================================================
+ * 全域 helper：手動批次修補舊文章的中文 slug
+ *
+ * 用法（在 functions.php 加一行臨時觸發、跑完後刪除）：
+ *   if ( current_user_can('manage_options') && isset($_GET['smacg_fix_slugs']) ) {
+ *       smacg_fix_chinese_slugs();
+ *       wp_die('done');
+ *   }
+ *
+ * 然後訪問 https://你的網域/?smacg_fix_slugs=1
+ * ============================================================ */
+if ( ! function_exists( 'smacg_fix_chinese_slugs' ) ) {
+    function smacg_fix_chinese_slugs( int $batch = 50 ): array {
+        global $wpdb;
+
+        $like = $wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts}
+             WHERE post_type='post'
+               AND post_status IN ('publish','draft','pending','future','private')
+               AND post_name REGEXP '[一-龥]'
+             LIMIT %d",
+            $batch
+        );
+        $ids = $wpdb->get_col( $like );
+
+        $report = [ 'total' => count( $ids ), 'fixed' => [], 'failed' => [] ];
+
+        $slug_class = new Wxacg_Api_Content_Slug();
+        $reflection = new ReflectionClass( $slug_class );
+        $method     = $reflection->getMethod( 'maybe_rewrite_slug' );
+        $method->setAccessible( true );
+
+        foreach ( $ids as $id ) {
+            $before = get_post_field( 'post_name', $id );
+            $method->invoke( $slug_class, (int) $id, 'manual_batch' );
+            $after = get_post_field( 'post_name', $id );
+            if ( $before !== $after ) {
+                $report['fixed'][] = compact( 'id', 'before', 'after' );
+            } else {
+                $report['failed'][] = [ 'id' => $id, 'slug' => $before ];
+            }
+        }
+
+        return $report;
+    }
+}

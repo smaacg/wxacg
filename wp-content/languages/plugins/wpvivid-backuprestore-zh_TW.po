@@ -1,0 +1,3009 @@
+# Translation of Plugins - WPvivid — Backup, Migration &amp; Staging - Stable (latest release) in Chinese (Taiwan)
+# This file is distributed under the same license as the Plugins - WPvivid — Backup, Migration &amp; Staging - Stable (latest release) package.
+msgid ""
+msgstr ""
+"PO-Revision-Date: 2026-05-16 17:06:37+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: GlotPress/4.0.3\n"
+"Language: zh_TW\n"
+"Project-Id-Version: Plugins - WPvivid — Backup, Migration &amp; Staging - Stable (latest release)\n"
+
+#: admin/class-wpvivid-admin.php:276
+msgid "Warning: Please enter an upload block size."
+msgstr "警告: 請輸入上傳區塊大小。"
+
+#: admin/class-wpvivid-admin.php:277
+msgid "Warning: Please enter a download block size."
+msgstr "警告: 請輸入下載區塊大小。"
+
+#: admin/partials/wpvivid-settings-page-display.php:132
+msgid "Merge all backup parts into single zip when a backup completes. This helps save disk spaces but can cause timeouts on restricted servers. We recommended unchecking it on servers with limited resources."
+msgstr "備份完成時將全部備份檔案合併至單一 ZIP 壓縮檔 (這項設定會節省磁碟空間，但在資源受到限制的伺服器上會造成逾時；伺服器資源不足時，建議停用這項設定)"
+
+#: admin/partials/wpvivid-settings-page-display.php:711
+msgid "Backup performance mode."
+msgstr "備份效能模式"
+
+#: admin/partials/wpvivid-settings-page-display.php:716
+msgid "Use this default setting for minimal server resource usage, but expect longer backup times. Best for shared hosting or limited resources. Backups are split into 200MB chunks."
+msgstr "使用這項預設值，可以將伺服器資源使用量降至最低，但備份會使用較長的時間，這是最適合共享主機或主機資源受到限制的組態。備份檔案會分割為 200MB 的區塊。"
+
+#: admin/partials/wpvivid-settings-page-display.php:722
+msgid "This mode offers a good balance between backup speed and resource usage. It's suitable for most web hosting environments."
+msgstr "這個模式在備份速度及資源使用量間取得良好的平衡，適用於絕大多數的主機環境。"
+
+#: admin/partials/wpvivid-settings-page-display.php:728
+msgid "This mode uses more server resources to reduce backup time, but is only recommended for dedicated servers. If backups time out or get stuck, consider Mid or Low mode. Backups are split into 4GB chunks."
+msgstr "這個模式使用較多伺服器資源以降低備份速度，但僅建議用於專用伺服器。如果備份時間逾時或遲滯，請改為使用 [Mid] 或 [Low] 模式。備份檔案會分割為 4GB 的區塊。"
+
+#: admin/partials/wpvivid-settings-page-display.php:734
+msgid "This mode allows fine-tuning of backup parameters. Incorrect configuration can lead to backup failures. It is recommended to use only with specific guidance from our support team."
+msgstr "這個模式提供可供微調的備份參數，但不正確的組態會導致備份失敗。建議僅在我們的技術支援團隊的指導下使用。"
+
+#: admin/partials/wpvivid-settings-page-display.php:150
+msgid "Back up symlink folders. Including symlink folders may cause backup/migration failure. Uncheck this option unless you know how symlink folders work."
+msgstr "備份符號連結資料夾。備份納入符號連結資料夾可能會造成備份/移轉失敗。除非了解符號連結資料夾的運作方式，否則請停用這項設定。"
+
+#. Author of the plugin
+#: wpvivid-backuprestore.php
+msgid "WPvivid Backup & Migration"
+msgstr "WPvivid Backup & Migration"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2404
+msgid "Try our AVIF and WebP conversion tool, it's free"
+msgstr "請試用我們開發的免費 AVIF 及 WebP 轉換工具。"
+
+#: admin/partials/wpvivid-settings-page-display.php:693
+msgid "Backup compression method."
+msgstr "備份壓縮方法"
+
+#: admin/class-wpvivid-admin.php:196
+msgid "Like the plugin? A"
+msgstr "如果這個外掛對網站確有幫助，請給我們"
+
+#: admin/class-wpvivid-admin.php:199
+msgid "review will motivate us a lot."
+msgstr "評等，這能鼓勵我們持續改進。"
+
+#: admin/class-wpvivid-admin.php:210
+msgid "Read"
+msgstr "參考"
+
+#: admin/class-wpvivid-admin.php:211
+msgid "Troubleshooting page"
+msgstr "〈疑難排解〉頁面"
+
+#: admin/class-wpvivid-admin.php:212
+msgid " for faster solutions."
+msgstr "以獲得更快的解決方案。"
+
+#: admin/class-wpvivid-admin.php:217
+msgid "Adjust"
+msgstr "調整"
+
+#: admin/class-wpvivid-admin.php:218
+msgid "Adjust Advanced Settings"
+msgstr "[進階設定]"
+
+#: admin/class-wpvivid-admin.php:219
+msgid " for higher task success rate."
+msgstr " 以獲得更高的工作成功率。"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:850
+msgid "Exclude images by folder path"
+msgstr "依據資料夾路徑排除圖片"
+
+#: admin/partials/wpvivid-settings-page-display.php:704
+msgid "PclZip is a much slower but more stable zip method that is included in every WordPress install. WPvivid will automatically switch to PclZip if the ZIP extension is not installed within your PHP."
+msgstr "PclZip 是處理速度慢的多但更加穩定的壓縮方法，並且內建於全部 WordPress 網站。當網站主機在 PHP 執行環境中沒有安裝 ZIP 擴充功能時，WPvivid 會自動切換至 PclZip。"
+
+#: admin/partials/wpvivid-settings-page-display.php:758
+msgid "The number of files compressed to the backup zip each time"
+msgstr "每次壓縮至備份 ZIP 檔案的檔案數量"
+
+#: admin/partials/wpvivid-settings-page-display.php:760
+msgid "Files"
+msgstr "個檔案"
+
+#: admin/partials/wpvivid-settings-page-display.php:763
+msgid "Split a sql file every this size"
+msgstr "SQL 檔案分割大小"
+
+#: admin/partials/wpvivid-settings-page-display.php:765
+msgid "MB"
+msgstr "MB"
+
+#: admin/partials/wpvivid-settings-page-display.php:766
+msgid "Some web hosting providers limit large zip files (e.g. 200MB), and therefore splitting your backup into many parts is an ideal way to avoid hitting the limitation if you are running a big website. Please try to adjust the value if you are encountering backup errors. If you use a value of 0 MB, any backup files won't be split."
+msgstr "某些網站主機服務提供商會限制 ZIP 檔案的大小 (例如 200MB)，因此如果目前網站是大型網站，將備份檔案分割為多個分割檔，是避免觸發這種限制的最佳方式。如果遇到備份檔案時發生錯誤，請嘗試調整這項設定值。如果將設定值設定為 0MB，便不會分割備份檔案。"
+
+#: admin/partials/wpvivid-settings-page-display.php:813
+msgid "Maximum rows of data to be processed per request for restoration"
+msgstr "每個還原要求可處理的資料列數上限"
+
+#: admin/partials/wpvivid-settings-page-display.php:816
+msgid "The smaller it is, the slower the restoration will be, but the lower the chance of a timeout error."
+msgstr "這項設定值越低，還原速度就越慢，但是發生逾時錯誤的機率就會越低。"
+
+#: admin/partials/wpvivid-settings-page-display.php:818
+msgid "Maximum size of sql file to be imported per request for restoration"
+msgstr "每個還原要求可匯入的 SQL 檔案大小上限"
+
+#: admin/partials/wpvivid-settings-page-display.php:821
+msgid "Maximum rows of data to be processed per request."
+msgstr "每個要求可處理的資料列數上限。"
+
+#: admin/partials/wpvivid-settings-page-display.php:796
+msgid "Extract files by index for restoration"
+msgstr "還原時依據索引解壓縮檔案"
+
+#: admin/partials/wpvivid-settings-page-display.php:798
+msgid "Specify the number of files to be extracted per request. The lower the number is, the slower the restoration, but the lower the chance of a timeout error or restore failure."
+msgstr "指定每個要求可解壓縮的檔案數量。設定值越低，還原速度越慢，但是發生逾時或還原錯誤的機率就會越低。"
+
+#: includes/class-wpvivid-function-realize.php:49
+msgid "The backup is not responding for a while, do you want to force cancel it?"
+msgstr "備份程序已有一段時間沒有回應，是否要強制取消執行？"
+
+#: includes/class-wpvivid-interface-mainwp.php:188
+#: includes/new_backup/class-wpvivid-backup2.php:352
+#: includes/new_backup/class-wpvivid-backup2.php:384
+#: includes/new_backup/class-wpvivid-backup2.php:468
+#: includes/new_backup/class-wpvivid-backup2.php:1738
+msgid "We detected that there is already a running backup task. Please wait until it completes then try again."
+msgstr "系統偵測到已有備份工作正在執行，請在備份工作完成後再試一次。"
+
+#: includes/class-wpvivid.php:5842
+msgid "The value of 'The number of files compressed to the backup zip each time' can't be empty."
+msgstr "[每次壓縮至備份 ZIP 檔案的檔案數量] 設定不能留空。"
+
+#: includes/class-wpvivid.php:5849
+msgid "The value of 'Split a sql file every this size' can't be empty."
+msgstr "[SQL 檔案分割大小] 設定不能留空。"
+
+#: includes/class-wpvivid.php:5856
+msgid "The value of 'Maximum rows of data to be processed per request for restoration' can't be empty."
+msgstr "[每個還原要求可處理的資料列數上限] 設定不能留空。"
+
+#: includes/class-wpvivid.php:5863
+msgid "The value of 'Maximum size of sql file to be imported per request for restoration' can't be empty."
+msgstr "[每個還原要求可匯入的 SQL 檔案大小上限] 設定不能留空。"
+
+#: admin/partials/wpvivid-settings-page-display.php:698
+msgid "ZipArchive has a better flexibility which provides a higher backup success rate and speed. WPvivid Backup Plugin uses ZipArchive method by default. Using this method requires the ZIP extension to be installed within your PHP."
+msgstr "ZipArchive 具備較好的彈性，提供更高的備份成功率及備份速度，也是 WPvivid Backup 使用的預設壓縮方法。網站主機必須在 PHP 執行環境中先安裝 ZIP 擴充功能，才能使用這個壓縮方法。"
+
+#: admin/partials/wpvivid-settings-page-display.php:761
+msgid "When taking a backup, the plugin will compress this number of files to the backup zip each time. The default value is 500. The lower the value, the longer time the backup will take, but the higher the backup success rate. If you encounter a backup timeout issue, try to decrease this value."
+msgstr "製作備份檔案時，外掛會壓縮指定數量的檔案至備份 ZIP 檔案。預設值為 500，如果低於預設值，備份會需要較長的時間，但是會提高備份成功率。如果遇到備份逾時的問題，請嘗試降低設定值。"
+
+#: admin/class-wpvivid-admin.php:1718
+msgid "Unlimited domains"
+msgstr "不限數量網站"
+
+#: admin/class-wpvivid-admin.php:1729
+msgid "See Plans"
+msgstr "查看方案"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:81
+msgid "Database Snapshots"
+msgstr "資料庫快照"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:908
+msgid "Are you sure you want to restore this snapshot?"
+msgstr "確定要還原這份快照？"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1003
+msgid "Are you sure you want to delete this snapshot?"
+msgstr "確定要刪除這份快照？"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1053
+msgid "Are you sure to delete the selected snapshots? These snapshots will be deleted permanently."
+msgstr "確定要刪除選取的快照？這些快照會永久刪除。"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1671
+msgid "Documentation"
+msgstr "線上說明"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1639
+#: includes/snapshot/class-wpvivid-snapshot.php:1678
+msgid "Create Database Snapshots"
+msgstr "建立資料庫快照"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1642
+#: includes/snapshot/class-wpvivid-snapshot.php:1683
+msgid "Restore Database Snapshots"
+msgstr "還原資料庫快照資料庫快照"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1653
+#: includes/snapshot/class-wpvivid-snapshot.php:1695
+msgid "Get Support on Forum"
+msgstr "前往技術支援論壇取得協助"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1697
+msgid "If you need any help with our plugin, start a thread on the plugin support forum and we will respond shortly."
+msgstr "如果對於我們開發的外掛有任何需要協助的地方，請前往外掛技術支援論壇提出需求，我們會儘快回覆。"
+
+#: includes/snapshot/class-wpvivid-snapshots-list.php:37
+msgid "cb"
+msgstr "cb"
+
+#: includes/snapshot/class-wpvivid-snapshots-list.php:38
+msgid "Time"
+msgstr "建立時間"
+
+#: includes/snapshot/class-wpvivid-snapshots-list.php:39
+msgid "Type"
+msgstr "類型"
+
+#: includes/snapshot/class-wpvivid-snapshots-list.php:40
+msgid "Prefix"
+msgstr "前置詞"
+
+#: includes/snapshot/class-wpvivid-snapshots-list.php:41
+msgid "Comment"
+msgstr "註解"
+
+#: admin/partials/wpvivid-settings-page-display.php:346
+msgid "Backup Cache Size:"
+msgstr "備份檔案快取大小:"
+
+#: admin/partials/wpvivid-settings-page-display.php:332
+msgid "Backup Size:"
+msgstr "備份檔案大小:"
+
+#: admin/partials/wpvivid-settings-page-display.php:353
+msgid "Junk Size:"
+msgstr "冗餘項目檔案大小:"
+
+#: admin/partials/wpvivid-settings-page-display.php:339
+msgid "Logs Size:"
+msgstr "記錄檔案大小:"
+
+#: includes/customclass/class-wpvivid-dropbox.php:685
+msgid "To add Dropbox, please get Dropbox authentication first. Once authenticated, you will be redirected to this page, then you can add storage information and save it."
+msgstr "如需新增 Dropbox，請先進行 Dropbox 驗證。驗證完成後，便會重新導向至這個頁面，然後請新增儲存空間資訊並儲存。"
+
+#: admin/class-wpvivid-admin.php:697 admin/class-wpvivid-admin.php:715
+msgid "Rate Us"
+msgstr "為外掛進行評等"
+
+#: admin/class-wpvivid-admin.php:698 admin/class-wpvivid-admin.php:716
+msgid "Maybe Later"
+msgstr "稍後再說"
+
+#: admin/class-wpvivid-admin.php:700 admin/class-wpvivid-admin.php:718
+msgid "Never"
+msgstr "不進行評等"
+
+#: admin/class-wpvivid-admin.php:699 admin/class-wpvivid-admin.php:717
+msgid "Already Done"
+msgstr "曾提供過評等"
+
+#: admin/class-wpvivid-admin.php:1352
+msgid "share hosting"
+msgstr "共享主機"
+
+#: admin/class-wpvivid-admin.php:1353
+msgid "VPS hosting"
+msgstr "VPS 主機"
+
+#: admin/class-wpvivid-admin.php:1468
+msgid "Send succeeded."
+msgstr "傳送成功。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:53
+#: admin/partials/wpvivid-backup-restore-page-display.php:70
+#: admin/partials/wpvivid-backup-restore-page-display.php:79
+#: includes/class-wpvivid.php:2853 includes/class-wpvivid.php:2867
+msgid "Prepare to Download"
+msgstr "準備下載"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:58
+msgid "Retriving (remote storage to web server)"
+msgstr "正在擷取 (遠端儲存空間至網頁伺服器)"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:58
+msgid "Downloaded Size: "
+msgstr "已下載的檔案大小: "
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:761
+#: includes/class-wpvivid.php:6875 includes/class-wpvivid.php:7011
+msgid "Prepare to download the backup"
+msgstr "準備下載備份檔案"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1541
+#: admin/partials/wpvivid-backup-restore-page-display.php:1704
+msgid "Restore failed."
+msgstr "還原程序無法完成。"
+
+#: admin/partials/wpvivid-settings-page-display.php:208
+msgid "Out of date backups have been removed."
+msgstr "過期備份檔案已移除。"
+
+#: admin/partials/wpvivid-settings-page-display.php:410
+msgid "The selected item(s) will be permanently deleted. Are you sure you want to continue?"
+msgstr "這項操作會永久刪除選取的項目，確定要繼續操作嗎？"
+
+#: admin/partials/wpvivid-settings-page-display.php:750
+#: admin/partials/wpvivid-settings-page-display.php:805
+msgid "Seconds"
+msgstr "秒"
+
+#: includes/class-wpvivid-export-import.php:321
+msgid "You can not use word 'wpvivid' to comment the post."
+msgstr "不能使用 wpvivid 這個字作為內容註釋。"
+
+#: includes/class-wpvivid-export-import.php:624
+msgid "Show Posts"
+msgstr "顯示文章"
+
+#: includes/class-wpvivid-export-import.php:624
+msgid "Show Pages"
+msgstr "顯示頁面"
+
+#: includes/class-wpvivid-export-import.php:1830
+msgid "Are you sure you want to delete all the exported files in the /ImportandExport folder? All the export files in the folder will be permanently deleted."
+msgstr "確定要刪除 /ImportandExport 資料夾中的全部匯入檔案？這項操作會永久刪除這個資料夾中的全部匯入檔案。"
+
+#: includes/class-wpvivid-export-import.php:1931
+msgid "Import completed successfully."
+msgstr "匯入程序已成功完成。"
+
+#: includes/class-wpvivid-export-import.php:1937
+msgid "Import failed."
+msgstr "匯入程序無法完成。"
+
+#: includes/class-wpvivid-export-import.php:1982
+msgid "Please select an existing author to start importing."
+msgstr "請選取一位現有作者以開始匯入。"
+
+#: includes/class-wpvivid-exporter.php:585
+msgid "Reset Filters"
+msgstr "重設篩選條件"
+
+#: includes/class-wpvivid-migrate.php:467
+msgid "2 hours"
+msgstr "2 小時"
+
+#: includes/class-wpvivid-migrate.php:468
+msgid "8 hours"
+msgstr "8 小時"
+
+#: includes/class-wpvivid-migrate.php:469
+msgid "24 hours"
+msgstr "24 小時"
+
+#: includes/class-wpvivid-migrate.php:702
+#: includes/new_backup/class-wpvivid-backup2.php:1593
+msgid "A key is required."
+msgstr "金鑰為必要項目。"
+
+#: includes/class-wpvivid-migrate.php:714
+#: includes/new_backup/class-wpvivid-backup2.php:1607
+msgid "The key is invalid."
+msgstr "無效的金鑰。"
+
+#: includes/class-wpvivid-migrate.php:1043
+#: includes/class-wpvivid-migrate.php:1181
+msgid "Save"
+msgstr "儲存"
+
+#: includes/class-wpvivid-migrate.php:1339
+msgid "Clone then Transfer"
+msgstr "再製並傳輸"
+
+#: includes/class-wpvivid-public-interface.php:32
+msgid "Manual"
+msgstr "手動備份"
+
+#: includes/class-wpvivid.php:5443
+msgid "You have successfully changed your default remote storage."
+msgstr "這個網站的預設遠端儲存空間已成功變更。"
+
+#: includes/class-wpvivid.php:6772 includes/class-wpvivid.php:6913
+msgid "Uploaded Backup: "
+msgstr "已上傳的備份檔案: "
+
+#: includes/class-wpvivid.php:6847
+msgid "Click the button to complete website restore or migration"
+msgstr "點擊按鈕以完成網站還原或移轉"
+
+#: includes/class-wpvivid.php:6890 includes/class-wpvivid.php:7026
+msgid "Delete the backup"
+msgstr "刪除備份檔案"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:70
+#: includes/class-wpvivid.php:7067
+msgid "Edit the remote storage"
+msgstr "編輯遠端儲存空間"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:72
+#: includes/class-wpvivid.php:7069
+msgid "Remove the remote storage"
+msgstr "移除遠端儲存空間"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2473
+#: admin/partials/wpvivid-schedule-page-display.php:203
+#: includes/class-wpvivid.php:7130
+msgid "Add a storage"
+msgstr "新增儲存空間"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:390
+msgid "Warning: Root directory is forbidden to set to '/'."
+msgstr "警告: 禁止將根目錄設定為 /。"
+
+#: includes/staging/class-wpvivid-fresh-install-create-ui-display.php:568
+msgid "Click OK to start creating fresh WordPress install."
+msgstr "點擊 [確定] 以開始建立全新 WordPress 網站。"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:341
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:368
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:754
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:792
+msgid "Select bulk action"
+msgstr "選取批次操作"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:343
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:370
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:756
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:794
+msgid "Bulk Actions"
+msgstr "批次操作"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:344
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:371
+msgid "Isolate selected images"
+msgstr "隔離選取的圖片"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:345
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:372
+msgid "Isolate all images"
+msgstr "隔離全部圖片"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:347
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:374
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:762
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:800
+msgid "Apply"
+msgstr "套用"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:351
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:378
+msgid "Isolating images..."
+msgstr "正在隔離圖片..."
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:757
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:795
+msgid "Restore selected images"
+msgstr "還原選取的圖片"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:758
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:796
+msgid "Restore all images"
+msgstr "還原全部圖片"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:759
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:797
+msgid "Delete selected images"
+msgstr "刪除選取的圖片"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:760
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:798
+msgid "Delete all images"
+msgstr "刪除全部圖片"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:766
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:804
+msgid "Restoring images..."
+msgstr "正在還原圖片..."
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1026
+msgid "Scan Media"
+msgstr "掃描媒體"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1027
+msgid "Isolated Media"
+msgstr "隔離的媒體"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1070
+msgid "In the tab, you can scan your media folder (uploads) to find unused images and isolate specific or all unused images."
+msgstr "在這個分頁中，網站管理員可以掃描 uploads 媒體資料夾以尋找未使用的圖片，並隔離指定或全部未使用的圖片。"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1074
+msgid "Media path: "
+msgstr "媒體路徑: "
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1080
+msgid "Clicking the 'Scan' button to find unused images in your media folder. Currently it only scans JPG and PNG images."
+msgstr "點擊 [掃描] 按鈕便能在媒體資料夾中尋找未使用的圖片。目前僅能掃描 JPG 及 PNG 圖片。"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1116
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1130
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1759
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1770
+msgid "Search"
+msgstr "搜尋"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1118
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1761
+msgid "All Folders"
+msgstr "全部資料夾"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1751
+msgid "This tab displays the isolated images and their locations. You can choose to restore or delete specific isolated images."
+msgstr "在這個分頁中，會顯示透過外掛隔離的圖片及其位置。網站管理員可以還原或刪除指定隔離的圖片。"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1754
+msgid "lsolated Folder Path: "
+msgstr "隔離的媒體資料夾路徑: "
+
+#: includes/class-wpvivid-migrate.php:721
+#: includes/new_backup/class-wpvivid-backup2.php:1615
+msgid "The key has expired."
+msgstr "金鑰已到期。"
+
+#: includes/customclass/class-wpvivid-dropbox.php:506
+#: includes/customclass/class-wpvivid-one-drive.php:217
+msgid "Authentication is done, please continue to enter the storage information, then click 'Add Now' button to save it."
+msgstr "驗證已完成，請繼續輸入儲存空間資訊，然後點擊 [立即新增] 按鈕以儲存設定。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1464
+msgid "Are you sure to continue?"
+msgstr "確定要繼續操作嗎？"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:225
+msgid "Deleting a remote storage will make it unavailable until it is added again. Are you sure to continue?"
+msgstr "刪除遠端儲存空間除非再次新增，否則無法使用。確定要繼續操作嗎？"
+
+#: includes/staging/class-wpvivid-staging-create-ui-display.php:382
+#: includes/staging/class-wpvivid-staging-create-ui-display.php:391
+#: includes/staging/class-wpvivid-staging-create-ui-display.php:400
+msgid "Click OK to start creating the staging site."
+msgstr "點擊 [確定] 以開始建立預備環境網站。"
+
+#: includes/staging/class-wpvivid-staging-list-ui-display.php:1120
+msgid "Are you sure to delete this staging site?"
+msgstr "確定要刪除這個預備環境網站？"
+
+#: includes/staging/class-wpvivid-staging-list-ui-display.php:1147
+msgid "Are you sure to restart this staging site?"
+msgstr "確定要重新啟動這個預備環境網站？"
+
+#: includes/staging/class-wpvivid-staging-setting.php:182
+#: includes/staging/class-wpvivid-staging-setting.php:361
+msgid "When the option is checked, anyone will be able to visit the staging site without the need to login. Uncheck it to request a login to visit the staging site."
+msgstr "啟用這項設定後，任何人不需登入即可造訪預備環境網站。停用這項設定便會要求使用者登入才能造訪預備環境網站。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:193
+#: includes/staging/class-wpvivid-staging-setting.php:372
+msgid "When checked, this option allows you to keep the current permalink structure when you create a staging site or push a staging site to live."
+msgstr "啟用這項設定後，在建立預備環境網站或將預備環境網站推送上線時，能保留現有的永久連結結構。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:204
+#: includes/staging/class-wpvivid-staging-setting.php:383
+msgid "With this option checked, all staging sites you have created will be retained when the plugin is deleted, just in case you still need them later. The sites will show up again after the plugin is reinstalled."
+msgstr "啟用這項設定後，刪除外掛時會保留已建立的全部預備環境網站，以防之後還需要使用這些網站。重新安裝外掛後，這些網站會再次顯示。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:159
+#: includes/staging/class-wpvivid-staging-setting.php:338
+msgid "Retrying"
+msgstr "繼續重試"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1031
+msgid "Are you sure to remove this backup? This backup will be deleted permanently."
+msgstr "確定要移除這個備份檔案？點擊 [確定] 便會永久刪除備份檔案。"
+
+#: admin/partials/wpvivid-schedule-page-display.php:165
+#: includes/class-wpvivid.php:7159
+msgid "Send backups to remote storage (You can choose whether to keep the backup in localhost after it is uploaded to cloud storage in Settings.)"
+msgstr "傳送備份檔案至遠端儲存空間 (網站管理員可以在 [設定] 中選取在上傳備份檔案至雲端儲存空間後，於網頁伺服器本機保留備份檔案)"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1083
+msgid "Are you sure to remove the selected backups? These backups will be deleted permanently."
+msgstr "確定要移除移除選取的備份檔案？這些備份檔案會永久刪除。"
+
+#: includes/customclass/class-wpvivid-dropbox.php:571
+#: includes/customclass/class-wpvivid-google-drive.php:323
+#: includes/customclass/class-wpvivid-one-drive.php:282
+msgid "Click the button to add the storage."
+msgstr "點擊按鈕以新增儲存空間。"
+
+#: includes/customclass/class-wpvivid-dropbox.php:566
+#: includes/customclass/class-wpvivid-google-drive.php:318
+#: includes/customclass/class-wpvivid-one-drive.php:277
+msgid "Add Now"
+msgstr "立即新增"
+
+#: includes/customclass/class-wpvivid-dropbox.php:697
+msgid "Click to get Dropbox authentication."
+msgstr "點擊以進行 Dropbox 驗證。"
+
+#: includes/customclass/class-wpvivid-google-drive.php:486
+msgid "Click to get Google authentication."
+msgstr "點擊以進行 Google 驗證。"
+
+#: includes/customclass/class-wpvivid-one-drive.php:411
+msgid "Click to get Microsoft authentication."
+msgstr "點擊以進行 Microsoft 驗證。"
+
+#: includes/customclass/class-wpvivid-dropbox.php:722
+msgid "To add Dropbox, please get Dropbox authentication first. Once authenticated, you will be redirected to this page, then you can add storage information and save it"
+msgstr "如需新增 Dropbox，請先進行 Dropbox 驗證。驗證完成後，便會重新導向至這個頁面，然後請新增儲存空間資訊並儲存。"
+
+#: includes/customclass/class-wpvivid-google-drive.php:474
+msgid "To add Google Drive, please get Google authentication first. Once authenticated, you will be redirected to this page, then you can add storage information and save it"
+msgstr "如需新增 Google 雲端硬碟，請先進行 Google 驗證。驗證完成後，便會重新導向至這個頁面，然後請新增儲存空間資訊並儲存。"
+
+#: includes/customclass/class-wpvivid-one-drive.php:399
+msgid "To add OneDrive, please get Microsoft authentication first. Once authenticated, you will be redirected to this page, then you can add storage information and save it"
+msgstr "如需新增 OneDrive，請先進行 Microsoft 驗證。驗證完成後，便會重新導向至這個頁面，然後請新增儲存空間資訊並儲存。"
+
+#: includes/class-wpvivid.php:5756 includes/class-wpvivid.php:5764
+msgid "The value of 'Compress file every' can't be empty."
+msgstr "[壓縮檔案分割大小] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5783 includes/class-wpvivid.php:5790
+msgid "The value of 'PHP scripts execution timeout for backup' can't be empty."
+msgstr "[備份程序的 PHP 指令碼執行逾時時間上限] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5797 includes/class-wpvivid.php:5802
+msgid "The value of 'PHP scripts execution timeout for restore' can't be empty."
+msgstr "[還原程序的 PHP 指令碼執行逾時時間上限] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5808 includes/class-wpvivid.php:5813
+msgid "The value of 'PHP memory limit for backup' can't be empty."
+msgstr "[備份程序的 PHP 可存取記憶體上限] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5819 includes/class-wpvivid.php:5824
+msgid "The value of 'PHP memory limit for restoration' can't be empty."
+msgstr "[還原程序的 PHP 可存取記憶體上限] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5830 includes/class-wpvivid.php:5835
+msgid "The value of 'Chunk Size' can't be empty."
+msgstr "[區塊大小] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5948 includes/class-wpvivid.php:5953
+msgid "The value of 'PHP Scripts Execution Timeout' can't be empty."
+msgstr "[PHP 指令碼執行逾時時間上限] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5959 includes/class-wpvivid.php:5964
+msgid "The value of 'Delay Between Requests' can't be empty."
+msgstr "[多個要求間的延遲時間] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5869 includes/class-wpvivid.php:5874
+msgid "The value of 'Posts Quantity Processed Per Request' can't be empty."
+msgstr "[每個要求處理的文章數量] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5880 includes/class-wpvivid.php:5885
+msgid "The value of 'Media Files Quantity Processed Per Request' can't be empty."
+msgstr "[每個要求處理的媒體檔案數量] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5893 includes/class-wpvivid.php:5898
+msgid "The value of 'DB Copy Count' can't be empty."
+msgstr "[資料庫複本計數] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5904 includes/class-wpvivid.php:5909
+msgid "The value of 'DB Replace Count' can't be empty."
+msgstr "[資料庫取代計數] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5915 includes/class-wpvivid.php:5920
+msgid "The value of 'File Copy Count' can't be empty."
+msgstr "[檔案複本計數] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5770 includes/class-wpvivid.php:5777
+msgid "The value of 'Exclude files which are larger than' can't be empty."
+msgstr "[排除大於設定大小的檔案] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5926 includes/class-wpvivid.php:5931
+msgid "The value of 'Max File Size' can't be empty."
+msgstr "[檔案大小上限] 的值不能留空。"
+
+#: includes/class-wpvivid.php:5937 includes/class-wpvivid.php:5942
+msgid "The value of 'Staging Memory Limit' can't be empty."
+msgstr "[預備環境可存取記憶體上限] 的值不能留空。"
+
+#: includes/class-wpvivid-export-import.php:1622
+msgid "Back"
+msgstr "返回"
+
+#: admin/class-wpvivid-admin.php:827
+msgid "Because Dropbox has upgraded their API on September 30, 2021, the new API is no longer compatible with the previous app's settings. Please re-add your Dropbox storage to ensure that it works properly."
+msgstr "Dropbox 已於 2021 年 9 月 30 日升級其 API，且新版 API 與舊版 App 設定不相容，請重新新增 Dropbox 儲存空間，以確保備份工作能正確執行。"
+
+#: admin/class-wpvivid-admin.php:898
+msgid "In order to execute the scheduled backups properly, please set the DISABLE_WP_CRON constant to false. If you are using an external cron system, simply click 'X' to dismiss this message."
+msgstr "為了正確執行排程備份，請將 DISABLE_WP_CRON 常數設定為 false。如果網站使用外部 CRON 系統，請點擊 X 以關閉這個訊息。"
+
+#: includes/class-wpvivid-migrate.php:1428
+msgid "<strong>Tips: </strong>Some web hosts may restrict the connection between the two sites, so you may get a 403 error or unstable connection issue when performing auto migration. In that case, it is recommended to manually transfer the site."
+msgstr "<strong>使用提示:</strong> 某些網站主機服務提供商會限制兩個網站之間的連線，因此在執行自動移轉時會產生 403 錯誤或無法連線的問題。如果發生這種狀況，建議手動傳輸網站資料。"
+
+#: includes/staging/class-wpvivid-staging-sites-list.php:349
+#: includes/staging/class-wpvivid-staging-sites-list.php:720
+msgid "Subsite URL"
+msgstr "子網站網址"
+
+#: includes/staging/class-wpvivid-staging-sites-list.php:350
+msgid "Subsite Tables/Folders"
+msgstr "子網站資料表/資料夾"
+
+#: includes/staging/class-wpvivid-staging-sites-list.php:351
+#: includes/staging/class-wpvivid-staging-sites-list.php:722
+msgid "Subsite Title"
+msgstr "子網站標題"
+
+#: includes/staging/class-wpvivid-staging-sites-list.php:352
+#: includes/staging/class-wpvivid-staging-sites-list.php:723
+msgid "Subsite Description"
+msgstr "子網站說明"
+
+#: includes/staging/class-wpvivid-staging.php:100
+msgid "Create A Fresh WordPress Install"
+msgstr "建立全新 WordPress 網站"
+
+#: includes/staging/class-wpvivid-staging-setting.php:138
+#: includes/staging/class-wpvivid-staging-setting.php:317
+msgid "PHP Script Execution Timeout"
+msgstr "PHP 指令碼執行逾時時間上限"
+
+#: includes/staging/class-wpvivid-staging-setting.php:149
+#: includes/staging/class-wpvivid-staging-setting.php:328
+msgid "Delay Between Requests"
+msgstr "多個要求間的延遲時間"
+
+#: includes/staging/class-wpvivid-staging-setting.php:171
+#: includes/staging/class-wpvivid-staging-setting.php:350
+msgid " times when encountering a time-out error"
+msgstr " 次 (發生執行逾時錯誤後)"
+
+#: includes/staging/class-wpvivid-staging-setting.php:188
+#: includes/staging/class-wpvivid-staging-setting.php:367
+msgid "Keep permalink when transferring website"
+msgstr "傳輸網站後保留永久連結"
+
+#: includes/staging/class-wpvivid-staging-setting.php:133
+#: includes/staging/class-wpvivid-staging-setting.php:312
+msgid ""
+"Adjust this value to apply for a temporary PHP memory limit for the plugin to create a staging site. \n"
+"                We set this value to 256M by default. Increase the value if you encounter a memory exhausted error. Note: some \n"
+"                web hosting providers may not support this."
+msgstr "調整這項設定值便能臨時變更 WPvivid Backup 建立預備環境網站的 PHP 可存取記憶體上限。這項設定的預設值為 256MB，如果遇到網站耗盡記憶體的錯誤，請增加設定值。請注意，某些網站主機服務提供商不支援這項設定。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:144
+#: includes/staging/class-wpvivid-staging-setting.php:323
+msgid ""
+"The time-out is not your server PHP time-out. With the execution time exhausted, our plugin will shut down the progress of \n"
+"                creating a staging site. If the progress  encounters a time-out, that means you have a medium or large sized website. Please try to \n"
+"                scale the value bigger."
+msgstr "這裡所指的逾時不是伺服器上的 PHP 指令碼執行逾時。耗盡執行時間後，這個外掛會關閉建立預備環境網站的程序。當建立預備環境網站的程序發生執行逾時的狀況，代表這是中型或大型網站，請嘗試加大設定值。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:155
+#: includes/staging/class-wpvivid-staging-setting.php:334
+msgid "A lower value will help speed up the process of creating a staging site. However, if your server has a limit on the number of requests, a higher value is recommended."
+msgstr "較低的設定值有助於加速建立預備環境網站的程序。如果伺服器對要求數量有所限制，建議設定較高的值。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:177
+#: includes/staging/class-wpvivid-staging-setting.php:356
+msgid "Anyone can visit the staging site"
+msgstr "任何人均可造訪預備環境網站"
+
+#: includes/staging/class-wpvivid-staging-setting.php:199
+#: includes/staging/class-wpvivid-staging-setting.php:378
+msgid "Keep staging sites when deleting the plugin"
+msgstr "刪除外掛後保留預備環境網站"
+
+#: includes/staging/class-wpvivid-staging-ui-display.php:1302
+msgid "WPvivid Plugins - Staging"
+msgstr "WPvivid 外掛 - 預備環境"
+
+#: includes/staging/class-wpvivid-staging.php:99
+msgid "Create A Staging Site"
+msgstr "建立預備環境網站"
+
+#: includes/staging/class-wpvivid-staging.php:251
+#: includes/staging/class-wpvivid-staging.php:264
+msgid "Staging"
+msgstr "預備環境"
+
+#: includes/staging/class-wpvivid-staging-log-page.php:27
+msgid "Log File Name\t"
+msgstr "記錄檔檔案名稱\t"
+
+#: includes/staging/class-wpvivid-staging-setting.php:118
+#: includes/staging/class-wpvivid-staging-setting.php:297
+msgid "Max File Size"
+msgstr "檔案大小上限"
+
+#: includes/staging/class-wpvivid-staging-log-page.php:28
+msgid "Action\t"
+msgstr "可用操作"
+
+#: includes/staging/class-wpvivid-staging-setting.php:87
+#: includes/staging/class-wpvivid-staging-setting.php:266
+msgid "DB Copy Count"
+msgstr "資料庫複本計數"
+
+#: includes/staging/class-wpvivid-staging-setting.php:93
+#: includes/staging/class-wpvivid-staging-setting.php:272
+msgid ""
+"Number of DB rows, that are copied within one ajax query. The higher value makes the database copy process faster. \n"
+"                Please try a high value to find out the highest possible value. If you encounter timeout errors, try lower values until no \n"
+"                more errors occur."
+msgstr "單一 AJAX 查詢可複製的資料庫資料列數量，較高的設定值可加快資料庫複製程序。請嘗試較高的設定值以找出適合的上限值，如果這個網站產生逾時錯誤，請改用較低的設定值直至沒有錯誤發生為止。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:98
+#: includes/staging/class-wpvivid-staging-setting.php:277
+msgid "DB Replace Count"
+msgstr "資料庫取代計數"
+
+#: includes/staging/class-wpvivid-staging-setting.php:104
+#: includes/staging/class-wpvivid-staging-setting.php:283
+msgid ""
+"Number of DB rows, that are processed within one ajax query. The higher value makes the DB replacement process faster. \n"
+"                If timeout erros occur, decrease the value because this process consumes a lot of memory."
+msgstr "單一 AJAX 查詢可處理的資料庫資料列數量，較高的設定值可加快資料庫取代程序。如果這個網站產生逾時錯誤，請改用較低的設定值以避免使用太多伺服器記憶體。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:108
+#: includes/staging/class-wpvivid-staging-setting.php:287
+msgid "File Copy Count"
+msgstr "檔案複本計數"
+
+#: includes/staging/class-wpvivid-staging-setting.php:114
+#: includes/staging/class-wpvivid-staging-setting.php:293
+msgid ""
+"Number of files to copy that will be copied within one ajax request. The higher value makes the file copy process faster. \n"
+"                Please try a high value to find out the highest possible value. If you encounter timeout errors, try lower values until no more errors occur."
+msgstr "單一 AJAX 要求可複製的檔案數量，較高的設定值可加快檔案複製程序。請嘗試較高的設定值以找出適合的上限值，如果這個網站產生逾時錯誤，請改用較低的設定值直至沒有錯誤發生為止。"
+
+#: includes/staging/class-wpvivid-staging-log-page.php:313
+msgid "Staging Logs"
+msgstr "預備環境記錄"
+
+#: includes/staging/class-wpvivid-staging-setting.php:29
+msgid "Staging Settings"
+msgstr "預備環境設定"
+
+#: includes/staging/class-wpvivid-staging-setting.php:124
+#: includes/staging/class-wpvivid-staging-setting.php:303
+msgid "Maximum size of the files copied to a staging site. All files larger than this value will be ignored. If you set the value of 0 MB, all files will be copied to a staging site."
+msgstr "複製至預備環境網站的檔案大小上限，系統處理時會忽略大於這個設定值的檔案。如果設定為 0MB，會將全部檔案複製至預備環境網站。"
+
+#: includes/staging/class-wpvivid-staging-setting.php:127
+#: includes/staging/class-wpvivid-staging-setting.php:306
+msgid "Staging Memory Limit"
+msgstr "預備環境可存取記憶體上限"
+
+#: admin/class-wpvivid-admin.php:1104
+msgid "Backup Logs"
+msgstr "備份記錄"
+
+#: admin/class-wpvivid-admin.php:1676
+msgid "Features"
+msgstr "功能"
+
+#: admin/class-wpvivid-admin.php:1677
+msgid "Blogger"
+msgstr "Blogger"
+
+#: admin/class-wpvivid-admin.php:1679
+msgid "Small Business"
+msgstr "Small Business"
+
+#: admin/class-wpvivid-admin.php:1686
+msgid "Domains"
+msgstr "網域名稱"
+
+#: admin/class-wpvivid-admin.php:1687
+msgid "Backup & Migration Pro"
+msgstr "Backup & Migration Pro"
+
+#: admin/class-wpvivid-admin.php:1688
+msgid "Mulitsite Support"
+msgstr "多站網路支援"
+
+#: admin/class-wpvivid-admin.php:1689
+msgid "Staging Pro"
+msgstr "Staging Pro"
+
+#: admin/class-wpvivid-admin.php:1690
+msgid "White Label"
+msgstr "自訂品牌"
+
+#: admin/class-wpvivid-admin.php:1691
+msgid "Roles & Capabilities"
+msgstr "使用者角色及權限"
+
+#: admin/class-wpvivid-admin.php:1694
+msgid "2 domains"
+msgstr "2 個網站"
+
+#: admin/class-wpvivid-admin.php:1702
+msgid "Up to 10 domains"
+msgstr "最多 10 個網站"
+
+#: admin/class-wpvivid-admin.php:1710
+msgid "Up to 50 domains"
+msgstr "最多 50 個網站"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:32
+msgid "File"
+msgstr "檔案"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:45
+#: admin/partials/wpvivid-backup-restore-page-display.php:53
+#: admin/partials/wpvivid-backup-restore-page-display.php:58
+#: admin/partials/wpvivid-backup-restore-page-display.php:70
+#: admin/partials/wpvivid-backup-restore-page-display.php:79
+#: includes/class-wpvivid.php:2853 includes/class-wpvivid.php:2858
+#: includes/class-wpvivid.php:2867
+msgid "File Size: "
+msgstr "檔案大小: "
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:49
+msgid "File not found"
+msgstr "找不到檔案"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2871
+msgid "Tip:"
+msgstr "使用提示:"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:382
+msgid "Post Type"
+msgstr "內容類型"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1076
+msgid "Scan"
+msgstr "掃描"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:52
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:460
+msgid "Thumbnail"
+msgstr "縮圖"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:53
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:461
+msgid "Path"
+msgstr "路徑"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:935
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:948
+msgid "Image Cleaner"
+msgstr "圖片清理程式"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1013
+msgid "WPvivid Image Cleaner"
+msgstr "WPvivid 圖片清理程式"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:50
+msgid "File Regex"
+msgstr "檔案規則運算式"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:743
+msgid "Media Cleaner Settings"
+msgstr "媒體清理程式設定"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:55
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:463
+msgid "Size"
+msgstr "檔案大小"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1101
+msgid "Please don't refresh the page while running a scan."
+msgstr "執行掃描時，請不要重新整理頁面。"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:817
+msgid "Enable Quick Scan"
+msgstr "啟用 [快速掃描]"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:826
+msgid "Delete Image URL"
+msgstr "刪除圖片網址"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:821
+msgid "Checking this option will speed up your scans but may produce lower accuracy."
+msgstr "啟用這項設定後，會加快掃描速度，但可能會降低結果的正確性。"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:830
+msgid "With this option checked, when the image is deleted, the corresponding image url in the database that is not used anywhere on your website will also be deleted."
+msgstr "啟用這項設定後，刪除圖片時會一併刪除網站資料庫中不再使用的對應圖片網址。"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:835
+msgid "Posts Quantity Processed Per Request"
+msgstr "每個要求處理的文章數量"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:840
+msgid "Set how many posts to process per request. The value should be set depending on your server performance and the recommended value is 20."
+msgstr "設定每個要求需要處理的文章數量。請依據這個網站的伺服器效能進行設定，建議值為 20。"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:842
+msgid "Media Files Quantity Processed Per Request"
+msgstr "每個要求處理的媒體檔案數量"
+
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:847
+msgid "Set how many media files to process per request. The value should be set depending on your server performance and the recommended value is 100."
+msgstr "設定每個要求需要處理的媒體檔案數量。請依據這個網站的伺服器效能進行設定，建議值為 100。"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2390
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2559
+msgid "Total Posts:"
+msgstr "文章總數:"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2394
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2563
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2655
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2747
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2803
+msgid "Scanned:"
+msgstr "已掃描數量:"
+
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2651
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2743
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:2799
+msgid "Total Folders:"
+msgstr "資料夾總數:"
+
+#: admin/class-wpvivid-admin.php:146 admin/class-wpvivid-admin.php:160
+#: admin/class-wpvivid-admin.php:1074
+msgid "Backup & Restore"
+msgstr "備份及還原"
+
+#: admin/class-wpvivid-admin.php:169 admin/class-wpvivid-admin.php:520
+#: admin/class-wpvivid-admin.php:526 admin/class-wpvivid-admin.php:535
+#: admin/class-wpvivid-admin.php:541 admin/class-wpvivid-admin.php:1092
+msgid "Settings"
+msgstr "設定"
+
+#: admin/class-wpvivid-admin.php:1080
+msgid "Schedule"
+msgstr "排程"
+
+#: admin/class-wpvivid-admin.php:1086
+msgid "Remote Storage"
+msgstr "遠端儲存空間"
+
+#: admin/class-wpvivid-admin.php:1098
+msgid "Debug"
+msgstr "偵錯"
+
+#: admin/class-wpvivid-admin.php:1174 admin/class-wpvivid-admin.php:1261
+#: admin/partials/wpvivid-remote-storage-page-display.php:80
+#: admin/partials/wpvivid-remote-storage-page-display.php:437
+#: includes/customclass/class-wpvivid-amazons3-plus.php:297
+#: includes/customclass/class-wpvivid-dropbox.php:741
+#: includes/customclass/class-wpvivid-ftpclass.php:254
+#: includes/customclass/class-wpvivid-google-drive.php:555
+#: includes/customclass/class-wpvivid-one-drive.php:455
+#: includes/customclass/class-wpvivid-s3compat.php:618
+#: includes/customclass/class-wpvivid-sftpclass.php:244
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:763
+msgid "Save Changes"
+msgstr "儲存設定"
+
+#: admin/class-wpvivid-admin.php:1500 includes/class-wpvivid-importer.php:53
+#: includes/staging/class-wpvivid-staging-log-page.php:331
+msgid "Action"
+msgstr "可用操作"
+
+#: admin/class-wpvivid-admin.php:1510
+#: includes/staging/class-wpvivid-staging-log-page.php:341
+msgid " < Pre page "
+msgstr " < 上一頁 "
+
+#: admin/class-wpvivid-admin.php:1521
+#: includes/staging/class-wpvivid-staging-log-page.php:352
+msgid " Next page > "
+msgstr " 下一頁 > "
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:349
+#: admin/partials/wpvivid-schedule-page-display.php:110
+#: includes/class-wpvivid-migrate.php:1442
+#: includes/class-wpvivid-migrate.php:1466
+msgid "Database + Files (WordPress Files)"
+msgstr "資料庫及 WordPress 檔案"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:353
+#: admin/partials/wpvivid-schedule-page-display.php:115
+#: includes/class-wpvivid-migrate.php:1446
+#: includes/class-wpvivid-migrate.php:1470
+msgid "WordPress Files (Exclude Database)"
+msgstr "僅 WordPress 檔案 (排除資料庫)"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:357
+#: admin/partials/wpvivid-schedule-page-display.php:120
+#: includes/class-wpvivid-migrate.php:1450
+#: includes/class-wpvivid-migrate.php:1474
+msgid "Only Database"
+msgstr "僅資料庫 (排除 WordPress 檔案)"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:362
+#: admin/partials/wpvivid-schedule-page-display.php:89
+#: admin/partials/wpvivid-schedule-page-display.php:126
+#: includes/class-wpvivid-schedule.php:113
+msgid "Custom"
+msgstr "自訂"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:426
+msgid "Backups"
+msgstr "備份"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:444
+#: admin/partials/wpvivid-backup-restore-page-display.php:494
+#: admin/partials/wpvivid-backup-restore-page-display.php:1187
+#: includes/class-wpvivid.php:6884 includes/class-wpvivid.php:7020
+msgid "Restore"
+msgstr "還原"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:491
+msgid "Backup"
+msgstr "備份"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:492
+msgid "Storage"
+msgstr "儲存空間"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:495
+#: includes/class-wpvivid-migrate.php:1064
+#: includes/class-wpvivid-migrate.php:1202
+msgid "Delete"
+msgstr "刪除"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2311
+#: includes/class-wpvivid-migrate.php:405
+#: includes/class-wpvivid-migrate.php:1538
+msgid "Cancel"
+msgstr "取消"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2402
+msgid "Back Up Manually"
+msgstr "手動備份"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2485
+msgid "Backup Now"
+msgstr "立即備份"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2888
+msgid "Backup Schedule"
+msgstr "備份排程"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2890
+msgid "Schedule Status: "
+msgstr "排程狀態: "
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:36
+#: admin/partials/wpvivid-remote-storage-page-display.php:429
+#: includes/snapshot/class-wpvivid-snapshots-list.php:42
+msgid "Actions"
+msgstr "可用操作"
+
+#: admin/partials/wpvivid-settings-page-display.php:464
+msgid "Export"
+msgstr "匯出"
+
+#: admin/partials/wpvivid-settings-page-display.php:469
+#: includes/class-wpvivid-export-import.php:1621
+#: includes/class-wpvivid-importer.php:159
+msgid "Import"
+msgstr "匯入"
+
+#: admin/partials/wpvivid-settings-page-display.php:835
+msgid "General Settings"
+msgstr "一般設定"
+
+#: admin/partials/wpvivid-settings-page-display.php:841
+msgid "Advanced Settings"
+msgstr "進階設定"
+
+#: includes/class-wpvivid-backup-uploader.php:760
+msgctxt "Uploader: Drop files here - or - Select Files"
+msgid "or"
+msgstr "或"
+
+#: includes/class-wpvivid-backup-uploader.php:761
+msgid "Select Files"
+msgstr "選取檔案"
+
+#: includes/class-wpvivid-export-import.php:65
+#: includes/class-wpvivid-export-import.php:78
+msgid "Export & Import"
+msgstr "匯出及匯入"
+
+#: includes/class-wpvivid-export-import.php:141
+msgid "Choose post type"
+msgstr "選取內容類型"
+
+#: includes/class-wpvivid-export-import.php:147
+msgid "Post"
+msgstr "文章"
+
+#: includes/class-wpvivid-export-import.php:150
+msgid "Page"
+msgstr "頁面"
+
+#: includes/class-wpvivid-export-import.php:153
+msgid "More post types coming soon..."
+msgstr "即將支援更多內容類型..."
+
+#: includes/class-wpvivid-export-import.php:656
+msgid "All Categories"
+msgstr "全部分類"
+
+#: includes/class-wpvivid-export-import.php:709
+#: includes/class-wpvivid-export-import.php:730
+msgid "&mdash; Select &mdash;"
+msgstr "&mdash; 選取 &mdash;"
+
+#: includes/class-wpvivid-export-import.php:1609
+msgid "- Select -"
+msgstr "- 選取 -"
+
+#: includes/class-wpvivid-exporter.php:224
+msgid "Unpublished"
+msgstr "已取消發佈"
+
+#: includes/class-wpvivid-exporter.php:241
+msgid "Published"
+msgstr "已發佈"
+
+#: includes/class-wpvivid-exporter.php:244
+msgid "Missed schedule"
+msgstr "已錯過排程"
+
+#: includes/class-wpvivid-exporter.php:246
+msgid "Scheduled"
+msgstr "已排程"
+
+#: includes/class-wpvivid-exporter.php:249
+msgid "Last Modified"
+msgstr "最後修改日期"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:188
+#: includes/class-wpvivid-exporter.php:464
+#: includes/class-wpvivid-importer.php:234
+#: includes/snapshot/class-wpvivid-snapshots-list.php:202
+#: includes/staging/class-wpvivid-staging-log-page.php:171
+#: includes/staging/class-wpvivid-staging-sites-list.php:522
+#: includes/staging/class-wpvivid-staging-sites-list.php:893
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:163
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:495
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:227
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:637
+msgid "%s item"
+msgid_plural "%s items"
+msgstr[0] "%s 個項目"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:219
+#: includes/class-wpvivid-exporter.php:500
+#: includes/class-wpvivid-importer.php:270
+#: includes/snapshot/class-wpvivid-snapshots-list.php:233
+#: includes/staging/class-wpvivid-staging-log-page.php:202
+#: includes/staging/class-wpvivid-staging-sites-list.php:553
+#: includes/staging/class-wpvivid-staging-sites-list.php:924
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:194
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:526
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:258
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:668
+msgid "First page"
+msgstr "第一頁"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:230
+#: includes/class-wpvivid-exporter.php:511
+#: includes/class-wpvivid-importer.php:281
+#: includes/snapshot/class-wpvivid-snapshots-list.php:244
+#: includes/staging/class-wpvivid-staging-log-page.php:213
+#: includes/staging/class-wpvivid-staging-sites-list.php:564
+#: includes/staging/class-wpvivid-staging-sites-list.php:935
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:205
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:537
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:269
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:679
+msgid "Previous page"
+msgstr "上一頁"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:247
+#: includes/class-wpvivid-exporter.php:528
+#: includes/class-wpvivid-importer.php:298
+#: includes/snapshot/class-wpvivid-snapshots-list.php:261
+#: includes/staging/class-wpvivid-staging-log-page.php:230
+#: includes/staging/class-wpvivid-staging-sites-list.php:581
+#: includes/staging/class-wpvivid-staging-sites-list.php:952
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:222
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:554
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:286
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:696
+msgctxt "paging"
+msgid "%1$s of %2$s"
+msgstr "第 %1$s 頁，總計 %2$s 頁"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:255
+#: includes/class-wpvivid-exporter.php:536
+#: includes/class-wpvivid-importer.php:306
+#: includes/snapshot/class-wpvivid-snapshots-list.php:269
+#: includes/staging/class-wpvivid-staging-log-page.php:238
+#: includes/staging/class-wpvivid-staging-sites-list.php:589
+#: includes/staging/class-wpvivid-staging-sites-list.php:960
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:230
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:562
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:294
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:704
+msgid "Next page"
+msgstr "下一頁"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:265
+#: includes/class-wpvivid-exporter.php:546
+#: includes/class-wpvivid-importer.php:316
+#: includes/snapshot/class-wpvivid-snapshots-list.php:279
+#: includes/staging/class-wpvivid-staging-log-page.php:248
+#: includes/staging/class-wpvivid-staging-sites-list.php:599
+#: includes/staging/class-wpvivid-staging-sites-list.php:970
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:240
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:572
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:304
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:714
+msgid "Last page"
+msgstr "最後一頁"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:237
+#: admin/partials/wpvivid-backup-restore-page-display.php:241
+#: includes/class-wpvivid-exporter.php:518
+#: includes/class-wpvivid-exporter.php:522
+#: includes/class-wpvivid-importer.php:288
+#: includes/class-wpvivid-importer.php:292
+#: includes/snapshot/class-wpvivid-snapshots-list.php:251
+#: includes/snapshot/class-wpvivid-snapshots-list.php:255
+#: includes/staging/class-wpvivid-staging-log-page.php:220
+#: includes/staging/class-wpvivid-staging-log-page.php:224
+#: includes/staging/class-wpvivid-staging-sites-list.php:571
+#: includes/staging/class-wpvivid-staging-sites-list.php:575
+#: includes/staging/class-wpvivid-staging-sites-list.php:942
+#: includes/staging/class-wpvivid-staging-sites-list.php:946
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:212
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:216
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:544
+#: includes/upload-cleaner/class-wpvivid-upload-cleaner-setting.php:548
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:276
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:280
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:686
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:690
+msgid "Current Page"
+msgstr "目前頁數"
+
+#: includes/class-wpvivid-importer.php:49
+msgid "File Name"
+msgstr "檔案名稱"
+
+#: includes/class-wpvivid-importer.php:50
+msgid "Post Types"
+msgstr "內容類型"
+
+#: includes/class-wpvivid-importer.php:1649
+#: includes/class-wpvivid-importer.php:1750
+msgid "Sorry, this file type is not permitted for security reasons."
+msgstr "很抱歉，基於安全性考量，系統不接受這個檔案類型。"
+
+#: includes/class-wpvivid-importer.php:1710
+msgid "Invalid file type"
+msgstr "無效的檔案類型"
+
+#: includes/class-wpvivid-importer.php:1850
+#: includes/class-wpvivid-importer.php:1895
+#: includes/class-wpvivid-importer.php:1903
+msgid "There was an error when reading this WXR file"
+msgstr "讀取 WXR 檔案時發生錯誤"
+
+#: includes/class-wpvivid-importer.php:1851
+msgid "Details are shown above. The importer will now try again with a different parser..."
+msgstr "詳細資訊如上所示。匯入程式將以不同的剖析器再次嘗試匯入..."
+
+#: includes/class-wpvivid-migrate.php:52
+msgid "Auto-Migration"
+msgstr "自動移轉"
+
+#: includes/class-wpvivid-migrate.php:474
+msgid "Generate"
+msgstr "產生"
+
+#: includes/class-wpvivid-migrate.php:1606
+msgid "Upload"
+msgstr "上傳"
+
+#: includes/class-wpvivid-schedule.php:34
+msgid "12 Hours"
+msgstr "每 12 小時"
+
+#: admin/partials/wpvivid-schedule-page-display.php:70
+#: includes/class-wpvivid-schedule.php:40
+#: includes/class-wpvivid-schedule.php:94
+msgid "Daily"
+msgstr "每日"
+
+#: admin/partials/wpvivid-schedule-page-display.php:73
+#: includes/class-wpvivid-schedule.php:46
+#: includes/class-wpvivid-schedule.php:97
+msgid "Weekly"
+msgstr "每週"
+
+#: admin/partials/wpvivid-schedule-page-display.php:79
+#: includes/class-wpvivid-schedule.php:58
+#: includes/class-wpvivid-schedule.php:103
+msgid "Monthly"
+msgstr "每月"
+
+#: includes/class-wpvivid.php:6164
+msgid "Invalid email address"
+msgstr "無效的電子郵件地址"
+
+#: includes/class-wpvivid.php:7358
+msgid "Please enter a valid email address."
+msgstr "請輸入有效的電子郵件地址。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:44
+msgid "Amazon S3"
+msgstr "Amazon S3"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:36
+msgid "FTP"
+msgstr "FTP"
+
+#: includes/customclass/class-wpvivid-google-drive.php:217
+msgid "Google Drive"
+msgstr "Google 雲端硬碟"
+
+#: includes/customclass/class-wpvivid-one-drive.php:200
+msgid "Microsoft OneDrive"
+msgstr "Microsoft OneDrive"
+
+#: includes/customclass/class-wpvivid-s3compat.php:413
+msgid "DigitalOcean Spaces"
+msgstr "DigitalOcean Spaces"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:38
+msgid "SFTP"
+msgstr "SFTP"
+
+#. Plugin Name of the plugin
+#: wpvivid-backuprestore.php admin/partials/wpvivid-admin-display.php:47
+#: includes/class-wpvivid-export-import.php:94
+msgid "WPvivid Backup Plugin"
+msgstr "WPvivid Backup Plugin"
+
+#. Author URI of the plugin
+#: wpvivid-backuprestore.php
+msgid "https://wpvivid.com"
+msgstr "https://wpvivid.com"
+
+#: includes/class-wpvivid-backup-uploader.php:759
+msgid "Drop files here"
+msgstr "請將檔案拖放至這裡上傳"
+
+#: admin/class-wpvivid-admin.php:189
+#: includes/snapshot/class-wpvivid-snapshot.php:1627
+#: includes/staging/class-wpvivid-staging.php:76
+msgid "ChangeLog"
+msgstr "變更記錄"
+
+#: admin/class-wpvivid-admin.php:204
+#: includes/snapshot/class-wpvivid-snapshot.php:1634
+#: includes/staging/class-wpvivid-staging.php:83
+msgid "Troubleshooting"
+msgstr "疑難排解"
+
+#: admin/class-wpvivid-admin.php:272
+msgid "Warning:"
+msgstr "警告:"
+
+#: admin/class-wpvivid-admin.php:604
+msgid "Cheers! WPvivid Backup plugin has restored successfully your website. If you found WPvivid Backup plugin helpful, a 5-star rating would be highly appreciated, which motivates us to keep providing new features."
+msgstr "大功告成！WPvivid Backup 外掛已成功還原這個網站。如果 WPvivid Backup 外掛對這個網站有所幫助，我們會很感謝使用者撰寫的 5 星評等，這能鼓勵我們持續提供新功能。"
+
+#: admin/class-wpvivid-admin.php:1122
+msgid "MainWP"
+msgstr "MainWP"
+
+#: admin/class-wpvivid-admin.php:1132
+msgid "Premium"
+msgstr "Premium 版本"
+
+#: admin/class-wpvivid-admin.php:1306
+msgid "Logs"
+msgstr "記錄"
+
+#: admin/class-wpvivid-admin.php:1339
+msgid "Method 1."
+msgstr "方法 1"
+
+#: admin/class-wpvivid-admin.php:1376
+msgid "Method 2."
+msgstr "方法 2"
+
+#: admin/class-wpvivid-admin.php:1379
+#: admin/partials/wpvivid-backup-restore-page-display.php:45
+#: admin/partials/wpvivid-backup-restore-page-display.php:455
+#: admin/partials/wpvivid-backup-restore-page-display.php:493
+#: includes/class-wpvivid.php:2858 includes/class-wpvivid.php:6876
+#: includes/class-wpvivid.php:7012
+#: includes/staging/class-wpvivid-staging-log-page.php:29
+msgid "Download"
+msgstr "下載"
+
+#: admin/class-wpvivid-admin.php:1498
+#: includes/staging/class-wpvivid-staging-log-page.php:26
+#: includes/staging/class-wpvivid-staging-log-page.php:329
+msgid "Log Type"
+msgstr "記錄類型"
+
+#: admin/class-wpvivid-admin.php:1499
+#: includes/staging/class-wpvivid-staging-log-page.php:330
+msgid "Log File Name"
+msgstr "記錄檔檔案名稱"
+
+#: admin/class-wpvivid-admin.php:1678
+msgid "Freelancer"
+msgstr "Freelancer"
+
+#: admin/class-wpvivid-admin.php:1680
+msgid "Ultimate"
+msgstr "Ultimate"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:365
+#: admin/partials/wpvivid-schedule-page-display.php:24
+#: admin/partials/wpvivid-schedule-page-display.php:36
+#: admin/partials/wpvivid-schedule-page-display.php:93
+#: admin/partials/wpvivid-schedule-page-display.php:130
+#: admin/partials/wpvivid-schedule-page-display.php:213
+#: includes/class-wpvivid-migrate.php:1458
+#: includes/class-wpvivid-migrate.php:1482
+#: includes/class-wpvivid-schedule.php:117
+msgid "Pro feature: learn more"
+msgstr "Pro 版功能: 進一步了解"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2300
+#: admin/partials/wpvivid-settings-page-display.php:330
+#: includes/class-wpvivid-migrate.php:1527 includes/class-wpvivid.php:4608
+#: includes/new_backup/class-wpvivid-backup2.php:1033
+#: includes/new_backup/class-wpvivid-backup2.php:1127
+msgid "Total Size:"
+msgstr "大小總計:"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2407
+msgid "Local Storage Directory:"
+msgstr "網站主機本機儲存目錄:"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2409
+msgid "rename directory"
+msgstr "重新命名目錄"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2871
+msgid "The settings are only for manual backup, which won't affect schedule settings."
+msgstr "這些設定僅會套用至手動備份，不會影響排程設定。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2892
+msgid "Server Time: "
+msgstr "伺服器時間: "
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2894
+msgid "Next Backup: "
+msgstr "下次備份時間: "
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:34
+#: admin/partials/wpvivid-remote-storage-page-display.php:427
+msgid "Storage Provider"
+msgstr "儲存服務提供商"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:35
+#: admin/partials/wpvivid-remote-storage-page-display.php:428
+msgid "Remote Storage Alias"
+msgstr "遠端儲存空間別名"
+
+#: admin/partials/wpvivid-schedule-page-display.php:7
+msgid "Schedule Settings"
+msgstr "排程設定"
+
+#: admin/partials/wpvivid-settings-page-display.php:159
+msgid "Local storage directory:"
+msgstr "網站主機本機儲存目錄:"
+
+#: admin/partials/wpvivid-settings-page-display.php:174
+msgid "Remote Storage Directory:"
+msgstr "遠端儲存空間目錄:"
+
+#: admin/partials/wpvivid-settings-page-display.php:186
+msgid "Remove"
+msgstr "移除"
+
+#: admin/partials/wpvivid-settings-page-display.php:266
+msgid "Test Email"
+msgstr "測試用電子郵件"
+
+#: admin/partials/wpvivid-settings-page-display.php:358
+msgid "Empty"
+msgstr "清空"
+
+#: admin/partials/wpvivid-settings-page-display.php:465
+msgid "Click 'Export' button to save WPvivid settings on your local computer."
+msgstr "點擊 [匯出] 按鈕便能在使用者個人裝置儲存 WPvivid 設定。"
+
+#: includes/class-wpvivid-export-import.php:158
+#: includes/class-wpvivid-export-import.php:181
+msgid "Next Step"
+msgstr "下一步"
+
+#: includes/class-wpvivid-export-import.php:629
+msgid "Choose what to export"
+msgstr "選取匯出項目"
+
+#: includes/class-wpvivid-export-import.php:1611
+msgid "Import Setting"
+msgstr "匯入設定"
+
+#: includes/class-wpvivid-exporter.php:74
+msgctxt "column name"
+msgid "Title"
+msgstr "標題"
+
+#: includes/class-wpvivid-importer.php:52
+msgid "Media Files Size"
+msgstr "媒體檔案大小"
+
+#: includes/class-wpvivid-importer.php:131 includes/class-wpvivid.php:6970
+msgid "Type: "
+msgstr "類型: "
+
+#: includes/class-wpvivid-importer.php:1907
+#: includes/class-wpvivid-importer.php:1912
+#: includes/class-wpvivid-importer.php:2137
+#: includes/class-wpvivid-importer.php:2333
+msgid "This does not appear to be a WXR file, missing/invalid WXR version number"
+msgstr "由於找不到版本號碼或版本號碼無效，系統判定這不是 WXR 格式的檔案。"
+
+#: includes/class-wpvivid-migrate.php:59
+msgid "Key"
+msgstr "金鑰"
+
+#: includes/class-wpvivid-migrate.php:472
+msgid "Tips: For security reason, please choose an appropriate expiration time for the key."
+msgstr "使用提示: 基於安全性考量，請為金鑰選取合適的到期時間。"
+
+#. translators: %s: directory path
+#: includes/staging/class-wpvivid-staging.php:2662
+msgid "Unable to create directory %s. Is its parent directory writable by the server?"
+msgstr "無法建立目錄 %s。它的上層目錄是否可由伺服器進行寫入？"
+
+#: admin/partials/wpvivid-schedule-page-display.php:76
+#: includes/class-wpvivid-schedule.php:52
+#: includes/class-wpvivid-schedule.php:100
+msgid "Fortnightly"
+msgstr "每 2 週"
+
+#: admin/partials/wpvivid-schedule-page-display.php:67
+#: includes/class-wpvivid-schedule.php:91
+msgid "12Hours"
+msgstr "每 12 小時"
+
+#: includes/class-wpvivid.php:4470 includes/class-wpvivid.php:4480
+#: includes/class-wpvivid.php:4492 includes/class-wpvivid.php:4526
+msgid "The last backup message not found."
+msgstr "找不到前次備份訊息。"
+
+#: includes/class-wpvivid.php:4483 includes/class-wpvivid.php:4492
+#: includes/class-wpvivid.php:4515 includes/class-wpvivid.php:4526
+msgid "Last Backup: "
+msgstr "前次備份時間: "
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:118
+#: includes/customclass/class-wpvivid-amazons3-plus.php:256
+#: includes/customclass/class-wpvivid-s3compat.php:478
+#: includes/customclass/class-wpvivid-s3compat.php:593
+msgid "Custom Path"
+msgstr "自訂路徑"
+
+#: includes/customclass/class-wpvivid-dropbox.php:489
+msgid "Dropbox"
+msgstr "Dropbox"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:68
+#: includes/customclass/class-wpvivid-sftpclass.php:183
+msgid "Server Address"
+msgstr "伺服器位址"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:104
+#: includes/customclass/class-wpvivid-sftpclass.php:219
+msgid "Port"
+msgstr "通訊埠"
+
+#: admin/class-wpvivid-admin.php:232
+msgid "Create a Manual Backup"
+msgstr "建立手動備份"
+
+#: admin/class-wpvivid-admin.php:1111
+#: admin/partials/wpvivid-backup-restore-page-display.php:433
+#: admin/partials/wpvivid-backup-restore-page-display.php:2312
+#: includes/class-wpvivid.php:6865 includes/class-wpvivid.php:6971
+msgid "Log"
+msgstr "記錄"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2301
+#: includes/class-wpvivid-migrate.php:1528 includes/class-wpvivid.php:4609
+#: includes/new_backup/class-wpvivid-backup2.php:1034
+#: includes/new_backup/class-wpvivid-backup2.php:1128
+msgid "Uploaded:"
+msgstr "已上傳:"
+
+#: includes/class-wpvivid-backup-uploader.php:698
+msgid "Tips: Click the button below to scan all uploaded or received backups in directory"
+msgstr "使用提示: 點擊下方按鈕以掃描目錄中全部已上傳或已接收的備份。目錄:"
+
+#: includes/class-wpvivid-backup-uploader.php:701
+msgid "Scan uploaded backup or received backup"
+msgstr "掃描已上傳備份或已接收備份"
+
+#: includes/class-wpvivid-export-import.php:817
+msgid "Export and Download"
+msgstr "匯出並下載"
+
+#: includes/class-wpvivid.php:6864
+msgid "Type:"
+msgstr "類型: "
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:302
+#: includes/customclass/class-wpvivid-dropbox.php:746
+#: includes/customclass/class-wpvivid-ftpclass.php:259
+#: includes/customclass/class-wpvivid-google-drive.php:560
+#: includes/customclass/class-wpvivid-one-drive.php:460
+#: includes/customclass/class-wpvivid-s3compat.php:623
+#: includes/customclass/class-wpvivid-sftpclass.php:249
+msgid "Click the button to save the changes."
+msgstr "點擊按鈕以儲存變更。"
+
+#: admin/class-wpvivid-admin.php:227
+#: includes/staging/class-wpvivid-staging.php:95
+msgid "How-to"
+msgstr "使用方式"
+
+#: admin/class-wpvivid-admin.php:231
+msgid "WPvivid Backup Settings"
+msgstr "WPvivid 備份設定"
+
+#: admin/class-wpvivid-admin.php:233
+msgid "Restore Your Site from a Backup"
+msgstr "從備份檔案還原網站"
+
+#: admin/class-wpvivid-admin.php:234
+msgid "Migrate WordPress"
+msgstr "移轉 WordPress"
+
+#: admin/class-wpvivid-admin.php:274
+#: includes/customclass/class-wpvivid-ftpclass.php:302
+#: includes/customclass/class-wpvivid-ftpclass.php:310
+msgid "Warning: An alias for remote storage is required."
+msgstr "警告: 遠端儲存空間需要設定別名。"
+
+#: admin/class-wpvivid-admin.php:275
+msgid "Warning: The alias already exists in storage list."
+msgstr "警告: 別名在儲存空間清單中已存在。"
+
+#: admin/class-wpvivid-admin.php:279
+msgid "Step One: In the backup list, click the 'Restore' button on the backup you want to restore. This will bring up the restore tab"
+msgstr "步驟 1: 在備份檔案清單中點擊要還原的備份檔案的 [還原] 按鈕，點擊後會開啟 [還原] 分頁。"
+
+#: admin/class-wpvivid-admin.php:280
+msgid "Step Two: Choose an option to complete restore, if any"
+msgstr "步驟 2: 選取系統提供可完整還原的選項。"
+
+#: admin/class-wpvivid-admin.php:281
+msgid "Step Three: Click 'Restore' button"
+msgstr "步驟 3: 點擊 [還原] 按鈕。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:402
+#: admin/partials/wpvivid-backup-restore-page-display.php:470
+msgid "About backup download"
+msgstr "進一步了解備份檔案下載"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:404
+#: admin/partials/wpvivid-backup-restore-page-display.php:472
+msgid "->If backups are stored in remote storage, our plugin will retrieve the backup to your web server first. This may take a little time depending on the size of backup files. Please be patient. Then you can download them to your PC."
+msgstr "&rarr;備份檔案儲存於遠端儲存空間時，這個外掛會先將備份檔案擷取至這個網站的網頁伺服器。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:405
+#: admin/partials/wpvivid-backup-restore-page-display.php:473
+msgid "->If backups are stored in web server, the plugin will list all relevant files immediately."
+msgstr "&rarr;備份檔案儲存於網頁伺服器時，這個外掛會立即列出全部相關檔案。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:411
+#: admin/partials/wpvivid-backup-restore-page-display.php:479
+msgid "How to restore your website from a backup(scheduled, manual, uploaded and received backup)"
+msgstr "從備份檔案還原網站的方式 (排程備份、手動備份、已上傳及已接收的備份)"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:506
+msgid "Delete the selected backups"
+msgstr "刪除選取的備份檔案"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1183
+msgid "Restore backup from:"
+msgstr "還原來源備份檔案: "
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2437
+msgid "Save Backups to Local"
+msgstr "儲存備份檔案至網站主機"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2441
+msgid "Send Backup to Remote Storage:"
+msgstr "傳送備份檔案至遠端儲存空間:"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2490
+msgid "This backup can only be deleted manually"
+msgstr "這個備份檔案僅能手動刪除"
+
+#: includes/class-wpvivid-export-import.php:125
+#: includes/class-wpvivid-export-import.php:1578
+msgid "Note:"
+msgstr "注意事項:"
+
+#: includes/class-wpvivid-migrate.php:1619
+msgid "Note: The files you want to upload must be a backup created by WPvivid backup plugin. Make sure that uploading every part of a backup to the directory if the backup is split into many parts"
+msgstr "注意事項: 要上傳的檔案必須由 WPvivid Backup 外掛建立。如果備份檔案已分割為多個部分，則必須將全部分割檔案上傳至目前外掛指定的目錄。"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:80
+#: includes/customclass/class-wpvivid-sftpclass.php:195
+msgid "User Name"
+msgstr "使用者名稱"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:85
+#: includes/customclass/class-wpvivid-sftpclass.php:200
+msgid "Enter the user name."
+msgstr "輸入使用者名稱。"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:92
+#: includes/customclass/class-wpvivid-sftpclass.php:207
+msgid "User Password"
+msgstr "使用者密碼"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:97
+#: includes/customclass/class-wpvivid-sftpclass.php:212
+msgid "Enter the user password."
+msgstr "輸入使用者密碼。"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:109
+#: includes/customclass/class-wpvivid-sftpclass.php:224
+msgid "Enter the server port."
+msgstr "輸入伺服器通訊埠號碼。"
+
+#. Description of the plugin
+#: wpvivid-backuprestore.php
+msgid "Clone or copy WP sites then move or migrate them to new host (new domain), schedule backups, transfer backups to leading remote storage. All in one."
+msgstr "再製或複製 WordPress 網站，並將網站移動或移轉至新主機或新的網域名稱，還能排程備份、傳輸備份檔案至業界領先的遠端儲存空間，多種功能整合為一。"
+
+#: admin/class-wpvivid-admin.php:278
+msgid "Calculating the size of files, folder and database timed out. If you continue to receive this error, please go to the plugin settings, uncheck 'Calculate the size of files, folder and database before backing up', save changes, then try again."
+msgstr "計算檔案、資料夾及資料庫大小逾時。如果持續收到這個錯誤訊息，請前往外掛設定，停用 [備份前計算檔案、資料夾及資料庫大小]，然後儲存設定並再試一次。"
+
+#: admin/class-wpvivid-admin.php:1342
+msgid "WPvivid support email:"
+msgstr "WPvivid 技術支援電子郵件地址:"
+
+#: admin/class-wpvivid-admin.php:1632
+msgid "Download WPvivid Backup for MainWP"
+msgstr "下載 WPvivid Backup for MainWP"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1075
+#: includes/class-wpvivid-export-import.php:395
+#: includes/snapshot/class-wpvivid-snapshot.php:1049
+msgid "Please select at least one item."
+msgstr "請選取至少一個項目。"
+
+#: admin/partials/wpvivid-settings-page-display.php:120
+msgid "Calculate the size of files, folder and database before backing up"
+msgstr "備份前計算檔案、資料夾及資料庫大小"
+
+#: includes/class-wpvivid-migrate.php:429
+#: includes/class-wpvivid-migrate.php:1420
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:772
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:810
+#: includes/upload-cleaner/class-wpvivid-uploads-cleaner.php:1100
+msgid "Note: "
+msgstr "注意事項: "
+
+#: admin/class-wpvivid-admin.php:282
+msgid "1. Visit Key tab page of WPvivid backup plugin of destination site."
+msgstr "1. 前往目標網站的 WPvivid Backup 外掛的 [金鑰] 分頁。"
+
+#: admin/class-wpvivid-admin.php:283
+msgid "2. Generate a key by clicking Generate button and copy it."
+msgstr "2. 點擊 [產生] 按鈕以產生金鑰，並複製金鑰內容。"
+
+#: admin/partials/wpvivid-schedule-page-display.php:15
+msgid "Enable backup schedule"
+msgstr "啟用排程備份"
+
+#: admin/partials/wpvivid-schedule-page-display.php:20
+msgid "Enable Incremental Backup"
+msgstr "啟用增量備份"
+
+#: admin/partials/wpvivid-schedule-page-display.php:32
+msgid "Advanced Schedule"
+msgstr "進階排程"
+
+#: admin/partials/wpvivid-schedule-page-display.php:210
+msgid "+ Add another schedule"
+msgstr "+ 新增其他排程"
+
+#: admin/partials/wpvivid-schedule-page-display.php:50
+msgid "Being subjected to mechanisms of PHP, a scheduled backup task for your site will be triggered only when the site receives at least a visit at any page."
+msgstr "由於 PHP 機制的影響，這個網站必須在任一頁面有至少一次使用者造訪時，才會觸發這個網站的排程備份。"
+
+#: admin/partials/wpvivid-settings-page-display.php:115
+msgid "backups retained"
+msgstr "份保留備份檔案"
+
+#: admin/partials/wpvivid-settings-page-display.php:115
+msgid "Pro feature: Retain more backups"
+msgstr "Pro 版功能: 保留更多備份檔案"
+
+#: includes/class-wpvivid-migrate.php:463
+msgid "In order to allow another site to send a backup to this site, please generate a key below. Once the key is generated, this site is ready to receive a backup from another site. Then, please copy and paste the key in sending site and save it."
+msgstr "如需開放其他網站傳送備份檔案至這個網站，請在下方產生金鑰。金鑰產生後，這個網站便能接收來自其他網站的備份檔案。請複製金鑰，然後在要傳送備份檔案的網站中貼上並儲存。"
+
+#: includes/class-wpvivid-migrate.php:465
+msgid "The key will expire in "
+msgstr "金鑰到期時間: "
+
+#: includes/class-wpvivid-migrate.php:1040
+#: includes/class-wpvivid-migrate.php:1178
+msgid "Please paste the key below."
+msgstr "請在下方欄位貼上金鑰。"
+
+#: includes/class-wpvivid-migrate.php:1040
+#: includes/class-wpvivid-migrate.php:1178
+msgid "How to get a site key?"
+msgstr "取得網站金鑰的方式"
+
+#: includes/class-wpvivid-migrate.php:392
+#: includes/class-wpvivid-migrate.php:1313
+msgid "The feature can help you transfer a Wordpress site to a new domain(site). It would be a convenient way to migrate your WP site from dev environment to live server or from old server to the new."
+msgstr "這個功能可以協助網站管理員將 WordPress 網站傳輸至新的網域名稱 (網站)。無論是要將 WordPress 網站從開發環境移轉至正式伺服器，或是要將 WordPress 網站從舊伺服器移轉至新伺服器，都是非常方便的方式。"
+
+#: includes/class-wpvivid-migrate.php:416
+#: includes/class-wpvivid-migrate.php:1323
+msgid "Choose the content you want to transfer"
+msgstr "選取要傳輸的內容"
+
+#: includes/class-wpvivid-interface-mainwp.php:118
+#: includes/class-wpvivid.php:610 includes/class-wpvivid.php:618
+#: includes/new_backup/class-wpvivid-backup2.php:88
+msgid "A backup type is required."
+msgstr "備份類型為必填。"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:267
+#: admin/partials/wpvivid-schedule-page-display.php:295
+#: includes/class-wpvivid-interface-mainwp.php:142
+#: includes/class-wpvivid.php:644 includes/class-wpvivid.php:6025
+#: includes/new_backup/class-wpvivid-backup2.php:115
+msgid "There is no default remote storage configured. Please set it up first."
+msgstr "尚未對遠端儲存空間進行組態。請先完成相關設定。"
+
+#: includes/class-wpvivid.php:5973 includes/class-wpvivid.php:5980
+msgid "The local storage path is required."
+msgstr "網站主機本機儲存路徑為必填。"
+
+#: includes/class-wpvivid.php:5990
+msgid "An email address is required."
+msgstr "電子郵件地址為必填。"
+
+#: includes/class-wpvivid.php:5999 includes/class-wpvivid.php:6003
+msgid "The pdo_mysql extension is not detected. Please install the extension first or choose wpdb option for Database connection method."
+msgstr "系統沒有偵測到 pdo_mysql 擴充功能。請先安裝這個擴充功能或選取資料庫連線方法的 wpdb 選項。"
+
+#: includes/class-wpvivid.php:6136
+msgid "The selected file is not the setting file for WPvivid. Please upload the right file."
+msgstr "選取的檔案不是 WPvivid 的設定檔案。請上傳正確的檔案。"
+
+#: admin/partials/wpvivid-schedule-page-display.php:161
+#: includes/class-wpvivid.php:7155
+msgid "Save backups on localhost (web server)"
+msgstr "在網頁伺服器本機儲存備份檔案"
+
+#: includes/class-wpvivid.php:7353
+msgid "User's email address is required."
+msgstr "使用者電子郵件地址為必填。"
+
+#: includes/customclass/class-wpvivid-dropbox.php:516
+#: includes/customclass/class-wpvivid-dropbox.php:729
+msgid "Enter a unique alias: e.g. Dropbox-001"
+msgstr "輸入唯一別名 (例如 Dropbox-001)"
+
+#: includes/customclass/class-wpvivid-dropbox.php:692
+msgid "Authenticate with Dropbox"
+msgstr "取得 Dropbox 驗證"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:100
+#: includes/customclass/class-wpvivid-ftpclass.php:215
+msgid "FTP password"
+msgstr "FTP 密碼"
+
+#: includes/customclass/class-wpvivid-one-drive.php:220
+#: includes/customclass/class-wpvivid-one-drive.php:436
+msgid "Enter Your Microsoft OneDrive Information"
+msgstr "輸入 Microsoft OneDrive 資訊"
+
+#: includes/customclass/class-wpvivid-one-drive.php:227
+#: includes/customclass/class-wpvivid-one-drive.php:443
+msgid "Enter a unique alias: e.g. OneDrive-001"
+msgstr "輸入唯一別名 (例如 OneDrive-001)"
+
+#: includes/customclass/class-wpvivid-one-drive.php:406
+msgid "Authenticate with Microsoft OneDrive"
+msgstr "取得 Microsoft OneDrive 驗證"
+
+#: admin/partials/wpvivid-settings-page-display.php:279
+msgid "Pro feature: Add another email address to get report"
+msgstr "Pro 版功能: 新增其他電子郵件地址以取得報告"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:62
+#: includes/customclass/class-wpvivid-amazons3-plus.php:200
+msgid "Enter Your Amazon S3 Account"
+msgstr "輸入 Amazon S3 帳號"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:70
+#: includes/customclass/class-wpvivid-amazons3-plus.php:208
+msgid "Enter a unique alias: e.g. Amazon S3-001"
+msgstr "輸入唯一別名 (例如 Amazon S3-001)"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:82
+#: includes/customclass/class-wpvivid-amazons3-plus.php:220
+msgid "Amazon S3 access key"
+msgstr "Amazon S3 存取金鑰"
+
+#: includes/customclass/class-wpvivid-dropbox.php:509
+msgid "Enter Your Dropbox Information"
+msgstr "輸入 Dropbox 資訊"
+
+#: includes/customclass/class-wpvivid-dropbox.php:545
+#: includes/customclass/class-wpvivid-google-drive.php:273
+#: includes/customclass/class-wpvivid-one-drive.php:256
+msgid "Pro feature: Create a directory for storing the backups of the site"
+msgstr "Pro 版功能: 建立用於儲存網站備份檔案的目錄"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:45
+#: includes/customclass/class-wpvivid-ftpclass.php:172
+msgid "Enter Your FTP Account"
+msgstr "輸入 FTP 帳號"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:52
+#: includes/customclass/class-wpvivid-ftpclass.php:179
+msgid "Enter an unique alias: e.g. FTP-001"
+msgstr "輸入唯一別名 (例如 FTP-001)"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:64
+#: includes/customclass/class-wpvivid-ftpclass.php:191
+msgid "FTP server (server's port 21)"
+msgstr "FTP 伺服器 (伺服器通訊埠號碼 21)"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:69
+#: includes/customclass/class-wpvivid-ftpclass.php:196
+msgid "Enter the FTP server."
+msgstr "輸入 FTP 伺服器"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:81
+msgid "Pro feature: Change the FTP default port number"
+msgstr "Pro 版功能: 變更 FTP 預設通訊埠號碼"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:88
+#: includes/customclass/class-wpvivid-ftpclass.php:203
+msgid "FTP login"
+msgstr "FTP 使用者名稱"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:93
+#: includes/customclass/class-wpvivid-ftpclass.php:208
+msgid "Enter your FTP server user name."
+msgstr "輸入 FTP 伺服器使用者名稱。"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:105
+#: includes/customclass/class-wpvivid-ftpclass.php:220
+msgid "Enter the FTP server password."
+msgstr "輸入 FTP 伺服器密碼。"
+
+#: includes/customclass/class-wpvivid-google-drive.php:237
+#: includes/customclass/class-wpvivid-google-drive.php:512
+msgid "Enter Your Google Drive Information"
+msgstr "輸入 Google 雲端硬碟資訊"
+
+#: includes/customclass/class-wpvivid-s3compat.php:422
+#: includes/customclass/class-wpvivid-s3compat.php:537
+msgid "Enter Your DigitalOcean Spaces Account"
+msgstr "輸入 DigitalOcean Spaces 帳號"
+
+#: includes/customclass/class-wpvivid-s3compat.php:442
+#: includes/customclass/class-wpvivid-s3compat.php:557
+msgid "DigitalOcean Spaces access key"
+msgstr "DigitalOcean Spaces 存取金鑰"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:112
+#: includes/customclass/class-wpvivid-ftpclass.php:227
+msgid "Absolute path must exist(e.g. /home/username)"
+msgstr "絕對路徑必須存在 (例如 /home/username)"
+
+#: includes/customclass/class-wpvivid-google-drive.php:244
+#: includes/customclass/class-wpvivid-google-drive.php:519
+msgid "Enter a unique alias: e.g. Google Drive-001"
+msgstr "輸入唯一別名 (例如 Google Drive-001)"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:6
+#: admin/partials/wpvivid-remote-storage-page-display.php:410
+msgid "Storages"
+msgstr "儲存空間"
+
+#: admin/partials/wpvivid-settings-page-display.php:169
+msgid "Remove out-of-date backups"
+msgstr "移除過期備份檔案"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:75
+#: includes/customclass/class-wpvivid-amazons3-plus.php:213
+#: includes/customclass/class-wpvivid-dropbox.php:521
+#: includes/customclass/class-wpvivid-dropbox.php:734
+#: includes/customclass/class-wpvivid-ftpclass.php:57
+#: includes/customclass/class-wpvivid-ftpclass.php:184
+#: includes/customclass/class-wpvivid-google-drive.php:249
+#: includes/customclass/class-wpvivid-google-drive.php:524
+#: includes/customclass/class-wpvivid-one-drive.php:232
+#: includes/customclass/class-wpvivid-one-drive.php:448
+#: includes/customclass/class-wpvivid-s3compat.php:435
+#: includes/customclass/class-wpvivid-s3compat.php:550
+#: includes/customclass/class-wpvivid-sftpclass.php:61
+#: includes/customclass/class-wpvivid-sftpclass.php:176
+msgid "A name to help you identify the storage if you have multiple remote storage connected."
+msgstr "如果連線至多個遠端儲存空間，有意義的名稱可以協助網站管理員識別儲存空間。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:131
+#: includes/customclass/class-wpvivid-dropbox.php:553
+#: includes/customclass/class-wpvivid-ftpclass.php:125
+#: includes/customclass/class-wpvivid-google-drive.php:305
+#: includes/customclass/class-wpvivid-one-drive.php:264
+#: includes/customclass/class-wpvivid-s3compat.php:503
+#: includes/customclass/class-wpvivid-sftpclass.php:129
+msgid "Set as the default remote storage."
+msgstr "設定為預設遠端儲存空間"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:137
+#: includes/customclass/class-wpvivid-dropbox.php:559
+#: includes/customclass/class-wpvivid-ftpclass.php:131
+#: includes/customclass/class-wpvivid-google-drive.php:311
+#: includes/customclass/class-wpvivid-one-drive.php:270
+#: includes/customclass/class-wpvivid-s3compat.php:509
+#: includes/customclass/class-wpvivid-sftpclass.php:135
+msgid "Once checked, all this sites backups sent to a remote storage destination will be uploaded to this storage by default."
+msgstr "啟用這項設定後，這個網站要傳送至遠端儲存空間的全部備份檔案，預設都會上傳至這個遠端儲存空間。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:173
+#: includes/customclass/class-wpvivid-ftpclass.php:153
+#: includes/customclass/class-wpvivid-s3compat.php:517
+#: includes/customclass/class-wpvivid-sftpclass.php:143
+msgid "Test and Add"
+msgstr "測試並新增"
+
+#: includes/customclass/class-wpvivid-dropbox.php:533
+#: includes/customclass/class-wpvivid-google-drive.php:261
+#: includes/customclass/class-wpvivid-one-drive.php:244
+msgid "All backups will be uploaded to this directory."
+msgstr "全部備份檔案會上傳至這個目錄。"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:117
+#: includes/customclass/class-wpvivid-ftpclass.php:232
+msgid "Enter an absolute path and a custom subdirectory (optional) for holding the backups of current website. For example, /home/username/customfolder"
+msgstr "輸入用於儲存這個網站備份檔案的絕對路徑及自訂子目錄 (後者為選填)，例如 /home/username/customfolder。"
+
+#: includes/customclass/class-wpvivid-s3compat.php:430
+#: includes/customclass/class-wpvivid-s3compat.php:545
+msgid "Enter a unique alias: e.g. DOS-001"
+msgstr "輸入唯一別名 (例如 DOS-001)"
+
+#: includes/customclass/class-wpvivid-s3compat.php:454
+#: includes/customclass/class-wpvivid-s3compat.php:569
+msgid "DigitalOcean Spaces secret key"
+msgstr "DigitalOcean Spaces 祕密金鑰"
+
+#: includes/customclass/class-wpvivid-s3compat.php:466
+#: includes/customclass/class-wpvivid-s3compat.php:581
+msgid "Space Name(e.g. test)"
+msgstr "Space 名稱 (例如 test)"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:48
+#: includes/customclass/class-wpvivid-sftpclass.php:163
+msgid "Enter Your SFTP Account"
+msgstr "輸入 SFTP 帳號"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:56
+#: includes/customclass/class-wpvivid-sftpclass.php:171
+msgid "Enter a unique alias: e.g. SFTP-001"
+msgstr "輸入唯一別名 (例如 SFTP-001)"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:73
+#: includes/customclass/class-wpvivid-sftpclass.php:188
+msgid "Enter the server address."
+msgstr "輸入伺服器位址。"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:116
+#: includes/customclass/class-wpvivid-sftpclass.php:231
+msgid "Absolute path must exist(e.g. /var)"
+msgstr "絕對路徑必須存在 (例如 /var)"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:121
+#: includes/customclass/class-wpvivid-sftpclass.php:236
+msgid "Enter an absolute path and a custom subdirectory (optional) for holding the backups of current website. For example, /var/customfolder/"
+msgstr "輸入用於儲存這個網站備份檔案的絕對路徑及自訂子目錄 (後者為選填)，例如 /var/customfolder/。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:178
+msgid "Click the button to connect to Amazon S3 storage and add it to the storage list below."
+msgstr "點擊按鈕以連線至 Amazon S3 儲存空間，並將它新增至下方儲存空間清單。"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:139
+#: includes/customclass/class-wpvivid-ftpclass.php:240
+msgid "Uncheck this to enable FTP active mode."
+msgstr "停用這項設定便能使用 FTP 主動模式"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:145
+#: includes/customclass/class-wpvivid-ftpclass.php:246
+msgid "Uncheck the option to use FTP active mode when transferring files. Make sure the FTP server you are configuring supports the active FTP mode."
+msgstr "停用這項設定後，便能在傳輸檔案時使用 FTP 主動模式。請確定 FTP 伺服器已組態為支援 FTP 主動模式。"
+
+#: includes/customclass/class-wpvivid-ftpclass.php:158
+msgid "Click the button to connect to FTP server and add it to the storage list below."
+msgstr "點擊按鈕以連線至 FTP 伺服器，並將它新增至下方儲存空間清單。"
+
+#: includes/customclass/class-wpvivid-s3compat.php:522
+msgid "Click the button to connect to DigitalOcean Spaces storage and add it to the storage list below."
+msgstr "點擊按鈕以連線至 DigitalOcean Spaces 儲存空間，並將它新增至下方儲存空間清單。"
+
+#: includes/customclass/class-wpvivid-sftpclass.php:148
+msgid "Click the button to connect to SFTP server and add it to the storage list below."
+msgstr "點擊按鈕以連線至 SFTP 伺服器，並將它新增至下方儲存空間清單。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:87
+#: includes/customclass/class-wpvivid-amazons3-plus.php:225
+msgid "Enter your Amazon S3 access key."
+msgstr "輸入 Amazon S3 存取金鑰。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:94
+#: includes/customclass/class-wpvivid-amazons3-plus.php:232
+msgid "Amazon S3 secret key"
+msgstr "Amazon S3 秘密金鑰"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:99
+#: includes/customclass/class-wpvivid-amazons3-plus.php:237
+msgid "Enter your Amazon S3 secret key."
+msgstr "輸入 Amazon S3 秘密金鑰。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:106
+#: includes/customclass/class-wpvivid-amazons3-plus.php:244
+msgid "Amazon S3 Bucket Name(e.g. test)"
+msgstr "Amazon S3 儲存貯體名稱 (例如 test)"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:111
+#: includes/customclass/class-wpvivid-amazons3-plus.php:249
+msgid "Enter an existed Bucket to create a custom backup storage directory."
+msgstr "輸入現有的儲存貯體以建立自訂備份檔案儲存空間目錄。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:123
+#: includes/customclass/class-wpvivid-amazons3-plus.php:261
+msgid "Customize the directory where you want to store backups within the Bucket."
+msgstr "自訂儲存貯體用於儲存備份檔案的目錄。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:145
+#: includes/customclass/class-wpvivid-amazons3-plus.php:269
+msgid "Storage class: Standard (infrequent access)."
+msgstr "儲存類別: 標準 (不常存取方案)"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:151
+#: includes/customclass/class-wpvivid-amazons3-plus.php:275
+msgid "Check the option to use Amazon S3 Standard-Infrequent Access (S3 Standard-IA) storage class for data transfer."
+msgstr "啟用這項設定後，便能在資料傳輸時使用 Amazon S3 Standard-Infrequent Access (S3 Standard-IA) 儲存類別。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:159
+#: includes/customclass/class-wpvivid-amazons3-plus.php:283
+msgid "Server-side encryption."
+msgstr "伺服器端加密"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:165
+#: includes/customclass/class-wpvivid-amazons3-plus.php:289
+msgid "Check the option to use Amazon S3 server-side encryption to protect data."
+msgstr "啟用這項設定後，便能使用 Amazon S3 伺服器端加密保護資料。"
+
+#: includes/customclass/class-wpvivid-dropbox.php:429
+#: includes/customclass/class-wpvivid-dropbox.php:477
+msgid "You have authenticated the Dropbox account as your remote storage."
+msgstr "這個網站已完成 Dropbox 帳號作為遠端儲存空間的驗證。"
+
+#: includes/customclass/class-wpvivid-google-drive.php:149
+#: includes/customclass/class-wpvivid-google-drive.php:204
+msgid "You have authenticated the Google Drive account as your remote storage."
+msgstr "這個網站已完成 Google 雲端硬碟帳號作為遠端儲存空間的驗證。"
+
+#: includes/customclass/class-wpvivid-one-drive.php:136
+#: includes/customclass/class-wpvivid-one-drive.php:187
+msgid "You have authenticated the Microsoft OneDrive account as your remote storage."
+msgstr "這個網站已完成 Microsoft OneDrive 帳號作為遠端儲存空間的驗證。"
+
+#: includes/customclass/class-wpvivid-s3compat.php:447
+#: includes/customclass/class-wpvivid-s3compat.php:562
+msgid "Enter your DigitalOcean Spaces access key"
+msgstr "輸入 DigitalOcean Spaces 存取金鑰。"
+
+#: includes/customclass/class-wpvivid-s3compat.php:459
+#: includes/customclass/class-wpvivid-s3compat.php:574
+msgid "Enter your DigitalOcean Spaces secret key"
+msgstr "輸入 DigitalOcean Spaces 祕密金鑰。"
+
+#: includes/customclass/class-wpvivid-s3compat.php:471
+#: includes/customclass/class-wpvivid-s3compat.php:586
+msgid "Enter an existed Space to create a custom backup storage directory."
+msgstr "輸入現有的 Space 以建立自訂備份檔案儲存空間目錄。"
+
+#: includes/customclass/class-wpvivid-s3compat.php:483
+#: includes/customclass/class-wpvivid-s3compat.php:598
+msgid "Customize the directory where you want to store backups within the Space."
+msgstr "自訂 Space 用於儲存備份檔案的目錄。"
+
+#: includes/customclass/class-wpvivid-s3compat.php:490
+#: includes/customclass/class-wpvivid-s3compat.php:605
+msgid "region.digitaloceanspaces.com"
+msgstr "例如 region.digitaloceanspaces.com"
+
+#: includes/customclass/class-wpvivid-s3compat.php:495
+#: includes/customclass/class-wpvivid-s3compat.php:610
+msgid "Enter the DigitalOcean Endpoint for the storage"
+msgstr "輸入 DigitalOcean 儲存空間的端點。"
+
+#: admin/class-wpvivid-admin.php:1497 includes/class-wpvivid-exporter.php:111
+#: includes/staging/class-wpvivid-staging-log-page.php:25
+#: includes/staging/class-wpvivid-staging-log-page.php:328
+msgid "Date"
+msgstr "日期"
+
+#: admin/partials/wpvivid-settings-page-display.php:126
+msgid "Show WPvivid backup plugin on top admin bar"
+msgstr "在頂端管理列顯示 WPvivid Backup 外掛"
+
+#: admin/partials/wpvivid-settings-page-display.php:155
+msgid "Backup Folder"
+msgstr "備份資料夾"
+
+#: includes/class-wpvivid.php:3290
+#: includes/customclass/class-wpvivid-dropbox.php:883
+#: includes/customclass/class-wpvivid-google-drive.php:1466
+#: includes/customclass/class-wpvivid-one-drive.php:1622
+msgid "You have successfully added a remote storage."
+msgstr "已將遠端儲存空間新增至這個網站。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:187
+msgid "The simplexml extension is not detected. Please install the extension first."
+msgstr "系統沒有偵測到 simplexml 擴充功能。請先安裝這個擴充功能。"
+
+#: includes/customclass/class-wpvivid-google-drive.php:110
+msgid "Authentication failed, the client_secrets.json file is missing. Please make sure the client_secrets.json file is in wpvivid-backuprestore\\includes\\customclass directory."
+msgstr "驗證失敗，找不到 client_secrets.json 檔案。請確定 client_secrets.json 檔案存在於 wpvivid-backuprestore\\includes\\customclass 目錄。"
+
+#: includes/customclass/class-wpvivid-google-drive.php:114
+msgid "Authentication failed, the format of the client_secrets.json file is incorrect. Please delete and re-install the plugin to recreate the file."
+msgstr "驗證失敗，client_secrets.json 檔案格式不正確。請刪除並重新安裝外掛以重新建立這個檔案。"
+
+#: admin/class-wpvivid-admin.php:1383
+msgid "Website Info Key"
+msgstr "網站資訊索引碼"
+
+#: admin/class-wpvivid-admin.php:1384
+msgid "Website Info Value"
+msgstr "網站資訊值"
+
+#: admin/class-wpvivid-admin.php:1629
+msgid "If you are a MainWP user, you can set up and control WPvivid Backup Free and Pro for every child site directly from your MainWP dashboard, using our WPvivid Backup for MainWP extension."
+msgstr "MainWP 使用者使用 WPvivid Backup for MainWP 擴充功能後，便可以在 MainWP 控制台為每一個子網站設定並控制 WPvivid Backup 免費版及 Pro 版。"
+
+#: admin/class-wpvivid-admin.php:1635
+msgid "1. Create and download backups for a specific child site"
+msgstr "1. 為指定子網站建立並下載備份檔案。"
+
+#: admin/class-wpvivid-admin.php:1638
+msgid "2. Set backup schedules for all child sites"
+msgstr "2. 為全部子網站設定備份排程。"
+
+#: admin/class-wpvivid-admin.php:1642
+msgid "3. Set WPvivid Backup Free and Pro settings for all child sites"
+msgstr "3. 為全部子網站設定 WPvivid Backup 免費版及 Pro 版。"
+
+#: admin/class-wpvivid-admin.php:1647
+msgid "4. Install, claim and update WPvivid Backup Pro for child sites in bulk"
+msgstr "4. 為子網站批次安裝、通知及更新 WPvivid Backup Pro。"
+
+#: admin/class-wpvivid-admin.php:1652
+msgid "5. Set up remote storage for child sites in bulk (for WPvivid Backup Pro only)"
+msgstr "5. 為子網站批次設定遠端儲存空間 (僅 WPvivid Backup Pro 提供)。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2302
+#: includes/class-wpvivid-migrate.php:1529 includes/class-wpvivid.php:4610
+#: includes/new_backup/class-wpvivid-backup2.php:1035
+#: includes/new_backup/class-wpvivid-backup2.php:1129
+msgid "Speed:"
+msgstr "速度:"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:2305
+#: includes/class-wpvivid-migrate.php:1532 includes/class-wpvivid.php:4613
+#: includes/new_backup/class-wpvivid-backup2.php:1038
+#: includes/new_backup/class-wpvivid-backup2.php:1132
+msgid "Network Connection:"
+msgstr "網路連線:"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:26
+#: admin/partials/wpvivid-remote-storage-page-display.php:419
+msgid "Please choose one storage to save your backups (remote storage)"
+msgstr "請選取儲存空間以儲存這個網站的備份檔案 (遠端儲存空間)"
+
+#: admin/partials/wpvivid-settings-page-display.php:173
+msgid "Web Server Directory:"
+msgstr "網頁伺服器目錄:"
+
+#: admin/partials/wpvivid-settings-page-display.php:271
+msgid "Always send an email notification when a backup is complete"
+msgstr "備份完成後一律傳送電子郵件通知"
+
+#: admin/partials/wpvivid-settings-page-display.php:275
+msgid "Only send an email notification when a backup fails"
+msgstr "僅備份失敗後傳送電子郵件通知"
+
+#: admin/partials/wpvivid-settings-page-display.php:326
+msgid "Web-server disk space in use by WPvivid"
+msgstr "WPvivid 已使用的網頁伺服器磁碟空間"
+
+#: admin/partials/wpvivid-settings-page-display.php:334
+msgid "Calculate Sizes"
+msgstr "計算大小"
+
+#: admin/class-wpvivid-admin.php:186
+#: includes/snapshot/class-wpvivid-snapshot.php:1624
+#: includes/staging/class-wpvivid-staging.php:73
+msgid "Current Version: "
+msgstr "目前版本: "
+
+#: admin/class-wpvivid-admin.php:754
+msgid "As Amazon S3 and DigitalOcean Space have upgraded their connection methods, please delete the previous connections and re-add your Amazon S3/DigitalOcean Space accounts to make sure the connections work."
+msgstr "Amazon S3 及 DigitalOcean Spaces 已升級其連線方法，請刪除之前的連線，並重新新增 Amazon S3/DigitalOcean Spaces 帳號，以確保能正常連線。"
+
+#: admin/class-wpvivid-admin.php:891
+msgid "Class PclZip is not detected. Please update or reinstall your WordPress."
+msgstr "系統沒有偵測到 PclZip 類別。請更新或重新安裝 WordPress。"
+
+#: admin/class-wpvivid-admin.php:1337
+msgid "There are two ways available to send us the debug information. The first one is recommended."
+msgstr "這裡提供 2 種能將偵錯資訊傳送給我們的方法。建議使用第 1 種方法。"
+
+#: admin/class-wpvivid-admin.php:1339
+msgid "If you have configured SMTP on your site, enter your email address and click the button below to send us the relevant information (website info and errors logs) when you are encountering errors. This will help us figure out what happened. Once the issue is resolved, we will inform you by your email address."
+msgstr "如果網站管理員已為這個網站完成 SMTP 組態，這個外掛發生錯誤時，請輸入網站管理員的電子郵件地址，並點擊下方按鈕便能傳送相關資訊 (網站資訊及錯誤記錄) 給我們，這能協助我們判斷問題癥結。我們將問題解決後，會以相同的電子郵件地址通知你。"
+
+#: admin/class-wpvivid-admin.php:1343
+msgid "Your email:"
+msgstr "使用者電子郵件地址:"
+
+#: admin/class-wpvivid-admin.php:1348
+msgid "I am using:"
+msgstr "網站使用的主機類型:"
+
+#: admin/class-wpvivid-admin.php:1360
+msgid "My web hosting provider is:"
+msgstr "網站使用的主機服務提供商:"
+
+#: admin/class-wpvivid-admin.php:1369
+msgid "Please describe your problem here."
+msgstr "請在這裡撰寫問題說明。"
+
+#: admin/class-wpvivid-admin.php:1372
+msgid "Send Debug Information to Us"
+msgstr "傳送偵錯資訊給我們"
+
+#: admin/class-wpvivid-admin.php:1376
+msgid "If you didn’t configure SMTP on your site, click the button below to download the relevant information (website info and error logs) to your PC when you are encountering some errors. Sending the files to us will help us diagnose what happened."
+msgstr "如果這個網站並未完成 SMTP 組態，這個外掛發生錯誤時，請點擊下方按鈕以下載相關資訊 (網站資訊及錯誤記錄) 至裝置儲存，並將檔案傳送給我們，這能協助我們判斷問題癥結。"
+
+#: admin/partials/wpvivid-admin-display.php:62
+msgid "Warning: There is no default remote storage available for the scheduled backups, please set up it first."
+msgstr "警告: 沒有可供排程備份使用的預設遠端儲存空間，請先進行這項設定。"
+
+#: includes/class-wpvivid-backup.php:1110
+#: includes/new_backup/class-wpvivid-backup-task_2.php:2736
+msgid "Ready to backup. Progress: 0%, running time: 0second."
+msgstr "備份工作準備就緒。進度: 0%，執行時間: 0 秒。"
+
+#: includes/class-wpvivid-backup.php:1145
+#: includes/class-wpvivid-backup.php:1158
+#: includes/class-wpvivid-export-import.php:1352
+#: includes/new_backup/class-wpvivid-backup-task_2.php:2772
+#: includes/new_backup/class-wpvivid-backup-task_2.php:2785
+msgid "Progress: "
+msgstr "進度: "
+
+#: includes/class-wpvivid-backup.php:1145
+#: includes/class-wpvivid-backup.php:1158
+#: includes/class-wpvivid-export-import.php:1352
+#: includes/new_backup/class-wpvivid-backup-task_2.php:2772
+#: includes/new_backup/class-wpvivid-backup-task_2.php:2785
+msgid "running time: "
+msgstr "執行時間: "
+
+#: includes/class-wpvivid-export-import.php:121
+#: includes/class-wpvivid-export-import.php:1575
+msgid "Learn more"
+msgstr "進一步了解"
+
+#: includes/class-wpvivid-interface-mainwp.php:270
+#: includes/class-wpvivid-interface-mainwp.php:308
+#: includes/class-wpvivid-interface-mainwp.php:361
+#: includes/class-wpvivid-public-interface.php:174
+#: includes/class-wpvivid-public-interface.php:204
+#: includes/class-wpvivid-public-interface.php:233
+#: includes/class-wpvivid.php:769 includes/class-wpvivid.php:834
+#: includes/class-wpvivid.php:895 includes/class-wpvivid.php:6574
+#: includes/staging/class-wpvivid-staging-log-page.php:876
+msgid "Unable to open the log file."
+msgstr "無法開啟記錄檔。"
+
+#: includes/class-wpvivid-interface-mainwp.php:299
+#: includes/class-wpvivid-public-interface.php:195
+#: includes/class-wpvivid.php:786 includes/class-wpvivid.php:816
+#: includes/class-wpvivid.php:911 includes/class-wpvivid.php:6590
+#: includes/staging/class-wpvivid-staging-log-page.php:892
+#: includes/staging/class-wpvivid-staging-log-page.php:1145
+msgid "Reading the log failed. Please try again."
+msgstr "無法讀取記錄。請再試一次。"
+
+#: includes/class-wpvivid-mail-report.php:1110 includes/class-wpvivid.php:6172
+msgid "Unable to send email. Please check the configuration of email server."
+msgstr "無法傳送電子郵件。請檢查電子郵件伺服器組態。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1036
+msgid "This request will delete the backup being downloaded, are you sure you want to continue?"
+msgstr "這個要求會刪除正在下載的備份檔案，確定要繼續操作嗎？"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1080
+#: admin/partials/wpvivid-backup-restore-page-display.php:2694
+msgid "This request might delete the backup being downloaded, are you sure you want to continue?"
+msgstr "這個要求可能會刪除正在下載的備份檔案，確定要繼續操作嗎？"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1184
+msgid "Please do not close the page or switch to other pages when a restore task is running, as it could trigger some unexpected errors."
+msgstr "執行還原工作時，請不要關閉這個頁面切換至其他頁面，這會觸發未預期的錯誤。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1185
+msgid "Restore function will replace the current site's themes, plugins, uploads, database and/or other content directories with the existing equivalents in the selected backup."
+msgstr "還原功能會以選取的備份檔案中的佈景主題、外掛、上傳的檔案、資料庫及其他內容目錄的項目，取代將這個網站目前的對應項目。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1189
+msgid "Retrieve the backup to localhost"
+msgstr "將備份檔案擷取至網站主機本機"
+
+#: admin/partials/wpvivid-settings-page-display.php:157
+msgid "Name your folder, this folder must be writable for creating backup files."
+msgstr "請命名這個資料夾，外掛必須具備對這個資料夾的寫入權限才能建立備份檔案。"
+
+#: admin/partials/wpvivid-settings-page-display.php:187
+msgid "The action is irreversible! It will remove all backups are out-of-date (including local web server and remote storage) if they exist."
+msgstr "這項操作無法復原，並且會移除網頁伺服器本機及遠端儲存空間上過期的全部備份檔案。"
+
+#: admin/partials/wpvivid-settings-page-display.php:252
+msgid "Enable email report"
+msgstr "啟用電子郵件報告"
+
+#: includes/class-wpvivid.php:3174
+msgid "Unable to delete the locked backup. Please unlock it first and try again."
+msgstr "無法刪除已鎖定的備份檔案。請先將備份檔案解除鎖定並再試一次。"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1190
+msgid "The backup is stored on the remote storage, click on the button to download it to localhost."
+msgstr "備份檔案以儲存於遠端儲存空間，點擊按鈕便能將備份檔案下載至網站主機本機。"
+
+#: admin/partials/wpvivid-settings-page-display.php:138
+msgid "Keep storing the backups in localhost after uploading to remote storage"
+msgstr "備份檔案上傳至遠端儲存空間後，在網站主機本機保留備份檔案"
+
+#: admin/partials/wpvivid-settings-page-display.php:164
+msgid "Display domain(url) of current site in backup name. (e.g. domain_wpvivid-5ceb938b6dca9_2019-05-27-07-36_backup_all.zip)"
+msgstr "在備份檔案名稱中顯示目前網站的網域名稱 (網址，例如 domain_wpvivid-5ceb938b6dca9_2019-05-27-07-36_backup_all.zip)"
+
+#: admin/partials/wpvivid-settings-page-display.php:470
+msgid "Importing the json file can help you set WPvivid's configuration on another wordpress site quickly."
+msgstr "匯入來自其他 WordPress 網站的 JSON 檔案，可以協助網站管理員快速完成 WPvivid Backup 外掛的組態。"
+
+#: admin/partials/wpvivid-settings-page-display.php:738
+msgid "Compress Files Every"
+msgstr "壓縮檔案分割大小"
+
+#: admin/partials/wpvivid-settings-page-display.php:746
+msgid "Using the option will ignore the file larger than the certain size in MB when backing up, '0' (zero) means unlimited."
+msgstr "系統會忽略大於這項設定的檔案 (單位為 MB)。設定為 0 代表不限制。"
+
+#: admin/partials/wpvivid-settings-page-display.php:748
+msgid "PHP script execution timeout for backup"
+msgstr "備份程序的 PHP 指令碼執行逾時時間上限"
+
+#: admin/partials/wpvivid-settings-page-display.php:803
+msgid "PHP script execution timeout for restore"
+msgstr "還原程序的 PHP 指令碼執行逾時時間上限"
+
+#: admin/partials/wpvivid-settings-page-display.php:753
+msgid "PHP Memory Limit for backup"
+msgstr "備份程序的 PHP 可存取記憶體上限"
+
+#: admin/partials/wpvivid-settings-page-display.php:808
+msgid "PHP Memory Limit for restoration"
+msgstr "還原程序的 PHP 可存取記憶體上限"
+
+#: admin/partials/wpvivid-settings-page-display.php:768
+msgid "Chunk Size"
+msgstr "區塊大小"
+
+#: includes/class-wpvivid-backup.php:1164
+#: includes/class-wpvivid-backup.php:1181
+#: includes/class-wpvivid-function-realize.php:56
+#: includes/new_backup/class-wpvivid-backup-task_2.php:2791
+#: includes/new_backup/class-wpvivid-backup-task_2.php:2811
+msgid "The backup will be canceled after backing up the current chunk ends."
+msgstr "備份程序會在完成備份目前的區塊後取消。"
+
+#: includes/class-wpvivid-export-import.php:637
+msgid "Filter Posts/Pages"
+msgstr "篩選文章/頁面"
+
+#: includes/class-wpvivid-export-import.php:686
+msgid "All Authors"
+msgstr "全部作者"
+
+#: includes/class-wpvivid-export-import.php:808
+msgid "Sample:"
+msgstr "範例:"
+
+#: includes/class-wpvivid-export-import.php:1150
+msgid "Empty post id"
+msgstr "空白文章 ID"
+
+#: includes/class-wpvivid-export-import.php:1385
+msgid "Export error:"
+msgstr "匯出時發生錯誤:"
+
+#: includes/class-wpvivid-export-import.php:1419
+msgid "Task time out."
+msgstr "工作已逾時。"
+
+#: includes/class-wpvivid-export-import.php:1539
+msgid "File size not match. please retry again."
+msgstr "檔案大小不相符，請再試一次。"
+
+#: includes/class-wpvivid-export-import.php:1579
+msgid "To properly display the imported content, please make sure that the importing and exporting sites have the same environment, for example, same theme or pages built with the same page builder."
+msgstr "想要正確顯示匯入的內容，請確定要匯入內容的網站與匯出內容的網站有相同的環境；舉例來說，使用相同的佈景主題或頁面編輯器。"
+
+#: includes/class-wpvivid-export-import.php:1589
+#: includes/class-wpvivid-export-import.php:1842
+#: includes/class-wpvivid-export-import.php:2140
+msgid "Delete Exported Files In Folder"
+msgstr "刪除資料夾中的匯出檔案"
+
+#: includes/class-wpvivid-export-import.php:1615
+msgid "Overwrite existing pages"
+msgstr "覆寫現有頁面"
+
+#: includes/class-wpvivid-exporter.php:109
+msgid "Comments"
+msgstr "留言"
+
+#: includes/class-wpvivid-migrate.php:441
+#: includes/class-wpvivid-migrate.php:1429
+msgid "How to migrate Wordpress site manually to a new domain(site) with WPvivid backup plugin?"
+msgstr "使用 WPvivid Backup 外掛手動移轉 WordPress 網站至新網域名稱 (網站) 的方式"
+
+#: includes/class-wpvivid-migrate.php:1455
+#: includes/class-wpvivid-migrate.php:1479
+msgid "Choose what to migrate"
+msgstr "自行選取要移轉的項目"
+
+#: includes/class-wpvivid-migrate.php:1546
+msgid "Transfer succeeded. Please scan the backup list on the destination site to display the backup, then restore the backup."
+msgstr "傳輸已完成。請掃描目標網站的備份檔案清單以顯示備份檔案，然後使用備份檔案進行還原。"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:87
+#: includes/customclass/class-wpvivid-amazons3-plus.php:225
+msgid "How to get an AmazonS3 access key."
+msgstr "取得 Amazon S3 存取金鑰的方式"
+
+#: includes/customclass/class-wpvivid-amazons3-plus.php:99
+#: includes/customclass/class-wpvivid-amazons3-plus.php:237
+msgid "How to get an Amazon S3 secret key."
+msgstr "取得 Amazon S3 秘密金鑰的方式"
+
+#: includes/class-wpvivid-export-import.php:1595
+msgid "Upload and Import"
+msgstr "上傳並匯入"
+
+#: includes/class-wpvivid-export-import.php:1599
+msgid "Scan Uploaded Exports"
+msgstr "掃描已上傳的匯出檔案"
+
+#: includes/class-wpvivid-function-realize.php:161
+#: includes/class-wpvivid-function-realize.php:173
+#: includes/class-wpvivid-function-realize.php:190
+#: includes/class-wpvivid.php:759 includes/class-wpvivid.php:825
+#: includes/class-wpvivid.php:886 includes/class-wpvivid.php:6565
+#: includes/staging/class-wpvivid-staging-log-page.php:857
+#: includes/staging/class-wpvivid-staging-log-page.php:867
+#: includes/staging/class-wpvivid-staging-log-page.php:1068
+#: includes/staging/class-wpvivid-staging-log-page.php:1082
+msgid "The log not found."
+msgstr "找不到符合條件的記錄。"
+
+#: includes/class-wpvivid-importer.php:1697
+msgid "Fetching attachments is not enabled"
+msgstr "[擷取附件] 未啟用"
+
+#: admin/class-wpvivid-admin.php:284
+msgid "3. Go back to this page and paste the key in key box below. Lastly, click Save button."
+msgstr "3. 返回這個頁面，並在下方金鑰欄位貼上金鑰內容，然後請點擊 [儲存] 按鈕。"
+
+#: admin/class-wpvivid-admin.php:588
+msgid "Migration is complete and htaccess file is replaced. In order to successfully complete the migration, you'd better reinstall 301 redirect plugin, firewall and security plugin, and caching plugin if they exist."
+msgstr "移轉已完成，且 .htaccess 檔案已完成置換。為了成功完成移轉，如果這個網站上使用 301 重新導向、防火牆/安全性及快取等外掛，建議重新安裝這些外掛。"
+
+#: includes/class-wpvivid-export-import.php:1594
+msgid "Choose an export from your computer to import: "
+msgstr "從使用者個人裝置選取匯出檔案以進行匯入: "
+
+#: includes/class-wpvivid-migrate.php:1422
+msgid "2. Please migrate website with the manual way when using <strong>Local by Flywheel</strong> environment."
+msgstr "2. 如果這個網站使用 <strong>Local by Flywheel</strong> 環境建置，請改以手動方式移轉網站。"
+
+#: includes/class-wpvivid-migrate.php:442
+#: includes/class-wpvivid-migrate.php:1430
+msgid "1. Download a backup in backups list to your computer."
+msgstr "1. 在備份檔案清單中依據需求下載需要的備份檔案至使用者個人裝置。"
+
+#: includes/class-wpvivid-migrate.php:443
+#: includes/class-wpvivid-migrate.php:1431
+msgid "2. Upload the backup to destination site. There are two ways available to use:"
+msgstr "2. 將備份檔案上傳至目標網站。以下提供 2 種可用的方式:"
+
+#: includes/class-wpvivid-migrate.php:444
+#: includes/class-wpvivid-migrate.php:1432
+msgid "2.1 Upload the backup to the upload section of WPvivid backup plugin in destination site."
+msgstr "2.1 在目標網站的 WPvivid Backup 外掛的 [備份及還原]&rarr;[上傳] 區段中上傳備份檔案。"
+
+#: includes/class-wpvivid-migrate.php:446
+#: includes/class-wpvivid-migrate.php:1434
+msgid "3. Once done, the backup appears in backups list. Then, restore the backup."
+msgstr "3. 以上操作完成後，備份檔案便會出現目標網站的備份檔案清單中，點擊對應的 [還原] 按鈕即可透過備份檔案還原網站。"
+
+#: includes/class-wpvivid-schedule.php:286
+#: includes/class-wpvivid-schedule.php:300
+msgid "Creating scheduled tasks failed. Please try again later."
+msgstr "無法建立排程工作。請稍後再試。"
+
+#: includes/class-wpvivid-migrate.php:1421
+msgid "1. In order to successfully complete the migration, you'd better deactivate <a href=\"https://wpvivid.com/best-redirect-plugins.html\" target=\"_blank\" style=\"text-decoration: none;\">301 redirect plugin</a>, <a href=\"https://wpvivid.com/8-best-wordpress-firewall-plugins.html\" target=\"_blank\" style=\"text-decoration: none;\">firewall and security plugin</a>, and <a href=\"https://wpvivid.com/best-free-wordpress-caching-plugins.html\" target=\"_blank\" style=\"text-decoration: none;\">caching plugin</a> (if they exist) before transferring website."
+msgstr "1. 為了成功完成移轉，如果這個網站上使用 <a href=\"https://wpvivid.com/best-redirect-plugins.html\" target=\"_blank\" style=\"text-decoration: none;\">301 重新導向</a>、<a href=\"https://wpvivid.com/8-best-wordpress-firewall-plugins.html\" target=\"_blank\" style=\"text-decoration: none;\">防火牆/安全性</a>及<a href=\"https://wpvivid.com/best-free-wordpress-caching-plugins.html\" target=\"_blank\" style=\"text-decoration: none;\">快取</a>等外掛，建議先停用這些外掛。"
+
+#: includes/class-wpvivid-interface-mainwp.php:125
+#: includes/class-wpvivid-interface-mainwp.php:132
+#: includes/class-wpvivid.php:624 includes/class-wpvivid.php:633
+#: includes/new_backup/class-wpvivid-backup2.php:96
+#: includes/new_backup/class-wpvivid-backup2.php:104
+msgid "Choose at least one storage location for backups."
+msgstr "請為備份程序選取至少一個儲存位置。"
+
+#: includes/class-wpvivid.php:1778 includes/class-wpvivid.php:1800
+#: includes/class-wpvivid.php:1826 includes/class-wpvivid.php:1951
+#: includes/class-wpvivid.php:2077
+#: includes/new_backup/class-wpvivid-backup2.php:926
+#: includes/new_backup/class-wpvivid-backup2.php:1333
+msgid "Too many resumption attempts."
+msgstr "過多的持續嘗試次數。"
+
+#: includes/class-wpvivid.php:1959 includes/class-wpvivid.php:2085
+#: includes/new_backup/class-wpvivid-backup2.php:935
+#: includes/new_backup/class-wpvivid-backup2.php:1341
+msgid "Task timed out."
+msgstr "工作逾時。"
+
+#: includes/class-wpvivid.php:3164
+msgid "Retrieving the backup(s) information failed while deleting the selected backup(s). Please try again later."
+msgstr "刪除選取的備份檔案時無法擷取備份檔案資訊。請稍後再試。"
+
+#: includes/class-wpvivid.php:3348
+msgid "Failed to delete the remote storage, can not retrieve the storage infomation. Please try again."
+msgstr "無法刪除遠端儲存空間，也無法擷取儲存空間資訊。請稍後再試。"
+
+#: includes/class-wpvivid.php:3382
+msgid "Failed to get the remote storage information. Please try again later."
+msgstr "無法取得遠端儲存空間資訊。請稍後再試。"
+
+#: includes/class-wpvivid.php:4290
+msgid "restore failed error unknown"
+msgstr "未知的還原失敗錯誤。"
+
+#: includes/class-wpvivid.php:4344
+msgid "The restore file not found. Please verify the file exists."
+msgstr "找不到符合條件的還原檔案。請確認檔案是否存在。"
+
+#: includes/class-wpvivid.php:4731
+msgid "Getting backup directory failed. Please try again later."
+msgstr "無法取得備份檔案儲存目錄。請稍後再試。"
+
+#: includes/class-wpvivid.php:5146
+msgid "Choose at least one type of junk files for deleting."
+msgstr "請選取至少一個要刪除的冗餘項目檔案類型。"
+
+#: includes/class-wpvivid.php:5220
+msgid "The selected junk files have been deleted."
+msgstr "選取的冗餘項目檔案已刪除。"
+
+#: includes/class-wpvivid.php:5414
+msgid "Choose one storage from the list to be the default storage."
+msgstr "請從清單中選取其中一個儲存空間作為預設儲存空間。"
+
+#: admin/class-wpvivid-admin.php:273
+msgid "Error:"
+msgstr "錯誤: "
+
+#: admin/class-wpvivid-admin.php:610
+#: admin/partials/wpvivid-backup-restore-page-display.php:1642
+#: admin/partials/wpvivid-backup-restore-page-display.php:1655
+#: admin/partials/wpvivid-backup-restore-page-display.php:1666
+msgid "Restore completed successfully."
+msgstr "還原程序已成功完成。"
+
+#: admin/partials/wpvivid-remote-storage-page-display.php:14
+#: admin/partials/wpvivid-remote-storage-page-display.php:412
+msgid "Storage Edit"
+msgstr "編輯儲存空間"
+
+#: admin/partials/wpvivid-settings-page-display.php:681
+msgid "WPDB option has a better compatibility, but the speed of backup and restore is slower."
+msgstr "[WPDB] 選項有更好的相容性，但是備份及還原的速度較慢。"
+
+#: admin/partials/wpvivid-settings-page-display.php:687
+msgid "It is recommended to choose PDO option if pdo_mysql extension is installed on your server, which lets you backup and restore your site faster."
+msgstr "如果這台伺服器已安裝 pdo_mysql 擴充功能，建議選取 [PDO] 選項，能讓這個網站的備份及還原更快速。"
+
+#: admin/partials/wpvivid-settings-page-display.php:743
+msgid "Exclude the files which are larger than"
+msgstr "排除大於指定大小的檔案"
+
+#: admin/partials/wpvivid-settings-page-display.php:751
+msgid "The time-out is not your server PHP time-out. With the execution time exhausted, our plugin will shut the process of backup down. If the progress of backup encounters a time-out, that means you have a medium or large sized website, please try to scale the value bigger."
+msgstr "這裡所指的逾時不是伺服器上的 PHP 指令碼執行逾時。耗盡執行時間後，這個外掛會關閉備份程序。當備份程序發生執行逾時的狀況，代表這是中型或大型網站，請嘗試加大設定值。"
+
+#: admin/partials/wpvivid-settings-page-display.php:806
+msgid "The time-out is not your server PHP time-out. With the execution time exhausted, our plugin will shut the process of restore down. If the progress of restore encounters a time-out, that means you have a medium or large sized website, please try to scale the value bigger."
+msgstr "這裡所指的逾時不是伺服器上的 PHP 指令碼執行逾時。耗盡執行時間後，這個外掛會關閉還原程序。當還原程序發生執行逾時的狀況，代表這是中型或大型網站，請嘗試加大設定值。"
+
+#: admin/partials/wpvivid-settings-page-display.php:756
+msgid "Adjust this value to apply for a temporary PHP memory limit for WPvivid backup plugin to run a backup. We set this value to 256M by default. Increase the value if you encounter a memory exhausted error. Note: some web hosting providers may not support this."
+msgstr "調整這項設定值便能臨時變更 WPvivid Backup 執行備份程序的 PHP 可存取記憶體上限。這項設定的預設值為 256MB，如果遇到網站耗盡記憶體的錯誤，請增加設定值。請注意，某些網站主機服務提供商不支援這項設定。"
+
+#: admin/partials/wpvivid-settings-page-display.php:811
+msgid "Adjust this value to apply for a temporary PHP memory limit for WPvivid backup plugin in restore process. We set this value to 256M by default. Increase the value if you encounter a memory exhausted error. Note: some web hosting providers may not support this."
+msgstr "調整這項設定值便能臨時變更 WPvivid Backup 執行還原程序的 PHP 可存取記憶體上限。這項設定的預設值為 256MB，如果遇到網站耗盡記憶體的錯誤，請增加設定值。請注意，某些網站主機服務提供商不支援這項設定。"
+
+#: includes/class-wpvivid-export-import.php:119
+msgid "Export posts or pages with images in bulk."
+msgstr "批次匯出文章或頁面 (包含內容中的圖片)。"
+
+#: includes/class-wpvivid-export-import.php:124
+msgid "This will contain all of your posts, pages, comments, terms and images (original images, featured images and thumbnails)."
+msgstr "這項操作會納入這個網站的全部文章、頁面、留言、分類法詞彙及圖片 (原始圖片、精選圖片及縮圖)。"
+
+#: includes/class-wpvivid-export-import.php:125
+msgid "Try to select fewer items when you are facing a shortage of server resources (typically presented as a timeout error)."
+msgstr "伺服器發生資源不足的狀況時 (通常為逾時錯誤)，請嘗試選取較少的項目。"
+
+#: includes/class-wpvivid-export-import.php:795
+msgid "Comment the export (optional)"
+msgstr "撰寫匯出檔案註解 (選用)"
+
+#: includes/class-wpvivid-export-import.php:800
+msgid "Comment the export: "
+msgstr "撰寫匯出檔案註解: "
+
+#: includes/class-wpvivid-export-import.php:804
+msgid "Only letters (except for wpvivid) and numbers are allowed."
+msgstr "只能使用英文字母及數字撰寫註解，但不能使用 wpvivid 這個字。"
+
+#: includes/class-wpvivid-export-import.php:1157
+#: includes/class-wpvivid-export-import.php:1198
+#: includes/class-wpvivid-interface-mainwp.php:156
+#: includes/class-wpvivid-migrate.php:773 includes/class-wpvivid.php:708
+#: includes/class-wpvivid.php:1051 includes/class-wpvivid.php:1392
+#: includes/new_backup/class-wpvivid-backup2.php:130
+#: includes/new_backup/class-wpvivid-backup2.php:1672
+msgid "A task is already running. Please wait until the running task is complete, and try again."
+msgstr "工作正在執行。請稍做等待至這項工作完成，然後再試一次。"
+
+#: includes/class-wpvivid-export-import.php:1188
+msgid "Error occurred while parsing the request data. Please try to run export task again."
+msgstr "剖析要求的資料時發生錯誤，請嘗試再次執行匯出工作。"
+
+#: includes/class-wpvivid-export-import.php:1348
+msgid "Ready to export. Progress: 0%, running time: 0second."
+msgstr "匯出工作準備就緒。進度: 0%，執行時間: 0 秒。"
+
+#: includes/class-wpvivid-export-import.php:1360
+msgid "The export task is not responding."
+msgstr "匯出工作沒有回應。"
+
+#: includes/class-wpvivid-export-import.php:1573
+msgid "Import posts or pages with images in bulk."
+msgstr "批次匯入文章或頁面 (包含內容中的圖片)。"
+
+#: includes/class-wpvivid-export-import.php:1603
+msgid "The importing file info"
+msgstr "匯入檔案資訊"
+
+#: includes/class-wpvivid-export-import.php:1606
+msgid "Assign author"
+msgstr "指派作者"
+
+#: includes/class-wpvivid-export-import.php:1608
+msgid "Select an existing author:"
+msgstr "選取現有的作者:"
+
+#: includes/class-wpvivid-exporter.php:77
+msgid "Author"
+msgstr "作者"
+
+#: includes/class-wpvivid-importer.php:51
+msgid "Count"
+msgstr "項目數量"
+
+#: includes/class-wpvivid-interface-mainwp.php:181
+#: includes/class-wpvivid-migrate.php:824 includes/class-wpvivid.php:699
+msgid "Error occurred while parsing the request data. Please try to run backup again."
+msgstr "剖析要求的資料時發生錯誤，請嘗試再次執行備份程序。"
+
+#: includes/customclass/class-wpvivid-google-drive.php:481
+msgid "Authenticate with Google Drive"
+msgstr "取得 Google 雲端硬碟驗證"
+
+#: admin/partials/wpvivid-schedule-page-display.php:173
+msgid "Highlighted icon illuminates that you have choosed a remote storage to store backups"
+msgstr "強調顯示的圖示會標示出已選取、用於儲存備份檔案的遠端儲存空間"
+
+#: includes/class-wpvivid-export-import.php:1619
+msgid "With this option checked, Pages/posts already existing will be overwritten with the updated ones in an import."
+msgstr "啟用這項設定後，已上傳的檔案中如有相同項目，執行匯入工作時便會覆寫現有的頁面/文章"
+
+#: includes/class-wpvivid-function-realize.php:156
+#: includes/class-wpvivid-function-realize.php:184
+#: includes/class-wpvivid.php:751 includes/class-wpvivid.php:877
+msgid "Retrieving the backup information failed while showing log. Please try again later."
+msgstr "顯示記錄內容時無法擷取備份檔案資訊，請稍後再試。"
+
+#: includes/snapshot/class-wpvivid-snapshot.php:1649
+#: includes/snapshot/class-wpvivid-snapshot.php:1689
+msgid "Support"
+msgstr "技術支援"
+
+#: admin/partials/wpvivid-backup-restore-page-display.php:1027
+msgid "This backup is locked, are you sure to remove it? This backup will be deleted permanently from your hosting (localhost) and remote storages."
+msgstr "確定要移除這個已鎖定的備份檔案？這個備份檔案會從這台網站主機 (本機) 及遠端儲存空間永久刪除。"
+
+#: admin/partials/wpvivid-settings-page-display.php:676
+msgid "Database access method."
+msgstr "資料庫存取方法"
+
+#: admin/partials/wpvivid-settings-page-display.php:741
+msgid "Some web hosting providers limit large zip files (e.g. 200MB), and therefore splitting your backup into many parts is an ideal way to avoid hitting the limitation if you are running a big website.  Please try to adjust the value if you are encountering backup errors. When you set a value of 0MB, backups will be split every 4GB."
+msgstr "某些網站主機服務提供商會限制 ZIP 檔案的大小 (例如 200MB)，因此如果目前網站是大型網站，將備份檔案分割為多個分割檔，是避免觸發這種限制的最佳方式。如果遇到備份檔案時發生錯誤，請嘗試調整這項設定值。如果將設定值設定為 0MB，便會每 4GB 分割備份檔案。"
+
+#: admin/partials/wpvivid-settings-page-display.php:771
+msgid "e.g. if you choose a chunk size of 2MB, a 8MB file will use 4 chunks. Decreasing this value will break the ISP's transmission limit, for example:512KB"
+msgstr "舉例來說，將區塊大小設定為 2MB，8MB 的檔案就會使用 4 個區塊。降低這個設定值 (例如 512KB)，可以突破 ISP 的傳輸限制。"
+
+#: includes/class-wpvivid-export-import.php:1547
+msgid "File not found. Please retry again."
+msgstr "找不到符合條件的檔案，請再試一次。"

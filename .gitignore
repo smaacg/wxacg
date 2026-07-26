@@ -1,0 +1,49 @@
+# WordPress 核心系統資料夾 (絕對不要上傳)
+wp-admin/
+wp-includes/
+
+# WordPress 根目錄的系統檔案
+wp-*.php
+index.php
+xmlrpc.php
+readme.html
+license.txt
+
+# WordPress 設定檔
+wp-config.php
+
+# WordPress 上傳的圖片與媒體檔
+wp-content/uploads/
+
+# 系統日誌與錯誤紀錄檔
+*.log
+error_log
+debug.log
+
+# 開發工具與系統隱藏檔
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 網站備份檔 (絕對不能上傳，檔案太大會被 GitHub 阻擋)
+*.zip
+wp-content/wpvividbackups/
+
+# -------------------------------------------------------------------
+# 忽略所有外掛與佈景主題 (不備份第三方檔案)
+# -------------------------------------------------------------------
+wp-content/plugins/*
+wp-content/themes/*
+
+# -------------------------------------------------------------------
+# 【例外規則】只允許上傳「自製」的外掛與佈景主題
+# -------------------------------------------------------------------
+# 強制保留自製的外掛 (只要是 wxacg- 開頭都會自動上傳)
+!wp-content/plugins/wxacg-*/
+
+# 例外保留：這款自製外掛沒有統一前綴
+!wp-content/plugins/anime-sync-pro/
+
+# 強制保留自製/修改的子佈景主題
+!wp-content/themes/blocksy-child/

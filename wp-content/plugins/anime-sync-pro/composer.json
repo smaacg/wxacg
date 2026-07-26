@@ -1,0 +1,13 @@
+{
+    "name": "anime-sync-pro/plugin",
+    "require": {
+        "overtrue/php-opencc": "^1.0"
+    },
+    "config": {
+        "vendor-dir": "vendor"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.2",
+        "szepeviktor/phpstan-wordpress": "^2.0"
+    }
+}

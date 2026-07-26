@@ -1,0 +1,693 @@
+/**
+ * Archive Series — 系列彙整頁樣式
+ *
+ * File: anime-sync-pro/public/assets/css/archive-series.css
+ * Version: 1.2.2 (HOTFIX)
+ * Updated: 2026-05-24
+ *
+ * 此版本完整對應 archive-series.php v1.2.1 使用的 class 名稱
+ * 修復 v1.2.1 CSS 與 PHP class 不一致導致的跑版問題
+ */
+
+/* ============================================================
+   1. Wrap + CSS Variables
+============================================================ */
+.asa-wrap {
+	/* 色彩 */
+	--asa-primary:       #7c5cff;
+	--asa-primary-2:     #4cc9f0;
+	--asa-accent:        #ff78c8;
+	--asa-success:       #34d399;
+	--asa-warning:       #fbbf24;
+
+	/* 背景 */
+	--asa-bg:            #07111f;
+	--asa-bg-2:          #0a1730;
+	--asa-bg-3:          #10213f;
+
+	/* 文字 */
+	--asa-text:          #f7f9ff;
+	--asa-text-soft:     rgba(247,249,255,0.82);
+	--asa-text-muted:    rgba(247,249,255,0.62);
+	--asa-text-faint:    rgba(247,249,255,0.42);
+
+	/* 邊框 */
+	--asa-border:        rgba(255,255,255,0.10);
+	--asa-border-strong: rgba(255,255,255,0.18);
+
+	/* 玻璃表面 */
+	--asa-surface:       rgba(10,20,40,0.55);
+	--asa-surface-2:     rgba(10,20,40,0.70);
+	--asa-surface-3:     rgba(10,20,40,0.82);
+
+	/* 其他 */
+	--asa-blur:          blur(16px);
+	--asa-radius-sm:     10px;
+	--asa-radius-md:     18px;
+	--asa-radius-lg:     24px;
+	--asa-radius-pill:   999px;
+	--asa-shadow-sm:     0 8px 24px rgba(0,0,0,0.28);
+	--asa-shadow-md:     0 16px 40px rgba(0,0,0,0.38);
+	--asa-transition:    .25s ease;
+
+	color: #f7f9ff;
+	position: relative;
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: 0 20px 80px;
+	box-sizing: border-box;
+}
+
+.asa-wrap *,
+.asa-wrap *::before,
+.asa-wrap *::after {
+	box-sizing: border-box;
+}
+
+/* 全頁背景光暈 */
+.asa-wrap::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	background:
+		radial-gradient(circle at 15% 10%,  rgba(124,92,255,0.22), transparent 32%),
+		radial-gradient(circle at 85% 8%,   rgba(76,201,240,0.16), transparent 28%),
+		radial-gradient(circle at 50% 90%,  rgba(124,92,255,0.10), transparent 40%),
+		linear-gradient(180deg, #07111f 0%, #091426 45%, #0a1730 100%);
+	pointer-events: none;
+}
+
+/* ============================================================
+   2. 麵包屑
+============================================================ */
+.asa-breadcrumb {
+	margin: 20px 0 0;
+	padding: 12px 20px;
+	border-radius: var(--asa-radius-pill);
+	background: var(--asa-surface);
+	border: 1px solid var(--asa-border);
+	backdrop-filter: var(--asa-blur);
+	-webkit-backdrop-filter: var(--asa-blur);
+	display: inline-block;
+}
+
+.asa-breadcrumb ol {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: 13px;
+	color: var(--asa-text-muted);
+	align-items: center;
+}
+
+.asa-breadcrumb li + li::before {
+	content: '/';
+	margin-right: 6px;
+	color: var(--asa-text-faint);
+}
+
+.asa-breadcrumb a {
+	color: var(--asa-text-soft);
+	text-decoration: none;
+	transition: color var(--asa-transition);
+}
+
+.asa-breadcrumb a:hover { color: #fff; }
+
+/* ============================================================
+   3. Hero
+============================================================ */
+.asa-hero {
+	padding: 56px 20px 40px;
+	text-align: center;
+}
+
+.asa-hero-inner {
+	max-width: 720px;
+	margin: 0 auto;
+}
+
+.asa-hero-label {
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--asa-primary-2);
+	margin-bottom: 12px;
+}
+
+.asa-hero-title {
+	font-size: clamp(1.8rem, 5vw, 3rem);
+	font-weight: 900;
+	margin: 0 0 8px;
+	color: #fff;
+	line-height: 1.15;
+	letter-spacing: -0.02em;
+}
+
+.asa-hero-romaji {
+	font-size: 1rem;
+	color: var(--asa-text-muted);
+	margin: 0 0 18px;
+	font-style: italic;
+}
+
+.asa-hero-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 18px;
+	justify-content: center;
+	align-items: center;
+	font-size: 14px;
+	color: var(--asa-text-muted);
+	margin-bottom: 16px;
+}
+
+.asa-hero-meta-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.asa-hero-meta strong {
+	color: var(--asa-primary-2);
+	font-weight: 700;
+}
+
+.asa-hero-meta-sep {
+	color: var(--asa-text-faint);
+}
+
+.asa-hero-desc {
+	max-width: 640px;
+	margin: 0 auto;
+	font-size: 0.95rem;
+	color: var(--asa-text-muted);
+	line-height: 1.75;
+}
+
+/* ============================================================
+   4. 兩欄佈局（★ 關鍵：對應 PHP 的 .asa-layout / .asa-sidebar）
+============================================================ */
+.asa-layout {
+	display: grid;
+	grid-template-columns: 1fr 260px;
+	gap: 28px;
+	align-items: start;
+}
+
+.asa-main {
+	min-width: 0; /* 防止 grid item 撐爆容器 */
+}
+
+.asa-sidebar {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	position: sticky;
+	top: 80px;
+}
+
+@media (max-width: 900px) {
+	.asa-layout {
+		grid-template-columns: 1fr;
+	}
+	.asa-sidebar {
+		position: static;
+		order: 2;
+	}
+	.asa-main {
+		order: 1;
+	}
+}
+
+/* ============================================================
+   5. Tabs（v1.2.1 新增）
+============================================================ */
+.asa-tabs {
+	position: sticky;
+	top: 60px;
+	z-index: 10;
+	display: flex;
+	flex-wrap: nowrap;
+	gap: 4px;
+	margin-bottom: 24px;
+	padding: 6px;
+	background: var(--asa-surface-2);
+	backdrop-filter: var(--asa-blur);
+	-webkit-backdrop-filter: var(--asa-blur);
+	border: 1px solid var(--asa-border);
+	border-radius: var(--asa-radius-md);
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.asa-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.asa-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 10px 16px;
+	background: transparent;
+	border: none;
+	border-radius: var(--asa-radius-sm);
+	color: var(--asa-text-muted);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all var(--asa-transition);
+	white-space: nowrap;
+	font-family: inherit;
+}
+
+.asa-tab:hover {
+	background: rgba(255,255,255,0.06);
+	color: #fff;
+}
+
+.asa-tab[aria-selected="true"] {
+	background: linear-gradient(135deg, var(--asa-primary), #9d6bff);
+	color: #fff;
+	box-shadow: 0 6px 18px rgba(124,92,255,0.32);
+}
+
+.asa-tab-icon {
+	font-size: 15px;
+	line-height: 1;
+}
+
+.asa-tab-count {
+	display: inline-block;
+	min-width: 22px;
+	padding: 1px 7px;
+	background: rgba(255,255,255,0.10);
+	border-radius: var(--asa-radius-pill);
+	font-size: 11px;
+	font-weight: 700;
+	text-align: center;
+	color: var(--asa-text-soft);
+}
+
+.asa-tab[aria-selected="true"] .asa-tab-count {
+	background: rgba(255,255,255,0.25);
+	color: #fff;
+}
+
+/* Tab Panel */
+.asa-tab-panel {
+	display: none;
+	animation: asaFadeIn 0.3s ease;
+}
+
+.asa-tab-panel.is-active {
+	display: block;
+}
+
+@keyframes asaFadeIn {
+	from { opacity: 0; transform: translateY(8px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   6. 年份分組
+============================================================ */
+.asa-year-section {
+	margin-bottom: 36px;
+	scroll-margin-top: 140px;
+}
+
+.asa-year-heading {
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--asa-text-muted);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	margin: 0 0 14px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--asa-border);
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+
+.asa-year-count {
+	font-size: 0.85em;
+	color: var(--asa-text-faint);
+	font-weight: 500;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+/* ============================================================
+   7. 卡片網格（緊湊版）
+============================================================ */
+.asa-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 16px;
+}
+
+@media (min-width: 600px) {
+	.asa-cards {
+		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	}
+}
+
+/* ============================================================
+   8. 卡片本體
+============================================================ */
+.asa-card {
+	border-radius: var(--asa-radius-md);
+	overflow: hidden;
+	background: var(--asa-surface);
+	border: 1px solid var(--asa-border);
+	backdrop-filter: var(--asa-blur);
+	-webkit-backdrop-filter: var(--asa-blur);
+	box-shadow: var(--asa-shadow-sm);
+	transition: transform var(--asa-transition), box-shadow var(--asa-transition), border-color var(--asa-transition);
+}
+
+.asa-card:hover {
+	transform: translateY(-6px);
+	box-shadow: var(--asa-shadow-md);
+	border-color: rgba(124,92,255,0.35);
+}
+
+.asa-card-link {
+	display: block;
+	text-decoration: none;
+	color: inherit;
+}
+
+/* 封面 */
+.asa-card-cover-wrap {
+	position: relative;
+	aspect-ratio: 2 / 3;
+	overflow: hidden;
+	background: var(--asa-bg-3);
+}
+
+.asa-card-cover {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+	transition: transform .38s ease;
+}
+
+.asa-card:hover .asa-card-cover {
+	transform: scale(1.06);
+}
+
+.asa-no-cover {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--asa-text-faint);
+	font-size: 13px;
+	height: 100%;
+	background:
+		radial-gradient(circle at 30% 20%, rgba(124,92,255,0.24), transparent 34%),
+		linear-gradient(135deg, #0d1d38, #101d35);
+}
+
+/* 狀態 Badge */
+.asa-status-badge {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	padding: 3px 9px;
+	border-radius: var(--asa-radius-pill);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+
+.s-fin { background: rgba(52,211,153,0.20);  color: #34d399; border: 1px solid rgba(52,211,153,0.36); }
+.s-rel { background: rgba(76,201,240,0.20);  color: #4cc9f0; border: 1px solid rgba(76,201,240,0.36); }
+.s-pre { background: rgba(251,191,36,0.20);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.36); }
+.s-can { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
+.s-hia { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
+
+/* 評分 Badge */
+.asa-score-badge {
+	position: absolute;
+	bottom: 8px;
+	right: 8px;
+	background: rgba(0,0,0,0.72);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	color: #fbbf24;
+	padding: 3px 8px;
+	border-radius: var(--asa-radius-pill);
+	font-size: 11px;
+	font-weight: 800;
+	border: 1px solid rgba(251,191,36,0.28);
+}
+
+/* 卡片內容 */
+.asa-card-body {
+	padding: 10px 12px 12px;
+	background: var(--asa-surface-2);
+}
+
+.asa-card-title {
+	font-size: 13px;
+	font-weight: 700;
+	margin: 0 0 4px;
+	line-height: 1.45;
+	color: #fff;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.asa-card-native {
+	font-size: 11px;
+	color: var(--asa-text-faint);
+	margin: 0 0 7px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.asa-card-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.asa-meta-tag {
+	font-size: 11px;
+	padding: 2px 7px;
+	border-radius: var(--asa-radius-pill);
+	font-weight: 600;
+}
+
+.asa-meta-format { background: rgba(124,92,255,0.20); color: #b8a0ff; border: 1px solid rgba(124,92,255,0.34); }
+.asa-meta-season { background: rgba(52,211,153,0.16); color: #34d399; border: 1px solid rgba(52,211,153,0.30); }
+.asa-meta-ep     { background: rgba(76,201,240,0.16); color: #4cc9f0; border: 1px solid rgba(76,201,240,0.30); }
+
+/* ============================================================
+   9. Sidebar
+============================================================ */
+.asa-sidebar-card {
+	background: var(--asa-surface);
+	border: 1px solid var(--asa-border);
+	border-radius: var(--asa-radius-md);
+	backdrop-filter: var(--asa-blur);
+	-webkit-backdrop-filter: var(--asa-blur);
+	box-shadow: var(--asa-shadow-sm);
+	padding: 18px 20px;
+}
+
+.asa-sidebar-title {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--asa-text-muted);
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	margin: 0 0 14px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--asa-border);
+}
+
+/* 統計列表 */
+.asa-stat-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.asa-stat-list li {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 13px;
+}
+
+.asa-stat-label {
+	color: var(--asa-text-muted);
+}
+
+.asa-stat-value {
+	color: #fff;
+	font-weight: 600;
+}
+
+.asa-ext-link {
+	color: var(--asa-primary-2);
+	text-decoration: none;
+	font-weight: 600;
+	font-size: 12px;
+	transition: opacity var(--asa-transition);
+}
+
+.asa-ext-link:hover { opacity: 0.75; }
+
+/* 快速跳轉 */
+.asa-jump-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 7px;
+}
+
+.asa-jump-btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 5px 13px;
+	border-radius: var(--asa-radius-pill);
+	font-size: 12px;
+	font-weight: 600;
+	text-decoration: none;
+	color: var(--asa-text-muted);
+	background: rgba(255,255,255,0.05);
+	border: 1px solid var(--asa-border);
+	transition: all var(--asa-transition);
+}
+
+.asa-jump-btn:hover {
+	color: #fff;
+	background: rgba(124,92,255,0.18);
+	border-color: rgba(124,92,255,0.42);
+}
+
+/* 相關類型標籤 */
+.asa-tag-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 7px;
+}
+
+.asa-tag {
+	display: inline-flex;
+	align-items: center;
+	padding: 4px 12px;
+	border-radius: var(--asa-radius-pill);
+	font-size: 12px;
+	font-weight: 600;
+	text-decoration: none;
+	color: var(--asa-text-muted);
+	background: rgba(255,255,255,0.06);
+	border: 1px solid var(--asa-border);
+	transition: all var(--asa-transition);
+}
+
+.asa-tag:hover {
+	color: #fff;
+	background: rgba(124,92,255,0.18);
+	border-color: rgba(124,92,255,0.42);
+}
+
+/* ============================================================
+   10. 空狀態
+============================================================ */
+.asa-empty {
+	text-align: center;
+	padding: 80px 20px;
+	color: var(--asa-text-muted);
+}
+
+.asa-empty-icon {
+	font-size: 48px;
+	margin-bottom: 12px;
+	opacity: 0.6;
+}
+
+.asa-empty-title,
+.asa-empty p {
+	font-size: 1.05rem;
+	margin: 0 0 18px;
+}
+
+.asa-btn {
+	display: inline-flex;
+	align-items: center;
+	min-height: 42px;
+	padding: 0 22px;
+	background: linear-gradient(135deg, var(--asa-primary), #9d6bff);
+	color: #fff;
+	border-radius: var(--asa-radius-pill);
+	text-decoration: none;
+	font-weight: 700;
+	box-shadow: 0 10px 26px rgba(124,92,255,0.32);
+	transition: transform var(--asa-transition), opacity var(--asa-transition);
+}
+
+.asa-btn:hover {
+	transform: translateY(-2px);
+	opacity: 0.92;
+	color: #fff;
+}
+
+/* ============================================================
+   11. RWD
+============================================================ */
+@media (max-width: 720px) {
+	.asa-wrap         { padding: 0 14px 60px; }
+	.asa-hero         { padding: 36px 14px 28px; }
+	.asa-sidebar-card { padding: 14px 16px; }
+	.asa-tabs         { top: 56px; padding: 4px; }
+	.asa-tab          { padding: 8px 12px; font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+	.asa-cards     { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+	.asa-card-body { padding: 8px 9px 10px; }
+	.asa-card-title{ font-size: 12px; }
+	.asa-tab-count { display: none; }
+	.asa-tab-icon  { font-size: 14px; }
+}
+
+/* ============================================================
+   12. A11y
+============================================================ */
+@media (prefers-reduced-motion: reduce) {
+	.asa-wrap *,
+	.asa-wrap *::before,
+	.asa-wrap *::after {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
+	.asa-card:hover,
+	.asa-card:hover .asa-card-cover { transform: none; }
+}
+
+@media print {
+	.asa-tabs,
+	.asa-sidebar { display: none; }
+	.asa-layout  { grid-template-columns: 1fr; }
+}

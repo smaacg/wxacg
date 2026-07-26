@@ -1,0 +1,257 @@
+# Translation of Plugins - Edit Author Slug - Stable (latest release) in Chinese (Taiwan)
+# This file is distributed under the same license as the Plugins - Edit Author Slug - Stable (latest release) package.
+msgid ""
+msgstr ""
+"PO-Revision-Date: 2023-12-17 01:16:51+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: GlotPress/4.0.1\n"
+"Language: zh_TW\n"
+"Project-Id-Version: Plugins - Edit Author Slug - Stable (latest release)\n"
+
+#. translators: 1: <code>username</code>, 2: <code>username</code>
+#: includes/admin.php:819 includes/admin.php:897
+msgid "Your iThemes settings suggest you don't want the %1$s being used as an author slug. Leaving it set to %2$s will still work, but you may wish to change to something different."
+msgstr "這個網站的 iThemes 設定表示網站管理員不想使用 %1$s 做為作者代稱。將設定保留為 %2$s 仍能正確執行，但或許網站管理員會想要變更為不同的設定。"
+
+#: includes/admin.php:616
+msgid "Demo:"
+msgstr "預覽結果:"
+
+#: includes/admin.php:432
+msgid "This also applies to other users."
+msgstr "這項操作會套用至其他使用者。"
+
+#: includes/admin.php:432
+msgid "You can customize your own author slug by visiting your profile page. "
+msgstr "網站管理員可以在 [個人資料] 頁面自訂個人專屬作者代稱。"
+
+#: includes/admin.php:411
+msgctxt "Settings menu item"
+msgid "Edit Author Slug"
+msgstr "編輯作者代稱"
+
+#: includes/admin.php:73
+msgctxt "Plugin settings page heading"
+msgid "Edit Author Slug"
+msgstr "編輯作者代稱"
+
+#: includes/admin.php:964
+msgid "hash"
+msgstr "雜湊值"
+
+#: includes/admin.php:963
+msgid "userid"
+msgstr "使用者 ID"
+
+#: includes/admin.php:248
+msgid "<strong>ERROR</strong>: Your iThemes settings prevent your author slug from being the same as your username."
+msgstr "<strong>錯誤:</strong> 這個網站的 iThemes 設定防止作者代稱與使用者名稱使用相同名稱。"
+
+#: includes/classes/class-ba-edit-author-slug.php:208
+msgid "Use class constant, BA_Edit_Author_Slug::DB_VERSION, instead."
+msgstr "改用類別常數 BA_Edit_Author_Slug::DB_VERSION。"
+
+#: includes/classes/class-ba-edit-author-slug.php:201
+msgid "Use class constant, BA_Edit_Author_Slug::VERSION, instead."
+msgstr "改用類別常數 BA_Edit_Author_Slug::VERSION。"
+
+#. translators: 1: rewrite tag, 2: rewrite tag demo usage, 3: demo URL using
+#. rewrite tag
+#: includes/admin.php:666
+msgid "Use the %1$s rewrite tag to customize the role-based author base. If you set the author base to \"%2$s\", the resulting author structure will be something like \"%3$s\"."
+msgstr "使用 %1$s 重新寫入標籤以自訂以使用者角色為上層目錄的作者目錄起點。當網站管理員將 [作者目錄起點] 設定為 %2$s，作者代稱結構的結果便會是 %3$s。"
+
+#: includes/admin.php:660
+msgid "Set user's Author Base according to their role."
+msgstr "將作者目錄起點的上層目錄設定為使用者角色代稱"
+
+#: includes/admin.php:644
+msgid "Remove the \"front\" portion of the author permalink structure."
+msgstr "移除作者永久連結結構的前段部分"
+
+#: includes/admin.php:479
+msgid "Remove Front"
+msgstr "移除前段部分"
+
+#. Author URI of the plugin
+#: edit-author-slug.php
+msgid "https://github.com/thebrandonallen/"
+msgstr "https://github.com/thebrandonallen/"
+
+#. Author of the plugin
+#: edit-author-slug.php
+msgid "Brandon Allen"
+msgstr "Brandon Allen"
+
+#. Description of the plugin
+#: edit-author-slug.php
+msgid "Allows an Admin (or capable user) to edit the author slug of a user, and change the Author Base. <em>i.e. - (WordPress default structure) http://example.com/author/username/ (Plugin allows) http://example.com/ninja/master-ninja/</em>"
+msgstr "允許網站管理員 (或其他具備相關權限的使用者) 編輯使用者的作者代稱及變更作者目錄起點。舉例來說，<strong>將 WordPress 預設結構 http://example.com/author/username/ 透過外掛變更為 http://example.com/ninja/master-ninja/</strong>。"
+
+#. Plugin URI of the plugin
+#: edit-author-slug.php
+msgid "https://github.com/thebrandonallen/edit-author-slug/"
+msgstr "https://github.com/thebrandonallen/edit-author-slug/"
+
+#. translators: Updated author slugs count.
+#: includes/functions.php:259
+msgid "%d user author slug updated."
+msgid_plural "%d user author slugs updated."
+msgstr[0] "%d 個使用者的作者代稱已更新。"
+
+#: includes/admin.php:929
+msgid "Settings"
+msgstr "設定"
+
+#: includes/admin.php:885
+msgid "Default bulk update author slug options"
+msgstr "批次更新作者代稱預設選項"
+
+#: includes/admin.php:857
+msgid "Update all users according to the below Author Slug setting. This will only be run after clicking \"Save Changes\"."
+msgstr "啟用這項設定並點擊 [儲存設定] 後，便會依據下方的作者代稱設定更新全部使用者的作者代稱"
+
+#: includes/admin.php:840
+msgid "Update all users at once based on the specified Author Slug structure."
+msgstr "依據指定的作者代稱結構更新全部使用者的作者代稱。"
+
+#: includes/admin.php:807
+msgid "Default author slug options"
+msgstr "作者代稱預設選項"
+
+#: includes/admin.php:962
+msgid "lastname-firstname"
+msgstr "姓氏-名字"
+
+#: includes/admin.php:961
+msgid "firstname-lastname"
+msgstr "名字-姓氏"
+
+#: includes/admin.php:960
+msgid "lastname"
+msgstr "姓氏"
+
+#: includes/admin.php:959
+msgid "firstname"
+msgstr "名字"
+
+#: includes/admin.php:958
+msgid "displayname"
+msgstr "顯示名稱"
+
+#: includes/admin.php:957
+msgid "nickname"
+msgstr "暱稱"
+
+#: includes/admin.php:956
+msgid "username (Default)"
+msgstr "使用者名稱 (預設)"
+
+#: includes/admin.php:779
+msgid "Automatically update Author Slug when a user updates their profile."
+msgstr "使用者更新個人資料後，自動更新對應的作者代稱"
+
+#: includes/admin.php:614
+msgid "Defaults to 'author'"
+msgstr "預設值為 author。"
+
+#: includes/admin.php:591
+msgid "This could have SEO repercussions if users update their profiles frequently, and it will override any manual editing of the Author Slug you may have previously completed."
+msgstr "如果使用者經常更新個人資料，便會對 SEO 產生不良影響，並且會覆寫網站管理員之前對作者代稱進行的任何手動編輯。"
+
+#: includes/admin.php:591
+msgid "Allow Author Slugs to be automatically updated, and set the default Author Slug structure for users. Automatic updating will only occur when a user can't edit Author Slugs on their own."
+msgstr "允許自動更新作者代稱，並為使用者設定預設作者代稱結構。僅有使用者無法編輯個人專屬作者代稱時，才會自動更新。"
+
+#: includes/admin.php:578
+msgid "Change your author base to something more fun!"
+msgstr "變更網站的作者目錄起點，能讓網站變的更有趣！"
+
+#: includes/admin.php:549
+msgid "Bulk Update"
+msgstr "批次更新"
+
+#: includes/admin.php:541
+msgid "Bulk Update Author Slugs"
+msgstr "批次更新作者代稱"
+
+#: includes/admin.php:528 includes/admin.php:559
+msgid "Author Slug Structure"
+msgstr "作者代稱結構"
+
+#: includes/admin.php:518
+msgid "Automatically Update"
+msgstr "自動更新"
+
+#: includes/admin.php:510
+msgid "Automatic Author Slug Creation"
+msgstr "自動建立作者代稱"
+
+#: includes/admin.php:500
+msgid "Role Slugs"
+msgstr "使用者角色代稱"
+
+#: includes/admin.php:490
+msgid "Role-Based Author Base"
+msgstr "以使用者角色為上層目錄的作者目錄起點"
+
+#: includes/admin.php:457 includes/admin.php:465
+msgid "Author Base"
+msgstr "作者目錄起點"
+
+#: includes/admin.php:410 includes/admin.php:429
+msgid "Edit Author Slug Settings"
+msgstr "Edit Author Slug 設定"
+
+#. translators: 1: author slug
+#: includes/admin.php:264
+msgid "<strong>ERROR</strong>: The author slug, %1$s, already exists. Please try something different."
+msgstr "<strong>錯誤:</strong> 作者代稱 %1$s 已存在。請使用不同的作者代稱。"
+
+#: includes/admin.php:232
+msgid "<strong>ERROR</strong>: An author slug may not be longer than 50 characters."
+msgstr "<strong>錯誤:</strong> 作者代稱不能超過 50 個字元。"
+
+#: includes/admin.php:223
+msgid "<strong>ERROR</strong>: That author slug appears to be invalid. Please try something different."
+msgstr "<strong>錯誤:</strong> 無效的作者代稱。請使用不同的作者代稱。"
+
+#: includes/admin.php:214
+msgid "<strong>ERROR</strong>: An author slug can only contain alphanumeric characters, underscores (_) and dashes (-)."
+msgstr "<strong>錯誤:</strong> 作者代稱僅能使用數字、英文字母、底線 (_) 及連字號 (-)。"
+
+#: includes/admin.php:169
+msgid "<strong>ERROR</strong>: An author slug cannot be blank. Please try again."
+msgstr "<strong>錯誤:</strong> 作者代稱不能留空。請再試一次。"
+
+#: includes/admin.php:102
+msgid "Custom author slug:"
+msgstr "自訂作者代稱:"
+
+#: includes/admin.php:100
+msgid "Enter a custom author slug in the following field"
+msgstr "在下方欄位輸入自訂作者代稱"
+
+#: includes/admin.php:99
+msgid "Custom:"
+msgstr "自訂:"
+
+#: includes/admin.php:77 includes/admin.php:79 includes/admin.php:324
+msgid "Author Slug"
+msgstr "作者代稱"
+
+#: includes/admin.php:74
+msgid "ie. - 'user-name', 'firstname-lastname', or 'master-ninja'"
+msgstr "例如 user-name、firstname-lastname 或 master-ninja。"
+
+#: includes/admin.php:74
+msgid "Choose an Author Slug based on the above profile information, or create your own."
+msgstr "請選取根據上方個人資料設定所得的作者代稱，或自訂專屬作者代稱。"
+
+#. Plugin Name of the plugin
+#: edit-author-slug.php
+msgid "Edit Author Slug"
+msgstr "Edit Author Slug"

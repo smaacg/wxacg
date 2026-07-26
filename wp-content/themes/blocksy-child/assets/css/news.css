@@ -1,0 +1,645 @@
+/* =====================================================
+   news.css — 動漫新聞頁樣式
+   Path: wp-content/themes/blocksy-child/assets/css/news.css
+   @version 1.1.0 (2026-06-10)
+
+   Changelog:
+     1.1.0 (2026-06-10) 新增 .news-card-excerpt 摘要樣式
+                        （配合 news-list.php v1.1.0 列表摘要）
+     1.0.0 初版
+   ===================================================== */
+
+/* ── Page Hero ── */
+.page-hero {
+  background: linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(249,115,22,0.08) 100%);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 48px 0 36px;
+}
+.page-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #f87171;
+  border-radius: var(--radius-pill);
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.page-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* ── Swiper Carousel ── */
+.news-carousel-wrap {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 32px;
+  background: #0a0a0f;
+  border: 1px solid var(--glass-border);
+}
+.news-carousel-wrap .swiper {
+  width: 100%;
+}
+
+/* 每一個 slide 容器：固定高度 360px */
+.swiper-slide-inner {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  display: block;
+  overflow: hidden;
+  text-decoration: none;
+}
+
+/* 模糊背景層 */
+.swiper-slide-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(24px) brightness(0.4) saturate(1.3);
+  transform: scale(1.1);
+  z-index: 0;
+}
+
+/* 主圖：置中顯示，不裁切 */
+.carousel-main-img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  height: 360px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* 無圖 fallback */
+.carousel-no-img {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 72px;
+  background: #1a1a2e;
+  z-index: 1;
+}
+
+/* 底部字幕漸層 */
+.swiper-slide-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  padding: 64px 28px 20px;
+  background: linear-gradient(to top, rgba(0,0,0,0.90) 0%, rgba(0,0,0,0.3) 60%, transparent 100%);
+}
+.swiper-slide-tag {
+  display: inline-block;
+  background: rgba(239,68,68,0.85);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.swiper-slide-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.5;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.swiper-slide-meta {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+}
+
+/* Swiper 控制元件 */
+.swiper-pagination-bullet {
+  background: rgba(255,255,255,0.5);
+  opacity: 1;
+}
+.swiper-pagination-bullet-active {
+  background: #f87171;
+}
+.swiper-button-next,
+.swiper-button-prev {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  --swiper-navigation-size: 15px;
+}
+
+/* ── Filter Tabs ── */
+.news-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.news-filter-btn {
+  padding: 7px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--trans-fast);
+  text-decoration: none;
+  display: inline-block;
+}
+.news-filter-btn:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-mid);
+}
+.news-filter-btn.active {
+  background: rgba(239,68,68,0.2);
+  border-color: rgba(239,68,68,0.4);
+  color: #f87171;
+}
+
+/* ── Layout ── */
+.news-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 28px;
+  align-items: start;
+}
+.news-main-grid {
+  display: grid;
+  gap: 20px;
+}
+
+/* ── News Card Grid ── */
+.news-card-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.news-card {
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: var(--trans-smooth);
+  text-decoration: none;
+  display: block;
+  color: inherit;
+}
+.news-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.3);
+}
+.news-card-img {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1e2d3d, #2a1f3d);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+}
+.news-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.news-card-placeholder {
+  font-size: 36px;
+}
+.news-card-body {
+  padding: 14px 16px;
+}
+.news-card-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #f87171;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.news-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+/* ── News Card Excerpt（v1.1.0 新增，配合列表摘要） ── */
+.news-card-excerpt {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 10px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.news-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Empty State ── */
+.news-empty {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--text-muted);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+}
+.news-empty i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+/* ── Pagination ── */
+.news-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+.news-pagination a,
+.news-pagination span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  transition: var(--trans-fast);
+}
+.news-pagination a:hover {
+  color: #f87171;
+  border-color: rgba(239,68,68,0.4);
+}
+.news-pagination span.current {
+  background: rgba(239,68,68,0.2);
+  border-color: rgba(239,68,68,0.5);
+  color: #f87171;
+  font-weight: 700;
+}
+.news-pagination .dots {
+  border: none;
+  background: none;
+  width: auto;
+  padding: 0 4px;
+}
+
+/* ── Sidebar ── */
+.news-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.sidebar-widget {
+  border-radius: 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  padding: 20px;
+}
+.sidebar-widget-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sidebar-list-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: var(--trans-fast);
+  text-decoration: none;
+  color: inherit;
+}
+.sidebar-list-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.sidebar-list-item:hover .sidebar-item-title {
+  color: var(--accent-blue);
+}
+.sidebar-item-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(59,130,246,0.15);
+  color: var(--accent-blue);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar-item-num.top-3 {
+  background: rgba(251,191,36,0.15);
+  color: #fbbf24;
+}
+.sidebar-item-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  flex: 1;
+}
+.sidebar-item-date {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Tag Cloud ── */
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tag-pill {
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-mid);
+  border: 1px solid var(--glass-border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--trans-fast);
+  text-decoration: none;
+  display: inline-block;
+}
+.tag-pill:hover {
+  color: var(--accent-blue);
+  border-color: rgba(59,130,246,0.4);
+}
+
+/* ── Subscribe Box ── */
+.subscribe-box {
+  background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1));
+}
+.subscribe-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+.subscribe-input {
+  width: 100%;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+.subscribe-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .news-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 768px) {
+  .news-card-list {
+    grid-template-columns: 1fr;
+  }
+  .page-title {
+    font-size: 24px;
+  }
+  .swiper-slide-inner {
+    height: 220px;
+  }
+  .carousel-main-img {
+    height: 220px;
+  }
+  .swiper-slide-title {
+    font-size: 15px;
+  }
+  .swiper-slide-caption {
+    padding: 40px 16px 16px;
+  }
+  .swiper-button-next,
+  .swiper-button-prev {
+    display: none;
+  }
+  /* v1.1.0：手機版單欄時摘要可多顯示一行 */
+  .news-card-excerpt {
+    -webkit-line-clamp: 3;
+  }
+}
+
+/* News AJAX Filter */
+#news-list-root {
+    transition: opacity 0.18s ease;
+}
+#news-list-root.is-loading {
+    pointer-events: none;
+    position: relative;
+    min-height: 200px;
+}
+#news-list-root.is-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 38px;
+    height: 38px;
+    margin: -19px 0 0 -19px;
+    border: 3px solid rgba(155, 125, 255, 0.2);
+    border-top-color: var(--accent-blue, #9b7dff);
+    border-radius: 50%;
+    animation: smacg-news-spin 0.8s linear infinite;
+    z-index: 5;
+}
+@keyframes smacg-news-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   覆寫 Blocksy #192a3d 深色文字（深色主題修正）
+   ============================================================ */
+.news-card,
+.news-card:hover,
+.news-card:visited {
+    color: var(--text-primary) !important;
+    text-decoration: none !important;
+}
+.news-card-title {
+    color: var(--text-primary) !important;
+}
+.news-card-excerpt {
+    color: var(--text-muted) !important;
+}
+.news-card-meta {
+    color: var(--text-muted) !important;
+}
+.news-card-tag {
+    color: #f87171 !important;
+}
+.sidebar-list-item,
+.sidebar-list-item:hover,
+.sidebar-list-item:visited {
+    color: var(--text-primary) !important;
+    text-decoration: none !important;
+}
+.sidebar-item-title {
+    color: var(--text-secondary) !important;
+}
+.sidebar-item-date {
+    color: var(--text-muted) !important;
+}
+.tag-pill,
+.tag-pill:visited {
+    color: var(--text-secondary) !important;
+    text-decoration: none !important;
+}
+.tag-pill:hover {
+    color: var(--accent-blue) !important;
+}
+.news-filter-btn,
+.news-filter-btn:visited {
+    color: var(--text-secondary) !important;
+    text-decoration: none !important;
+}
+.news-filter-btn:hover {
+    color: var(--text-primary) !important;
+}
+.news-filter-btn.active {
+    color: #f87171 !important;
+}
+
+
+/* ============================================================
+   手機版新聞頁調整 v1.2.0
+   ============================================================ */
+@media (max-width: 768px) {
+
+    /* 隱藏輪播圖 */
+    .news-carousel-wrap {
+        display: none !important;
+    }
+
+    /* 壓縮 Hero 區塊 */
+    .page-hero {
+        padding: 20px 0 16px !important;
+    }
+    .page-title {
+        font-size: 20px !important;
+        margin-bottom: 4px !important;
+    }
+    .page-subtitle {
+        font-size: 12px !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+    }
+    .page-badge {
+        font-size: 11px !important;
+        padding: 3px 10px !important;
+        margin-bottom: 8px !important;
+    }
+
+}
+
+/* ============================================================
+   手機版新聞卡片 2 欄 v1.3.0
+   ============================================================ */
+@media (max-width: 768px) {
+
+    /* 2 欄 grid */
+    .news-card-list {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 10px !important;
+    }
+
+    /* 圖片比例縮小 */
+    .news-card-img {
+        aspect-ratio: 3 / 2 !important;
+    }
+
+    /* 卡片內距縮小 */
+    .news-card-body {
+        padding: 10px 12px !important;
+    }
+
+    /* 標題縮小、最多 2 行 */
+    .news-card-title {
+        font-size: 12px !important;
+        -webkit-line-clamp: 2 !important;
+        margin-bottom: 4px !important;
+    }
+
+    /* 手機隱藏摘要，空間不夠 */
+    .news-card-excerpt {
+        display: none !important;
+    }
+
+    /* meta 縮小 */
+    .news-card-meta {
+        font-size: 10px !important;
+    }
+
+    /* 分類標籤縮小 */
+    .news-card-tag {
+        font-size: 9px !important;
+        margin-bottom: 4px !important;
+    }
+
+}

@@ -1,0 +1,799 @@
+/**
+ * Frontend Styles
+ * 
+ * @package Anime_Sync_Pro
+ */
+
+/* ========================================
+   全域變數
+======================================== */
+:root {
+    --anime-primary: #2271b1;
+    --anime-secondary: #135e96;
+    --anime-accent: #e8a838;
+    --anime-dark: #1a1a2e;
+    --anime-card-bg: #16213e;
+    --anime-text: #e0e0e0;
+    --anime-text-muted: #9e9e9e;
+    --anime-border: rgba(255, 255, 255, 0.1);
+    --anime-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    --anime-radius: 12px;
+    --anime-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================
+   頁面基礎
+======================================== */
+.anime-single-page {
+    background: var(--anime-dark);
+    color: var(--anime-text);
+    min-height: 100vh;
+}
+
+.anime-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+}
+
+/* ========================================
+   橫幅
+======================================== */
+.anime-banner {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+}
+
+.anime-banner-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(26, 26, 46, 0.3) 0%,
+        rgba(26, 26, 46, 0.8) 70%,
+        rgba(26, 26, 46, 1) 100%
+    );
+}
+
+/* ========================================
+   頂部資訊區
+======================================== */
+.anime-header {
+    display: flex;
+    gap: 40px;
+    margin-top: -180px;
+    position: relative;
+    z-index: 10;
+    padding-top: 20px;
+}
+
+/* 無橫幅時的邊距 */
+.anime-single-page:not(:has(.anime-banner)) .anime-header {
+    margin-top: 40px;
+}
+
+/* ========================================
+   封面
+======================================== */
+.anime-cover-wrap {
+    flex-shrink: 0;
+}
+
+.anime-cover {
+    width: 230px;
+    height: 326px;
+    object-fit: cover;
+    border-radius: var(--anime-radius);
+    box-shadow: var(--anime-shadow);
+    display: block;
+}
+
+.anime-cover-placeholder {
+    width: 230px;
+    height: 326px;
+    background: var(--anime-card-bg);
+    border-radius: var(--anime-radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--anime-text-muted);
+    font-size: 14px;
+}
+
+/* ========================================
+   標題與資訊
+======================================== */
+.anime-info {
+    flex: 1;
+    padding-top: 100px;
+}
+
+.anime-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+    color: #fff;
+    line-height: 1.3;
+}
+
+.anime-title-sub {
+    font-size: 1.1rem;
+    color: var(--anime-text-muted);
+    margin: 0 0 6px;
+}
+
+.anime-title-native {
+    font-size: 1rem;
+    color: var(--anime-text-muted);
+    margin: 0 0 20px;
+}
+
+/* ========================================
+   評分
+======================================== */
+.anime-scores {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.score-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--anime-card-bg);
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--anime-border);
+    min-width: 90px;
+}
+
+.score-source {
+    font-size: 11px;
+    color: var(--anime-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.score-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--anime-accent);
+    line-height: 1;
+}
+
+.score-max {
+    font-size: 11px;
+    color: var(--anime-text-muted);
+}
+
+/* ========================================
+   基本屬性
+======================================== */
+.anime-attributes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.attr-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--anime-card-bg);
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--anime-border);
+    font-size: 13px;
+}
+
+.attr-label {
+    color: var(--anime-text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.attr-value {
+    color: #fff;
+    font-weight: 500;
+}
+
+.attr-value.status-airing {
+    color: #4caf50;
+}
+
+/* ========================================
+   串流平台
+======================================== */
+.anime-streaming {
+    margin-top: 20px;
+}
+
+.anime-streaming h4 {
+    font-size: 14px;
+    color: var(--anime-text-muted);
+    margin: 0 0 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.streaming-list {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.streaming-btn {
+    display: inline-block;
+    padding: 8px 18px;
+    background: var(--anime-primary);
+    color: #fff !important;
+    border-radius: 20px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.3s, transform 0.2s;
+}
+
+.streaming-btn:hover {
+    background: var(--anime-secondary);
+    transform: translateY(-2px);
+}
+
+.streaming-badge {
+    display: inline-block;
+    padding: 8px 18px;
+    background: var(--anime-card-bg);
+    border: 1px solid var(--anime-border);
+    color: var(--anime-text);
+    border-radius: 20px;
+    font-size: 13px;
+}
+
+/* ========================================
+   快速導覽
+======================================== */
+.anime-quick-nav {
+    display: flex;
+    gap: 5px;
+    margin: 30px 0;
+    border-bottom: 1px solid var(--anime-border);
+    padding-bottom: 0;
+    overflow-x: auto;
+}
+
+.anime-quick-nav a {
+    padding: 12px 20px;
+    color: var(--anime-text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.3s;
+}
+
+.anime-quick-nav a:hover {
+    color: #fff;
+    border-bottom-color: var(--anime-primary);
+}
+
+/* ========================================
+   章節標題
+======================================== */
+.anime-section {
+    margin-bottom: 40px;
+}
+
+.section-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0 0 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--anime-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ========================================
+   簡介
+======================================== */
+.anime-synopsis p {
+    line-height: 1.9;
+    color: var(--anime-text);
+    font-size: 15px;
+    max-width: 800px;
+}
+
+/* ========================================
+   音樂
+======================================== */
+.music-category {
+    margin-bottom: 30px;
+}
+
+.music-type-label {
+    font-size: 1rem;
+    color: var(--anime-text-muted);
+    margin: 0 0 15px;
+}
+
+.music-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.music-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    background: var(--anime-card-bg);
+    padding: 15px 20px;
+    border-radius: var(--anime-radius);
+    border: 1px solid var(--anime-border);
+    flex-wrap: wrap;
+}
+
+.music-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.music-title {
+    font-weight: 600;
+    color: #fff;
+    font-size: 15px;
+}
+
+.music-artist {
+    color: var(--anime-text-muted);
+    font-size: 13px;
+}
+
+.music-preview {
+    height: 40px;
+    border-radius: 20px;
+    accent-color: var(--anime-primary);
+    flex-shrink: 0;
+    max-width: 300px;
+    width: 100%;
+}
+
+/* ========================================
+   角色卡片
+======================================== */
+.anime-characters {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 15px;
+}
+
+.character-card {
+    display: flex;
+    justify-content: space-between;
+    background: var(--anime-card-bg);
+    border-radius: var(--anime-radius);
+    border: 1px solid var(--anime-border);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.character-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--anime-shadow);
+}
+
+.character-info,
+.va-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+}
+
+.character-img,
+.va-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.character-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.character-name strong {
+    color: #fff;
+    font-size: 14px;
+}
+
+.character-name small {
+    color: var(--anime-text-muted);
+    font-size: 12px;
+}
+
+.character-role {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(34, 113, 177, 0.3);
+    color: var(--anime-primary);
+    width: fit-content;
+}
+
+.va-info {
+    border-left: 1px solid var(--anime-border);
+    text-align: right;
+    flex-direction: row-reverse;
+}
+
+.va-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: right;
+}
+
+.va-name span {
+    color: #fff;
+    font-size: 14px;
+}
+
+.va-name small {
+    color: var(--anime-text-muted);
+    font-size: 12px;
+}
+
+/* ========================================
+   外部連結
+======================================== */
+.anime-external-links {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.external-link-btn {
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+}
+
+.external-link-btn.anilist {
+    background: #02a9ff;
+    color: #fff;
+}
+
+.external-link-btn.anilist:hover {
+    background: transparent;
+    border-color: #02a9ff;
+    color: #02a9ff;
+}
+
+.external-link-btn.mal {
+    background: #2e51a2;
+    color: #fff;
+}
+
+.external-link-btn.mal:hover {
+    background: transparent;
+    border-color: #2e51a2;
+    color: #2e51a2;
+}
+
+.external-link-btn.bangumi {
+    background: #f09199;
+    color: #fff;
+}
+
+.external-link-btn.bangumi:hover {
+    background: transparent;
+    border-color: #f09199;
+    color: #f09199;
+}
+
+/* ========================================
+   ECPay 捐助
+======================================== */
+.anime-ecpay-donation {
+    background: var(--anime-card-bg);
+    border: 1px solid var(--anime-border);
+    border-radius: var(--anime-radius);
+    padding: 25px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.anime-ecpay-donation h4 {
+    font-size: 1.1rem;
+    color: #fff;
+    margin: 0 0 8px;
+}
+
+.anime-ecpay-donation p {
+    color: var(--anime-text-muted);
+    margin: 0 0 15px;
+    font-size: 14px;
+}
+
+.ecpay-btn {
+    display: inline-block;
+    padding: 12px 30px;
+    background: linear-gradient(135deg, #e8a838, #f5c518);
+    color: #1a1a1a !important;
+    text-decoration: none;
+    border-radius: 25px;
+    font-weight: 700;
+    font-size: 15px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.ecpay-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(232, 168, 56, 0.4);
+}
+
+/* ========================================
+   資料來源
+======================================== */
+.anime-source-info {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--anime-border);
+    text-align: center;
+}
+
+.anime-source-info p {
+    color: var(--anime-text-muted);
+    font-size: 12px;
+}
+
+/* ========================================
+   留言區樣式覆蓋（wpDiscuz）
+======================================== */
+.anime-single-page .wpd-thread-list,
+.anime-single-page #wpcomm {
+    background: var(--anime-card-bg);
+    border-radius: var(--anime-radius);
+    padding: 20px;
+    border: 1px solid var(--anime-border);
+}
+
+.anime-single-page .wpdiscuz-comment-message {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--anime-border);
+    color: var(--anime-text);
+}
+
+/* ========================================
+   無內容提示
+======================================== */
+.no-content {
+    color: var(--anime-text-muted);
+    font-style: italic;
+    font-size: 14px;
+}
+
+.no-yasr a {
+    color: var(--anime-primary);
+}
+
+/* ========================================
+   Archive 頁面
+======================================== */
+.anime-archive-page {
+    background: var(--anime-dark);
+    color: var(--anime-text);
+    min-height: 100vh;
+    padding: 40px 0;
+}
+
+.anime-archive-header {
+    max-width: 1200px;
+    margin: 0 auto 40px;
+    padding: 0 20px;
+}
+
+.anime-archive-header h1 {
+    font-size: 2rem;
+    color: #fff;
+    margin: 0 0 10px;
+}
+
+.anime-archive-header p {
+    color: var(--anime-text-muted);
+    margin: 0;
+}
+
+.anime-grid {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.anime-card {
+    background: var(--anime-card-bg);
+    border-radius: var(--anime-radius);
+    overflow: hidden;
+    border: 1px solid var(--anime-border);
+    transition: transform 0.3s, box-shadow 0.3s;
+    cursor: pointer;
+}
+
+.anime-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.anime-card a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.anime-card-cover {
+    width: 100%;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    display: block;
+}
+
+.anime-card-cover-placeholder {
+    width: 100%;
+    aspect-ratio: 2/3;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--anime-text-muted);
+    font-size: 12px;
+}
+
+.anime-card-body {
+    padding: 12px;
+}
+
+.anime-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0 0 6px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.anime-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--anime-text-muted);
+}
+
+.anime-card-score {
+    color: var(--anime-accent);
+    font-weight: 600;
+}
+
+/* ========================================
+   RWD 響應式設計
+======================================== */
+@media (max-width: 1024px) {
+    .anime-header {
+        gap: 25px;
+    }
+    
+    .anime-info {
+        padding-top: 60px;
+    }
+}
+
+@media (max-width: 768px) {
+    .anime-banner {
+        height: 250px;
+    }
+    
+    .anime-header {
+        flex-direction: column;
+        align-items: center;
+        margin-top: -100px;
+        gap: 20px;
+    }
+    
+    .anime-info {
+        padding-top: 0;
+        width: 100%;
+        text-align: center;
+    }
+    
+    .anime-cover {
+        width: 160px;
+        height: 227px;
+    }
+    
+    .anime-title {
+        font-size: 1.5rem;
+    }
+    
+    .anime-scores {
+        justify-content: center;
+    }
+    
+    .anime-attributes {
+        justify-content: center;
+    }
+    
+    .streaming-list {
+        justify-content: center;
+    }
+    
+    .anime-characters {
+        grid-template-columns: 1fr;
+    }
+    
+    .anime-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+    
+    .music-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .music-preview {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .anime-container {
+        padding: 0 15px 40px;
+    }
+    
+    .anime-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .anime-title {
+        font-size: 1.3rem;
+    }
+    
+    .score-value {
+        font-size: 1.4rem;
+    }
+    
+    .anime-quick-nav a {
+        padding: 10px 14px;
+        font-size: 13px;
+    }
+}

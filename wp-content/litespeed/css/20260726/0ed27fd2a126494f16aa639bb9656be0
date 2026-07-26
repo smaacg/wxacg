@@ -1,0 +1,331 @@
+/* ================================================================
+   Smacg Track Bar — v1.0
+   追蹤列：狀態 | 進度 | 動作
+   對應 single-anime.php 的 .smacg-track-bar
+   ================================================================ */
+
+.smacg-track-bar {
+  margin: 0 0 24px 0;
+  padding: 14px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.055);
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  position: relative;
+}
+
+.smacg-track-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: nowrap;
+}
+
+.smacg-track-sep { display: none; }
+
+/* ── 狀態按鈕群組 ── */
+.smacg-status-group {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.smacg-status-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 64px;
+  height: 56px;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  color: rgba(208,215,224,.55);
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .22s ease;
+  line-height: 1;
+}
+.smacg-status-btn i {
+  font-size: .95rem;
+  margin-bottom: 2px;
+}
+.smacg-status-btn span {
+  font-size: .72rem;
+  white-space: nowrap;
+}
+.smacg-status-btn:hover {
+  background: rgba(99,168,255,.10);
+  border-color: rgba(99,168,255,.30);
+  color: #63A8FF;
+}
+.smacg-status-btn.is-active {
+  background: #63A8FF;
+  border-color: #63A8FF;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(99,168,255,.35);
+}
+.smacg-status-btn[data-value="completed"].is-active {
+  background: #34D399;
+  border-color: #34D399;
+  box-shadow: 0 4px 14px rgba(52,211,153,.35);
+}
+.smacg-status-btn[data-value="dropped"].is-active {
+  background: #FB7185;
+  border-color: #FB7185;
+  box-shadow: 0 4px 14px rgba(251,113,133,.35);
+}
+.smacg-status-btn[data-value="want"].is-active {
+  background: #FBBF24;
+  border-color: #FBBF24;
+  color: #1E242B;
+  box-shadow: 0 4px 14px rgba(251,191,36,.35);
+}
+
+/* ── 進度條群組 ── */
+.smacg-progress-group {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 4px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.smacg-prog-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .75rem;
+  color: rgba(208,215,224,.55);
+  min-height: 16px;
+}
+.smacg-prog-label { font-weight: 500; }
+.smacg-prog-pct   { color: #63A8FF; font-weight: 700; font-size: .78rem; }
+
+.smacg-prog-bar-wrap {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.smacg-prog-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #63A8FF, #34D399);
+  border-radius: 4px;
+  transition: width .35s ease;
+}
+
+.smacg-prog-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 2px;
+}
+.smacg-prog-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06);
+  color: #D0D7E0;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .22s ease;
+  line-height: 1;
+}
+.smacg-prog-btn:hover {
+  background: #63A8FF;
+  border-color: #63A8FF;
+  color: #fff;
+}
+.smacg-prog-display {
+  font-size: .85rem;
+  color: #D0D7E0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.smacg-prog-current { font-weight: 700; }
+.smacg-prog-sep,
+.smacg-prog-total,
+.smacg-prog-unit { color: rgba(208,215,224,.55); font-weight: 500; }
+
+/* ── 動作按鈕群組 ── */
+.smacg-action-group {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.smacg-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  color: rgba(208,215,224,.55);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .9rem;
+  transition: all .22s ease;
+}
+.smacg-icon-btn:hover {
+  background: rgba(99,168,255,.12);
+  border-color: rgba(99,168,255,.35);
+  color: #63A8FF;
+  transform: translateY(-1px);
+}
+.smacg-fav-btn.is-active {
+  background: rgba(251,191,36,.18);
+  border-color: rgba(251,191,36,.45);
+  color: #FBBF24;
+}
+.smacg-clear-btn.is-active {
+  background: rgba(52,211,153,.18);
+  border-color: rgba(52,211,153,.45);
+  color: #34D399;
+}
+
+/* ── Toast ── */
+.smacg-point-toast {
+  position: absolute;
+  top: -8px;
+  right: 16px;
+  padding: 4px 12px;
+  border-radius: 50px;
+  background: #34D399;
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(0);
+  pointer-events: none;
+  transition: opacity .3s ease, transform .3s ease;
+}
+.smacg-point-toast.is-show {
+  opacity: 1;
+  transform: translateY(-6px);
+}
+
+/* ── 分享浮窗 ── */
+.smacg-share-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.smacg-share-inner {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: 24px;
+  border-radius: 16px;
+  background: #242C35;
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 8px 28px rgba(0,0,0,.45);
+  text-align: center;
+}
+.smacg-share-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #D0D7E0;
+  margin: 0 0 16px 0;
+}
+.smacg-share-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.smacg-share-link {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  color: #D0D7E0;
+  font-size: .85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all .22s ease;
+}
+.smacg-share-link:hover {
+  background: rgba(99,168,255,.12);
+  border-color: rgba(99,168,255,.35);
+  color: #63A8FF;
+}
+.smacg-share-x:hover  { color: #fff; background: #000; border-color: #000; }
+.smacg-share-fb:hover { color: #fff; background: #1877F2; border-color: #1877F2; }
+.smacg-share-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: rgba(208,215,224,.55);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.smacg-share-close:hover { color: #D0D7E0; }
+
+/* ── RWD ── */
+@media (max-width: 900px) {
+  .smacg-track-main {
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .smacg-status-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .smacg-status-btn { flex: 1; }
+  .smacg-progress-group {
+    width: 100%;
+    max-width: none;
+  }
+  .smacg-action-group {
+    width: 100%;
+    justify-content: center;
+  }
+}
+@media (max-width: 480px) {
+  .smacg-track-bar { padding: 12px 14px; }
+  .smacg-status-btn {
+    width: auto;
+    height: 50px;
+  }
+  .smacg-status-btn span { font-size: .68rem; }
+}
+
+/* 未播出動畫：禁用按鈕灰階 + tooltip */
+.smacg-track-bar .smacg-status-btn[disabled] {
+    opacity: 0.4;
+    filter: grayscale(1);
+    cursor: not-allowed !important;
+    pointer-events: auto; /* 保留 hover 才能顯示 tooltip */
+}
+
+.smacg-track-bar .smacg-status-btn[disabled]:hover {
+    background: inherit;
+    transform: none;
+    box-shadow: none;
+}

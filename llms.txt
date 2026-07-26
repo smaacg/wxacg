@@ -1,0 +1,14 @@
+# 微笑動漫 (weixiaoacg.com)
+
+> 繁體中文的 ACG 動漫資訊站，提供最新動漫新聞、每季新番介紹、播出時間表與完整作品資料庫。整合 AniList、MyAnimeList、Bangumi 三大資料庫，並人工整理台灣串流平台上架資訊。
+
+## 主要頁面
+
+- [首頁](https://weixiaoacg.com/): 網站首頁，最新動漫情報總覽
+- [動畫資料庫](https://weixiaoacg.com/anime/): 完整動畫作品資料庫，含評分、串流平台、聲優資訊
+- [動漫排行榜](https://weixiaoacg.com/anime-ranking/): 整合多平台評分的動畫排行榜
+- [關於本站](https://weixiaoacg.com/about/): 網站介紹與資料來源說明
+
+## 聯絡方式
+
+- Email: weixiaoacg.com@gmail.com

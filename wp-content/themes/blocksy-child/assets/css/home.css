@@ -1,0 +1,909 @@
+/**
+ * 首頁專用樣式 — weixiaoacg child theme
+ * v1.1.0 (2026-05-24)
+ *
+ * 內容：
+ *   1. 從 front-page.php 搬過來的 4 段內嵌 <style>
+ *   2. 最新新聞 v2.4.0 Tab 切換（4 tab：全部/新聞/評論/專題）
+ *   3. 手機 RWD 修正（hero 時鐘一行、CTA、header 右上角間距）
+ *
+ * 載入：inc/setup-enqueue.php 的 is_front_page() 條件式
+ * 依賴：weixiaoacg-style（style.css）— 在 style.css 之後載入以覆蓋舊規則
+ *
+ * v1.1.0 變更（2026-05-24）：
+ *   - 新增 .news-tabs / .news-tab-btn / .news-tab-count 樣式
+ *   - 新增 .news-panel / .news-panel-more 樣式
+ *   - 新增 .news-card__excerpt 卡片摘要樣式
+ *   （前述樣式原本應由 home-news-tabs.css 處理，但該檔不存在於 repo，
+ *    為了確保首頁穩定，直接整合到本檔）
+ */
+
+/* ============================================================
+   1. Hero — chip 可點擊版本（原 front-page.php 第 1 段）
+   ============================================================ */
+.hero-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.chip.chip-link {
+    text-decoration: none;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.10);
+    color: rgba(220,230,245,.75);
+    transition: all .2s ease;
+    cursor: pointer;
+}
+.chip.chip-link:hover {
+    background: rgba(99,168,255,.18);
+    border-color: rgba(99,168,255,.45);
+    color: #63a8ff;
+    transform: translateY(-1px);
+}
+
+/* ============================================================
+   2. 最新新聞 — Tab 切換（v2.4.0：全部 / 新聞 / 評論 / 專題）
+   ============================================================ */
+.news-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 18px 0 8px;
+    padding: 4px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 12px;
+}
+.news-tab-btn {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: rgba(220,230,245,.6);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .18s, color .18s;
+    white-space: nowrap;
+}
+.news-tab-btn:hover {
+    color: rgba(220,230,245,.9);
+    background: rgba(255,255,255,.04);
+}
+.news-tab-btn.active {
+    background: rgba(99,168,255,.18);
+    color: #63a8ff;
+}
+.news-tab-btn i {
+    font-size: 12px;
+    opacity: .85;
+}
+.news-tab-count {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.08);
+    color: rgba(220,230,245,.75);
+}
+.news-tab-btn.active .news-tab-count {
+    background: rgba(99,168,255,.25);
+    color: #8ec0ff;
+}
+
+/* 面板顯示控制（PHP 預載 4 個面板，CSS 控制顯示） */
+.news-panel { display: none; }
+.news-panel.active { display: block; }
+.news-panel[hidden] { display: none !important; }
+
+/* 「查看更多」按鈕容器 */
+.news-panel-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 22px;
+}
+.news-panel-more .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ============================================================
+   3. 最新新聞 — 卡片網格（原 front-page.php 第 2 段）
+   ============================================================ */
+.news-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin-top: 24px;
+}
+/* ≤1280px：3 欄 */
+@media (max-width: 1280px) {
+    .news-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+}
+/* ≤1024px：2 欄 */
+@media (max-width: 1024px) {
+    .news-grid { grid-template-columns: repeat(2, 1fr); }
+}
+/* ≤540px：1 欄 */
+@media (max-width: 540px) {
+    .news-grid { grid-template-columns: 1fr; gap: 14px; }
+}
+
+
+.news-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px;
+    overflow: hidden;
+    text-decoration: none;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.07);
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.news-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.45);
+}
+.news-card__thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    background: rgba(255,255,255,.06);
+    flex-shrink: 0;
+}
+.news-card__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .35s ease;
+}
+.news-card:hover .news-card__thumb img {
+    transform: scale(1.06);
+}
+.news-card__placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(99,168,255,.12), rgba(168,99,255,.10));
+    color: rgba(255,255,255,.25);
+    font-size: 36px;
+}
+.news-card__cat {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    backdrop-filter: blur(6px);
+}
+.news-card__body {
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+.news-card__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(220,230,245,.90);
+    margin: 0;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.news-card__excerpt {
+    font-size: 12px;
+    color: rgba(220,230,245,.55);
+    margin: 0;
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.news-card__meta {
+    margin-top: auto;
+    font-size: 12px;
+    color: rgba(220,230,245,.4);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ============================================================
+   4. 熱門作品（原 front-page.php 第 3 段）
+   ============================================================ */
+.wxacg-anime-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+}
+@media (max-width: 1024px) { .wxacg-anime-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 768px)  { .wxacg-anime-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
+@media (max-width: 480px)  { .wxacg-anime-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
+
+.wxacg-anime-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.07);
+    text-decoration: none;
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.wxacg-anime-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+.wxacg-card-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3/4;
+    overflow: hidden;
+    background: rgba(255,255,255,.06);
+}
+.wxacg-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .3s ease;
+}
+.wxacg-anime-card:hover .wxacg-card-thumb img { transform: scale(1.05); }
+.wxacg-card-fb {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    color: rgba(255,255,255,.3);
+    background: rgba(255,255,255,.04);
+}
+.wxacg-card-score {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,.75);
+    color: #ffd60a;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.wxacg-card-body { padding: 10px 12px 12px; }
+.wxacg-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(220,230,245,.85);
+    margin: 0;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.smacg-tab-btn {
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.08);
+    color: rgba(220,230,245,.55);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s ease;
+}
+.smacg-tab-btn:hover { background: rgba(255,255,255,.10); color: rgba(220,230,245,.85); }
+.smacg-tab-btn.active { background: rgba(99,168,255,.20); border-color: rgba(99,168,255,.45); color: #63a8ff; }
+.smacg-tab-empty {
+    color: rgba(220,230,245,.4);
+    font-size: 14px;
+    padding: 40px 0;
+    text-align: center;
+    grid-column: 1 / -1;
+}
+
+/* ============================================================
+   5. 會員 CTA 補強樣式（原 front-page.php 第 4 段）
+   ============================================================ */
+.member-level-progress-card {
+    background: rgba(99,168,255,.06);
+    border: 1px solid rgba(99,168,255,.20);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+}
+.mlp-row1 { display: flex; align-items: center; gap: 12px; }
+.mlp-tier-icon { font-size: 32px; line-height: 1; }
+.mlp-row1-text { flex: 1; }
+.mlp-tier-name { font-size: 15px; font-weight: 800; color: rgba(220,230,245,.95); }
+.mlp-lv {
+    font-size: 12px;
+    font-weight: 700;
+    color: #63a8ff;
+    margin-left: 6px;
+    padding: 2px 8px;
+    background: rgba(99,168,255,.15);
+    border-radius: 10px;
+}
+.mlp-exp-line { font-size: 12px; color: rgba(220,230,245,.55); margin-top: 4px; }
+.mlp-exp-line strong { color: rgba(220,230,245,.90); }
+.mlp-bar {
+    height: 6px;
+    background: rgba(255,255,255,.06);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 12px;
+    position: relative;
+}
+.mlp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #63a8ff, #a663ff);
+    border-radius: 6px;
+    transition: width .6s ease;
+}
+.mlp-bar-percent { font-size: 11px; color: rgba(220,230,245,.45); text-align: right; margin-top: 4px; }
+
+.member-level-item { transition: all .2s ease; }
+.member-level-item.member-level-current {
+    background: rgba(99,168,255,.10);
+    border-left: 3px solid #63a8ff;
+    padding-left: 12px;
+}
+.member-level-item.member-level-reached .member-level-icon { opacity: 1; }
+.member-level-item.member-level-locked .member-level-icon { opacity: .5; filter: grayscale(.4); }
+.member-level-check { color: #06a77d; margin-left: 6px; font-size: 12px; }
+.member-level-here { font-size: 11px; font-weight: 700; color: #63a8ff; margin-left: 6px; }
+.member-level-sub { font-size: 11px; color: rgba(220,230,245,.45); margin-top: 2px; }
+
+.member-level-tag.tag-green   { background: rgba(6,167,125,.18);  color: #06a77d; }
+.member-level-tag.tag-purple  { background: rgba(106,76,147,.20); color: #a98edd; }
+.member-level-tag.tag-orange  { background: rgba(184,134,11,.18); color: #d9a92a; }
+.member-level-tag.tag-locked  { background: rgba(255,255,255,.06); color: rgba(220,230,245,.45); }
+
+.member-level-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #63a8ff;
+    text-decoration: none;
+    transition: gap .2s ease;
+}
+.member-level-more:hover { gap: 10px; color: #8ec0ff; }
+
+/* ============================================================
+   ★ 6. 手機 RWD 修正（修補 style.css 失效的舊規則）★
+   ============================================================ */
+
+/* ── Hero 內容區：手機改成單欄堆疊 ── */
+@media (max-width: 900px) {
+    .hero-section .hero-content-wrap {
+        flex-direction: column;
+        gap: 28px;
+        text-align: center;
+    }
+    .hero-section .hero-text {
+        padding-left: 0;
+        max-width: 100%;
+    }
+    .hero-section .hero-eyebrow {
+        justify-content: center;
+    }
+    .hero-section .hero-stats {
+        justify-content: center;
+    }
+    .hero-section .hero-actions {
+        justify-content: center;
+    }
+}
+
+/* ── Hero 時鐘：強制一行，縮小字體 ── */
+@media (max-width: 768px) {
+    .hero-section .hero-clock {
+        min-width: 0;
+        padding: 18px 20px;
+        max-width: 320px;
+        margin: 0 auto;
+    }
+    .hero-section .hero-clock .hero-clock-time {
+        font-size: clamp(2rem, 9vw, 2.6rem);
+        letter-spacing: .04em;
+        white-space: nowrap;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+    }
+    .hero-section .hero-clock .hero-clock-bottom {
+        font-size: 13px;
+        margin-top: 6px;
+        white-space: nowrap;
+        flex-wrap: nowrap;
+    }
+}
+@media (max-width: 480px) {
+    .hero-section .hero-clock {
+        padding: 14px 16px;
+        max-width: 280px;
+    }
+    .hero-section .hero-clock .hero-clock-time {
+        font-size: clamp(1.8rem, 8.5vw, 2.3rem);
+        letter-spacing: .02em;
+    }
+    .hero-section .hero-clock .hero-clock-bottom {
+        font-size: 12px;
+    }
+}
+
+/* ── Hero 海報手機處理 ── */
+@media (max-width: 900px) {
+    .hero-section .hero-posters {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .hero-section .hero-posters .poster-item {
+        width: clamp(140px, 28vw, 180px);
+        height: clamp(200px, 40vw, 260px);
+    }
+}
+@media (max-width: 480px) {
+    .hero-section .hero-posters .poster-item:nth-child(3) {
+        display: none;
+    }
+    .hero-section .hero-posters .poster-item {
+        width: clamp(130px, 38vw, 160px);
+        height: clamp(190px, 54vw, 230px);
+    }
+}
+
+/* ── Hero CTA 按鈕：手機更好按 ── */
+@media (max-width: 480px) {
+    .hero-section .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        width: 100%;
+        max-width: 360px;
+        margin: 0 auto;
+    }
+    .hero-section .hero-actions .btn {
+        flex: 1 1 calc(50% - 5px);
+        min-height: 44px;
+        font-size: .95rem;
+        padding: 10px 14px;
+        white-space: nowrap;
+    }
+}
+
+/* ── 最新新聞 Tab：手機版 ── */
+@media (max-width: 540px) {
+    .news-tabs {
+        gap: 4px;
+        padding: 3px;
+    }
+    .news-tab-btn {
+        padding: 8px 10px;
+        font-size: 12px;
+        gap: 4px;
+    }
+    .news-tab-btn .news-tab-label {
+        /* 手機保留文字，但縮小 */
+    }
+    .news-tab-count {
+        font-size: 10px;
+        padding: 1px 5px;
+    }
+}
+
+/* ============================================================
+   ★ 7. 手機版 Header 固定 + 最新新聞 GNN 兩列橫滑（≤768px）★
+   v1.5.0 (2026-05-31) — 巴哈式：兩列 × 橫向捲動
+   ============================================================ */
+@media (max-width: 768px) {
+
+    /* ── 7-1. Header 固定頂部 ── */
+    .site-header,
+    #site-header {
+        position: fixed !important;
+        top: 0; left: 0; right: 0;
+        width: 100%;
+        z-index: 9999;
+        background: var(--clr-glass-dark, rgba(20, 25, 35, .97));
+        -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px);
+    }
+    body { padding-top: 60px; }
+    #site-header .header-top { height: 60px; }
+
+    /* ── 7-2. 最新新聞：巴哈式兩列橫滑 ── */
+    .news-grid {
+        display: grid !important;
+        grid-auto-flow: column !important;        /* ★ 橫向排列，往右長 */
+        grid-template-rows: repeat(2, auto) !important;  /* ★ 固定兩列 */
+        grid-template-columns: none !important;   /* 取消欄數限制 */
+        grid-auto-columns: 46% !important;        /* ★ 每張卡寬度（露出右邊下一張） */
+        gap: 10px !important;
+        margin-top: 14px;
+
+        /* ★ 橫向捲動 */
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory !important;
+        scroll-padding-left: 0;
+
+        /* 讓卡片不被容器壓扁 + 預留捲軸空間 */
+        padding-bottom: 6px;
+
+        /* 隱藏捲動條（視覺乾淨，仍可滑） */
+        scrollbar-width: none;
+    }
+    .news-grid::-webkit-scrollbar { display: none; }
+
+    /* 卡片：對齊吸附、固定不縮 */
+    .news-grid .news-card {
+        scroll-snap-align: start;
+        border-radius: 10px;
+        min-width: 0;
+    }
+    .news-grid .news-card__thumb {
+        aspect-ratio: 16 / 10;
+    }
+    .news-grid .news-card__body {
+        padding: 8px 10px 10px;
+        gap: 4px;
+    }
+    .news-grid .news-card__title {
+        font-size: 13px;
+        line-height: 1.35;
+        -webkit-line-clamp: 2;
+    }
+    .news-grid .news-card__excerpt {
+        display: none;
+    }
+    .news-grid .news-card__cat {
+        font-size: 10px;
+        padding: 2px 7px;
+        top: 6px; left: 6px;
+    }
+    .news-grid .news-card__meta {
+        font-size: 10px;
+    }
+}
+
+/* ≤480px：卡片略寬一點，露出右邊下一張的提示 */
+@media (max-width: 480px) {
+    .news-grid {
+        grid-auto-columns: 60% !important;   /* 窄螢幕每張寬一點 */
+        gap: 8px !important;
+    }
+    .news-grid .news-card__title { font-size: 12px; }
+}
+
+/* 修正 hero poster CLS：預留圖片空間，防止版面跳動 */
+.hero-posters .poster-item {
+    aspect-ratio: 5 / 9;
+}
+.hero-posters .poster-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* ============================================================
+   8. 底部導覽列修正 + 水平溢出防護
+   v1.0 (2026-06-26)
+   ============================================================ */
+
+/* 防止整頁水平溢出 */
+html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
+/* 各 section 不撐破頁面 */
+.hero-section,
+.section,
+.coming-soon-section,
+.member-cta-section {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* 打斷 hero-section 的 Stacking Context
+   transform / will-change / isolation 會讓 position:fixed
+   的底部導覽列被關在合成層裡導致無法浮出 */
+.hero-section {
+    isolation: auto !important;
+    transform: none !important;
+    will-change: auto !important;
+}
+
+/* season scroll-row：只在自己內部橫滑 */
+.season-section .container {
+    overflow-x: hidden;
+}
+.season-cards.scroll-row {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
+}
+
+@media (max-width: 768px) {
+    /* 底部導覽列固定在最上層 */
+    .wx-bottom-nav {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        z-index: 999999 !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+
+    /* body 同時預留 header(60px) + bottom-nav(60px) 的空間 */
+    body {
+        padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+}
+
+/* ============================================================
+   新番星期 Tab 橫滑（手機）
+   ============================================================ */
+@media (max-width: 768px) {
+    .weekday-tabs {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 4px;
+    }
+    .weekday-tabs::-webkit-scrollbar { display: none; }
+    .weekday-tabs .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+}
+
+/* ============================================================
+   手機版首頁隱藏指定元素
+   ============================================================ */
+@media (max-width: 768px) {
+    /* 隱藏「動漫新番表」chip */
+    .hero-eyebrow a[href*="bangumi"] { display: none !important; }
+
+    /* 隱藏「本季新番」和「抽一部動漫」按鈕 */
+    .hero-actions a[href*="season-section"],
+    .hero-actions a[href*="wxacg_random_anime"] { display: none !important; }
+}
+
+/* ============================================================
+   手機版 Hero 高度壓縮
+   ============================================================ */
+@media (max-width: 768px) {
+    .hero-section {
+        min-height: unset !important;
+        padding-top: 20px !important;
+        padding-bottom: 20px !important;
+    }
+    .hero-section .hero-content-wrap {
+        gap: 16px !important;
+    }
+    .hero-section .hero-posters {
+        display: none !important;
+    }
+    .hero-section .hero-stats {
+        margin-top: 8px !important;
+    }
+}
+
+/* Hero 手機版再壓縮 */
+@media (max-width: 768px) {
+    .hero-section .hero-clock {
+        padding: 10px 16px !important;
+        max-width: 260px !important;
+    }
+    .hero-section .hero-clock .hero-clock-time {
+        font-size: clamp(1.6rem, 8vw, 2rem) !important;
+    }
+    .hero-section .hero-clock .hero-clock-bottom {
+        font-size: 11px !important;
+        margin-top: 4px !important;
+    }
+    .hero-section .hero-title {
+        font-size: clamp(1.4rem, 6vw, 2rem) !important;
+        line-height: 1.3 !important;
+        margin-bottom: 6px !important;
+    }
+    .hero-section .hero-subtitle {
+        font-size: 12px !important;
+        margin-bottom: 4px !important;
+    }
+    .hero-eyebrow {
+        margin-bottom: 8px !important;
+    }
+}
+
+/* ============================================================
+   本季新番 section-header 手機版排版修正
+   ============================================================ */
+@media (max-width: 768px) {
+    #season-section .section-header {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    #season-section .weekday-tabs {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        flex-shrink: 0;
+    }
+    #season-section .weekday-tabs .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+    #season-section .section-link {
+        align-self: flex-end;
+    }
+}
+
+/* ============================================================
+   平板專用斷點（769px ～ 1024px）
+   ============================================================ */
+@media (min-width: 769px) and (max-width: 1024px) {
+
+    /* ── Hero：兩欄但壓縮海報 ── */
+    .hero-section .hero-content-wrap {
+        gap: 24px;
+    }
+    .hero-section .hero-text {
+        padding-left: 20px;
+        max-width: 100%;
+    }
+    .hero-section .hero-posters .poster-item {
+        width: 160px;
+        height: 300px;
+    }
+    /* 平板保留兩張海報，只隱藏第三張在較窄平板 */
+
+    /* ── 最新新聞：2 欄 ── */
+    .news-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 14px !important;
+    }
+
+    /* ── 熱門作品：3 欄 ── */
+    .wxacg-anime-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    /* ── Coming Soon：2 欄 ── */
+    .coming-cards-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 14px !important;
+    }
+
+    /* ── 會員 CTA：單欄堆疊 ── */
+    .member-cta-grid {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+
+    /* ── 本季新番 section-header：換行 ── */
+    #season-section .section-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    #season-section .weekday-tabs {
+        width: 100%;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+    }
+    #season-section .weekday-tabs .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    /* ── section-header 通用：標題與連結同行，tabs 換下一行 ── */
+    .section-header {
+        flex-wrap: wrap;
+    }
+    .tab-switch {
+        order: 3;
+        width: 100%;
+        flex-wrap: wrap;
+    }
+}
+
+/* ============================================================
+   新聞卡片連結顏色修正（覆寫 Blocksy 藍色繼承）
+   ============================================================ */
+.news-card,
+.news-card:hover,
+.news-card:visited {
+    color: rgba(220, 230, 245, 0.90) !important;
+    text-decoration: none !important;
+}
+.news-card__title {
+    color: rgba(220, 230, 245, 0.90) !important;
+}
+.news-card__excerpt {
+    color: rgba(220, 230, 245, 0.55) !important;
+}
+.news-card__meta,
+.news-card__meta span {
+    color: rgba(220, 230, 245, 0.40) !important;
+}
+
+/* ============================================================
+   手機版 Hero 文字置中（覆蓋前面規則）
+   ============================================================ */
+@media (max-width: 768px) {
+    .hero-section .hero-content-wrap {
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+    }
+    .hero-section .hero-text {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-left: 0 !important;
+        text-align: center !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    /* 各子元素置中 */
+    .hero-section .hero-eyebrow,
+    .hero-section .hero-title,
+    .hero-section .hero-subtitle,
+    .hero-section .hero-stats,
+    .hero-section .hero-actions {
+        text-align: center !important;
+        justify-content: center !important;
+        width: 100%;
+    }
+    .hero-section .hero-stats {
+        display: flex;
+        justify-content: center !important;
+    }
+    /* 時鐘本身水平置中 */
+    .hero-section .hero-clock {
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+}

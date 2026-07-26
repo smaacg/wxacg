@@ -1,0 +1,210 @@
+/**
+ * Level Badge - 等級徽章樣式
+ *
+ * @package weixiaoacg
+ * @subpackage Gamification
+ * @version 1.0.0 (2026-05-14)
+ *
+ * Batch 2A-4：
+ *   - .smacg-lvbadge 三種尺寸（sm/md/lg）
+ *   - 留言區內嵌樣式
+ *   - 職業選擇 .smacg-career-card 互動樣式
+ *   - 職業選擇 toast
+ */
+
+/* ============================================================
+   1. 基底徽章
+   ============================================================ */
+.smacg-lvbadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    vertical-align: middle;
+    border-radius: 999px;
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--lv-color, #94a3b8) 18%, transparent),
+        color-mix(in srgb, var(--lv-color, #94a3b8) 8%, transparent));
+    border: 1px solid color-mix(in srgb, var(--lv-color, #94a3b8) 35%, transparent);
+    color: var(--lv-color, #94a3b8);
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.smacg-lvbadge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-color, #94a3b8) 30%, transparent);
+}
+
+.smacg-lvbadge__icon {
+    font-size: 1em;
+    line-height: 1;
+}
+
+.smacg-lvbadge__lv {
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.smacg-lvbadge__title {
+    font-size: 0.9em;
+    opacity: 0.95;
+}
+
+.smacg-lvbadge__job {
+    font-size: 0.85em;
+    margin-left: 6px;
+    padding-left: 8px;
+    border-left: 1px solid color-mix(in srgb, var(--lv-color, #94a3b8) 35%, transparent);
+}
+
+.smacg-lvbadge-link {
+    text-decoration: none;
+    color: inherit;
+}
+.smacg-lvbadge-link:hover { text-decoration: none; }
+
+/* 尺寸：sm（留言區） */
+.smacg-lvbadge--sm {
+    height: 18px;
+    padding: 0 7px;
+    font-size: 11px;
+    gap: 3px;
+}
+.smacg-lvbadge--sm .smacg-lvbadge__icon { font-size: 11px; }
+
+/* 尺寸：md（一般） */
+.smacg-lvbadge--md {
+    height: 24px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+/* 尺寸：lg（Hero） */
+.smacg-lvbadge--lg {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 14px;
+    gap: 8px;
+}
+.smacg-lvbadge--lg .smacg-lvbadge__icon { font-size: 18px; }
+
+/* Lg 內嵌進度條 */
+.smacg-lvbadge__bar {
+    display: inline-block;
+    width: 80px;
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--lv-color, #94a3b8) 20%, transparent);
+    overflow: hidden;
+    margin-left: 4px;
+}
+.smacg-lvbadge__bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--lv-color, #94a3b8);
+    border-radius: 999px;
+    transition: width .4s ease;
+}
+
+/* ============================================================
+   2. 留言區整合
+   ============================================================ */
+.comment-author .smacg-lvbadge,
+.wp-block-comment-author-name .smacg-lvbadge,
+.comments-area .fn .smacg-lvbadge {
+    margin-left: 6px;
+    transform: translateY(-1px);
+}
+
+/* wpForo 論壇相容 */
+.wpforo-username + .smacg-lvbadge,
+.wpf-user-info .smacg-lvbadge { margin-left: 6px; }
+
+/* ============================================================
+   3. RWD
+   ============================================================ */
+@media (max-width: 480px) {
+    .smacg-lvbadge--lg {
+        height: 30px;
+        padding: 0 10px;
+        font-size: 12px;
+    }
+    .smacg-lvbadge--lg .smacg-lvbadge__bar { width: 60px; }
+    .smacg-lvbadge__job { font-size: 0.8em; }
+}
+
+/* ============================================================
+   4. 職業選擇卡互動（搭配 member-render 中 smacg_render_career）
+   ============================================================ */
+.smacg-career-card {
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    position: relative;
+}
+.smacg-career-card:hover:not(.is-locked):not(.is-disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(0,0,0,.25);
+}
+.smacg-career-card.is-loading {
+    pointer-events: none;
+    opacity: 0.6;
+}
+.smacg-career-card.is-loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgba(255,255,255,.05);
+    backdrop-filter: blur(2px);
+}
+.smacg-career-card.is-locked:not(.is-current) {
+    cursor: not-allowed;
+    opacity: 0.35;
+    filter: grayscale(0.5);
+}
+.smacg-career-card.is-current {
+    border-color: var(--job-color, #34d399) !important;
+    box-shadow: 0 0 0 2px var(--job-color, #34d399), 0 8px 24px color-mix(in srgb, var(--job-color, #34d399) 30%, transparent);
+}
+.smacg-career-card.is-current::before {
+    content: '✓ 已選定';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 8px;
+    background: var(--job-color, #34d399);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 999px;
+}
+
+/* ============================================================
+   5. 職業 Toast
+   ============================================================ */
+.smacg-career-toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 99999;
+}
+.smacg-career-toast.is-show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+.smacg-career-toast--ok  { background: linear-gradient(135deg, #34d399, #10b981); }
+.smacg-career-toast--err { background: linear-gradient(135deg, #f87171, #ef4444); }

@@ -1,0 +1,641 @@
+/**
+ * AI 工具整合頁專用樣式
+ * Path: blocksy-child/assets/css/ai-tools.css
+ *
+ * @version 2.4.0
+ * @since   2026-05-25
+ *
+ * Changelog:
+ *   2.4.0 (2026-06-22) 跑馬燈少量內容破圖防護、prefers-reduced-motion 無障礙、content-visibility 效能優化
+ *   2.3.0 (2026-05-25) 全面綠化（#10b981 / #34d399 / #6ee7b7）
+ *   2.2.0 (2026-05-25) Hero 緊湊化、新增跑馬燈
+ *   2.0.0 (2026-05-25) 初版（紫藍色系）
+ */
+
+/* ╔══════════════════════════════════════════════════════╗
+ * ║   HERO 區（科技綠 · 緊湊版）                              ║
+ * ╚══════════════════════════════════════════════════════╝ */
+.ai-hero {
+    position: relative;
+    background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(16,185,129,0.28) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 80% 60%, rgba(52,211,153,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 35% at 15% 80%, rgba(110,231,183,0.12) 0%, transparent 65%),
+        var(--grad-bg, #0a1410);
+    padding: 36px 0 28px;
+    text-align: center;
+    overflow: hidden;
+}
+.ai-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(52,211,153,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(52,211,153,0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    pointer-events: none;
+}
+.ai-hero .container {
+    position: relative;
+    z-index: 2;
+}
+.ai-hero .page-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16,185,129,0.15);
+    border: 1px solid rgba(52,211,153,0.4);
+    color: #6ee7b7;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill, 999px);
+    margin-bottom: 12px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+.ai-hero .page-title {
+    font-size: clamp(22px, 3.6vw, 34px);
+    font-weight: 900;
+    letter-spacing: -.02em;
+    background: linear-gradient(135deg, #34d399 0%, #6ee7b7 50%, #a7f3d0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+    margin: 0 0 8px;
+    line-height: 1.25;
+}
+.ai-hero .page-subtitle {
+    max-width: 580px;
+    margin: 0 auto 14px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text-secondary, #b4b8c0);
+    -webkit-text-fill-color: var(--text-secondary, #b4b8c0);
+    background: none;
+    background-clip: initial;
+    -webkit-background-clip: initial;
+}
+
+/* Hero meta 單行 */
+.ai-hero-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 18px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(52,211,153,0.18);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--text-secondary, #b4b8c0);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+.ai-hero-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ai-hero-meta-item strong {
+    color: #6ee7b7;
+    font-weight: 800;
+    font-size: 13px;
+}
+.ai-hero-meta-divider {
+    color: rgba(52,211,153,0.25);
+    font-weight: 700;
+}
+
+
+/* ╔══════════════════════════════════════════════════════╗
+ * ║   📢 最新情報跑馬燈（綠色版）                              ║
+ * ╚══════════════════════════════════════════════════════╝ */
+.ai-ticker {
+    background:
+        linear-gradient(90deg,
+            rgba(16,185,129,0.12) 0%,
+            rgba(52,211,153,0.08) 50%,
+            rgba(110,231,183,0.06) 100%);
+    border-top: 1px solid rgba(52,211,153,0.25);
+    border-bottom: 1px solid rgba(52,211,153,0.25);
+    padding: 0;
+    overflow: hidden;
+}
+.ai-ticker-inner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 44px;
+}
+.ai-ticker-label {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: linear-gradient(135deg, #10b981, #34d399);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+}
+.ai-ticker-label i {
+    font-size: 11px;
+}
+.ai-ticker-track {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+}
+.ai-ticker-content {
+    display: inline-flex;
+    gap: 36px;
+    white-space: nowrap;
+    animation: ai-ticker-scroll 40s linear infinite;
+    padding-left: 0;
+    /* 內容過少時，至少撐滿軌道兩倍寬，避免 -50% 滾出空白 */
+    min-width: 100%;
+    justify-content: space-around;
+}
+.ai-ticker-content:hover {
+    animation-play-state: paused;
+}
+.ai-ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: var(--text-secondary, #d4d8e0);
+    font-size: 13px;
+    transition: color .2s;
+}
+.ai-ticker-item:hover {
+    color: #a7f3d0;
+}
+.ai-ticker-dot {
+    color: #34d399;
+    font-size: 6px;
+    line-height: 1;
+}
+.ai-ticker-title {
+    font-weight: 500;
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ai-ticker-date {
+    color: var(--text-muted, #6b7280);
+    font-size: 11px;
+    font-weight: 600;
+}
+.ai-ticker-more {
+    flex-shrink: 0;
+    color: #6ee7b7;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 5px 12px;
+    background: rgba(16,185,129,0.15);
+    border: 1px solid rgba(52,211,153,0.35);
+    border-radius: 999px;
+    transition: all .2s;
+    white-space: nowrap;
+}
+.ai-ticker-more:hover {
+    background: rgba(16,185,129,0.25);
+    color: #a7f3d0;
+}
+.ai-ticker-more i {
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+@keyframes ai-ticker-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+
+/* ╔══════════════════════════════════════════════════════╗
+ * ║   📰 AI 工具相關情報（綠色版）                            ║
+ * ╚══════════════════════════════════════════════════════╝ */
+.ai-news-section {
+    padding: 40px 0 16px;
+}
+.ai-news-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.ai-news-h2 {
+    font-size: clamp(20px, 3vw, 26px);
+    font-weight: 800;
+    color: var(--text-primary, #fff);
+    margin: 0 0 4px;
+}
+.ai-news-h2 i {
+    color: #34d399;
+    margin-right: 6px;
+}
+.ai-news-sub {
+    font-size: 12px;
+    color: var(--text-muted, #6b7280);
+    margin: 0;
+}
+.ai-news-more {
+    color: #6ee7b7;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 8px 16px;
+    background: rgba(16,185,129,0.12);
+    border: 1px solid rgba(52,211,153,0.3);
+    border-radius: 999px;
+    transition: all .2s;
+}
+.ai-news-more:hover {
+    background: rgba(16,185,129,0.2);
+    color: #a7f3d0;
+    transform: translateX(2px);
+}
+.ai-news-more i {
+    font-size: 11px;
+    margin-left: 4px;
+}
+
+.ai-news-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+}
+.ai-news-card {
+    text-decoration: none;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform .25s, box-shadow .25s, border-color .25s;
+    display: flex;
+    flex-direction: column;
+}
+.ai-news-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(52,211,153,0.35);
+    box-shadow: 0 8px 24px rgba(16,185,129,0.15);
+}
+.ai-news-card-img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ai-news-card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform .4s;
+}
+.ai-news-card:hover .ai-news-card-img img {
+    transform: scale(1.05);
+}
+.ai-news-card-placeholder {
+    font-size: 40px;
+    opacity: .4;
+}
+.ai-news-card-body {
+    padding: 12px 14px 14px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+.ai-news-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    line-height: 1.5;
+    margin: 0 0 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.ai-news-card-meta {
+    font-size: 11px;
+    color: var(--text-muted, #6b7280);
+    margin-top: auto;
+}
+.ai-news-card-meta i {
+    margin-right: 4px;
+}
+
+
+/* ╔══════════════════════════════════════════════════════╗
+ * ║   工具完整資料庫（綠色版）                                 ║
+ * ╚══════════════════════════════════════════════════════╝ */
+.ai-tools-section {
+    padding: 40px 0 24px;
+}
+.ai-tools-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+.ai-tools-h2 {
+    font-size: clamp(22px, 3.5vw, 30px);
+    font-weight: 800;
+    color: var(--text-primary, #fff);
+    margin: 0 0 6px;
+    letter-spacing: -.01em;
+}
+.ai-tools-sub {
+    font-size: 13px;
+    color: var(--text-muted, #6b7280);
+    margin: 0;
+}
+
+/* Filter Bar */
+.tool-filter {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 28px;
+    padding: 0 16px;
+}
+.tool-filter-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text-secondary, #b4b8c0);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all .2s ease;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+.tool-filter-btn:hover {
+    background: rgba(16,185,129,0.12);
+    border-color: rgba(52,211,153,0.35);
+    color: #6ee7b7;
+}
+.tool-filter-btn.active {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(16,185,129,0.4);
+}
+
+/* Tools Grid */
+.tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.tool-card {
+    padding: 22px 20px 18px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: transform .25s ease, box-shadow .25s, border-color .25s;
+    display: flex;
+    flex-direction: column;
+    /* 效能：未進入視窗的卡片延後渲染，改善大量卡片時的 LCP/捲動 */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 220px;
+}
+.tool-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(52,211,153,0.4);
+    box-shadow: 0 12px 36px rgba(16,185,129,0.18);
+}
+.tool-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+.tool-icon {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    line-height: 1;
+}
+.tool-meta {
+    flex: 1;
+    min-width: 0;
+}
+.tool-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary, #fff);
+    line-height: 1.35;
+    margin: 0 0 2px;
+    word-break: break-word;
+}
+.tool-tag {
+    font-size: 11px;
+    color: #6ee7b7;
+    font-weight: 600;
+    letter-spacing: .02em;
+}
+.tool-desc {
+    font-size: 13px;
+    color: var(--text-secondary, #b4b8c0);
+    line-height: 1.75;
+    margin: 0 0 16px;
+    flex-grow: 1;
+}
+.tool-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    gap: 8px;
+}
+.tool-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    letter-spacing: .02em;
+}
+.tool-badge.free {
+    background: rgba(34,197,94,0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34,197,94,0.3);
+}
+.tool-badge.paid {
+    background: rgba(244,63,94,0.15);
+    color: #fb7185;
+    border: 1px solid rgba(244,63,94,0.3);
+}
+.tool-badge.freemium {
+    background: rgba(16,185,129,0.15);
+    color: #6ee7b7;
+    border: 1px solid rgba(52,211,153,0.3);
+}
+.tool-link {
+    font-size: 12px;
+    color: #6ee7b7;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color .2s;
+    white-space: nowrap;
+}
+.tool-link:hover {
+    color: #a7f3d0;
+}
+.tool-link i {
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+
+/* ╔══════════════════════════════════════════════════════╗
+ * ║   空狀態 & 免責聲明                                       ║
+ * ╚══════════════════════════════════════════════════════╝ */
+.ai-empty {
+    text-align: center;
+    padding: 48px 24px;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 16px;
+    margin: 32px auto;
+    max-width: 480px;
+}
+.ai-empty i {
+    font-size: 32px;
+    color: var(--text-muted, #6b7280);
+    margin-bottom: 12px;
+    display: block;
+}
+.ai-empty p {
+    font-size: 14px;
+    color: var(--text-secondary, #b4b8c0);
+    margin: 0;
+}
+
+.ai-disclaimer {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 18px 22px;
+    margin: 40px auto 0;
+    max-width: 880px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--text-muted, #6b7280);
+    line-height: 1.75;
+}
+.ai-disclaimer i {
+    color: #34d399;
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.ai-disclaimer strong {
+    color: var(--text-secondary, #b4b8c0);
+}
+
+
+/* ╔══════════════════════════════════════════════════════╗
+ * ║   RWD                                                  ║
+ * ╚══════════════════════════════════════════════════════╝ */
+@media (max-width: 900px) {
+    .ai-hero { padding: 28px 0 22px; }
+    .ai-hero .page-subtitle { font-size: 12.5px; }
+    .ai-hero-meta { gap: 8px; padding: 7px 14px; font-size: 11px; }
+    .ai-hero-meta-item strong { font-size: 12px; }
+
+    .ai-ticker-inner { gap: 10px; height: 40px; }
+    .ai-ticker-label { font-size: 11px; padding: 4px 10px; }
+    .ai-ticker-title { max-width: 220px; font-size: 12px; }
+    .ai-ticker-more { padding: 4px 10px; font-size: 11px; }
+
+    .ai-news-section { padding: 30px 0 12px; }
+    .ai-news-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+
+    .ai-tools-section { padding: 30px 0 16px; }
+    .tools-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .tool-filter-btn { font-size: 12px; padding: 7px 13px; }
+}
+
+@media (max-width: 600px) {
+    .ai-hero { padding: 22px 0 18px; }
+    .ai-hero .page-title { font-size: 22px; }
+    .ai-hero-meta {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px 10px;
+    }
+
+    .ai-ticker-label { display: none; }
+    .ai-ticker-more { font-size: 10px; }
+    .ai-ticker-title { max-width: 180px; }
+    .ai-ticker-date { display: none; }
+
+    .tools-grid { grid-template-columns: 1fr; }
+
+    .ai-news-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    .ai-news-card-title { font-size: 12px; }
+
+    .ai-disclaimer {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+
+/* ╔══════════════════════════════════════════════════════╗
+ * ║   ♿ 無障礙：尊重「減少動態效果」系統設定                   ║
+ * ╚══════════════════════════════════════════════════════╝ */
+@media (prefers-reduced-motion: reduce) {
+    .ai-ticker-content {
+        animation: none;
+        /* 停掉滾動後改為可橫向捲動，避免內容被裁切 */
+        overflow-x: auto;
+        max-width: 100%;
+    }
+    .ai-news-card,
+    .ai-news-card-img img,
+    .ai-news-more,
+    .tool-card {
+        transition: none !important;
+    }
+    .ai-news-card:hover,
+    .tool-card:hover {
+        transform: none;
+    }
+}

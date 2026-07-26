@@ -1,0 +1,735 @@
+# Translation of Plugins - WP Crontrol - Stable (latest release) in Chinese (Taiwan)
+# This file is distributed under the same license as the Plugins - WP Crontrol - Stable (latest release) package.
+msgid ""
+msgstr ""
+"PO-Revision-Date: 2026-01-29 16:47:41+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: GlotPress/4.0.3\n"
+"Language: zh_TW\n"
+"Project-Id-Version: Plugins - WP Crontrol - Stable (latest release)\n"
+
+#: src/event-list-table.php:762
+msgid "PHP cron events are disabled"
+msgstr "PHP Cron 事件已停用。"
+
+#. translators: %s: The PHP type of the invalid value
+#: src/bootstrap.php:1908
+msgid "Arguments should be an array but %s was provided. The event will likely fail with a PHP error when it attempts to run."
+msgstr "引數應該是陣列，但提供的是 %s。如果嘗試執行，這個事件可能會因為 PHP 錯誤而失敗。"
+
+#: src/bootstrap.php:1905 src/event-list-table.php:733
+msgid "This event has invalid arguments and will not run correctly."
+msgstr "這個事件包含無效的引數，會導致無法正確執行。"
+
+#. translators: %s: The internal name of the schedule.
+#: src/schedule.php:28
+msgid "A schedule with the name \"%s\" already exists."
+msgstr "名稱為「%s」的排程已存在。"
+
+#. translators: %s: Schedule name
+#: src/Event/Event.php:270
+msgid "Unknown schedule (%s)"
+msgstr "未知的排程 (%s)"
+
+#: src/event-list-table.php:740
+msgid "View arguments"
+msgstr "檢視引數"
+
+#. translators: State of a cron event, adjective
+#: src/event-list-table.php:663 src/event-list-table.php:704
+msgid "Disabled"
+msgstr "已停用"
+
+#: src/event-list-table.php:314
+msgid "Duplicated events"
+msgstr "重複的事件"
+
+#. translators: %s: Message text.
+#: src/bootstrap.php:2822 src/bootstrap.php:2928
+msgid "WP Crontrol: %s"
+msgstr "WP Crontrol: %s"
+
+#: src/bootstrap.php:1815 src/bootstrap.php:1861
+msgid "Display Name (optional)"
+msgstr "顯示名稱 (選填)"
+
+#. translators: %s: The name of the cron schedule.
+#: src/bootstrap.php:1199
+msgid "A schedule with the name %s already exists."
+msgstr "名稱為「%s」的排程已存在。"
+
+#: src/bootstrap.php:763
+msgid "You are not allowed to delete URL cron events."
+msgstr "目前的登入身分沒有刪除網址 Cron 事件的權限。"
+
+#: src/bootstrap.php:375
+msgid "You are not allowed to edit URL cron events."
+msgstr "目前的登入身分沒有編輯網址 Cron的權限。"
+
+#: src/bootstrap.php:181 src/bootstrap.php:237
+msgid "You are not allowed to add new URL cron events."
+msgstr "目前的登入身分沒有新增網址 Cron的權限。"
+
+#. translators: %s: The URL that failed validation.
+#: src/event.php:570
+msgid "The URL \"%s\" is not allowed"
+msgstr "不允許使用網址 %s。"
+
+#. translators: %s: The error message.
+#: src/event.php:184
+msgid "The cron event was saved but contains an error: %s."
+msgstr "Cron 事件已儲存但包含錯誤: %s。"
+
+#. translators: %s: Time period, for example "8 minutes"
+#: src/event-list-table.php:897
+msgid "In %s"
+msgstr "%s內"
+
+#. translators: 1: Date, 2: Time
+#: src/event-list-table.php:857
+msgid "%1$s at %2$s"
+msgstr "%1$s %2$s"
+
+#. translators: %s: Time
+#: src/event-list-table.php:851
+msgid "Yesterday at %s"
+msgstr "昨日: %s"
+
+#. translators: %s: Time
+#: src/event-list-table.php:845
+msgid "Tomorrow at %s"
+msgstr "次日: %s"
+
+#. translators: %s: Time
+#: src/event-list-table.php:839
+msgid "Today at %s"
+msgstr "今日: %s"
+
+#: src/event-list-table.php:815
+msgid "Immediately"
+msgstr "剛剛"
+
+#: src/bootstrap.php:2573
+msgid "Are you sure you want to delete all events with this hook?"
+msgstr "確定要刪除使用這個勾點的全部事件？"
+
+#: src/bootstrap.php:2572
+msgid "Are you sure you want to delete this event?"
+msgstr "確定要刪除這個事件？"
+
+#. translators: A Closure is a type of PHP function. 1: File name, 2: Line
+#. number
+#: src/bootstrap.php:2363
+msgid "Closure in %1$s at line %2$d"
+msgstr "於 %1$s 的第 %2$d 行關閉"
+
+#. translators: 1: The time since the event was scheduled, 2: The URL to search
+#. for the event.
+#: src/bootstrap.php:1607
+msgid "The event probably ran %1$s ago. <a href=\"%2$s\">Click here to see if it was rescheduled</a>."
+msgstr "這個事件可能在 %1$s前執行。<a href=\"%2$s\">點擊這裡以查看是否已重新排程</a>"
+
+#: src/event-list-table.php:775
+msgid "URL cron events are disabled"
+msgstr "網址 Cron 事件已停用。"
+
+#. translators: %s: Details about the URL cron event.
+#: src/event-list-table.php:687 src/event-list-table.php:695
+msgid "URL cron event (%s)"
+msgstr "網址 Cron 事件 (%s)"
+
+#. translators: %s: Details about the PHP cron event.
+#: src/event-list-table.php:642 src/event-list-table.php:654
+msgid "PHP cron event (%s)"
+msgstr "PHP Cron 事件 (%s)"
+
+#: src/event-list-table.php:312
+msgid "URL events"
+msgstr "網址事件"
+
+#: src/bootstrap.php:2101
+msgid "PHP cron event saved."
+msgstr "PHP Cron 事件已儲存。"
+
+#: src/bootstrap.php:2097
+msgid "URL cron event saved."
+msgstr "網址 Cron 事件已儲存。"
+
+#: src/bootstrap.php:2003 src/event-list-table.php:245
+msgctxt "noun"
+msgid "Schedule"
+msgstr "排程"
+
+#: src/bootstrap.php:1799
+msgid "HTTP Method"
+msgstr "HTTP 方法"
+
+#: src/bootstrap.php:1786
+msgid "The URL in this event needs to be checked for integrity. This event will not run until you re-save it."
+msgstr "這個事件中的網址需要檢查其完整性。這個事件在重新儲存前，不會執行。"
+
+#: src/bootstrap.php:1778
+msgid "URL"
+msgstr "網址"
+
+#: src/bootstrap.php:1755 src/event-list-table.php:697
+msgid "URL cron event"
+msgstr "網址 Cron 事件"
+
+#: src/bootstrap.php:1236
+msgid "Adding a new schedule allows you to schedule recurring events at the given interval."
+msgstr "新增能讓網站管理員以指定執行間隔執行週期性事件的排程。"
+
+#: src/bootstrap.php:283 src/bootstrap.php:466
+msgid "URL Cron"
+msgstr "網址 Cron"
+
+#. Description of the plugin
+#: wp-crontrol.php
+msgid "Take control of the cron events on your WordPress website."
+msgstr "控制 WordPress 網站上的 Cron 事件。"
+
+#: src/event-list-table.php:668 src/event-list-table.php:709
+msgid "Needs checking"
+msgstr "需要檢查"
+
+#: src/event-list-table.php:493
+msgid "Check and edit"
+msgstr "檢查並編輯"
+
+#: src/event-list-table.php:311
+msgid "PHP events"
+msgstr "PHP 事件"
+
+#: src/event-list-table.php:106
+msgid "One or more of your cron events needs to be checked for integrity. These events will not run until you check and re-save them."
+msgstr "這個網站上有一或多個 Cron 事件需要檢查其完整性。這些事件在完成檢查及重新儲存前，不會執行。"
+
+#. translators: %s: An input field for specifying a date and time
+#: src/bootstrap.php:1972
+msgid "At this time: %s"
+msgstr "指定時間: %s"
+
+#: src/bootstrap.php:1788 src/bootstrap.php:1841 src/event-list-table.php:108
+msgid "Read what to do"
+msgstr "了解處理方式"
+
+#: src/bootstrap.php:1839
+msgid "The PHP code in this event needs to be checked for integrity. This event will not run until you re-save it."
+msgstr "這個事件中的 PHP 程式碼需要檢查其完整性。這個事件在重新儲存前，不會執行。"
+
+#: src/bootstrap.php:1763 src/event-list-table.php:656
+msgid "PHP cron event"
+msgstr "PHP Cron 事件"
+
+#: src/bootstrap.php:1748
+msgid "Standard cron event"
+msgstr "標準 Cron 事件"
+
+#. Author of the plugin
+#: wp-crontrol.php
+msgid "John Blackbourn"
+msgstr "John Blackbourn"
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: wp-crontrol.php
+msgid "https://wp-crontrol.com"
+msgstr "https://wp-crontrol.com"
+
+#. translators: %s: The number of events with this hook
+#: src/event-list-table.php:576
+msgid "Delete all events with this hook (%s)"
+msgstr "刪除使用這個勾點的全部事件 (%s)"
+
+#. translators: Pause is a verb
+#: src/event-list-table.php:540
+msgid "Pause this hook"
+msgstr "暫停這個勾點"
+
+#. translators: Resume is a verb
+#: src/event-list-table.php:529
+msgid "Resume this hook"
+msgstr "恢復使用這個勾點"
+
+#. translators: 1: Date and time, 2: Timezone
+#: src/bootstrap.php:2019 src/bootstrap.php:2167
+msgid "Site time when page loaded: %1$s, %2$s"
+msgstr "頁面載入時的網站時間: %1$s｜%2$s"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2093
+msgid "Resumed the %s hook."
+msgstr "[%s] 事件的勾點已恢復使用。"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2088
+msgid "Paused the %s hook."
+msgstr "[%s] 事件的勾點已暫停。"
+
+#: src/bootstrap.php:847 src/bootstrap.php:853 src/bootstrap.php:894
+#: src/bootstrap.php:900
+msgid "You are not allowed to pause or resume cron events."
+msgstr "目前的登入身分沒有暫停或恢復使用 Cron 事件的權限。"
+
+#. translators: %s: The name of the cron event.
+#: src/event.php:267
+msgid "Failed to resume the cron event %s."
+msgstr "無法恢復使用 Cron 事件 [%s]。"
+
+#. translators: %s: The name of the cron event.
+#: src/event.php:236
+msgid "Failed to pause the cron event %s."
+msgstr "無法暫停 Cron 事件 [%s]。"
+
+#. translators: State of a cron event, adjective
+#: src/event-list-table.php:726
+msgid "Paused"
+msgstr "已暫停"
+
+#: src/event-list-table.php:313
+msgid "Paused events"
+msgstr "已暫停的事件"
+
+#. translators: %s: Function name
+#: src/bootstrap.php:2386
+msgid "Function %s does not exist"
+msgstr "函式 %s 不存在。"
+
+#: src/bootstrap.php:2105
+msgid "An unknown error occurred."
+msgstr "發生未知的錯誤。"
+
+#: src/bootstrap.php:960
+msgid "Could not save CSV file."
+msgstr "無法儲存 CSV 檔案。"
+
+#: src/event-list-table.php:378
+msgid "Export"
+msgstr "匯出"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2044
+msgid "Scheduled the cron event %s to run now. The original event will not be affected."
+msgstr "排程 Cron 事件 [%s] 以立即執行。原始事件不受影響。"
+
+#: src/bootstrap.php:1110 src/bootstrap.php:1137 src/bootstrap.php:1155
+#: src/event-list-table.php:758 src/event-list-table.php:771
+#: src/event-list-table.php:796 src/event-list-table.php:882
+msgid "Help"
+msgstr "線上說明"
+
+#. translators: %s: URL to the documentation
+#: src/bootstrap.php:1096
+msgid "<a href=\"%s\">Read the WordPress.org documentation on WP-Cron</a> for more technical details about the WP-Cron system for developers."
+msgstr "參考 <a href=\"%s\" target=\"_blank\">WordPress.org 的 WP-Cron 線上說明</a>，以進一步了解開發者使用 WP-Cron 的技術詳細資料。"
+
+#. translators: %s: URL to the documentation
+#: src/bootstrap.php:1082
+msgid "<a href=\"%s\">Read the Frequently Asked Questions (FAQ)</a> which cover many common questions and answers."
+msgstr "參考 WP Crontrol 外掛說明頁的〈<a href=\"%s\" target=\"_blank\">常見問題集</a>〉區段，當中涵蓋許多常見的問題及答案。"
+
+#. translators: 1: URL to the documentation, 2: WP Crontrol
+#: src/bootstrap.php:1067
+msgid "<a href=\"%1$s\">Read the %2$s website</a> which contains information about events that have missed their schedule, problems with spawning a call to the WP-Cron system, and much more."
+msgstr "參考 <a href=\"%1$s\" target=\"_blank\">%2$s 官方網站</a>，其中包含錯過排程的事件、呼叫 WP-Cron 系統所衍生的問題等相關資訊。"
+
+#: src/bootstrap.php:1061
+msgid "There are several places to get help with issues relating to WP-Cron:"
+msgstr "以下是幾個與 WP-Cron 相關、可以提供協助的連結:"
+
+#: src/Event/CoreCronEvent.php:38
+msgid "This is a WordPress core event and cannot be deleted"
+msgstr "這是 WordPress 核心程式事件且不可刪除"
+
+#: src/event-list-table.php:310
+msgid "Custom events"
+msgstr "自訂事件"
+
+#: src/event-list-table.php:309
+msgid "WordPress core events"
+msgstr "WordPress 核心程式事件"
+
+#: src/event-list-table.php:308
+msgid "Events with no action"
+msgstr "不執行動作的事件"
+
+#: src/event-list-table.php:307
+msgid "All events"
+msgstr "全部事件"
+
+#: src/event.php:132
+msgid "Invalid timestamp provided."
+msgstr "提供的時間戳記無效。"
+
+#. translators: %s: The name of the cron event.
+#: src/event.php:103
+msgid "Failed to schedule the cron event %s."
+msgstr "無法排程 Cron 事件 [%s]。"
+
+#. translators: %s: The name of the cron event.
+#: src/event.php:64 src/event.php:367
+msgid "The cron event %s could not be found."
+msgstr "找不到 Cron 事件 [%s]。"
+
+#: src/event-list-table.php:951
+msgid "No matching cron events."
+msgstr "找不到條件相符的 Cron 事件。"
+
+#: src/bootstrap.php:1738 src/bootstrap.php:1743
+msgid "Event Type"
+msgstr "事件類型"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:1597
+msgid "The %s event you are trying to edit does not exist."
+msgstr "嘗試編輯的 [%s] 事件不存在。"
+
+#: src/bootstrap.php:1411 src/bootstrap.php:1439
+msgid "More information"
+msgstr "進一步了解相關資訊"
+
+#: src/bootstrap.php:1409
+msgid "PHP default timezone is not set to UTC. This may cause issues with cron event timings."
+msgstr "PHP 預設時區並未設定為 UTC，這可能會造成 Cron 事件的時間問題。"
+
+#: src/bootstrap.php:121
+msgctxt "verb"
+msgid "Sponsor"
+msgstr "贊助外掛開發"
+
+#. translators: 1: The name of the configuration constant, 2: The value of the
+#. configuration constant
+#: src/event-list-table.php:931 src/schedule-list-table.php:171
+msgid "This interval is less than the %1$s constant which is set to %2$s seconds. Events that use it may not run on time."
+msgstr "執行間隔少於設定為 %2$s 秒的 %1$s 常數。使用這項設定的事件可能無法準時執行。"
+
+#: src/event-list-table.php:949
+msgid "There are currently no scheduled cron events."
+msgstr "沒有已排程的 Cron 事件。"
+
+#. translators: %s: Time period, for example "8 minutes"
+#: src/event-list-table.php:876
+msgid "%s ago"
+msgstr "%s前"
+
+#. translators: 1: Line number, 2: Error message text
+#: src/event-list-table.php:674
+msgid "Line %1$s: %2$s"
+msgstr "第 %1$s 行: %2$s"
+
+#: src/event-list-table.php:626
+msgid "Select this row"
+msgstr "選取這個資料行"
+
+#. translators: %s: UTC offset
+#: src/event-list-table.php:241
+msgid "Next Run (%s)"
+msgstr "下次執行時間 (%s)"
+
+#: src/event-list-table.php:237
+msgid "Hook"
+msgstr "勾點"
+
+#: src/schedule-list-table.php:197
+msgid "There are no schedules."
+msgstr "沒有可供使用的排程。"
+
+#: src/Schedule/ThirdPartySchedule.php:27
+msgid "This schedule is added by another plugin and cannot be deleted"
+msgstr "這是其他外掛新增的排程且不可刪除"
+
+#: src/Schedule/CoreSchedule.php:27
+msgid "This is a WordPress core schedule and cannot be deleted"
+msgstr "這是 WordPress 核心程式的排程且不可刪除"
+
+#: src/bootstrap.php:2154
+msgid "Search Hook Names"
+msgstr "搜尋勾點名稱"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2083
+msgid "Failed to save the cron event %s."
+msgstr "無法儲存 Cron 事件 [%s]。"
+
+#: src/bootstrap.php:2078
+msgid "Deleted the selected cron events."
+msgstr "選取的 Cron 事件已刪除。"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2064
+msgid "Deleted the cron event %s."
+msgstr "Cron 事件 [%s] 已刪除。"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2059
+msgid "Saved the cron event %s."
+msgstr "Cron 事件 [%s] 已儲存。"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2054
+msgid "There are no %s cron events to delete."
+msgstr "沒有可供刪除的 [%s] Cron 事件。"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2049
+msgid "Deleted all %s cron events."
+msgstr "全部 [%s] Cron 事件已刪除。"
+
+#: src/bootstrap.php:1692 src/bootstrap.php:2265
+msgid "Edit Cron Event"
+msgstr "編輯 Cron 事件"
+
+#: src/bootstrap.php:1662
+msgid "Add Event"
+msgstr "新增事件"
+
+#: src/bootstrap.php:1654
+msgid "Update Event"
+msgstr "更新事件"
+
+#. translators: %s: The name of the plugin that controls the running of cron
+#. events.
+#: src/bootstrap.php:1326
+msgid "WP-Cron spawning is being managed by the %s plugin."
+msgstr "由 %s 管理的 WP-Cron 衍生項目。"
+
+#. translators: %s: The name of the cron schedule.
+#: src/bootstrap.php:1194
+msgid "Added the cron schedule %s."
+msgstr "Cron 排程 [%s] 已新增。"
+
+#. translators: %s: The name of the cron schedule.
+#: src/bootstrap.php:1189
+msgid "Deleted the cron schedule %s."
+msgstr "Cron 排程 [%s] 已刪除。"
+
+#: src/bootstrap.php:1963
+msgid "Tomorrow"
+msgstr "明天"
+
+#: src/bootstrap.php:1957 src/event-list-table.php:893
+msgid "Now"
+msgstr "現在"
+
+#: src/bootstrap.php:715 src/bootstrap.php:760
+msgid "You are not allowed to delete PHP cron events."
+msgstr "目前的登入身分沒有刪除 PHP Cron 事件的權限。"
+
+#: src/bootstrap.php:371 src/bootstrap.php:534
+msgid "You are not allowed to edit PHP cron events."
+msgstr "目前的登入身分沒有編輯 PHP Cron 事件的權限。"
+
+#. translators: 1, 2, and 3: Example values for an input field.
+#: src/bootstrap.php:1920
+msgid "Use a JSON encoded array, e.g. %1$s, %2$s, or %3$s"
+msgstr "使用 JSON 編碼的陣列，例如 %1$s、%2$s 或 %3$s。"
+
+#. translators: The PHP tag name
+#: src/bootstrap.php:1849
+msgid "The opening %s tag must not be included."
+msgstr "不能包含 %s 開始標記。"
+
+#: src/Schedule/CrontrolSchedule.php:27
+msgid "This custom schedule is in use and cannot be deleted"
+msgstr "這是使用珠的自訂排程且不可刪除"
+
+#: src/event-list-table.php:246
+msgid "Action"
+msgstr "動作"
+
+#: src/bootstrap.php:2028
+msgid "You cannot add, edit, or delete PHP cron events because your user account does not have the ability to edit files."
+msgstr "由於目前的登入身分沒有編輯檔案的權限，因此無法新增、編輯或刪除 PHP Cron 事件。"
+
+#. translators: %s Timezone name.
+#: src/bootstrap.php:1993
+msgid "Timezone: %s"
+msgstr "時區: %s"
+
+#: src/bootstrap.php:1897
+msgid "Arguments (optional)"
+msgstr "引數 (選填)"
+
+#. translators: %s: The name of the PHP constant that is set.
+#: src/bootstrap.php:1343
+msgid "The %s constant is set to true."
+msgstr "%s 常數已設定為 true。"
+
+#. translators: %s: The name of the PHP constant that is set.
+#: src/bootstrap.php:1335
+msgid "The %s constant is set to true. WP-Cron spawning is disabled."
+msgstr "%s 常數已設定為 true。WP-Cron 衍生的項目已停用。"
+
+#. translators: %s: The HTTP response code.
+#: src/bootstrap.php:1375
+msgid "Unexpected HTTP response code: %s"
+msgstr "未預期的 HTTP 回應碼: %s"
+
+#: src/bootstrap.php:1235 src/bootstrap.php:1257
+msgid "Add Cron Schedule"
+msgstr "新增 Cron 排程"
+
+#: src/bootstrap.php:1037 src/bootstrap.php:1038 src/bootstrap.php:1127
+#: src/bootstrap.php:2144 src/bootstrap.php:2225
+msgid "Cron Events"
+msgstr "Cron 事件"
+
+#: src/bootstrap.php:178 src/bootstrap.php:300
+msgid "You are not allowed to add new PHP cron events."
+msgstr "目前的登入身分沒有新增 PHP Cron 事件的權限。"
+
+#. Plugin Name of the plugin
+#: wp-crontrol.php
+msgid "WP Crontrol"
+msgstr "WP Crontrol"
+
+#: src/bootstrap.php:2484
+msgid "now"
+msgstr "現在"
+
+#. translators: %s: The number of seconds in an interval of time.
+#: src/bootstrap.php:2480
+msgid "%s second"
+msgid_plural "%s seconds"
+msgstr[0] "%s 秒"
+
+#. translators: %s: The number of minutes in an interval of time.
+#: src/bootstrap.php:2478 src/bootstrap.php:2491
+msgid "%s minute"
+msgid_plural "%s minutes"
+msgstr[0] "%s 分鐘"
+
+#. translators: %s: The number of hours in an interval of time.
+#: src/bootstrap.php:2476
+msgid "%s hour"
+msgid_plural "%s hours"
+msgstr[0] "%s 小時"
+
+#. translators: %s: The number of days in an interval of time.
+#: src/bootstrap.php:2474
+msgid "%s day"
+msgid_plural "%s days"
+msgstr[0] "%s 天"
+
+#. translators: %s: The number of weeks in an interval of time.
+#: src/bootstrap.php:2472
+msgid "%s week"
+msgid_plural "%s weeks"
+msgstr[0] "%s 週"
+
+#. translators: %s: The number of months in an interval of time.
+#: src/bootstrap.php:2470
+msgid "%s month"
+msgid_plural "%s months"
+msgstr[0] "%s 個月"
+
+#. translators: %s: The number of years in an interval of time.
+#: src/bootstrap.php:2468
+msgid "%s year"
+msgid_plural "%s years"
+msgstr[0] "%s 年"
+
+#: src/event-list-table.php:516
+msgid "Run now"
+msgstr "立即執行"
+
+#: src/event-list-table.php:495
+msgid "Edit"
+msgstr "編輯"
+
+#: src/bootstrap.php:1831 src/Event/PHPCronEvent.php:69
+msgid "PHP Code"
+msgstr "PHP 程式碼"
+
+#: src/bootstrap.php:346 src/bootstrap.php:548
+msgid "PHP Cron"
+msgstr "PHP Cron"
+
+#: src/event-list-table.php:800
+msgid "None"
+msgstr "無"
+
+#: src/bootstrap.php:1935 src/bootstrap.php:1952
+msgid "Next Run"
+msgstr "下次執行時間"
+
+#: src/bootstrap.php:1877 src/bootstrap.php:1880
+msgid "Hook Name"
+msgstr "勾點名稱"
+
+#: src/bootstrap.php:1694 src/bootstrap.php:2146 src/bootstrap.php:2260
+msgid "Add Cron Event"
+msgstr "新增 Cron 事件"
+
+#. translators: %s: Error message text.
+#: src/bootstrap.php:1435
+msgid "There was a problem spawning a call to the WP-Cron system on your site. This means WP-Cron events on your site may not work. The problem was: %s"
+msgstr "這個網站上因為呼叫 WP-Cron 系統衍生問題，這代表 WP-Cron 事件在這個網站上無法運作。問題: %s"
+
+#: src/bootstrap.php:1240
+msgid "Interval (seconds)"
+msgstr "執行間隔 (單位: 秒)"
+
+#: src/bootstrap.php:1252 src/schedule-list-table.php:74
+msgid "Internal Name"
+msgstr "內部名稱"
+
+#: src/event-list-table.php:290 src/event-list-table.php:477
+#: src/event-list-table.php:556 src/schedule-list-table.php:123
+msgid "Delete"
+msgstr "刪除"
+
+#: src/bootstrap.php:1246 src/schedule-list-table.php:76
+msgid "Display Name"
+msgstr "顯示名稱"
+
+#: src/schedule-list-table.php:75
+msgid "Interval"
+msgstr "執行間隔"
+
+#: src/bootstrap.php:1030 src/bootstrap.php:1031 src/bootstrap.php:1132
+#: src/bootstrap.php:1227 src/bootstrap.php:2229
+msgid "Cron Schedules"
+msgstr "Cron 排程"
+
+#: src/bootstrap.php:803 src/bootstrap.php:811 src/bootstrap.php:815
+msgid "You are not allowed to run cron events."
+msgstr "目前的登入身分沒有執行 Cron 事件的權限。"
+
+#: src/bootstrap.php:663 src/bootstrap.php:706 src/bootstrap.php:752
+msgid "You are not allowed to delete cron events."
+msgstr "目前的登入身分沒有刪除 Cron 事件的權限。"
+
+#: src/bootstrap.php:648
+msgid "You are not allowed to delete cron schedules."
+msgstr "目前的登入身分沒有刪除 Cron 排程的權限。"
+
+#: src/bootstrap.php:616
+msgid "You are not allowed to add new cron schedules."
+msgstr "目前的登入身分沒有新增 Cron 排程的權限。"
+
+#: src/bootstrap.php:363 src/bootstrap.php:451
+msgid "You are not allowed to edit cron events."
+msgstr "目前的登入身分沒有編輯 Cron 事件的權限。"
+
+#: src/bootstrap.php:171
+msgid "You are not allowed to add new cron events."
+msgstr "目前的登入身分沒有新增 Cron 事件的權限。"
+
+#: src/Event/Event.php:258 src/schedule.php:110
+msgid "Non-repeating"
+msgstr "不重複"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2069
+msgid "Failed to the delete the cron event %s."
+msgstr "無法刪除 Cron 事件 [%s]。"
+
+#. translators: %s: The name of the cron event.
+#: src/bootstrap.php:2074
+msgid "Failed to the execute the cron event %s."
+msgstr "無法執行 Cron 事件 [%s]。"

@@ -1,0 +1,2491 @@
+<?php
+/**
+ * 檔案名稱: includes/class-api-handler.php
+ *
+ * @version 1.3.1
+ *
+ * Changelog:
+ *   1.3.1 (2026-07-18)
+ *     — [Fix MAL 分數抓取失敗無重試] fetch_mal_score() 加入最多 3 次重試：
+ *         cURL 錯誤與 429/5xx 暫時性錯誤才重試（4xx 如 404 直接放棄不重試），
+ *         並補上 record_stat() 統計呼叫（success/failed/rate_limited/retry），
+ *         使 jikan 呼叫狀況能出現在 Anime_Sync_Rate_Limiter::get_stats() 裡。
+ *         根因：enrich_anime_data() 只會執行一次（_enriched_at 寫入後
+ *         enrich_single() 會拒絕重跑），若當次 Jikan API 剛好逾時或被
+ *         限流，MAL 分數會永久卡在 0 且不會再被重試。
+ *   1.3.0 (2026-07-17)
+ *     — [Feat AnimeThemes by-slug] fetch_animethemes() 抽出共用解析器
+ *         parse_animethemes_payload()；新增 fetch_animethemes_by_slug()，
+ *         可用 AnimeThemes slug 直接查 /anime/{slug} 端點抓主題曲。
+ *         供 CRON「slug 優先、mal_id 備援」使用，根治 mal_id 失效時
+ *         主題曲永遠抓不到的問題。回傳結構與 by-mal 完全一致。
+ *   1.2.1 (2026-06-19)
+ *     — [Fix 整欄鎖一致性] enrich_anime_data() 寫入前檢查 anime_locked_fields。
+ *   1.2.0 (2026-06-18)
+ *     — [Fix L6] fetch_mal_score() 裸 error_log() 改用 logger / 刪除。
+ *     — [Fix 集數鎖定] enrich 寫入 episodes 尊重 locked ids。
+ *   1.1.0 — Rate limiter 整合強化。
+ *
+ * @package Anime_Sync_Pro
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class Anime_Sync_API_Handler {
+
+    const ANILIST_ENDPOINT  = 'https://graphql.anilist.co';
+    const BGM_SUBJECT_URL   = 'https://api.bgm.tv/v0/subjects/';
+    const BGM_EPISODES_URL  = 'https://api.bgm.tv/v0/episodes';
+    const ANIMETHEMES_URL   = 'https://api.animethemes.moe/anime';
+    const WIKI_ZH_API       = 'https://zh.wikipedia.org/w/api.php';
+    const WIKI_EN_REST      = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
+
+    // ACG 新增：統一 User-Agent 常數
+    const USER_AGENT = 'weixiaoacg-Project/1.0 (https://weixiaoacg.com)';
+
+    const SERIES_RELATION_TYPES = [
+        'PREQUEL',
+        'SEQUEL',
+        'SIDE_STORY',
+        'SPIN_OFF',
+        'ALTERNATIVE',
+        'PARENT',
+    ];
+
+    private Anime_Sync_Rate_Limiter $rate_limiter;
+    private ?Anime_Sync_ID_Mapper   $id_mapper;
+
+    public function __construct(
+        ?Anime_Sync_Rate_Limiter $rate_limiter = null,
+        ?Anime_Sync_ID_Mapper    $id_mapper    = null
+    ) {
+        // 1.1.0：rate-limiter constructor 已改 private，必須用 get_instance()
+        $this->rate_limiter = $rate_limiter ?? Anime_Sync_Rate_Limiter::get_instance();
+        $this->id_mapper    = $id_mapper    ?? new Anime_Sync_ID_Mapper();
+    }
+
+    private function get_animethemes_meta( int $post_id ): array {
+        if ( $post_id <= 0 ) {
+            return [ 'id' => '', 'slug' => '' ];
+        }
+
+        $id_raw      = get_post_meta( $post_id, 'anime_animethemes_id', true );
+        $slug        = trim( (string) get_post_meta( $post_id, 'anime_animethemes_slug', true ) );
+        $legacy_slug = trim( (string) get_post_meta( $post_id, 'animethemes_slug', true ) );
+        $id          = '';
+
+        if ( is_scalar( $id_raw ) ) {
+            $id_raw = trim( (string) $id_raw );
+            if ( $id_raw !== '' ) {
+                if ( ctype_digit( $id_raw ) ) {
+                    $id = $id_raw;
+                } elseif ( $slug === '' ) {
+                    // 舊版曾把 slug 寫進 anime_animethemes_id，這裡自動轉回 slug。
+                    $slug = $id_raw;
+                }
+            }
+        }
+
+        if ( $slug === '' ) {
+            $slug = $legacy_slug;
+        }
+
+        return [
+            'id'   => $id,
+            'slug' => $slug,
+        ];
+    }
+
+  // =========================================================================
+    // PUBLIC – 核心匯入（ACB）目標 < 15 秒
+    // =========================================================================
+
+    public function get_core_anime_data( int $anilist_id, int $post_id = 0, ?int $bangumi_id = null ): array|WP_Error {
+
+        $anilist_raw = $this->fetch_anilist_data( $anilist_id );
+        if ( is_wp_error( $anilist_raw ) ) return $anilist_raw;
+
+        $media = $anilist_raw['data']['Media'] ?? null;
+        if ( empty( $media ) ) {
+            return new WP_Error( 'anilist_empty', "AniList returned no data for ID {$anilist_id}." );
+        }
+
+        $mal_id         = isset( $media['idMal'] ) && $media['idMal'] !== null ? (int) $media['idMal'] : null;
+        $title_romaji   = $media['title']['romaji']  ?? '';
+        $title_english  = $media['title']['english'] ?? '';
+        $title_native   = $media['title']['native']  ?? '';
+        $season_year    = $media['seasonYear']        ?? 0;
+        $season         = $media['season']            ?? '';
+        $episodes       = (int) ( $media['episodes'] ?? 0 );
+        $external_links = $media['externalLinks']     ?? [];
+        $animethemes_meta = $this->get_animethemes_meta( $post_id );
+
+        if ( ! $bangumi_id || $bangumi_id <= 0 ) {
+            $bangumi_id = $this->id_mapper->get_bangumi_id( [
+                'anilist_id'     => $anilist_id,
+                'mal_id'         => $mal_id,
+                'post_id'        => $post_id,
+                'title_native'   => $this->build_season_aware_native( $title_native, $title_romaji ),
+                'title_romaji'   => $title_romaji,
+                'title_chinese'  => '',
+                'season_year'    => $season_year,
+                'season'         => $season,
+                'episodes'       => $episodes,
+                'external_links' => $external_links,
+            ] );
+        }
+
+        $bgm_data = null;
+        if ( $bangumi_id && $bangumi_id > 0 ) {
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $result = $this->get_bangumi_data( $bangumi_id );
+            if ( ! is_wp_error( $result ) && is_array( $result ) ) {
+                $bgm_data = $result;
+            }
+        }
+
+        $title_chinese_raw = '';
+        if ( $bgm_data ) {
+            $title_chinese_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+        }
+        if ( $title_chinese_raw === '' && $bangumi_id ) {
+            $cached = $this->id_mapper->get_chinese_title( $bangumi_id );
+            if ( $cached ) $title_chinese_raw = $cached;
+        }
+        $title_chinese = $title_chinese_raw !== ''
+            ? Anime_Sync_CN_Converter::static_convert( $title_chinese_raw )
+            : '';
+
+        // ★ 保留 Bangumi 原始简体标题（不经 OpenCC），供大陆用户搜寻
+        $title_simplified = $bgm_data ? trim( (string) ( $bgm_data['name_cn'] ?? '' ) ) : '';
+
+        $synopsis_chinese = '';
+        $synopsis_english = '';
+        if ( $bgm_data && ! empty( $bgm_data['summary'] ) ) {
+            $synopsis_chinese = $this->clean_synopsis( $bgm_data['summary'] );
+            if ( $synopsis_chinese !== '' ) {
+                $synopsis_chinese = Anime_Sync_CN_Converter::static_convert( $synopsis_chinese );
+            }
+        }
+        if ( ! empty( $media['description'] ) ) {
+            $synopsis_english = $this->clean_synopsis( $media['description'] );
+        }
+
+        $score_anilist = isset( $media['averageScore'] ) ? (int) $media['averageScore'] : 0;
+        $score_bangumi = 0;
+        if ( $bgm_data ) {
+            $raw = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+            if ( $raw !== null ) $score_bangumi = (int) round( (float) $raw * 10 );
+        }
+     
+
+
+        $studios = [];
+        foreach ( $media['studios']['nodes'] ?? [] as $studio ) {
+            if ( ! empty( $studio['name'] ) ) $studios[] = $studio['name'];
+        }
+
+        $start_date   = $this->parse_fuzzy_date( $media['startDate'] ?? [] );
+        $end_date     = $this->parse_fuzzy_date( $media['endDate']   ?? [] );
+        $streaming    = $this->parse_streaming_links( $external_links );
+        $parsed_links = $this->parse_external_links( $external_links );
+        $staff        = $this->parse_staff( $media['staff']['edges']         ?? [] );
+        $cast         = $this->parse_cast(  $media['characters']['edges']    ?? [] );
+        $relations    = $this->parse_relations( $media['relations']['edges'] ?? [] );
+
+        $trailer_url = '';
+        if ( ! empty( $media['trailer'] ) ) {
+            $t_id   = $media['trailer']['id']   ?? '';
+            $t_site = $media['trailer']['site']  ?? '';
+            if ( $t_id !== '' && strtolower( $t_site ) === 'youtube' ) {
+                $trailer_url = "https://www.youtube.com/watch?v={$t_id}";
+            }
+        }
+
+        $next_airing = null;
+        if ( ! empty( $media['nextAiringEpisode'] ) ) {
+            $next_airing = [
+                'airingAt' => $media['nextAiringEpisode']['airingAt'] ?? 0,
+                'episode'  => $media['nextAiringEpisode']['episode']  ?? 0,
+            ];
+        }
+
+        $anime_tags = [];
+        foreach ( $media['tags'] ?? [] as $tag ) {
+            if ( ! empty( $tag['isMediaSpoiler'] ) ) continue;
+            if ( ! empty( $tag['name'] ) ) $anime_tags[] = $tag['name'];
+        }
+
+        return [
+            'anilist_id'             => $anilist_id,
+            'mal_id'                 => $mal_id,
+            'bangumi_id'             => $bangumi_id,
+            'anime_animethemes_id'   => $animethemes_meta['id'],
+            'anime_animethemes_slug' => $animethemes_meta['slug'],
+            'animethemes_slug'       => $animethemes_meta['slug'],
+            'anime_title_chinese'    => $title_chinese,
+            'anime_title_simplified' => $title_simplified,
+            'anime_title_romaji'     => $title_romaji,
+            'anime_title_english'    => $title_english,
+            'anime_title_native'     => $title_native,
+            'anime_format'           => $media['format'] ?? '',
+            'anime_status'           => $media['status'] ?? '',
+            'anime_season'           => $media['season'] ?? '',
+            'anime_season_year'      => $season_year,
+            'anime_source'           => $media['source'] ?? '',
+            'anime_episodes'         => $episodes,
+            'anime_duration'         => (int) ( $media['duration'] ?? 0 ),
+            'anime_studios'          => implode( ', ', $studios ),
+            'anime_score_anilist'    => $score_anilist,
+            'anime_score_bangumi'    => $score_bangumi,
+            'anime_score_mal'        => 0,
+            'anime_popularity'       => (int) ( $media['popularity'] ?? 0 ),
+            'anime_cover_image'      => $media['coverImage']['extraLarge'] ?? $media['coverImage']['large'] ?? '',
+            'anime_banner_image'     => $media['bannerImage'] ?? '',
+            'anime_trailer_url'      => $trailer_url,
+            'anime_synopsis_chinese' => $synopsis_chinese,
+            'anime_synopsis_english' => $synopsis_english,
+            'anime_start_date'       => $start_date,
+            'anime_end_date'         => $end_date,
+            'anime_streaming'        => wp_json_encode( $streaming,      JSON_UNESCAPED_UNICODE ),
+            'anime_themes'           => '[]',
+            'anime_staff_json'       => wp_json_encode( $staff,          JSON_UNESCAPED_UNICODE ),
+            'anime_cast_json'        => wp_json_encode( $cast,           JSON_UNESCAPED_UNICODE ),
+            'anime_relations_json'   => wp_json_encode( $relations,      JSON_UNESCAPED_UNICODE ),
+            'anime_episodes_json'    => '[]',
+            'anime_official_site'    => $parsed_links['official_site']   ?? '',
+            'anime_twitter_url'      => $parsed_links['twitter_url']     ?? '',
+            'anime_tiktok_url'       => $parsed_links['tiktok_url']      ?? '',
+            'anime_wikipedia_url'    => '',
+            'anime_external_links'   => wp_json_encode( $external_links, JSON_UNESCAPED_UNICODE ),
+            'anime_next_airing'      => $next_airing ? wp_json_encode( $next_airing ) : '',
+            'anime_genres'           => $media['genres'] ?? [],
+            'anime_tags'             => $anime_tags,
+            '_bgm_raw'               => $bgm_data,
+            '_needs_enrich'          => true,
+        ];
+    }
+
+    // =========================================================================
+    // PUBLIC – 補抓第二段資料（ACB）
+    // =========================================================================
+
+    public function enrich_anime_data( int $post_id ): array|WP_Error {
+
+        $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
+
+        $bangumi_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+        if ( ! $bangumi_id ) {
+            $bangumi_id = (int) get_post_meta( $post_id, 'bangumi_id', true );
+            if ( $bangumi_id > 0 ) {
+                update_post_meta( $post_id, 'anime_bangumi_id', $bangumi_id );
+            }
+        }
+
+        $mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
+        if ( ! $mal_id ) {
+            $mal_id = (int) get_post_meta( $post_id, 'mal_id', true );
+            if ( $mal_id > 0 ) {
+                update_post_meta( $post_id, 'anime_mal_id', $mal_id );
+            }
+        }
+        $existing_animethemes_meta = $this->get_animethemes_meta( $post_id );
+        $title_chinese = (string) get_post_meta( $post_id, 'anime_title_chinese', true );
+        $title_native  = (string) get_post_meta( $post_id, 'anime_title_native',  true );
+        $title_romaji  = (string) get_post_meta( $post_id, 'anime_title_romaji',  true );
+        $title_english = (string) get_post_meta( $post_id, 'anime_title_english', true );
+
+        if ( ! $anilist_id ) {
+            return new WP_Error( 'missing_anilist_id', "Post {$post_id} has no anime_anilist_id." );
+        }
+
+        // ★ [1.2.1] 讀取整欄鎖清單（與 save_post_meta / ajax_resync_bangumi 同一 meta key）。
+        $locked_fields = (array) get_post_meta( $post_id, 'anime_locked_fields', true );
+
+        $enriched = [];
+
+        if ( $existing_animethemes_meta['id'] !== '' ) {
+            $enriched['anime_animethemes_id'] = $existing_animethemes_meta['id'];
+        }
+        if ( $existing_animethemes_meta['slug'] !== '' ) {
+            $enriched['anime_animethemes_slug'] = $existing_animethemes_meta['slug'];
+            $enriched['animethemes_slug']       = $existing_animethemes_meta['slug'];
+        }
+
+        if ( $bangumi_id > 0 ) {
+            $bgm_subject = $this->get_bangumi_data( $bangumi_id );
+            $bgm_infobox = ( ! is_wp_error( $bgm_subject ) && is_array( $bgm_subject ) ) ? ( $bgm_subject['infobox'] ?? [] ) : [];
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $bgm_staff = $this->get_bgm_staff( $bangumi_id, $bgm_infobox );
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $bgm_chars = $this->get_bgm_chars( $bangumi_id );
+
+
+            // ACF 修正：Bangumi 直接取代 AniList，不合併
+            if ( ! empty( $bgm_staff ) ) {
+                $enriched['anime_staff_json'] = wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE );
+            }
+            if ( ! empty( $bgm_chars ) ) {
+                $enriched['anime_cast_json'] = wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE );
+            }
+
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id );
+            if ( ! empty( $bgm_episodes ) ) {
+                if ( in_array( 'anime_episodes_json', $locked_fields, true ) ) {
+                    // 整欄已鎖定：不寫入，保留現有集數。
+                } else {
+                    $enriched['anime_episodes_json'] = wp_json_encode(
+                        $this->merge_episodes_respecting_locks( $post_id, $bgm_episodes ),
+                        JSON_UNESCAPED_UNICODE
+                    );
+                }
+            }
+        }
+
+        if ( $mal_id > 0 ) {
+            $score_mal = $this->fetch_mal_score( $mal_id );
+            if ( $score_mal > 0 ) $enriched['anime_score_mal'] = $score_mal;
+        }
+
+        $wiki_url = $this->fetch_wikipedia_url( $title_chinese, $title_native, $title_romaji, $title_english );
+        if ( $wiki_url !== '' ) $enriched['anime_wikipedia_url'] = $wiki_url;
+
+        // ★ [1.3.0] 主題曲抓取：slug 優先，mal_id 備援
+        $at_slug = $existing_animethemes_meta['slug'];
+        $themes_result = [];
+        if ( $at_slug !== '' ) {
+            $themes_result = $this->fetch_animethemes_by_slug( $at_slug, $mal_id );
+        }
+        if ( empty( $themes_result['themes'] ) && $mal_id > 0 ) {
+            $themes_result = $this->fetch_animethemes( $mal_id );
+        }
+
+        if ( ! empty( $themes_result ) ) {
+            // ★ [1.2.1] anime_themes 整欄鎖：鎖定時不寫入主題曲，保留現值。
+            if ( ! empty( $themes_result['themes'] ) && ! in_array( 'anime_themes', $locked_fields, true ) ) {
+                $enriched['anime_themes'] = wp_json_encode( $themes_result['themes'], JSON_UNESCAPED_UNICODE );
+            }
+
+            $themes_id = isset( $themes_result['id'] ) && $themes_result['id'] !== null
+                ? trim( (string) $themes_result['id'] )
+                : '';
+            $themes_slug = trim( (string) ( $themes_result['slug'] ?? '' ) );
+
+            if ( $themes_id !== '' ) {
+                $enriched['anime_animethemes_id'] = $themes_id;
+            }
+            if ( $themes_slug !== '' ) {
+                $enriched['anime_animethemes_slug'] = $themes_slug;
+                $enriched['animethemes_slug']       = $themes_slug;
+            }
+        }
+        
+        $json_fields = [
+            'anime_themes', 'anime_streaming', 'anime_staff_json',
+            'anime_cast_json', 'anime_relations_json', 'anime_episodes_json',
+        ];
+        foreach ( $enriched as $key => $value ) {
+            if ( in_array( $key, $json_fields, true ) && is_string( $value ) ) {
+                update_post_meta( $post_id, $key, wp_slash( $value ) );
+            } else {
+                update_post_meta( $post_id, $key, $value );
+            }
+        }
+        delete_post_meta( $post_id, '_needs_enrich' );
+        update_post_meta( $post_id, '_enriched_at', current_time( 'mysql' ) );
+
+        return $enriched;
+    }
+    /**
+     * ★ [v1.2.0] 合併集數時尊重鎖定。
+     */
+    private function merge_episodes_respecting_locks( int $post_id, array $new_episodes ): array {
+        $locked_ids = json_decode( (string) get_post_meta( $post_id, 'anime_episodes_locked_ids', true ), true );
+        if ( ! is_array( $locked_ids ) || empty( $locked_ids ) ) {
+            return $new_episodes;
+        }
+        $locked_index = array_flip( $locked_ids );
+
+        $old_episodes = json_decode( (string) get_post_meta( $post_id, 'anime_episodes_json', true ), true );
+        if ( ! is_array( $old_episodes ) ) {
+            $old_episodes = [];
+        }
+
+        $merged    = [];
+        $seen_ids  = [];
+        foreach ( $old_episodes as $ep ) {
+            $ep_id = $ep['id'] ?? null;
+            if ( $ep_id !== null && isset( $locked_index[ $ep_id ] ) ) {
+                $merged[]          = $ep;
+                $seen_ids[ $ep_id ] = true;
+            }
+        }
+
+        foreach ( $new_episodes as $ep ) {
+            $ep_id = $ep['id'] ?? null;
+            if ( $ep_id !== null && isset( $seen_ids[ $ep_id ] ) ) {
+                continue;
+            }
+            $merged[] = $ep;
+            if ( $ep_id !== null ) {
+                $seen_ids[ $ep_id ] = true;
+            }
+        }
+
+        return $merged;
+    }
+
+     // =========================================================================
+    // PUBLIC – 完整匯入（供 Cron 全量同步）
+    // =========================================================================
+
+    public function get_full_anime_data( int $anilist_id, int $post_id = 0, ?int $bangumi_id = null ): array|WP_Error {
+
+        $anilist_raw = $this->fetch_anilist_data( $anilist_id );
+        if ( is_wp_error( $anilist_raw ) ) return $anilist_raw;
+
+        $media = $anilist_raw['data']['Media'] ?? null;
+        if ( empty( $media ) ) {
+            return new WP_Error( 'anilist_empty', "AniList returned no data for ID {$anilist_id}." );
+        }
+
+        $mal_id         = isset( $media['idMal'] ) && $media['idMal'] !== null ? (int) $media['idMal'] : null;
+        $title_romaji   = $media['title']['romaji']  ?? '';
+        $title_english  = $media['title']['english'] ?? '';
+        $title_native   = $media['title']['native']  ?? '';
+        $season_year    = $media['seasonYear']        ?? 0;
+        $season         = $media['season']            ?? '';
+        $episodes       = (int) ( $media['episodes'] ?? 0 );
+        $external_links = $media['externalLinks']     ?? [];
+        $existing_animethemes_meta = $this->get_animethemes_meta( $post_id );
+
+        if ( ! $bangumi_id || $bangumi_id <= 0 ) {
+            $bangumi_id = $this->id_mapper->get_bangumi_id( [
+                'anilist_id'     => $anilist_id,
+                'mal_id'         => $mal_id,
+                'post_id'        => $post_id,
+                'title_native'   => $this->build_season_aware_native( $title_native, $title_romaji ),
+                'title_romaji'   => $title_romaji,
+                'title_chinese'  => '',
+                'season_year'    => $season_year,
+                'season'         => $season,
+                'episodes'       => $episodes,
+                'external_links' => $external_links,
+            ] );
+        }
+
+        $bgm_data  = null;
+        $bgm_staff = [];
+        $bgm_chars = [];
+
+        if ( $bangumi_id && $bangumi_id > 0 ) {
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $bgm_result = $this->get_bangumi_data( $bangumi_id );
+            if ( ! is_wp_error( $bgm_result ) && is_array( $bgm_result ) ) {
+                $bgm_data = $bgm_result;
+                $this->rate_limiter->wait_if_needed( 'bangumi' );
+                $bgm_staff = $this->get_bgm_staff( $bangumi_id, $bgm_data['infobox'] ?? [] );
+                $this->rate_limiter->wait_if_needed( 'bangumi' );
+                $bgm_chars = $this->get_bgm_chars( $bangumi_id );
+            }
+        }
+
+        $title_chinese_raw = '';
+        if ( $bgm_data ) $title_chinese_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+        if ( $title_chinese_raw === '' && $bangumi_id ) {
+            $cached = $this->id_mapper->get_chinese_title( $bangumi_id );
+            if ( $cached ) $title_chinese_raw = $cached;
+        }
+        $title_chinese = $title_chinese_raw !== ''
+            ? Anime_Sync_CN_Converter::static_convert( $title_chinese_raw )
+            : '';
+
+        // ★ 保留 Bangumi 原始简体标题（不经 OpenCC），供大陆用户搜寻
+        $title_simplified = $bgm_data ? trim( (string) ( $bgm_data['name_cn'] ?? '' ) ) : '';
+
+        $synopsis_chinese = '';
+        $synopsis_english = '';
+        if ( $bgm_data && ! empty( $bgm_data['summary'] ) ) {
+            $synopsis_chinese = $this->clean_synopsis( $bgm_data['summary'] );
+            if ( $synopsis_chinese !== '' ) $synopsis_chinese = Anime_Sync_CN_Converter::static_convert( $synopsis_chinese );
+        }
+        if ( ! empty( $media['description'] ) ) $synopsis_english = $this->clean_synopsis( $media['description'] );
+
+        $score_anilist = isset( $media['averageScore'] ) ? (int) $media['averageScore'] : 0;
+        $score_bangumi = 0;
+        if ( $bgm_data ) {
+            $raw = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+            if ( $raw !== null ) $score_bangumi = (int) round( (float) $raw * 10 );
+        }
+        $score_mal = ( $mal_id && $mal_id > 0 ) ? $this->fetch_mal_score( $mal_id ) : 0;
+
+        $studios = [];
+        foreach ( $media['studios']['nodes'] ?? [] as $s ) {
+            if ( ! empty( $s['name'] ) ) $studios[] = $s['name'];
+        }
+
+        $start_date         = $this->parse_fuzzy_date( $media['startDate'] ?? [] );
+        $end_date           = $this->parse_fuzzy_date( $media['endDate']   ?? [] );
+        $streaming          = $this->parse_streaming_links( $external_links );
+        $parsed_links       = $this->parse_external_links( $external_links );
+        $wikipedia_url      = $this->fetch_wikipedia_url( $title_chinese, $title_native, $title_romaji, $title_english );
+
+        // ★ [1.3.0] 主題曲抓取：slug 優先，mal_id 備援
+        $animethemes_result = [];
+        if ( $existing_animethemes_meta['slug'] !== '' ) {
+            $animethemes_result = $this->fetch_animethemes_by_slug( $existing_animethemes_meta['slug'], (int) $mal_id );
+        }
+        if ( empty( $animethemes_result['themes'] ) && $mal_id ) {
+            $animethemes_result = $this->fetch_animethemes( $mal_id );
+        }
+
+        $themes             = $animethemes_result['themes'] ?? [];
+        $animethemes_id     = isset( $animethemes_result['id'] ) && $animethemes_result['id'] !== null
+            ? trim( (string) $animethemes_result['id'] )
+            : '';
+        $animethemes_slug   = trim( (string) ( $animethemes_result['slug'] ?? '' ) );
+
+        if ( $animethemes_id === '' ) {
+            $animethemes_id = $existing_animethemes_meta['id'];
+        }
+        if ( $animethemes_slug === '' ) {
+            $animethemes_slug = $existing_animethemes_meta['slug'];
+        }
+
+        $episodes_json = '[]';
+        if ( $bangumi_id && $bangumi_id > 0 ) {
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $bgm_episodes  = $this->fetch_bgm_episodes( $bangumi_id );
+            $episodes_json = wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE );
+        }
+
+        $staff     = $this->parse_staff( $media['staff']['edges']         ?? [] );
+        $cast      = $this->parse_cast(  $media['characters']['edges']    ?? [] );
+        $relations = $this->parse_relations( $media['relations']['edges'] ?? [] );
+
+        // ACF 修正：有 Bangumi 就完全取代 AniList，沒有才 fallback
+        if ( ! empty( $bgm_staff ) && ! is_wp_error( $bgm_staff ) ) $staff = $bgm_staff;
+        if ( ! empty( $bgm_chars ) && ! is_wp_error( $bgm_chars ) ) $cast  = $bgm_chars;
+
+        $trailer_url = '';
+        if ( ! empty( $media['trailer'] ) ) {
+            $t_id   = $media['trailer']['id']   ?? '';
+            $t_site = $media['trailer']['site']  ?? '';
+            if ( $t_id !== '' && strtolower( $t_site ) === 'youtube' ) {
+                $trailer_url = "https://www.youtube.com/watch?v={$t_id}";
+            }
+        }
+
+        $next_airing = null;
+        if ( ! empty( $media['nextAiringEpisode'] ) ) {
+            $next_airing = [
+                'airingAt' => $media['nextAiringEpisode']['airingAt'] ?? 0,
+                'episode'  => $media['nextAiringEpisode']['episode']  ?? 0,
+            ];
+        }
+
+        $anime_tags = [];
+        foreach ( $media['tags'] ?? [] as $tag ) {
+            if ( ! empty( $tag['isMediaSpoiler'] ) ) continue;
+            if ( ! empty( $tag['name'] ) ) $anime_tags[] = $tag['name'];
+        }
+
+        return [
+            'anilist_id'             => $anilist_id,
+            'mal_id'                 => $mal_id,
+            'bangumi_id'             => $bangumi_id,
+            'anime_animethemes_id'   => $animethemes_id,
+            'anime_animethemes_slug' => $animethemes_slug,
+            'animethemes_slug'       => $animethemes_slug,
+            'anime_title_chinese'    => $title_chinese,
+            'anime_title_simplified' => $title_simplified,
+            'anime_title_romaji'     => $title_romaji,
+            'anime_title_english'    => $title_english,
+            'anime_title_native'     => $title_native,
+            'anime_format'           => $media['format'] ?? '',
+            'anime_status'           => $media['status'] ?? '',
+            'anime_season'           => $media['season'] ?? '',
+            'anime_season_year'      => $season_year,
+            'anime_source'           => $media['source'] ?? '',
+            'anime_episodes'         => $episodes,
+            'anime_duration'         => (int) ( $media['duration'] ?? 0 ),
+            'anime_studios'          => implode( ', ', $studios ),
+            'anime_score_anilist'    => $score_anilist,
+            'anime_score_bangumi'    => $score_bangumi,
+            'anime_score_mal'        => $score_mal,
+            'anime_popularity'       => (int) ( $media['popularity'] ?? 0 ),
+            'anime_cover_image'      => $media['coverImage']['extraLarge'] ?? $media['coverImage']['large'] ?? '',
+            'anime_banner_image'     => $media['bannerImage'] ?? '',
+            'anime_trailer_url'      => $trailer_url,
+            'anime_synopsis_chinese' => $synopsis_chinese,
+            'anime_synopsis_english' => $synopsis_english,
+            'anime_start_date'       => $start_date,
+            'anime_end_date'         => $end_date,
+            'anime_streaming'        => wp_json_encode( $streaming,      JSON_UNESCAPED_UNICODE ),
+            'anime_themes'           => wp_json_encode( $themes,         JSON_UNESCAPED_UNICODE ),
+            'anime_staff_json'       => wp_json_encode( $staff,          JSON_UNESCAPED_UNICODE ),
+            'anime_cast_json'        => wp_json_encode( $cast,           JSON_UNESCAPED_UNICODE ),
+            'anime_relations_json'   => wp_json_encode( $relations,      JSON_UNESCAPED_UNICODE ),
+            'anime_episodes_json'    => $episodes_json,
+            'anime_official_site'    => $parsed_links['official_site']   ?? '',
+            'anime_twitter_url'      => $parsed_links['twitter_url']     ?? '',
+            'anime_tiktok_url'       => $parsed_links['tiktok_url']      ?? '',
+            'anime_wikipedia_url'    => $wikipedia_url,
+            'anime_external_links'   => wp_json_encode( $external_links, JSON_UNESCAPED_UNICODE ),
+            'anime_next_airing'      => $next_airing ? wp_json_encode( $next_airing ) : '',
+            'anime_genres'           => $media['genres'] ?? [],
+            'anime_tags'             => $anime_tags,
+            '_bgm_raw'               => $bgm_data,
+        ];
+    }
+
+
+      // =========================================================================
+    // PUBLIC – 漫畫完整匯入
+    // =========================================================================
+    public function get_manga_data( int $anilist_id, int $post_id = 0, ?int $bangumi_id = null ): array|WP_Error {
+
+        $anilist_raw = $this->fetch_anilist_manga_data( $anilist_id );
+        if ( is_wp_error( $anilist_raw ) ) return $anilist_raw;
+
+        $media = $anilist_raw['data']['Media'] ?? null;
+        if ( empty( $media ) ) {
+            return new WP_Error( 'anilist_empty', "AniList returned no MANGA data for ID {$anilist_id}." );
+        }
+
+        $mal_id        = isset( $media['idMal'] ) && $media['idMal'] !== null ? (int) $media['idMal'] : null;
+        $title_romaji  = $media['title']['romaji']  ?? '';
+        $title_english = $media['title']['english'] ?? '';
+        $title_native  = $media['title']['native']  ?? '';
+
+        $author = '';
+        $artist = '';
+        foreach ( $media['staff']['edges'] ?? [] as $edge ) {
+            $role = strtolower( $edge['role'] ?? '' );
+            $name = $edge['node']['name']['full'] ?? ( $edge['node']['name']['native'] ?? '' );
+            if ( $name === '' ) continue;
+            if ( str_contains( $role, 'story' ) && $author === '' ) {
+                $author = $name;
+            }
+            if ( str_contains( $role, 'art' ) && $artist === '' ) {
+                $artist = $name;
+            }
+        }
+        if ( $author !== '' && $artist === $author ) {
+            $artist = '';
+        }
+
+        if ( ! $bangumi_id || $bangumi_id <= 0 ) {
+            $manga_mapper = new Anime_Sync_Manga_ID_Mapper();
+            $auto_id = $manga_mapper->get_bangumi_id( [
+                'title_native'  => $title_native,
+                'title_romaji'  => $title_romaji,
+                'title_chinese' => '',
+                'start_year'    => (int) ( $media['startDate']['year'] ?? 0 ),
+                'volumes'       => isset( $media['volumes'] ) ? (int) $media['volumes'] : 0,
+                'chapters'      => isset( $media['chapters'] ) ? (int) $media['chapters'] : 0,
+            ] );
+            if ( $auto_id ) {
+                $bangumi_id = $auto_id;
+            }
+        }
+
+        $bgm_data = null;
+        if ( $bangumi_id && $bangumi_id > 0 ) {
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $result = $this->get_bangumi_data( $bangumi_id );
+            if ( ! is_wp_error( $result ) && is_array( $result ) ) {
+                $bgm_data = $result;
+            }
+        }
+
+        $title_chinese_raw = '';
+        if ( $bgm_data ) {
+            $title_chinese_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+        }
+        $title_chinese = $title_chinese_raw !== ''
+            ? Anime_Sync_CN_Converter::static_convert( $title_chinese_raw )
+            : '';
+
+        // ★ 保留 Bangumi 原始简体标题（不经 OpenCC），供大陆用户搜寻
+        $title_simplified = $bgm_data ? trim( (string) ( $bgm_data['name_cn'] ?? '' ) ) : '';
+
+        $synopsis_chinese = '';
+        if ( $bgm_data && ! empty( $bgm_data['summary'] ) ) {
+            $synopsis_chinese = $this->clean_synopsis( $bgm_data['summary'] );
+            if ( $synopsis_chinese !== '' ) {
+                $synopsis_chinese = Anime_Sync_CN_Converter::static_convert( $synopsis_chinese );
+            }
+        }
+        if ( $synopsis_chinese === '' && ! empty( $media['description'] ) ) {
+            $synopsis_chinese = $this->clean_synopsis( $media['description'] );
+        }
+
+        $score_anilist = isset( $media['averageScore'] ) ? (int) $media['averageScore'] : 0;
+        $score_bangumi = 0;
+        if ( $bgm_data ) {
+            $raw = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+            if ( $raw !== null ) $score_bangumi = (int) round( (float) $raw * 10 );
+        }
+        $score_mal = ( $mal_id && $mal_id > 0 ) ? $this->fetch_mal_score( $mal_id ) : 0;   // ★ 新增
+
+
+        $bgm_author = $bgm_data ? $this->extract_manga_author( $bgm_data['infobox'] ?? [] ) : '';
+        if ( $bgm_author !== '' ) {
+            $author = Anime_Sync_CN_Converter::static_convert( $bgm_author );
+        }
+
+        $tw = $bgm_data ? $this->extract_manga_tw_edition( $bgm_data['infobox'] ?? [] ) : [];
+
+        $cover = $media['coverImage']['extraLarge']
+            ?? $media['coverImage']['large']
+            ?? ( $bgm_data['images']['large'] ?? '' );
+
+        $start_date = $this->parse_fuzzy_date( $media['startDate'] ?? [] );
+        $end_date   = $this->parse_fuzzy_date( $media['endDate']   ?? [] );
+
+        $related_anime_anilist_id = 0;
+        foreach ( $media['relations']['edges'] ?? [] as $edge ) {
+            $node = $edge['node'] ?? [];
+            if ( ( $node['type'] ?? '' ) === 'ANIME' ) {
+                $related_anime_anilist_id = (int) ( $node['id'] ?? 0 );
+                break;
+            }
+        }
+
+        $manga_tags = [];
+        foreach ( $media['tags'] ?? [] as $tag ) {
+            if ( ! empty( $tag['isMediaSpoiler'] ) ) continue;
+            if ( ! empty( $tag['name'] ) ) $manga_tags[] = $tag['name'];
+        }
+
+        return [
+            'anilist_id'               => $anilist_id,
+            'mal_id'                   => $mal_id,
+            'bangumi_id'               => $bangumi_id,
+            'anime_title_chinese'      => $title_chinese,
+            'anime_title_simplified'   => $title_simplified,
+            'anime_title_romaji'       => $title_romaji,
+            'anime_title_english'      => $title_english,
+            'anime_title_native'       => $title_native,
+            'anime_format'             => $media['format'] ?? '',
+            'anime_status'             => $media['status'] ?? '',
+            'anime_source'             => $media['source'] ?? '',
+            'anime_score_anilist'      => $score_anilist,
+            'anime_score_bangumi'      => $score_bangumi,
+            'anime_score_mal'          => $score_mal,   // ★ 新增
+            'anime_popularity'         => (int) ( $media['popularity'] ?? 0 ),
+            'anime_start_date'         => $start_date,
+            'anime_end_date'           => $end_date,
+            'anime_cover_image'        => $cover,
+            'anime_banner_image'       => $media['bannerImage'] ?? '',
+            'anime_synopsis_chinese'   => $synopsis_chinese,
+            'manga_chapters'           => isset( $media['chapters'] ) && $media['chapters'] !== null ? (int) $media['chapters'] : '',
+            'manga_volumes'            => isset( $media['volumes'] )  && $media['volumes']  !== null ? (int) $media['volumes']  : '',
+            'manga_author'             => $author,
+            'manga_artist'             => $artist,
+            'manga_tw_publisher'       => $tw['publisher']    ?? '',
+            'manga_tw_translator'      => $tw['translator']   ?? '',
+            'manga_tw_release_date'    => $tw['release_date'] ?? '',
+            'manga_related_anime_al'   => $related_anime_anilist_id,
+            'anime_genres'             => $media['genres'] ?? [],
+            'anime_tags'               => $manga_tags,
+            '_bgm_raw'                 => $bgm_data,
+        ];
+    }
+
+
+    // =========================================================================
+    // PRIVATE – AniList MANGA 單部查詢
+    // =========================================================================
+    private function fetch_anilist_manga_data( int $anilist_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_anilist_manga_' . $anilist_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return $cached;
+
+        $query = '
+        query ($id: Int) {
+          Media(id: $id, type: MANGA) {
+            id idMal
+            title { romaji english native }
+            status format source
+            chapters volumes
+            startDate { year month day }
+            endDate   { year month day }
+            averageScore popularity
+            bannerImage
+            coverImage { extraLarge large }
+            description(asHtml: false)
+            genres
+            tags { name isMediaSpoiler }
+            countryOfOrigin
+            staff(sort: RELEVANCE, perPage: 10) {
+              edges {
+                role
+                node { id name { full native } }
+              }
+            }
+            relations {
+              edges {
+                relationType
+                node { id type title { romaji native } format }
+              }
+            }
+          }
+        }';
+
+        $decoded = $this->anilist_request( $query, [ 'id' => $anilist_id ], 15 );
+        if ( is_wp_error( $decoded ) ) return $decoded;
+
+        if ( empty( $decoded['data']['Media'] ) ) {
+            return new WP_Error( 'anilist_empty', "AniList returned no MANGA Media for ID {$anilist_id}." );
+        }
+
+        set_transient( $cache_key, $decoded, 6 * HOUR_IN_SECONDS );
+        return $decoded;
+    }
+
+    // =========================================================================
+    // PRIVATE – 從 Bangumi infobox 抓漫畫作者
+    // =========================================================================
+    private function extract_manga_author( array $infobox ): string {
+        foreach ( $infobox as $row ) {
+            if ( ( $row['key'] ?? '' ) !== '作者' ) continue;
+            $value = $row['value'] ?? '';
+            if ( is_array( $value ) ) {
+                $parts = [];
+                foreach ( $value as $v ) {
+                    if ( isset( $v['v'] ) && $v['v'] !== '' ) $parts[] = $v['v'];
+                }
+                $value = implode( '、', $parts );
+            }
+            return trim( (string) $value );
+        }
+        return '';
+    }
+
+    // =========================================================================
+    // PRIVATE – 從 Bangumi infobox 抓台版代理資訊
+    // =========================================================================
+    private function extract_manga_tw_edition( array $infobox ): array {
+        $result = [ 'publisher' => '', 'translator' => '', 'release_date' => '' ];
+
+        foreach ( $infobox as $row ) {
+            $key   = $row['key']   ?? '';
+            $value = $row['value'] ?? '';
+
+            if ( mb_strpos( $key, '版本' ) !== 0 || ! is_array( $value ) ) {
+                continue;
+            }
+
+            $sub = [];
+            foreach ( $value as $v ) {
+                $k = $v['k'] ?? '';
+                $val = trim( (string) ( $v['v'] ?? '' ) );
+                if ( $k !== '' && $val !== '' ) {
+                    $sub[ $k ] = $val;
+                }
+            }
+
+            $lang       = $sub['语言'] ?? $sub['語言'] ?? '';
+            $publisher  = $sub['出版社'] ?? '';
+            $tw_pubs    = [ '尖端', '東立', '东立', '青文', '長鴻', '长鸿', '台灣角川', '台湾角川', '角川' ];
+            $is_tw      = ( mb_strpos( $lang, '繁' ) !== false );
+            if ( ! $is_tw ) {
+                foreach ( $tw_pubs as $p ) {
+                    if ( mb_strpos( $publisher, $p ) !== false ) { $is_tw = true; break; }
+                }
+            }
+            if ( ! $is_tw ) continue;
+
+            $result['publisher']    = Anime_Sync_CN_Converter::static_convert( $publisher );
+            $result['translator']   = Anime_Sync_CN_Converter::static_convert( $sub['译者'] ?? $sub['譯者'] ?? '' );
+            $result['release_date'] = $sub['发售日'] ?? $sub['發售日'] ?? '';
+            break;
+        }
+
+        return $result;
+    }
+
+    // =========================================================================
+    // PUBLIC – 系列樹（ACD）
+    // =========================================================================
+
+    public function get_series_tree( int $anilist_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_series_tree_' . $anilist_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return $cached;
+
+        $root_id = $this->find_series_root( $anilist_id );
+        if ( is_wp_error( $root_id ) ) return $root_id;
+
+        $expanded = $this->expand_series_tree( $root_id );
+        if ( is_wp_error( $expanded ) ) return $expanded;
+
+        $nodes       = $expanded['nodes'];
+        $has_failure = $expanded['has_failure'];
+
+        $series_name   = '';
+        $series_romaji = '';
+
+        foreach ( $nodes as $node ) {
+            if ( (int) $node['anilist_id'] === $root_id ) {
+                $series_name = $node['title_chinese'] ?: $node['title_romaji'] ?: '';
+                $series_name = preg_replace(
+                    '/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
+                    '',
+                    $series_name
+                );
+                $series_name   = trim( $series_name );
+                $series_romaji = $node['title_romaji'] ?? '';
+                break;
+            }
+        }
+
+        $result = [
+            'root_id'       => $root_id,
+            'series_name'   => $series_name,
+            'series_romaji' => $series_romaji,
+            'nodes'         => $nodes,
+            'incomplete'    => $has_failure,
+        ];
+
+        $ttl = $has_failure ? 5 * MINUTE_IN_SECONDS : 6 * HOUR_IN_SECONDS;
+        set_transient( $cache_key, $result, $ttl );
+
+        return $result;
+    }
+
+    // =========================================================================
+    // PUBLIC – AniList 人氣排行（ACD + ACE）
+    // =========================================================================
+
+    public function fetch_anilist_popularity( int $page = 1 ): array|WP_Error {
+
+        $cache_key = 'anime_sync_popularity_p' . $page;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return $cached;
+
+        $query = '
+        query ($page: Int) {
+          Page(page: $page, perPage: 50) {
+            pageInfo { total currentPage hasNextPage }
+            media(type: ANIME, sort: POPULARITY_DESC) {
+              id
+              title { romaji native }
+              coverImage { large }
+              format
+              status
+              seasonYear
+              episodes
+              popularity
+            }
+          }
+        }';
+
+        $decoded = $this->anilist_request( $query, [ 'page' => $page ], 15 );
+        if ( is_wp_error( $decoded ) ) return $decoded;
+
+        $page_obj = $decoded['data']['Page'] ?? null;
+        if ( ! $page_obj ) {
+            return new WP_Error( 'anilist_no_page', 'AniList popularity: no Page in response.' );
+        }
+
+        $items = [];
+        foreach ( $page_obj['media'] ?? [] as $media ) {
+            $al_id   = (int) ( $media['id'] ?? 0 );
+            $post_id = $this->find_existing_post( $al_id );
+            $items[] = [
+                'anilist_id'   => $al_id,
+                'title_romaji' => $media['title']['romaji']  ?? '',
+                'title_native' => $media['title']['native']  ?? '',
+                'cover_image'  => $media['coverImage']['large'] ?? '',
+                'format'       => $media['format']     ?? '',
+                'status'       => $media['status']     ?? '',
+                'season_year'  => $media['seasonYear'] ?? 0,
+                'episodes'     => (int) ( $media['episodes'] ?? 0 ),
+                'popularity'   => (int) ( $media['popularity'] ?? 0 ),
+                'imported'     => $post_id > 0,
+                'post_id'      => $post_id,
+                'edit_url'     => $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '',
+            ];
+        }
+
+        $result = [
+            'page_info' => $page_obj['pageInfo'] ?? [],
+            'items'     => $items,
+        ];
+
+        set_transient( $cache_key, $result, 30 * MINUTE_IN_SECONDS );
+        return $result;
+    }
+
+    // =========================================================================
+    // PUBLIC – 重新同步 Bangumi（ACG 新增）
+    // =========================================================================
+
+    public function ajax_resync_bangumi( int $post_id, int $bangumi_id ): array|WP_Error {
+
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_data = $this->get_bangumi_data( $bangumi_id );
+        if ( is_wp_error( $bgm_data ) ) return $bgm_data;
+
+        $updated = [];
+        $skipped = [];
+
+        $locked_fields = (array) get_post_meta( $post_id, 'anime_locked_fields', true );
+
+        $is_locked = static function ( string $key ) use ( $locked_fields ): bool {
+            return in_array( $key, $locked_fields, true );
+        };
+
+               // 2. 中文標題（繁體 + 簡體）
+        $title_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+        if ( $title_raw !== '' ) {
+
+            // 2a. 繁體標題（經 OpenCC 轉換）
+            if ( $is_locked( 'anime_title_chinese' ) ) {
+                $skipped[] = 'anime_title_chinese';
+            } else {
+                $title_chinese = Anime_Sync_CN_Converter::static_convert( (string) $title_raw );
+                update_post_meta( $post_id, 'anime_title_chinese', $title_chinese );
+                $updated[] = 'anime_title_chinese';
+            }
+
+            // 2b. 簡體標題（Bangumi name_cn 原文，不轉換）
+            if ( $is_locked( 'anime_title_simplified' ) ) {
+                $skipped[] = 'anime_title_simplified';
+            } else {
+                $title_simplified = trim( (string) ( $bgm_data['name_cn'] ?? '' ) );
+                update_post_meta( $post_id, 'anime_title_simplified', $title_simplified );
+                $updated[] = 'anime_title_simplified';
+            }
+        }
+
+        // 3. 中文簡介
+        if ( ! empty( $bgm_data['summary'] ) ) {
+            if ( $is_locked( 'anime_synopsis_chinese' ) ) {
+                $skipped[] = 'anime_synopsis_chinese';
+            } else {
+                $synopsis = $this->clean_synopsis( $bgm_data['summary'] );
+                if ( $synopsis !== '' ) {
+                    $synopsis = Anime_Sync_CN_Converter::static_convert( $synopsis );
+                }
+                update_post_meta( $post_id, 'anime_synopsis_chinese', $synopsis );
+                $updated[] = 'anime_synopsis_chinese';
+            }
+        }
+
+        // 4. 封面圖
+        $bgm_cover = $bgm_data['images']['large'] ?? $bgm_data['images']['medium'] ?? '';
+        if ( $bgm_cover !== '' ) {
+            if ( $is_locked( 'anime_cover_image' ) ) {
+                $skipped[] = 'anime_cover_image';
+            } else {
+                update_post_meta( $post_id, 'anime_cover_image', $bgm_cover );
+                $updated[] = 'anime_cover_image';
+            }
+        }
+
+        // 5. Bangumi 評分（評分不設鎖定，永遠更新）
+        $raw_score = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+        if ( $raw_score !== null ) {
+            $score_bangumi = (int) round( (float) $raw_score * 10 );
+            update_post_meta( $post_id, 'anime_score_bangumi', $score_bangumi );
+            $updated[] = 'anime_score_bangumi';
+        }
+
+        // 6. 工作人員
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_staff = $this->get_bgm_staff( $bangumi_id, $bgm_data['infobox'] ?? [] );
+        if ( ! empty( $bgm_staff ) ) {
+            if ( $is_locked( 'anime_staff_json' ) ) {
+                $skipped[] = 'anime_staff_json';
+            } else {
+                update_post_meta( $post_id, 'anime_staff_json', wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE ) );
+                $updated[] = 'anime_staff_json';
+            }
+        }
+
+        // 7. 角色
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_chars = $this->get_bgm_chars( $bangumi_id );
+        if ( ! empty( $bgm_chars ) ) {
+            if ( $is_locked( 'anime_cast_json' ) ) {
+                $skipped[] = 'anime_cast_json';
+            } else {
+                update_post_meta( $post_id, 'anime_cast_json', wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE ) );
+                $updated[] = 'anime_cast_json';
+            }
+        }
+
+        // 8. 集數
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id );
+        if ( ! empty( $bgm_episodes ) ) {
+            if ( $is_locked( 'anime_episodes_json' ) ) {
+                $skipped[] = 'anime_episodes_json';
+            } else {
+                update_post_meta( $post_id, 'anime_episodes_json', wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE ) );
+                $updated[] = 'anime_episodes_json';
+            }
+        }
+
+        // 9. 更新同步時間
+        update_post_meta( $post_id, 'anime_sync_time',    current_time( 'mysql' ) );
+        update_post_meta( $post_id, 'anime_last_sync',    current_time( 'mysql' ) );
+        update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) );
+
+        return [
+            'updated' => $updated,
+            'skipped' => $skipped,
+        ];
+    }
+
+    // =========================================================================
+    // PUBLIC – 重新同步 AniList 封面 / 橫幅圖片（方案 A）
+    // =========================================================================
+
+    public function ajax_resync_anilist_images( int $post_id ): array|WP_Error {
+
+        $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
+        if ( $anilist_id <= 0 ) {
+            return new WP_Error( 'missing_anilist_id', "文章 {$post_id} 沒有 AniList ID，無法同步圖片。" );
+        }
+
+        delete_transient( 'anime_sync_anilist_' . $anilist_id );
+
+        $anilist_raw = $this->fetch_anilist_data( $anilist_id );
+        if ( is_wp_error( $anilist_raw ) ) {
+            return $anilist_raw;
+        }
+
+        $media = $anilist_raw['data']['Media'] ?? null;
+        if ( empty( $media ) ) {
+            return new WP_Error( 'anilist_empty', "AniList 查無 ID {$anilist_id} 的資料。" );
+        }
+
+        $cover  = $media['coverImage']['extraLarge'] ?? $media['coverImage']['large'] ?? '';
+        $banner = $media['bannerImage'] ?? '';
+
+        $locked_fields = (array) get_post_meta( $post_id, 'anime_locked_fields', true );
+        $is_locked = static function ( string $key ) use ( $locked_fields ): bool {
+            return in_array( $key, $locked_fields, true );
+        };
+
+        $updated = [];
+        $skipped = [];
+
+        if ( $cover !== '' ) {
+            if ( $is_locked( 'anime_cover_image' ) ) {
+                $skipped[] = 'anime_cover_image';
+            } else {
+                update_post_meta( $post_id, 'anime_cover_image', esc_url_raw( $cover ) );
+                $updated[] = 'anime_cover_image';
+            }
+        }
+
+        if ( $banner !== '' ) {
+            if ( $is_locked( 'anime_banner_image' ) ) {
+                $skipped[] = 'anime_banner_image';
+            } else {
+                update_post_meta( $post_id, 'anime_banner_image', esc_url_raw( $banner ) );
+                $updated[] = 'anime_banner_image';
+            }
+        }
+
+        update_post_meta( $post_id, 'anime_last_sync',    current_time( 'mysql' ) );
+        update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) );
+
+        return [
+            'updated'    => $updated,
+            'skipped'    => $skipped,
+            'has_banner' => $banner !== '',
+        ];
+    }
+
+    // =========================================================================
+    // PRIVATE – 找系列根源
+    // =========================================================================
+
+    private function find_series_root( int $anilist_id, array $visited = [] ): int|WP_Error {
+        if ( in_array( $anilist_id, $visited, true ) ) return $anilist_id;
+        $visited[] = $anilist_id;
+
+        $relations = $this->fetch_anilist_relations( $anilist_id );
+        if ( is_wp_error( $relations ) ) return $anilist_id;
+
+        foreach ( $relations as $rel ) {
+            if ( $rel['type'] === 'PREQUEL' && ! empty( $rel['node_id'] ) ) {
+                return $this->find_series_root( (int) $rel['node_id'], $visited );
+            }
+        }
+        return $anilist_id;
+    }
+
+    // =========================================================================
+    // PRIVATE – 取單一作品的關係列表
+    // =========================================================================
+
+    private function fetch_anilist_relations( int $anilist_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_al_relations_' . $anilist_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $query = '
+        query ($id: Int) {
+          Media(id: $id, type: ANIME) {
+            relations {
+              edges {
+                relationType
+                node { id }
+              }
+            }
+          }
+        }';
+
+        $decoded = $this->anilist_request( $query, [ 'id' => $anilist_id ], 12 );
+        if ( is_wp_error( $decoded ) ) return $decoded;
+
+        $edges = $decoded['data']['Media']['relations']['edges'] ?? [];
+
+        $result = [];
+        foreach ( $edges as $edge ) {
+            $result[] = [
+                'type'    => $edge['relationType']  ?? '',
+                'node_id' => $edge['node']['id']    ?? 0,
+            ];
+        }
+
+        set_transient( $cache_key, $result, 6 * HOUR_IN_SECONDS );
+        return $result;
+    }
+
+    // =========================================================================
+    // PRIVATE – BFS 展開系列樹（ACE）
+    // =========================================================================
+
+    private function expand_series_tree( int $root_id ): array|WP_Error {
+
+        $queue        = [ $root_id ];
+        $visited      = [];
+        $nodes        = [];
+        $relation_map = [ $root_id => '' ];
+        $has_failure  = false;
+
+        while ( ! empty( $queue ) ) {
+            $current_id = array_shift( $queue );
+            if ( in_array( $current_id, $visited, true ) ) continue;
+            $visited[] = $current_id;
+
+            $node_data = $this->fetch_anilist_node_data( $current_id );
+            if ( is_wp_error( $node_data ) ) {
+                $has_failure = true;
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( '系列展開：節點資料抓取失敗', [
+                        'anilist_id' => $current_id,
+                        'error'      => $node_data->get_error_message(),
+                    ] );
+                }
+                continue;
+            }
+
+            $post_id = $this->find_existing_post( $current_id );
+
+            $node_data['relation_type'] = $relation_map[ $current_id ] ?? '';
+            $node_data['imported']      = $post_id > 0;
+            $node_data['post_id']       = $post_id;
+            $node_data['edit_url']      = $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '';
+            $nodes[]                    = $node_data;
+
+            $relations = $this->fetch_anilist_relations( $current_id );
+            if ( is_wp_error( $relations ) ) {
+                $has_failure = true;
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( '系列展開：關係抓取失敗（後續節點將缺失）', [
+                        'anilist_id' => $current_id,
+                        'error'      => $relations->get_error_message(),
+                    ] );
+                }
+                continue;
+            }
+
+            foreach ( $relations as $rel ) {
+                $nid = (int) ( $rel['node_id'] ?? 0 );
+                if (
+                    $nid > 0 &&
+                    in_array( $rel['type'], self::SERIES_RELATION_TYPES, true ) &&
+                    ! in_array( $nid, $visited, true )
+                ) {
+                    if ( ! isset( $relation_map[ $nid ] ) ) {
+                        $relation_map[ $nid ] = $rel['type'];
+                    }
+                    $queue[] = $nid;
+                }
+            }
+
+            $this->rate_limiter->wait_if_needed( 'anilist' );
+        }
+
+        return [
+            'nodes'       => $nodes,
+            'has_failure' => $has_failure,
+        ];
+    }
+
+    // =========================================================================
+    // PRIVATE – 取單一節點顯示資料（供系列樹 BFS 使用）
+    // =========================================================================
+
+    private function fetch_anilist_node_data( int $anilist_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_al_node_' . $anilist_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $query = '
+        query ($id: Int) {
+          Media(id: $id, type: ANIME) {
+            id
+            title { romaji native }
+            coverImage { large }
+            format
+            seasonYear
+          }
+        }';
+
+        $decoded = $this->anilist_request( $query, [ 'id' => $anilist_id ], 12 );
+        if ( is_wp_error( $decoded ) ) return $decoded;
+
+        $media = $decoded['data']['Media'] ?? null;
+        if ( empty( $media ) ) {
+            return new WP_Error( 'anilist_node_empty', "AniList returned no node data for ID {$anilist_id}." );
+        }
+
+        $node = [
+            'anilist_id'    => (int) ( $media['id'] ?? $anilist_id ),
+            'title_chinese' => '',
+            'title_romaji'  => $media['title']['romaji'] ?? '',
+            'title_native'  => $media['title']['native'] ?? '',
+            'cover_image'   => $media['coverImage']['large'] ?? '',
+            'format'        => $media['format']     ?? '',
+            'season_year'   => $media['seasonYear'] ?? 0,
+        ];
+
+        set_transient( $cache_key, $node, 6 * HOUR_IN_SECONDS );
+        return $node;
+    }
+
+    // =========================================================================
+    // PRIVATE – 查找已存在的文章
+    // =========================================================================
+
+    private function find_existing_post( int $anilist_id ): int {
+        if ( $anilist_id <= 0 ) return 0;
+
+        $cache_key = 'anime_sync_existing_post_' . $anilist_id;
+        $cached    = wp_cache_get( $cache_key, 'anime_sync' );
+        if ( $cached !== false ) return (int) $cached;
+
+        $q = new WP_Query( [
+            'post_type'      => 'anime',
+            'post_status'    => 'any',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [ [
+                'key'     => 'anime_anilist_id',
+                'value'   => $anilist_id,
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            ] ],
+        ] );
+
+        $post_id = ! empty( $q->posts ) ? (int) $q->posts[0] : 0;
+        wp_cache_set( $cache_key, $post_id, 'anime_sync', 300 );
+        return $post_id;
+    }
+
+    // =========================================================================
+    // PRIVATE – AniList 單部完整查詢
+    // =========================================================================
+
+    private function fetch_anilist_data( int $anilist_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_anilist_' . $anilist_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return $cached;
+
+        $query = '
+        query ($id: Int) {
+          Media(id: $id, type: ANIME) {
+            id idMal
+            title { romaji english native }
+            status format episodes duration source season seasonYear
+            startDate { year month day }
+            endDate   { year month day }
+            averageScore popularity
+            bannerImage
+            coverImage { extraLarge large }
+            description(asHtml: false)
+            genres
+            tags { name isMediaSpoiler }
+            trailer { id site }
+            nextAiringEpisode { airingAt episode }
+            externalLinks { url site type language }
+            studios(isMain: true) { nodes { name } }
+            staff(sort: RELEVANCE, perPage: 25) {
+              edges {
+                role
+                node { id name { full native } image { large } }
+              }
+            }
+            characters(sort: ROLE, perPage: 25) {
+              edges {
+                role
+                node { id name { full native } image { large } }
+                voiceActors(language: JAPANESE) {
+                  id name { full native } image { large }
+                }
+              }
+            }
+            relations {
+              edges {
+                relationType
+                node { id type title { romaji } }
+              }
+            }
+          }
+        }';
+
+        $decoded = $this->anilist_request( $query, [ 'id' => $anilist_id ], 15 );
+        if ( is_wp_error( $decoded ) ) return $decoded;
+
+        if ( empty( $decoded['data']['Media'] ) ) {
+            return new WP_Error( 'anilist_empty', "AniList returned no Media for ID {$anilist_id}." );
+        }
+
+        set_transient( $cache_key, $decoded, 6 * HOUR_IN_SECONDS );
+        return $decoded;
+    }
+
+      // =========================================================================
+    // PRIVATE – MAL 評分（ACH）
+    // ★ [v1.3.1] 加入最多 3 次重試：cURL 錯誤與 429/5xx 才重試，
+    //   4xx（如 404 查無此 MAL ID）不重試直接放棄；並補上 record_stat()
+    //   統計呼叫，讓 jikan 的成功/失敗/限流/重試次數能出現在
+    //   Anime_Sync_Rate_Limiter::get_stats() 裡，方便日後排查。
+    // ★ [v1.4.8] 資料來源由 Jikan 改為 MyAnimeList 官方 API v2（直連 MAL，
+    //   不經 Jikan，避免 Jikan 504 及 2026-10 停用問題）。Client ID 存於
+    //   wp-config.php 常數 MAL_CLIENT_ID。節流/統計標籤沿用 'jikan' 不變。
+    // =========================================================================
+
+    private function fetch_mal_score( ?int $mal_id ): int {
+        if ( ! $mal_id || $mal_id <= 0 ) return 0;
+
+        $cache_key = 'anime_sync_mal_score_' . $mal_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (int) $cached;
+
+        // ✅ [v1.4.8] 官方 API 需要 Client ID（存於 wp-config.php，勿硬寫於程式碼）
+        $client_id = defined( 'MAL_CLIENT_ID' ) ? MAL_CLIENT_ID : '';
+        if ( $client_id === '' ) {
+            if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                Anime_Sync_Error_Logger::warning( 'MAL 官方 API 未設定 Client ID（wp-config.php 缺 MAL_CLIENT_ID）', [
+                    'mal_id' => $mal_id,
+                ] );
+            }
+            return 0;
+        }
+
+        $max_attempts = 3;
+        $attempt      = 0;
+
+        while ( $attempt < $max_attempts ) {
+            $attempt++;
+
+            $this->rate_limiter->wait_if_needed( 'jikan' );
+
+            // ✅ [v1.4.8] 官方 API v2：?fields=mean 只取平均分，回傳最精簡
+            $url = 'https://api.myanimelist.net/v2/anime/' . $mal_id . '?fields=mean';
+            $ch  = curl_init();
+            curl_setopt_array( $ch, [
+                CURLOPT_URL            => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_USERAGENT      => self::USER_AGENT,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_HTTPHEADER     => [ 'X-MAL-CLIENT-ID: ' . $client_id ],
+            ] );
+            $body = curl_exec( $ch );
+            $code = (int) curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+            $err  = curl_error( $ch );
+            curl_close( $ch );
+
+            // cURL 層級錯誤（DNS / 連線逾時等）：重試
+            if ( $err !== '' ) {
+                $this->rate_limiter->record_stat( 'jikan', 'failed' );
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( 'MAL cURL 錯誤', [
+                        'mal_id'  => $mal_id,
+                        'error'   => $err,
+                        'attempt' => $attempt,
+                    ] );
+                }
+                if ( $attempt < $max_attempts ) {
+                    sleep( 3 );
+                    $this->rate_limiter->record_stat( 'jikan', 'retry' );
+                    continue;
+                }
+                return 0;
+            }
+
+            // 429（限流）與 5xx（伺服端暫時性錯誤）：重試
+            if ( $code === 429 || $code >= 500 ) {
+                $this->rate_limiter->record_stat( 'jikan', 'rate_limited' );
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( 'MAL 暫時性錯誤，將重試', [
+                        'mal_id'  => $mal_id,
+                        'code'    => $code,
+                        'attempt' => $attempt,
+                    ] );
+                }
+                if ( $attempt < $max_attempts ) {
+                    sleep( $code === 429 ? 5 : 3 );
+                    $this->rate_limiter->record_stat( 'jikan', 'retry' );
+                    continue;
+                }
+                $this->rate_limiter->record_stat( 'jikan', 'failed' );
+                return 0;
+            }
+
+            // 其他 4xx（如 404 查無此 MAL ID、401/403 Client ID 無效）：不重試，直接放棄
+            if ( $code !== 200 ) {
+                $this->rate_limiter->record_stat( 'jikan', 'failed' );
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( 'MAL HTTP 非 200', [
+                        'mal_id' => $mal_id,
+                        'code'   => $code,
+                    ] );
+                }
+                return 0;
+            }
+
+            $data  = json_decode( $body, true );
+            // ✅ [v1.4.8] 官方 API v2 平均分欄位為 mean（0–10），換算為 0–100 制
+            $score = isset( $data['mean'] ) ? (int) round( (float) $data['mean'] * 10 ) : 0;
+
+            $this->rate_limiter->record_stat( 'jikan', 'success' );
+            // 有分才快取 12 小時;查無 mean(score=0)只快取 10 分鐘,讓之後能較快重試
+            set_transient( $cache_key, $score, $score > 0 ? 12 * HOUR_IN_SECONDS : 10 * MINUTE_IN_SECONDS );
+            return $score;
+        }
+
+        return 0;
+    }
+
+
+    // =========================================================================
+    // PRIVATE – Wikipedia URL
+    // =========================================================================
+
+    private function fetch_wikipedia_url( string $title_chinese, string $title_native, string $title_romaji, string $title_english ): string {
+        $candidates = [ $title_chinese, $title_native, $title_romaji, $title_english ];
+
+        if ( $title_chinese !== '' ) {
+            $url = $this->search_wiki_zh( $title_chinese, $candidates );
+            if ( $url !== '' ) return $url;
+        }
+        if ( $title_native !== '' ) {
+            $url = $this->search_wiki_zh( $title_native, $candidates );
+            if ( $url !== '' ) return $url;
+        }
+
+        foreach ( [ $title_english, $title_romaji ] as $try ) {
+            $try = trim( $try );
+            if ( $try === '' ) continue;
+            $url = $this->search_wiki_en( $try, $candidates );
+            if ( $url !== '' ) return $url;
+        }
+
+        return '';
+    }
+
+    private function search_wiki_zh( string $title, array $candidates = [] ): string {
+        $hits = $this->query_wiki_search( self::WIKI_ZH_API, $title );
+        foreach ( $hits as $hit ) {
+            $page_title = $hit['title'] ?? '';
+            if ( $page_title === '' ) continue;
+            if ( $this->wiki_title_matches( $page_title, $candidates ) ) {
+                return 'https://zh.wikipedia.org/wiki/' . rawurlencode( str_replace( ' ', '_', $page_title ) );
+            }
+        }
+        return '';
+    }
+
+    private function search_wiki_en( string $title, array $candidates = [] ): string {
+        $hits = $this->query_wiki_search( 'https://en.wikipedia.org/w/api.php', $title );
+        foreach ( $hits as $hit ) {
+            $page_title = $hit['title'] ?? '';
+            if ( $page_title === '' ) continue;
+            if ( $this->wiki_title_matches( $page_title, $candidates ) ) {
+                return 'https://en.wikipedia.org/wiki/' . rawurlencode( str_replace( ' ', '_', $page_title ) );
+            }
+        }
+        return '';
+    }
+
+    private function query_wiki_search( string $api_url, string $title ): array {
+        $title = trim( $title );
+        if ( $title === '' ) return [];
+
+        $response = wp_remote_get( add_query_arg( [
+            'action'      => 'query',
+            'list'        => 'search',
+            'srsearch'    => $title,
+            'srlimit'     => 5,
+            'srnamespace' => 0,
+            'format'      => 'json',
+        ], $api_url ), [
+            'timeout'    => 5,
+            'user-agent' => self::USER_AGENT,
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            return [];
+        }
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        return $data['query']['search'] ?? [];
+    }
+
+    private function wiki_title_matches( string $page_title, array $candidates ): bool {
+        $page_title = preg_replace( '/\s*[\(（][^\)）]*[\)）]\s*$/u', '', (string) $page_title );
+        $page_lower = mb_strtolower( $page_title );
+
+        foreach ( $candidates as $candidate ) {
+            $candidate = trim( (string) $candidate );
+            if ( $candidate === '' ) continue;
+            $cand_lower = mb_strtolower( $candidate );
+
+            if ( mb_strpos( $page_lower, $cand_lower ) !== false || mb_strpos( $cand_lower, $page_lower ) !== false ) {
+                return true;
+            }
+
+            similar_text( $page_lower, $cand_lower, $percent );
+            if ( $percent >= 35 ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // =========================================================================
+    // PRIVATE – Bangumi 資料（ACG：統一 User-Agent）
+    // =========================================================================
+
+    private function get_bangumi_data( int $bangumi_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_bgm_subject_' . $bangumi_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return $cached;
+
+        $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id, [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) ) return $response;
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        if ( $code !== 200 ) {
+            return new WP_Error( 'bgm_http_error', "Bangumi returned HTTP {$code} for ID {$bangumi_id}." );
+        }
+
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( empty( $data ) ) {
+            return new WP_Error( 'bgm_empty', "Bangumi returned empty data for ID {$bangumi_id}." );
+        }
+
+        set_transient( $cache_key, $data, 12 * HOUR_IN_SECONDS );
+        return $data;
+    }
+
+    private function get_bgm_staff( int $bangumi_id, array $infobox = [] ): array {
+        $cache_key = 'anime_sync_bgm_staff_' . $bangumi_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id . '/persons', [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
+
+        $persons = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $persons ) ) return [];
+
+        $allowed_roles = [
+            '导演',
+            '原作',
+            '系列构成',
+            '脚本',
+            '人物原案',
+            '角色设计',
+            '人物设定',
+            '音乐',
+            '音響監督',
+            '音响监督',
+            '主题歌演出',
+            '主题歌作词',
+            '主题歌作曲',
+            '动画制作',
+        ];
+
+        $staff = [];
+        foreach ( $persons as $p ) {
+            $role = $p['relation'] ?? '';
+            if ( in_array( $role, $allowed_roles, true ) ) {
+                $staff[] = [
+                    'id'     => $p['id']             ?? 0,
+                    'name'   => Anime_Sync_CN_Converter::static_convert( $p['name'] ?? '' ),
+                    'role'   => $role,
+                    'image'  => $p['images']['large'] ?? $p['images']['medium'] ?? '',
+                    'source' => 'bangumi',
+                ];
+            }
+        }
+
+        $has_original = false;
+        foreach ( $staff as $s ) {
+            if ( $s['role'] === '原作' ) { $has_original = true; break; }
+        }
+        if ( ! $has_original && ! empty( $infobox ) ) {
+            $original_name = $this->extract_infobox_original( $infobox );
+            if ( $original_name !== '' ) {
+                $staff[] = [
+                    'id'     => 0,
+                    'name'   => Anime_Sync_CN_Converter::static_convert( $original_name ),
+                    'role'   => '原作',
+                    'image'  => '',
+                    'source' => 'bangumi_infobox',
+                ];
+            }
+        }
+
+        usort( $staff, function( $a, $b ) {
+            if ( $a['role'] === '原作' ) return -1;
+            if ( $b['role'] === '原作' ) return 1;
+            return 0;
+        } );
+
+        set_transient( $cache_key, $staff, 12 * HOUR_IN_SECONDS );
+        return $staff;
+    }
+
+    private function extract_infobox_original( array $infobox ): string {
+        foreach ( $infobox as $row ) {
+            $key = $row['key'] ?? '';
+            if ( $key !== '原作' && $key !== '原著' ) continue;
+
+            $value = $row['value'] ?? '';
+            if ( is_array( $value ) ) {
+                $parts = [];
+                foreach ( $value as $v ) {
+                    if ( isset( $v['v'] ) && $v['v'] !== '' ) $parts[] = $v['v'];
+                }
+                $value = implode( '、', $parts );
+            }
+            $value = (string) $value;
+
+            $value = preg_replace( '/[（(].*?[)）]/u', '', $value );
+            $value = preg_split( '/[；;]/u', $value )[0] ?? $value;
+            $value = trim( $value );
+
+            return $value;
+        }
+        return '';
+    }
+
+    private function get_bgm_chars( int $bangumi_id ): array {
+        $cache_key = 'anime_sync_bgm_chars_' . $bangumi_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id . '/characters', [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
+
+        $chars_raw = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $chars_raw ) ) return [];
+
+        $chars = [];
+        foreach ( $chars_raw as $c ) {
+            $va = [];
+            foreach ( $c['actors'] ?? [] as $a ) {
+                $va[] = [
+                    'id'    => $a['id']             ?? 0,
+                    'name' => Anime_Sync_CN_Converter::static_convert( $a['name'] ?? '' ),
+                    'image' => $a['images']['large'] ?? '',
+                ];
+            }
+            $chars[] = [
+                'id'           => $c['id']             ?? 0,
+                'name' => Anime_Sync_CN_Converter::static_convert( $c['name'] ?? '' ),
+                'role'         => $c['relation']        ?? '',
+                'image'        => $c['images']['large'] ?? $c['images']['medium'] ?? '',
+                'voice_actors' => $va,
+                'source'       => 'bangumi',
+            ];
+        }
+
+        set_transient( $cache_key, $chars, 12 * HOUR_IN_SECONDS );
+        return $chars;
+    }
+
+    public function fetch_bgm_episodes( int $bangumi_id, bool $force_refresh = false ): array {
+        $cache_key = 'anime_sync_bgm_eps_' . $bangumi_id;
+
+        if ( ! $force_refresh ) {
+            $cached = get_transient( $cache_key );
+            if ( $cached !== false ) {
+                return (array) $cached;
+            }
+        }
+
+        $response = wp_remote_get( add_query_arg( [
+            'subject_id' => $bangumi_id,
+            'type'       => 0,
+            'limit'      => 100,
+            'offset'     => 0,
+        ], self::BGM_EPISODES_URL ), [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            return [];
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        $eps  = $body['data'] ?? [];
+        if ( ! is_array( $eps ) ) {
+            return [];
+        }
+
+        $result = [];
+        foreach ( $eps as $ep ) {
+            $result[] = [
+                'id'      => $ep['id']      ?? 0,
+                'ep'      => $ep['ep']      ?? 0,
+                'name'    => $ep['name']    ?? '',
+                'name_cn' => $ep['name_cn'] ?? '',
+                'airdate' => $ep['airdate'] ?? '',
+                'comment' => (int) ( $ep['comment'] ?? 0 ),
+            ];
+        }
+
+        set_transient( $cache_key, $result, 12 * HOUR_IN_SECONDS );
+        return $result;
+    }
+
+    // =========================================================================
+    // PRIVATE – AnimeThemes（ACF / ACG）
+    // v1.3.0 — fetch_animethemes() 精簡為呼叫共用解析器 parse_animethemes_payload()；
+    //          新增 fetch_animethemes_by_slug() 供 slug 直查。
+    // =========================================================================
+
+    /**
+     * 以 MAL ID 查 AnimeThemes（原路徑，回傳 [ 'slug' => ..., 'themes' => [...] ]）。
+     */
+    public function fetch_animethemes( ?int $mal_id ): array {
+        if ( ! $mal_id || $mal_id <= 0 ) return [];
+
+        $cache_key = 'anime_sync_themes_' . $mal_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $this->rate_limiter->wait_if_needed( 'animethemes' );
+        $response = wp_remote_get( add_query_arg( [
+            'filter[has]'         => 'resources',
+            'filter[site]'        => 'MyAnimeList',
+            'filter[external_id]' => $mal_id,
+            'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song.artists',
+            'fields[anime]'       => 'slug',
+            'fields[animetheme]'  => 'type,sequence,slug',
+            'fields[song]'        => 'title',
+            'fields[artist]'      => 'name',
+            'fields[video]'       => 'link,resolution',
+            'fields[audio]'       => 'link',
+        ], self::ANIMETHEMES_URL ), [
+            'timeout' => 8,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
+
+        $body      = json_decode( wp_remote_retrieve_body( $response ), true );
+        $anime_arr = $body['anime'] ?? [];
+        if ( empty( $anime_arr ) ) return [];
+
+        $result = $this->parse_animethemes_payload( $anime_arr, (int) $mal_id );
+        set_transient( $cache_key, $result, 24 * HOUR_IN_SECONDS );
+        return $result;
+    }
+
+    /**
+     * ★ [v1.3.0] 以 AnimeThemes slug 直接查 /anime/{slug} 端點。
+     *
+     * 供 CRON「slug 優先」策略使用：當 mal_id 缺失或以 mal_id 查無結果時，
+     * 改用使用者手填的 slug 直接抓主題曲。回傳結構與 fetch_animethemes() 完全一致。
+     *
+     * @param string   $slug              AnimeThemes slug（例：shingeki_no_kyojin_the_final_season_kanketsuhen_kouhen）。
+     * @param int|null $mal_id_for_native 若有 MAL ID，仍用它抓 Jikan 日文對照表；沒有就傳 0。
+     * @return array   [ 'slug' => string, 'themes' => array ]，查無回 []。
+     */
+    public function fetch_animethemes_by_slug( string $slug, ?int $mal_id_for_native = 0 ): array {
+        $slug = trim( $slug );
+        if ( $slug === '' ) return [];
+
+        $cache_key = 'anime_sync_themes_slug_' . md5( $slug );
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $this->rate_limiter->wait_if_needed( 'animethemes' );
+
+        // by-slug 端點：/anime/{slug}，用 query string 帶 include / fields。
+        $url = self::ANIMETHEMES_URL . '/' . rawurlencode( $slug );
+        $response = wp_remote_get( add_query_arg( [
+            'include'            => 'animethemes.animethemeentries.videos.audio,animethemes.song.artists',
+            'fields[anime]'      => 'slug',
+            'fields[animetheme]' => 'type,sequence,slug',
+            'fields[song]'       => 'title',
+            'fields[artist]'     => 'name',
+            'fields[video]'      => 'link,resolution',
+            'fields[audio]'      => 'link',
+        ], $url ), [
+            'timeout' => 8,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        // 404（slug 不存在）或其他非 200 都視為查無，回 [] 讓上層 fallback。
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            return [];
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        // by-slug 端點回傳最外層是單一 anime 物件（不是 anime 陣列），
+        // 包成陣列後丟給共用解析器，維持與 by-mal 相同的處理路徑。
+        $anime_obj = $body['anime'] ?? null;
+        if ( empty( $anime_obj ) ) return [];
+
+        $result = $this->parse_animethemes_payload( [ $anime_obj ], (int) $mal_id_for_native );
+
+        // 若 API 未回 slug（理論上會回），至少保底填入使用者傳入的 slug。
+        if ( ( $result['slug'] ?? '' ) === '' ) {
+            $result['slug'] = $slug;
+        }
+
+        set_transient( $cache_key, $result, 24 * HOUR_IN_SECONDS );
+        return $result;
+    }
+
+    /**
+     * ★ [v1.3.0] 共用解析器：把 AnimeThemes 的 anime 陣列解析成 themes 結構。
+     *
+     * 由 fetch_animethemes()（by mal_id）與 fetch_animethemes_by_slug()（by slug）共用，
+     * 避免解析邏輯有兩份。行為與 v1.2.1 原 fetch_animethemes() 內迴圈完全一致。
+     *
+     * @param array $anime_arr AnimeThemes API 回傳的 anime 陣列（by-slug 需自行包成陣列）。
+     * @param int   $mal_id    用來抓 Jikan 日文標題對照的 MAL ID；0 代表跳過日文對照。
+     * @return array [ 'slug' => string, 'themes' => array ]
+     */
+    private function parse_animethemes_payload( array $anime_arr, int $mal_id ): array {
+        if ( empty( $anime_arr ) ) return [ 'slug' => '', 'themes' => [] ];
+
+        $jikan_map = ( $mal_id > 0 ) ? $this->fetch_jikan_theme_natives( $mal_id ) : [];
+
+        $slug_blacklist = [ '-EN', '-EN4Kids', '-YorinukiGintamaSan', '-Lyrics', '-Subbed', '-NCBDv2' ];
+
+        $slug   = '';
+        $themes = [];
+
+        foreach ( $anime_arr as $anime_obj ) {
+            if ( $slug === '' ) $slug = $anime_obj['slug'] ?? '';
+
+            foreach ( $anime_obj['animethemes'] ?? [] as $theme ) {
+
+                $theme_slug     = $theme['slug'] ?? '';
+                $is_blacklisted = false;
+                foreach ( $slug_blacklist as $suffix ) {
+                    if ( str_contains( $theme_slug, $suffix ) ) {
+                        $is_blacklisted = true;
+                        break;
+                    }
+                }
+                if ( $is_blacklisted ) continue;
+
+                $entries    = $theme['animethemeentries'] ?? [];
+                $entry      = ! empty( $entries ) ? $entries[0] : [];
+                $videos     = $entry['videos'] ?? [];
+                $best_video = [];
+                $best_res   = 0;
+                foreach ( $videos as $v ) {
+                    $res = (int) ( $v['resolution'] ?? 0 );
+                    if ( $res > $best_res ) {
+                        $best_res   = $res;
+                        $best_video = $v;
+                    }
+                }
+                if ( empty( $best_video ) && ! empty( $videos ) ) $best_video = $videos[0];
+
+                $audio_url = $best_video['audio']['link'] ?? '';
+                $video_url = $best_video['link']          ?? '';
+
+                $song_title   = $theme['song']['title'] ?? '';
+                $title_native = $jikan_map[ $this->normalize_title( $song_title ) ] ?? '';
+
+                $artists = [];
+                foreach ( $theme['song']['artists'] ?? [] as $a ) {
+                    $name = trim( $a['name'] ?? '' );
+                    if ( $name === '' ) continue;
+                    $mb   = $this->fetch_mb_artist( $name );
+                    $artists[] = [
+                        'name'        => $name,
+                        'name_native' => $mb['name_native'] ?? '',
+                        'name_legal'  => $mb['name_legal']  ?? '',
+                        'mbid'        => $mb['mbid']         ?? '',
+                    ];
+                }
+
+                $themes[] = [
+                    'type'         => $theme['type']     ?? '',
+                    'sequence'     => $theme['sequence'] ?? null,
+                    'slug'         => $theme_slug,
+                    'title'        => $song_title,
+                    'title_native' => $title_native,
+                    'artists'      => $artists,
+                    'audio_url'    => $audio_url,
+                    'video_url'    => $video_url,
+                    'resolution'   => $best_video['resolution'] ?? '',
+                    'spoiler'      => ! empty( $entry['spoiler'] ),
+                    'nsfw'         => ! empty( $entry['nsfw'] ),
+                ];
+            }
+        }
+
+        return [ 'slug' => $slug, 'themes' => $themes ];
+    }
+
+       // =========================================================================
+    // PRIVATE – MAL 官方 API 日文主題曲標題對照表
+    // ★ [v1.4.9] 資料來源由 Jikan /themes 改為 MyAnimeList 官方 API v2 的
+    //   opening_themes / ending_themes 隱藏欄位（避免 Jikan 504 與 2026-10 停用）。
+    //   官方 text 格式："羅馬名 (日文名)" by 演唱者 (演唱者日文) (eps 範圍)；
+    //   日文歌名取歌名部分第一組括號內、且含中日文字元者。函式名沿用不變，
+    //   呼叫端 parse_animethemes_payload() 無需調整。
+    // =========================================================================
+    private function fetch_jikan_theme_natives( int $mal_id ): array {
+        $cache_key = 'anime_sync_mal_themes_' . $mal_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $client_id = defined( 'MAL_CLIENT_ID' ) ? MAL_CLIENT_ID : '';
+        if ( $client_id === '' ) {
+            if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                Anime_Sync_Error_Logger::warning( 'MAL 官方 API 未設定 Client ID（主題曲日文對照略過）', [
+                    'mal_id' => $mal_id,
+                ] );
+            }
+            set_transient( $cache_key, [], 6 * HOUR_IN_SECONDS );
+            return [];
+        }
+
+        $this->rate_limiter->wait_if_needed( 'jikan' );
+        $response = wp_remote_get(
+            'https://api.myanimelist.net/v2/anime/' . $mal_id . '?fields=opening_themes,ending_themes',
+            [
+                'timeout' => 10,
+                'headers' => [
+                    'User-Agent'      => self::USER_AGENT,
+                    'X-MAL-CLIENT-ID' => $client_id,
+                ],
+            ]
+        );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            set_transient( $cache_key, [], 6 * HOUR_IN_SECONDS );
+            return [];
+        }
+
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        $all  = array_merge(
+            $data['opening_themes'] ?? [],
+            $data['ending_themes']  ?? []
+        );
+
+        $map = [];
+        foreach ( $all as $entry ) {
+            $text = is_array( $entry ) ? ( $entry['text'] ?? '' ) : '';
+            if ( ! is_string( $text ) || $text === '' ) continue;
+
+            // 去掉開頭 "#2: " 之類的編號
+            $clean = preg_replace( '/^#?\d+:\s*/', '', $text );
+
+            // 只取歌名部分（第一個 " by " 之前）
+            $song_part = preg_split( '/\s+by\s+/', $clean )[0] ?? $clean;
+            $song_part = trim( $song_part, " \t\n\r\0\x0B\"'" );
+
+            // 第一組括號內若含中日文字元（含平/片假名）→ 視為日文歌名
+            $native = '';
+            if ( preg_match( '/\(([^)]+)\)/', $song_part, $m ) ) {
+                $cand = trim( $m[1] );
+                if ( preg_match( '/[\x{3000}-\x{9FFF}\x{F900}-\x{FAFF}\x{3040}-\x{30FF}]/u', $cand ) ) {
+                    $native = $cand;
+                }
+            }
+
+            // 羅馬名 = 去掉第一組括號（及其後）的部分
+            $romaji = trim( preg_replace( '/\s*\([^)]*\).*$/', '', $song_part ) );
+
+            if ( $romaji !== '' && $native !== '' ) {
+                $map[ $this->normalize_title( $romaji ) ] = $native;
+            }
+        }
+
+        set_transient( $cache_key, $map, 24 * HOUR_IN_SECONDS );
+        return $map;
+    }
+
+    // =========================================================================
+    // PRIVATE – 標題正規化（用於 AT ↔ Jikan 對照）
+    // =========================================================================
+    private function normalize_title( string $title ): string {
+        $title = mb_strtolower( trim( $title ) );
+
+        $title = str_replace( '×', 'x', $title );
+
+        $sup_map = [
+            '⁰'=>'0','¹'=>'1','²'=>'2','³'=>'3','⁴'=>'4',
+            '⁵'=>'5','⁶'=>'6','⁷'=>'7','⁸'=>'8','⁹'=>'9',
+        ];
+        $title = strtr( $title, $sup_map );
+
+        $title = preg_replace( '/[^\p{L}\p{N}]/u', '', $title );
+
+        return $title ?? '';
+    }
+
+    // =========================================================================
+    // PRIVATE – MusicBrainz artist 查詢
+    // =========================================================================
+    private function fetch_mb_artist( string $name ): array {
+        $cache_key = 'anime_sync_mb_artist_' . md5( $name );
+        $cached    = get_option( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        sleep( 1 ); // MB rate limit 1 req/s
+
+        $url = add_query_arg( [
+            'query' => $name,
+            'fmt'   => 'json',
+            'limit' => 5,
+        ], 'https://musicbrainz.org/ws/2/artist' );
+
+        $response = wp_remote_get( $url, [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            $empty = [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ];
+            update_option( $cache_key, $empty, false );
+            return $empty;
+        }
+
+        $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+        $artists = $body['artists'] ?? [];
+
+        if ( empty( $artists ) ) {
+            $empty = [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ];
+            update_option( $cache_key, $empty, false );
+            return $empty;
+        }
+
+        $pick = null;
+        foreach ( $artists as $a ) {
+            if ( ( $a['score'] ?? 0 ) >= 70 ) {
+                $pick = $a;
+                break;
+            }
+        }
+        if ( ! $pick ) $pick = $artists[0];
+
+        $name_native = '';
+        $name_legal  = '';
+        foreach ( $pick['aliases'] ?? [] as $alias ) {
+            if ( ( $alias['locale'] ?? '' ) === 'ja'
+                 && ( $alias['type'] ?? '' ) === 'Artist name'
+                 && ! empty( $alias['primary'] ) ) {
+                $name_native = $alias['name'];
+            }
+            if ( ( $alias['type'] ?? '' ) === 'Legal name' && $name_legal === '' ) {
+                $name_legal = $alias['name'];
+            }
+        }
+
+        $result = [
+            'mbid'        => $pick['id']   ?? '',
+            'name_native' => $name_native,
+            'name_legal'  => $name_legal,
+        ];
+
+        update_option( $cache_key, $result, false );
+        return $result;
+    }
+
+    // =========================================================================
+    // PRIVATE – 解析器
+    // =========================================================================
+
+    private function build_season_aware_native( string $native, string $romaji ): string {
+        if ( $native === '' ) return $native;
+        if ( preg_match( '/(?:season\s*\d+|\d+(?:st|nd|rd|th)\s+season|part\s*\d+|cour\s*\d+|第\s*\d+\s*[期季部])/iu', $native ) ) {
+            return $native;
+        }
+        if ( $romaji !== '' && preg_match( '/(season\s*\d+|\d+(?:st|nd|rd|th)\s+season|part\s*\d+|cour\s*\d+)/i', $romaji, $m ) ) {
+            return $native . ' ' . $m[1];
+        }
+        return $native;
+    }
+
+    private function parse_fuzzy_date( array $date ): string {
+        $y = (int) ( $date['year']  ?? 0 );
+        $m = (int) ( $date['month'] ?? 0 );
+        $d = (int) ( $date['day']   ?? 0 );
+
+        if ( ! $y ) {
+            return '';
+        }
+        if ( ! $m || ! $d ) {
+            return '';
+        }
+        return sprintf( '%04d%02d%02d', $y, $m, $d );
+    }
+
+    private function parse_streaming_links( array $links ): array {
+        $result = [ 'taiwan' => [], 'overseas' => [] ];
+        $seen   = [];
+
+        foreach ( $links as $link ) {
+            $site = trim( (string) ( $link['site'] ?? '' ) );
+            $url  = trim( (string) ( $link['url']  ?? '' ) );
+            $type = strtoupper( (string) ( $link['type'] ?? '' ) );
+
+            if ( $url === '' ) continue;
+            if ( $type !== '' && $type !== 'STREAMING' ) continue;
+
+            $dedup_key = strtolower( $site . '|' . $url );
+            if ( isset( $seen[ $dedup_key ] ) ) continue;
+            $seen[ $dedup_key ] = true;
+
+            $platform_key = Anime_Sync_Streaming_Registry::match_site( $site, $url );
+            if ( $platform_key === null ) continue;
+
+            $platform = Anime_Sync_Streaming_Registry::get( $platform_key );
+            $entry    = [ 'site' => $platform['label'], 'key' => $platform_key, 'url' => $url ];
+
+            if ( $platform['global'] ) {
+                $result['overseas'][] = $entry;
+            } else {
+                $result['taiwan'][]   = $entry;
+            }
+        }
+
+        return $result;
+    }
+
+    private function parse_external_links( array $links ): array {
+        $result = [ 'official_site' => '', 'twitter_url' => '', 'tiktok_url' => '' ];
+        foreach ( $links as $link ) {
+            $site = strtolower( $link['site'] ?? '' );
+            $url  = $link['url'] ?? '';
+            if ( $site === 'twitter' || $site === 'x' ) $result['twitter_url'] = $url;
+            if ( $site === 'tiktok' ) $result['tiktok_url'] = $url;
+            if ( in_array( $link['type'] ?? '', [ 'OFFICIAL', 'INFO' ], true ) && $result['official_site'] === '' ) {
+                $result['official_site'] = $url;
+            }
+        }
+        return $result;
+    }
+
+    private function parse_staff( array $edges ): array {
+        $staff = [];
+        foreach ( $edges as $edge ) {
+            $node = $edge['node'] ?? [];
+            if ( empty( $node['id'] ) ) continue;
+            $staff[] = [
+                'id'     => (int) $node['id'],
+                'name'   => $node['name']['full']   ?? '',
+                'native' => $node['name']['native'] ?? '',
+                'role'   => $edge['role']           ?? '',
+                'image'  => $node['image']['large'] ?? '',
+                'source' => 'anilist',
+            ];
+        }
+        return $staff;
+    }
+
+    private function parse_cast( array $edges ): array {
+        $cast = [];
+        foreach ( $edges as $edge ) {
+            $node = $edge['node'] ?? [];
+            if ( empty( $node['id'] ) ) continue;
+            $vas = [];
+            foreach ( $edge['voiceActors'] ?? [] as $va ) {
+                $vas[] = [
+                    'id'     => (int) ( $va['id'] ?? 0 ),
+                    'name'   => $va['name']['full']   ?? '',
+                    'native' => $va['name']['native'] ?? '',
+                    'image'  => $va['image']['large'] ?? '',
+                ];
+            }
+            $cast[] = [
+                'id'           => (int) $node['id'],
+                'name'         => $node['name']['full']   ?? '',
+                'native'       => $node['name']['native'] ?? '',
+                'role'         => $edge['role']           ?? '',
+                'image'        => $node['image']['large'] ?? '',
+                'voice_actors' => $vas,
+                'source'       => 'anilist',
+            ];
+        }
+        return $cast;
+    }
+
+    private function parse_relations( array $edges ): array {
+        $relations = [];
+        foreach ( $edges as $edge ) {
+            $node = $edge['node'] ?? [];
+            if ( empty( $node['id'] ) ) continue;
+            $relations[] = [
+                'id'            => (int) $node['id'],
+                'type'          => $node['type']            ?? '',
+                'relation_type' => $edge['relationType']    ?? '',
+                'title'         => $node['title']['romaji'] ?? '',
+            ];
+        }
+        return $relations;
+    }
+
+    private function clean_synopsis( string $text ): string {
+        $text = preg_replace( '/<br\s*\/?>/i', "\n", $text );
+        $text = wp_strip_all_tags( $text );
+        $text = html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $text = preg_replace( '/\(Source:.*?\)/si', '', $text );
+        $text = preg_replace( '/\[Written by.*?\]/si', '', $text );
+        return trim( $text );
+    }
+
+    // =========================================================================
+    // PUBLIC – 公開包裝（供 AJAX 直接呼叫）
+    // =========================================================================
+    public function fetch_bgm_data_public( int $bangumi_id ): array|WP_Error {
+        return $this->get_bangumi_data( $bangumi_id );
+    }
+    public function get_bgm_staff_public( int $bangumi_id ): array {
+        return $this->get_bgm_staff( $bangumi_id );
+    }
+    public function get_bgm_chars_public( int $bangumi_id ): array {
+        return $this->get_bgm_chars( $bangumi_id );
+    }
+    public function clean_synopsis_public( string $text ): string {
+        return $this->clean_synopsis( $text );
+    }
+    public function fetch_mal_score_public( ?int $mal_id ): int {
+        return $this->fetch_mal_score( $mal_id );
+    }
+
+    // =========================================================================
+    // PRIVATE – AniList 請求 helper（1.1.0 新增）
+    // =========================================================================
+    private function anilist_request( string $query, array $variables, int $timeout = 15 ): array|WP_Error {
+
+        $payload = wp_json_encode( [
+            'query'     => $query,
+            'variables' => $variables,
+        ] );
+
+        $args = [
+            'timeout' => $timeout,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json',
+                'User-Agent'   => self::USER_AGENT,
+            ],
+            'body'    => $payload,
+        ];
+
+        $max_attempts = 3;
+        $attempt      = 0;
+        $last_error   = null;
+
+        while ( $attempt < $max_attempts ) {
+            $attempt++;
+
+            $this->rate_limiter->wait_if_needed( 'anilist' );
+            $response = wp_remote_post( self::ANILIST_ENDPOINT, $args );
+
+            if ( is_wp_error( $response ) ) {
+                $last_error = $response;
+                $this->rate_limiter->record_stat( 'anilist', 'failed' );
+                if ( $attempt < $max_attempts ) {
+                    sleep( 5 );
+                    $this->rate_limiter->record_stat( 'anilist', 'retry' );
+                    continue;
+                }
+                return $last_error;
+            }
+
+            $code = (int) wp_remote_retrieve_response_code( $response );
+
+            if ( $code === 200 ) {
+                $decoded = json_decode( wp_remote_retrieve_body( $response ), true );
+                if ( ! is_array( $decoded ) ) {
+                    $this->rate_limiter->record_stat( 'anilist', 'failed' );
+                    return new WP_Error( 'anilist_decode_error', 'AniList response JSON decode failed.' );
+                }
+                $this->rate_limiter->record_stat( 'anilist', 'success' );
+                return $decoded;
+            }
+
+            if ( $code === 429 ) {
+                $this->rate_limiter->record_stat( 'anilist', 'rate_limited' );
+                if ( $attempt < $max_attempts ) {
+                    $wait = $this->rate_limiter->handle_rate_limit_error( $response, 'anilist' );
+                    sleep( $wait );
+                    $this->rate_limiter->record_stat( 'anilist', 'retry' );
+                    continue;
+                }
+                $this->rate_limiter->record_stat( 'anilist', 'failed' );
+                return new WP_Error( 'anilist_rate_limited', 'AniList rate limit exceeded after 3 attempts.' );
+            }
+
+            $this->rate_limiter->record_stat( 'anilist', 'failed' );
+            return new WP_Error( 'anilist_http_error', "AniList returned HTTP {$code}." );
+        }
+
+        return $last_error ?: new WP_Error( 'anilist_unknown', 'AniList request failed.' );
+    }
+
+}

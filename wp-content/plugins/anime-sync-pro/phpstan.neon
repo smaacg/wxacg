@@ -1,0 +1,23 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - includes
+        - admin
+        - public
+    excludePaths:
+        - vendor/*
+    bootstrapFiles:
+        - anime-sync-pro.php
+    ignoreErrors:
+        # ACF 外掛函式（PHPStan WP 擴充不含 ACF 定義）
+        - '#Function acf_add_local_field_group not found#'
+        # 專案自訂常數（定義在 wp-config 或條件式，PHPStan 掃不到）
+        - '#Constant SMACG_YT_API_KEY not found#'
+        # debug 開關與靜態對照表：設計上目前為 false / 空，邏輯正確
+        - '#If condition is always false#'
+        - '#Result of && is always false#'
+        # wp_send_json_* 之後的防禦性 return（PHPStan 誤判 unreachable）
+        - '#Unreachable statement - code above always terminates#'

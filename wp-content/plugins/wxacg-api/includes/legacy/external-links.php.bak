@@ -1,0 +1,51 @@
+<?php
+/**
+ * 外部連結處理：自動加 target=_blank 與 rel=noopener
+ *
+ * @package weixiaoacg
+ */
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * 過濾文章內容，外部連結自動加 target 與 rel
+ */
+add_filter( 'the_content', function( $content ) {
+    if ( is_admin() || empty( $content ) ) return $content;
+
+    $site_host = wp_parse_url( home_url(), PHP_URL_HOST );
+
+    return preg_replace_callback(
+        '/<a\s+([^>]*?)href=["\']([^"\']+)["\']([^>]*)>/i',
+        function( $m ) use ( $site_host ) {
+            $before = $m[1];
+            $url    = $m[2];
+            $after  = $m[3];
+
+            // 內部連結、錨點、mailto、tel 不處理
+            if ( strpos( $url, '#' ) === 0 ) return $m[0];
+            if ( preg_match( '/^(mailto:|tel:|javascript:)/i', $url ) ) return $m[0];
+
+            $link_host = wp_parse_url( $url, PHP_URL_HOST );
+            if ( ! $link_host || $link_host === $site_host ) return $m[0];
+
+            // 外部連結
+            $attrs = $before . $after;
+
+            // 已有 target 就不重複加
+            if ( ! preg_match( '/target=/i', $attrs ) ) {
+                $attrs .= ' target="_blank"';
+            }
+            // 已有 rel 就補 noopener，否則新增
+            if ( preg_match( '/rel=["\']([^"\']*)["\']/i', $attrs, $rel_m ) ) {
+                if ( strpos( $rel_m[1], 'noopener' ) === false ) {
+                    $attrs = str_replace( $rel_m[0], 'rel="' . $rel_m[1] . ' noopener"', $attrs );
+                }
+            } else {
+                $attrs .= ' rel="noopener noreferrer"';
+            }
+
+            return '<a ' . trim( $attrs ) . ' href="' . esc_url( $url ) . '">';
+        },
+        $content
+    );
+} );

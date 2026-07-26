@@ -1,0 +1,176 @@
+/**
+ * Leaderboard Widget + Shortcode
+ * @version 1.0.0 (2026-05-14) Batch 2B-3
+ *
+ * Wrapper：.smacg-lb
+ * 適配既有 sidebar-1 register：外層 wrapper 為 .sidebar-card.glass-mid
+ * 也可放在頁面內容中（shortcode），自帶玻璃背景。
+ */
+
+/* ============================================================
+   外層
+   ============================================================ */
+.smacg-lb{
+  --lb-radius: 14px;
+  position:relative;
+  padding:18px;
+  border-radius:16px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);
+  backdrop-filter:blur(10px);
+}
+
+/* 放進 sidebar-1（.sidebar-card.glass-mid）時不要雙層背景 */
+.sidebar-card .smacg-lb,
+.widget_smacg_leaderboard .smacg-lb{
+  background:transparent;
+  border:none;
+  padding:0;
+  backdrop-filter:none;
+}
+
+/* ============================================================
+   標題
+   ============================================================ */
+.smacg-lb__title{
+  display:flex;align-items:center;gap:8px;
+  font-size:15px;font-weight:700;color:#fff;
+  margin:0 0 14px;
+}
+.smacg-lb__title i{font-size:14px;}
+
+/* ============================================================
+   列表
+   ============================================================ */
+.smacg-lb__list{
+  list-style:none;padding:0;margin:0;
+  display:flex;flex-direction:column;gap:8px;
+}
+.smacg-lb__item{
+  display:grid;
+  grid-template-columns:32px 36px 1fr auto;
+  gap:10px;align-items:center;
+  padding:8px 10px;
+  border-radius:10px;
+  transition:background .2s, transform .2s;
+}
+.smacg-lb__item:hover{
+  background:rgba(255,255,255,.05);
+  transform:translateX(2px);
+}
+
+/* Top 3 高亮（漸層底） */
+.smacg-lb__item--1{background:linear-gradient(90deg, rgba(251,191,36,.15), transparent 80%);}
+.smacg-lb__item--2{background:linear-gradient(90deg, rgba(229,231,235,.12), transparent 80%);}
+.smacg-lb__item--3{background:linear-gradient(90deg, rgba(217,119,87,.15), transparent 80%);}
+
+/* 名次 */
+.smacg-lb__pos{
+  font-size:13px;font-weight:800;text-align:center;
+  color:var(--text-muted,#9ca3af);
+  font-variant-numeric:tabular-nums;
+}
+.smacg-lb__item--1 .smacg-lb__pos,
+.smacg-lb__item--2 .smacg-lb__pos,
+.smacg-lb__item--3 .smacg-lb__pos{font-size:0;} /* 隱藏 "#N"，只顯示 medal */
+.smacg-lb__medal{font-size:22px;line-height:1;display:inline-block;}
+
+/* 頭像 */
+.smacg-lb__avatar{display:block;width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,.08);}
+.smacg-lb__avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+.smacg-lb__item--1 .smacg-lb__avatar{border-color:#fbbf24;box-shadow:0 0 10px rgba(251,191,36,.4);}
+.smacg-lb__item--2 .smacg-lb__avatar{border-color:#e5e7eb;}
+.smacg-lb__item--3 .smacg-lb__avatar{border-color:#f59e72;}
+
+/* 名字 / 等級 */
+.smacg-lb__info{min-width:0;display:flex;flex-direction:column;gap:2px;}
+.smacg-lb__name{
+  font-size:13px;font-weight:600;color:#fff;
+  text-decoration:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transition:color .2s;
+}
+.smacg-lb__name:hover{color:var(--accent-cyan,#02a9ff);}
+.smacg-lb__lv{
+  display:inline-block;
+  font-size:10.5px;font-weight:700;line-height:1;
+  padding:2px 7px;
+  background:rgba(108,99,255,.18);color:#a5b4fc;
+  border-radius:999px;
+  align-self:flex-start;
+}
+
+/* 分數 */
+.smacg-lb__score{
+  text-align:right;
+  font-size:14px;font-weight:800;
+  font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,#6c63ff,#02a9ff);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  flex-shrink:0;
+}
+.smacg-lb__item--1 .smacg-lb__score{background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.smacg-lb__score small{
+  display:block;
+  font-size:9.5px;font-weight:600;
+  color:var(--text-muted,#9ca3af);
+  -webkit-text-fill-color:var(--text-muted,#9ca3af);
+  margin-top:1px;
+  letter-spacing:.04em;
+}
+
+/* ============================================================
+   極簡模式（compact）
+   ============================================================ */
+.smacg-lb--compact .smacg-lb__item{
+  grid-template-columns:28px 28px 1fr auto;
+  padding:6px 8px;
+}
+.smacg-lb--compact .smacg-lb__avatar{width:28px;height:28px;}
+.smacg-lb--compact .smacg-lb__medal{font-size:18px;}
+.smacg-lb--compact .smacg-lb__name{font-size:12.5px;}
+.smacg-lb--compact .smacg-lb__score{font-size:12px;}
+.smacg-lb--compact .smacg-lb__score small{font-size:9px;}
+
+/* ============================================================
+   查看完整排行
+   ============================================================ */
+.smacg-lb__more{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  margin-top:14px;padding:8px 12px;
+  font-size:12.5px;font-weight:600;
+  color:var(--accent-cyan,#02a9ff);
+  text-decoration:none;
+  background:rgba(2,169,255,.08);
+  border:1px solid rgba(2,169,255,.2);
+  border-radius:10px;
+  transition:all .2s;
+}
+.smacg-lb__more:hover{
+  background:rgba(2,169,255,.18);
+  border-color:rgba(2,169,255,.4);
+  transform:translateY(-1px);
+}
+.smacg-lb__more i{font-size:10px;transition:transform .2s;}
+.smacg-lb__more:hover i{transform:translateX(2px);}
+
+/* ============================================================
+   Empty / Error
+   ============================================================ */
+.smacg-lb__empty,
+.smacg-lb--err{
+  text-align:center;padding:24px 12px;
+  font-size:12.5px;color:var(--text-muted,#9ca3af);
+  margin:0;
+}
+.smacg-lb__empty i{display:block;font-size:24px;margin-bottom:8px;opacity:.5;}
+
+/* ============================================================
+   行內（在文章中用 shortcode）兩欄佈局
+   ============================================================ */
+@media (min-width:768px){
+  .smacg-lb.smacg-lb--inline-2col .smacg-lb__list{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  }
+}

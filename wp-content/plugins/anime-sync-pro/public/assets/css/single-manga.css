@@ -1,0 +1,308 @@
+/* =================================================================
+   Anime Sync Pro — single-manga.css  v2.1.0
+   對應 single-manga.php v1.2.0
+   依賴 anime-single.css v18.5(共用 .asd-wrap / .asd-section /
+   :root 變數 / 毛玻璃 / Firefox 修正,本檔不重複定義)
+   僅收錄「漫畫專屬」區塊:各地區出版卡片 + 單行本一覽表
+   ★ class 名稱已對齊 template 實際輸出(BEM: asd-region-card__*)
+   2026-07-17
+   ================================================================= */
+
+/* ================================================================
+   1. 各地區出版 Regional Publishing
+   ================================================================ */
+.asd-region-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.asd-region-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--asd-radius-md);
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--asd-border);
+  transition: var(--trans-smooth);
+}
+.asd-region-card:hover {
+  background: rgba(255,255,255,.08);
+  transform: translateY(-2px);
+}
+
+/* 國旗 emoji */
+.asd-region-card__flag {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* 地區名 */
+.asd-region-card__region {
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--asd-text);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--asd-border);
+}
+
+/* 每一列:key 左、value 右 */
+.asd-region-card__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.asd-region-card__k {
+  font-size: .70rem;
+  color: var(--asd-text-dim);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  flex-shrink: 0;
+}
+.asd-region-card__v {
+  font-size: .85rem;
+  color: var(--asd-text);
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+/* 卷數該列的數字用主色強調 */
+.asd-region-card__row:has(.asd-region-card__k:not(:only-child)) .asd-region-card__v {
+  /* 保底,不強制 */
+}
+
+/* ================================================================
+   2. 單行本一覽 Volume Overview(可折疊 <details>)
+   ================================================================ */
+.asd-vol-details {
+  border-radius: var(--asd-radius-md);
+  overflow: hidden;
+}
+.asd-vol-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: var(--trans-smooth);
+}
+.asd-vol-details > summary::-webkit-details-marker { display: none; }
+
+/* summary 前的箭頭 */
+.asd-vol-details > summary::before {
+  content: '▶';
+  font-size: .72rem;
+  color: var(--asd-text-dim);
+  transition: transform .2s ease;
+  flex-shrink: 0;
+}
+.asd-vol-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.asd-vol-details > summary:hover .asd-vol-toggle {
+  color: var(--asd-primary) !important;
+}
+
+/* summary 裡的 h2 標題:移除底線(details 已是獨立卡片) */
+.asd-vol-details > summary .asd-vol-toggle {
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+  cursor: pointer;
+}
+
+/* 表格外層可橫向捲動 */
+.asd-vol-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 12px;
+  padding-bottom: 4px;
+}
+.asd-vol-table-scroll::-webkit-scrollbar { height: 4px; }
+.asd-vol-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.15);
+  border-radius: 4px;
+}
+
+.asd-vol-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .80rem;
+}
+.asd-vol-table th,
+.asd-vol-table td {
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--asd-border);
+}
+.asd-vol-table thead th {
+  position: sticky;
+  top: 0;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--asd-text-dim);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  background: var(--asd-bg-card);
+}
+.asd-vol-table tbody td {
+  color: var(--asd-text-muted);
+}
+.asd-vol-table tbody tr:hover td {
+  background: rgba(255,255,255,.04);
+  color: var(--asd-text);
+}
+.asd-vol-table tbody tr:last-child td {
+  border-bottom: none;
+}
+/* 第一欄(卷號)強調 */
+.asd-vol-table tbody td:first-child {
+  color: var(--asd-primary);
+  font-weight: 700;
+}
+
+/* ================================================================
+   3. RWD
+   ================================================================ */
+@media (max-width: 768px) {
+  .asd-region-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .asd-region-grid {
+    grid-template-columns: 1fr;
+  }
+  .asd-vol-table th,
+  .asd-vol-table td {
+    padding: 6px 8px;
+    font-size: .75rem;
+  }
+}
+
+/* ====== 單行本封面牆（v1.4.0） ====== */
+.asd-vol-cover-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(90px,1fr));
+    gap:14px;
+    margin-bottom:22px;
+}
+.asd-vol-cover{
+    display:block;
+    text-decoration:none;
+    color:inherit;
+}
+.asd-vol-cover__img{
+    position:relative;
+    aspect-ratio:2/3;
+    border-radius:8px;
+    overflow:hidden;
+    background:#1a1a2e;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+}
+.asd-vol-cover__img img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+    transition:transform .25s ease;
+}
+.asd-vol-cover:hover .asd-vol-cover__img img{
+    transform:scale(1.06);
+}
+.asd-vol-cover__ph{
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#5a5a72;
+    font-size:1.5rem;
+    font-weight:700;
+    background:linear-gradient(135deg,#20203a,#141426);
+}
+.asd-vol-cover__num{
+    display:block;
+    text-align:center;
+    font-size:.82rem;
+    margin-top:5px;
+    color:var(--asd-text-muted,#8a8aa0);
+    font-weight:600;
+}
+@media (max-width:480px){
+    .asd-vol-cover-grid{
+        grid-template-columns:repeat(auto-fill,minmax(72px,1fr));
+        gap:10px;
+    }
+}
+
+/* ====== 外部連結卡片:wiki / 其他站(v1.5.0)====== */
+/* 若 anime-single.css 已定義 .asd-ext-link-card 基礎樣式,此處僅補新增變體 */
+.asd-ext--wiki .asd-ext-site,
+.asd-ext--ext  .asd-ext-site{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.asd-ext--wiki:hover{
+    border-color:rgba(255,255,255,.35);
+}
+.asd-ext--ext:hover{
+    border-color:var(--asd-primary,#6c8cff);
+}
+
+/* ====== 免費閱讀 / 試閱(M4)====== */
+.asd-preview-box{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:14px;
+    padding:16px 18px;
+    border-radius:var(--asd-radius-md);
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--asd-border);
+}
+.asd-preview-info{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    min-width:0;
+}
+.asd-preview-badge{
+    padding:4px 12px;
+    border-radius:20px;
+    font-size:.78rem;
+    font-weight:700;
+    color:#fff;
+    flex-shrink:0;
+    background:rgba(255,255,255,.15);
+}
+.asd-preview-badge--trial{   background:linear-gradient(135deg,#f59e0b,#f97316); }
+.asd-preview-badge--free{    background:linear-gradient(135deg,#10b981,#059669); }
+.asd-preview-badge--limited{ background:linear-gradient(135deg,#ec4899,#db2777); }
+.asd-preview-badge--agg{     background:linear-gradient(135deg,#6366f1,#a855f7); }
+.asd-preview-note{
+    font-size:.88rem;
+    color:var(--asd-text-muted);
+    overflow-wrap:anywhere;
+}
+.asd-preview-btn{
+    flex-shrink:0;
+}
+@media (max-width:480px){
+    .asd-preview-box{
+        flex-direction:column;
+        align-items:stretch;
+    }
+    .asd-preview-btn{
+        text-align:center;
+    }
+}
+

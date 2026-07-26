@@ -1,0 +1,289 @@
+<?php
+/**
+ * SMACG Social — Corrections 後台審核介面
+ *
+ * 把 wxacg_correction CPT 的後台列表改造成審核台：
+ *   - 自訂欄位：類別 / 作品（連編輯頁）/ 問題說明 / 來源 / 回報人 / 時間 / 狀態
+ *   - 每列操作：標記已修正 / 駁回（可填原因）
+ *   - 「已修正」會觸發 do_action('wxacg_correction_resolved', $post_id, $reporter, $anime_id)
+ *     由 corrections-notify.php 負責發通知 + 送 EXP
+ *
+ * @version 1.0.0
+ */
+
+namespace WXACG\Social;
+
+defined( 'ABSPATH' ) || exit;
+
+final class Corrections_Admin {
+
+    private static ?Corrections_Admin $instance = null;
+
+    public static function instance(): Corrections_Admin {
+        if ( self::$instance === null ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        $pt = Corrections_CPT::POST_TYPE;
+
+        // 自訂列表欄位
+        add_filter( "manage_{$pt}_posts_columns",        [ __CLASS__, 'columns' ] );
+        add_action( "manage_{$pt}_posts_custom_column",   [ __CLASS__, 'column_content' ], 10, 2 );
+
+        // 狀態篩選下拉
+        add_action( 'restrict_manage_posts', [ __CLASS__, 'status_filter' ] );
+        add_filter( 'parse_query',           [ __CLASS__, 'apply_status_filter' ] );
+
+        // 處理「已修正 / 駁回」動作
+        add_action( 'admin_post_wxacg_corr_resolve', [ __CLASS__, 'handle_resolve' ] );
+        add_action( 'admin_post_wxacg_corr_reject',  [ __CLASS__, 'handle_reject' ] );
+
+        // 後台通知條（成功/失敗提示）
+        add_action( 'admin_notices', [ __CLASS__, 'admin_notices' ] );
+    }
+
+    /* -------------------------------------------------- *
+     * 列表欄位定義
+     * -------------------------------------------------- */
+    public static function columns( array $cols ): array {
+        return [
+            'cb'          => $cols['cb'] ?? '<input type="checkbox" />',
+            'corr_cat'    => '類別',
+            'corr_target' => '作品',
+            'corr_detail' => '問題說明',
+            'corr_source' => '來源',
+            'corr_user'   => '回報人',
+            'corr_date'   => '回報時間',
+            'corr_status' => '狀態',
+            'corr_action' => '操作',
+        ];
+    }
+
+    public static function column_content( string $col, int $post_id ): void {
+        switch ( $col ) {
+
+            case 'corr_cat':
+                $cat = get_post_meta( $post_id, '_wxacg_corr_category', true );
+                echo esc_html( Corrections_CPT::category_label( $cat ) );
+                break;
+
+            case 'corr_target':
+                $aid = (int) get_post_meta( $post_id, '_wxacg_corr_anime_id', true );
+                if ( $aid ) {
+                    $edit = admin_url( 'post.php?post=' . $aid . '&action=edit' );
+                    printf(
+                        '<a href="%s" target="_blank"><strong>%s</strong></a><br><span style="color:#888;font-size:11px">%s · ID %d ↗</span>',
+                        esc_url( $edit ),
+                        esc_html( get_the_title( $aid ) ),
+                        esc_html( get_post_type( $aid ) ),
+                        $aid
+                    );
+                } else {
+                    echo '<span style="color:#c00">作品已不存在</span>';
+                }
+                break;
+
+            case 'corr_detail':
+                $detail = get_post_meta( $post_id, '_wxacg_corr_detail', true );
+                echo '<div style="max-width:340px;white-space:pre-wrap;line-height:1.5">'
+                   . esc_html( $detail ) . '</div>';
+                break;
+
+            case 'corr_source':
+                $src = get_post_meta( $post_id, '_wxacg_corr_source', true );
+                if ( $src ) {
+                    printf( '<a href="%s" target="_blank" rel="noopener">查看 ↗</a>', esc_url( $src ) );
+                } else {
+                    echo '<span style="color:#bbb">—</span>';
+                }
+                break;
+
+            case 'corr_user':
+                $uid  = (int) get_post_meta( $post_id, '_wxacg_corr_reporter', true );
+                $user = $uid ? get_userdata( $uid ) : null;
+                echo $user ? esc_html( $user->display_name ) : '<span style="color:#bbb">—</span>';
+                break;
+
+            case 'corr_date':
+                echo esc_html( get_the_date( 'Y-m-d H:i', $post_id ) );
+                break;
+
+            case 'corr_status':
+                self::render_status( get_post_meta( $post_id, '_wxacg_corr_status', true ) );
+                $note = get_post_meta( $post_id, '_wxacg_corr_admin_note', true );
+                if ( $note ) {
+                    echo '<br><span style="color:#888;font-size:11px">備註：' . esc_html( $note ) . '</span>';
+                }
+                break;
+
+            case 'corr_action':
+                self::render_actions( $post_id );
+                break;
+        }
+    }
+
+    private static function render_status( string $status ): void {
+        $map = [
+            'pending'  => [ '待處理', '#e6a700', 'rgba(230,167,0,.12)' ],
+            'resolved' => [ '已修正', '#2e7d32', 'rgba(46,125,50,.12)' ],
+            'rejected' => [ '已駁回', '#c62828', 'rgba(198,40,40,.12)' ],
+        ];
+        [ $label, $color, $bg ] = $map[ $status ] ?? [ $status ?: '未知', '#666', '#eee' ];
+        printf(
+            '<span style="display:inline-block;padding:2px 10px;border-radius:12px;color:%s;background:%s;font-size:12px;font-weight:600">%s</span>',
+            esc_attr( $color ), esc_attr( $bg ), esc_html( $label )
+        );
+    }
+
+    private static function render_actions( int $post_id ): void {
+        $status = get_post_meta( $post_id, '_wxacg_corr_status', true );
+        if ( $status !== 'pending' ) {
+            echo '<span style="color:#bbb">已處理</span>';
+            return;
+        }
+
+        // 標記已修正
+        $resolve = wp_nonce_url(
+            admin_url( 'admin-post.php?action=wxacg_corr_resolve&post_id=' . $post_id ),
+            'wxacg_corr_resolve_' . $post_id
+        );
+        printf(
+            '<a href="%s" class="button button-primary" style="margin-bottom:4px">✓ 標記已修正</a><br>',
+            esc_url( $resolve )
+        );
+
+        // 駁回（帶原因）：用小表單 POST
+        $reject_action = admin_url( 'admin-post.php' );
+        ?>
+        <form method="post" action="<?php echo esc_url( $reject_action ); ?>" style="margin-top:6px"
+              onsubmit="return confirm('確定駁回這筆回報？');">
+            <?php wp_nonce_field( 'wxacg_corr_reject_' . $post_id ); ?>
+            <input type="hidden" name="action" value="wxacg_corr_reject">
+            <input type="hidden" name="post_id" value="<?php echo esc_attr( $post_id ); ?>">
+            <input type="text" name="reason" placeholder="駁回原因（選填）"
+                   style="width:130px;font-size:11px;padding:3px 6px">
+            <button type="submit" class="button" style="font-size:11px">✕ 駁回</button>
+        </form>
+        <?php
+    }
+
+    /* -------------------------------------------------- *
+     * 狀態篩選下拉
+     * -------------------------------------------------- */
+    public static function status_filter(): void {
+        global $typenow;
+        if ( $typenow !== Corrections_CPT::POST_TYPE ) {
+            return;
+        }
+        $cur = isset( $_GET['corr_status'] ) ? sanitize_key( $_GET['corr_status'] ) : '';
+        $opts = [ '' => '全部狀態', 'pending' => '待處理', 'resolved' => '已修正', 'rejected' => '已駁回' ];
+        echo '<select name="corr_status">';
+        foreach ( $opts as $val => $label ) {
+            printf(
+                '<option value="%s"%s>%s</option>',
+                esc_attr( $val ), selected( $cur, $val, false ), esc_html( $label )
+            );
+        }
+        echo '</select>';
+    }
+
+    public static function apply_status_filter( $query ): void {
+        global $pagenow, $typenow;
+        if ( $pagenow !== 'edit.php' || $typenow !== Corrections_CPT::POST_TYPE || ! is_admin() ) {
+            return;
+        }
+        if ( ! empty( $_GET['corr_status'] ) ) {
+            $query->query_vars['meta_key']   = '_wxacg_corr_status';
+            $query->query_vars['meta_value'] = sanitize_key( $_GET['corr_status'] );
+        }
+    }
+
+    /* -------------------------------------------------- *
+     * 處理：標記已修正
+     * -------------------------------------------------- */
+    public static function handle_resolve(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( '權限不足' );
+        }
+        $post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
+        check_admin_referer( 'wxacg_corr_resolve_' . $post_id );
+
+        if ( ! $post_id || get_post_type( $post_id ) !== Corrections_CPT::POST_TYPE ) {
+            wp_die( '無效的回報' );
+        }
+
+        update_post_meta( $post_id, '_wxacg_corr_status', 'resolved' );
+        update_post_meta( $post_id, '_wxacg_corr_resolved_at', current_time( 'mysql' ) );
+
+        $reporter = (int) get_post_meta( $post_id, '_wxacg_corr_reporter', true );
+        $anime_id = (int) get_post_meta( $post_id, '_wxacg_corr_anime_id', true );
+
+        /**
+         * 觸發通知 + 送 EXP（由 corrections-notify.php 接手）
+         * @param int $post_id  回報記錄 ID
+         * @param int $reporter 回報會員 ID
+         * @param int $anime_id 被回報的作品 ID
+         */
+        do_action( 'wxacg_correction_resolved', $post_id, $reporter, $anime_id );
+
+        self::redirect_back( 'resolved' );
+    }
+
+    /* -------------------------------------------------- *
+     * 處理：駁回
+     * -------------------------------------------------- */
+    public static function handle_reject(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( '權限不足' );
+        }
+        $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+        check_admin_referer( 'wxacg_corr_reject_' . $post_id );
+
+        if ( ! $post_id || get_post_type( $post_id ) !== Corrections_CPT::POST_TYPE ) {
+            wp_die( '無效的回報' );
+        }
+
+        $reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';
+
+        update_post_meta( $post_id, '_wxacg_corr_status', 'rejected' );
+        if ( $reason ) {
+            update_post_meta( $post_id, '_wxacg_corr_admin_note', $reason );
+        }
+
+        // 駁回也發一個 hook，供未來擴充（目前 notify 可選擇要不要通知）
+        $reporter = (int) get_post_meta( $post_id, '_wxacg_corr_reporter', true );
+        do_action( 'wxacg_correction_rejected', $post_id, $reporter, $reason );
+
+        self::redirect_back( 'rejected' );
+    }
+
+    private static function redirect_back( string $result ): void {
+        $url = add_query_arg(
+            [ 'post_type' => Corrections_CPT::POST_TYPE, 'corr_done' => $result ],
+            admin_url( 'edit.php' )
+        );
+        wp_safe_redirect( $url );
+        exit;
+    }
+
+    /* -------------------------------------------------- *
+     * 後台提示條
+     * -------------------------------------------------- */
+    public static function admin_notices(): void {
+        if ( empty( $_GET['corr_done'] ) ) {
+            return;
+        }
+        $done = sanitize_key( $_GET['corr_done'] );
+        $msg  = [
+            'resolved' => [ 'notice-success', '已標記為「已修正」，並已通知回報會員 + 發放經驗值。' ],
+            'rejected' => [ 'notice-warning', '已駁回這筆回報。' ],
+        ];
+        if ( isset( $msg[ $done ] ) ) {
+            [ $class, $text ] = $msg[ $done ];
+            printf( '<div class="notice %s is-dismissible"><p>%s</p></div>', esc_attr( $class ), esc_html( $text ) );
+        }
+    }
+}

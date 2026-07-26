@@ -1,0 +1,334 @@
+/**
+ * Archive Manga — 漫畫列表頁樣式
+ *
+ * File: anime-sync-pro/public/assets/css/archive-manga.css
+ * Version: 1.0.0
+ *
+ * 對應 archive-manga.php 使用的 .aaa-* class。
+ * 風格比照 archive-series.css(深色玻璃卡片),讓漫畫列表頁
+ * 跟系列頁 / 單篇頁視覺一致。
+ */
+
+.aaa-wrap {
+	--aaa-primary:    #7c5cff;
+	--aaa-primary-2:  #4cc9f0;
+	--aaa-bg:         #07111f;
+	--aaa-bg-3:       #10213f;
+	--aaa-text:       #f7f9ff;
+	--aaa-text-muted: rgba(247,249,255,0.62);
+	--aaa-text-faint: rgba(247,249,255,0.42);
+	--aaa-border:     rgba(255,255,255,0.10);
+	--aaa-surface:    rgba(10,20,40,0.55);
+	--aaa-surface-2:  rgba(10,20,40,0.70);
+	--aaa-radius-sm:  10px;
+	--aaa-radius-md:  18px;
+	--aaa-radius-pill: 999px;
+	--aaa-shadow-sm:  0 8px 24px rgba(0,0,0,0.28);
+	--aaa-shadow-md:  0 16px 40px rgba(0,0,0,0.38);
+	--aaa-transition: .25s ease;
+
+	position: relative;
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: 0 20px 80px;
+	color: var(--aaa-text);
+	box-sizing: border-box;
+}
+
+.aaa-wrap *,
+.aaa-wrap *::before,
+.aaa-wrap *::after {
+	box-sizing: border-box;
+}
+
+.aaa-wrap::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	background:
+		radial-gradient(circle at 15% 10%, rgba(124,92,255,0.20), transparent 32%),
+		radial-gradient(circle at 85% 8%,  rgba(76,201,240,0.14), transparent 28%),
+		linear-gradient(180deg, #07111f 0%, #091426 45%, #0a1730 100%);
+	pointer-events: none;
+}
+
+/* 麵包屑 */
+.aaa-breadcrumb {
+	margin: 20px 0 0;
+	padding: 12px 20px;
+	border-radius: var(--aaa-radius-pill);
+	background: var(--aaa-surface);
+	border: 1px solid var(--aaa-border);
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
+	display: inline-block;
+}
+.aaa-breadcrumb ol {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: 13px;
+	color: var(--aaa-text-muted);
+}
+.aaa-breadcrumb li + li::before {
+	content: '/';
+	margin-right: 6px;
+	color: var(--aaa-text-faint);
+}
+.aaa-breadcrumb a { color: var(--aaa-text); text-decoration: none; opacity: .8; }
+.aaa-breadcrumb a:hover { opacity: 1; }
+
+/* Header */
+.aaa-header { padding: 40px 0 24px; text-align: center; }
+.aaa-title {
+	font-size: clamp(1.6rem, 4vw, 2.4rem);
+	font-weight: 900;
+	margin: 0 0 10px;
+	color: #fff;
+}
+.aaa-desc {
+	max-width: 680px;
+	margin: 0 auto 6px;
+	font-size: .95rem;
+	line-height: 1.75;
+	color: var(--aaa-text-muted);
+}
+.aaa-count { margin-top: 10px; font-size: .9rem; color: var(--aaa-text-muted); }
+.aaa-count strong { color: var(--aaa-primary-2); }
+
+/* 搜尋 */
+.aaa-search-wrap { max-width: 480px; margin: 24px auto; }
+.aaa-search-inner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	background: var(--aaa-surface);
+	border: 1px solid var(--aaa-border);
+	border-radius: var(--aaa-radius-pill);
+}
+.aaa-search-icon { font-size: 14px; opacity: .7; }
+.aaa-search-input {
+	flex: 1;
+	background: transparent;
+	border: none;
+	outline: none;
+	color: var(--aaa-text);
+	font-size: 14px;
+	padding: 8px 4px;
+}
+.aaa-search-input::placeholder { color: var(--aaa-text-faint); }
+.aaa-search-btn {
+	padding: 8px 18px;
+	border: none;
+	border-radius: var(--aaa-radius-pill);
+	background: linear-gradient(135deg, var(--aaa-primary), #9d6bff);
+	color: #fff;
+	font-weight: 700;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+/* 類型篩選 */
+.aaa-filter-wrap { margin-bottom: 28px; }
+.aaa-filter-label {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--aaa-text-muted);
+	margin-bottom: 10px;
+}
+.aaa-filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.aaa-filter-btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 6px 14px;
+	border-radius: var(--aaa-radius-pill);
+	font-size: 13px;
+	font-weight: 600;
+	text-decoration: none;
+	color: var(--aaa-text-muted);
+	background: rgba(255,255,255,0.05);
+	border: 1px solid var(--aaa-border);
+	transition: all var(--aaa-transition);
+}
+.aaa-filter-btn:hover { color: #fff; background: rgba(124,92,255,0.18); }
+.aaa-filter-btn.active {
+	color: #fff;
+	background: linear-gradient(135deg, var(--aaa-primary), #9d6bff);
+	border-color: transparent;
+}
+
+/* 卡片網格 */
+.aaa-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	gap: 18px;
+}
+
+.aaa-card {
+	border-radius: var(--aaa-radius-md);
+	overflow: hidden;
+	background: var(--aaa-surface);
+	border: 1px solid var(--aaa-border);
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
+	box-shadow: var(--aaa-shadow-sm);
+	transition: transform var(--aaa-transition), box-shadow var(--aaa-transition), border-color var(--aaa-transition);
+}
+.aaa-card:hover {
+	transform: translateY(-6px);
+	box-shadow: var(--aaa-shadow-md);
+	border-color: rgba(124,92,255,0.35);
+}
+.aaa-card-link { display: block; text-decoration: none; color: inherit; }
+
+.aaa-card-cover-wrap {
+	position: relative;
+	aspect-ratio: 2 / 3;
+	overflow: hidden;
+	background: var(--aaa-bg-3);
+}
+.aaa-card-cover {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+	transition: transform .38s ease;
+}
+.aaa-card:hover .aaa-card-cover { transform: scale(1.06); }
+.aaa-no-cover {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: var(--aaa-text-faint);
+	font-size: 13px;
+	background: linear-gradient(135deg, #0d1d38, #101d35);
+}
+
+.aaa-status-badge {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	padding: 3px 9px;
+	border-radius: var(--aaa-radius-pill);
+	font-size: 11px;
+	font-weight: 700;
+	backdrop-filter: blur(8px);
+}
+.s-fin { background: rgba(52,211,153,0.20);  color: #34d399; border: 1px solid rgba(52,211,153,0.36); }
+.s-rel { background: rgba(76,201,240,0.20);  color: #4cc9f0; border: 1px solid rgba(76,201,240,0.36); }
+.s-pre { background: rgba(251,191,36,0.20);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.36); }
+.s-can { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
+.s-hia { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
+
+.aaa-score-badge {
+	position: absolute;
+	bottom: 8px;
+	right: 8px;
+	background: rgba(0,0,0,0.72);
+	backdrop-filter: blur(8px);
+	color: #fbbf24;
+	padding: 3px 8px;
+	border-radius: var(--aaa-radius-pill);
+	font-size: 11px;
+	font-weight: 800;
+	border: 1px solid rgba(251,191,36,0.28);
+}
+
+.aaa-card-body { padding: 10px 12px 12px; background: var(--aaa-surface-2); }
+.aaa-card-title {
+	font-size: 13px;
+	font-weight: 700;
+	margin: 0 0 4px;
+	line-height: 1.45;
+	color: #fff;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+.aaa-card-native {
+	font-size: 11px;
+	color: var(--aaa-text-faint);
+	margin: 0 0 3px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.aaa-card-romaji {
+	font-size: 11px;
+	color: var(--aaa-text-faint);
+	margin: 0 0 7px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.aaa-card-meta { display: flex; flex-wrap: wrap; gap: 4px; }
+.aaa-meta-tag { font-size: 11px; padding: 2px 7px; border-radius: var(--aaa-radius-pill); font-weight: 600; }
+.aaa-meta-format { background: rgba(124,92,255,0.20); color: #b8a0ff; border: 1px solid rgba(124,92,255,0.34); }
+.aaa-meta-ep     { background: rgba(76,201,240,0.16); color: #4cc9f0; border: 1px solid rgba(76,201,240,0.30); }
+
+/* 分頁 */
+.aaa-pagination { margin-top: 40px; display: flex; justify-content: center; }
+.aaa-pagination ul.page-numbers {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.aaa-pagination .page-numbers li a.page-numbers,
+.aaa-pagination .page-numbers li span.page-numbers {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 36px;
+	height: 36px;
+	padding: 0 10px;
+	border-radius: var(--aaa-radius-sm);
+	background: var(--aaa-surface);
+	border: 1px solid var(--aaa-border);
+	color: var(--aaa-text-muted);
+	text-decoration: none;
+	font-size: 13px;
+	transition: all var(--aaa-transition);
+}
+.aaa-pagination .page-numbers li a.page-numbers:hover { color: #fff; background: rgba(124,92,255,0.18); }
+.aaa-pagination .page-numbers li span.page-numbers.current {
+	color: #fff;
+	background: linear-gradient(135deg, var(--aaa-primary), #9d6bff);
+	border-color: transparent;
+}
+
+/* 空狀態 */
+.aaa-empty { text-align: center; padding: 80px 20px; color: var(--aaa-text-muted); }
+.aaa-empty p { font-size: 1.05rem; margin: 0 0 18px; }
+.aaa-import-btn {
+	display: inline-flex;
+	align-items: center;
+	min-height: 42px;
+	padding: 0 22px;
+	background: linear-gradient(135deg, var(--aaa-primary), #9d6bff);
+	color: #fff;
+	border-radius: var(--aaa-radius-pill);
+	text-decoration: none;
+	font-weight: 700;
+	box-shadow: 0 10px 26px rgba(124,92,255,0.32);
+}
+
+/* RWD */
+@media (max-width: 720px) {
+	.aaa-wrap { padding: 0 14px 60px; }
+	.aaa-header { padding: 28px 0 18px; }
+}
+@media (max-width: 480px) {
+	.aaa-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+	.aaa-card-body { padding: 8px 9px 10px; }
+	.aaa-card-title { font-size: 12px; }
+}

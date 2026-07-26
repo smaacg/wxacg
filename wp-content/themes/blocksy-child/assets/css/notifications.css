@@ -1,0 +1,682 @@
+/**
+ * Notifications System Styles
+ *
+ * Version: 1.2.0 (2026-06-10)
+ *
+ * CHANGELOG:
+ * v1.2.0 - 修正手機版鈴鐺下拉面板被父層約束、文字擠成一字一行的問題：
+ *          斷點 640px → 768px；面板 position/left/right/width 加 !important
+ *          並補 max-width:none，強制 fixed 全寬釘在 viewport。
+ * v1.1.0 - 對齊 notifications-render.php v1.1.0 的新版 class 命名
+ *          (smacg-notif-page-header / smacg-notif-item-title / -excerpt / -badge)
+ *          新增 rank_up 配色（金黃漸層）
+ *          修正 <a class="smacg-notif-item"> 整張卡的 link color 反藍問題
+ *          標題列、未讀徽章、avatar+icon 疊加樣式
+ *          保留 v1.0.3 鈴鐺面板樣式
+ * v1.0.3 - 修正：.smacg-bell-panel[hidden] 強制 display:none
+ * v1.0.2 - 鈴鐺改為 header.php inline 渲染
+ * v1.0.0 - 初版
+ *
+ * @package Blocksy_Child
+ */
+
+/* =====================================================
+   1. 鈴鐺按鈕（inline，嵌於 .header-actions）
+   ===================================================== */
+.smacg-bell-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-right: 8px;
+}
+.smacg-bell-wrap.smacg-bell-inline .smacg-bell {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #e6e9f2;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s ease, transform .15s ease, border-color .15s ease;
+    padding: 0;
+    position: relative;
+}
+.smacg-bell-wrap.smacg-bell-inline .smacg-bell:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1px);
+}
+.smacg-bell-wrap.smacg-bell-inline .smacg-bell i {
+    font-size: 16px;
+}
+
+/* 未讀紅點 */
+.smacg-bell-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #ff4d6d;
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    font-weight: 700;
+    box-shadow: 0 0 0 2px #0f1117;
+    pointer-events: none;
+}
+.smacg-bell-dot[hidden] { display: none !important; }
+
+/* =====================================================
+   2. 鈴鐺下拉面板
+   ===================================================== */
+.smacg-bell-wrap .smacg-bell-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 360px;
+    max-height: 70vh;
+    background: #1a1d2e;
+    color: #e6e9f2;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 9990;
+}
+.smacg-bell-wrap .smacg-bell-panel[hidden] {
+    display: none !important;
+}
+.smacg-bell-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+.smacg-bell-panel-header strong {
+    font-size: 15px;
+    color: #fff;
+}
+.smacg-bell-mark-all {
+    background: transparent;
+    border: 0;
+    color: #6bb6ff;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background .15s ease;
+}
+.smacg-bell-mark-all:hover {
+    background: rgba(107, 182, 255, 0.1);
+}
+.smacg-bell-panel-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 50vh;
+}
+.smacg-bell-loading,
+.smacg-bell-empty {
+    padding: 30px 16px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+}
+.smacg-bell-empty i {
+    display: block;
+    font-size: 28px;
+    margin-bottom: 8px;
+    opacity: .5;
+}
+.smacg-bell-empty p { margin: 0; }
+
+.smacg-bell-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background .15s ease;
+    text-decoration: none;
+    color: inherit;
+}
+.smacg-bell-item:hover { background: rgba(255, 255, 255, 0.04); }
+.smacg-bell-item:last-child { border-bottom: 0; }
+.smacg-bell-item.is-unread { background: rgba(107, 182, 255, 0.06); }
+.smacg-bell-item.is-unread::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6bb6ff;
+    margin-top: 8px;
+    flex-shrink: 0;
+}
+.smacg-bell-item-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #6bb6ff;
+    font-size: 14px;
+}
+.smacg-bell-item-body { flex: 1; min-width: 0; }
+.smacg-bell-item-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #e6e9f2;
+    margin: 0 0 4px;
+    word-break: break-word;
+}
+.smacg-bell-item-time {
+    font-size: 11px;
+    color: #9ca3af;
+}
+.smacg-bell-panel-footer {
+    padding: 10px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: center;
+    flex-shrink: 0;
+}
+.smacg-bell-panel-footer a {
+    color: #6bb6ff;
+    font-size: 13px;
+    text-decoration: none;
+    transition: color .15s ease;
+}
+.smacg-bell-panel-footer a:hover { color: #9bcaff; }
+
+/* RWD：鈴鐺面板（v1.2.0 — 斷點 640→768，強制 fixed 全寬，修正文字擠成一字一行） */
+@media (max-width: 768px) {
+    .smacg-bell-wrap { margin-right: 4px; }
+    .smacg-bell-wrap.smacg-bell-inline .smacg-bell {
+        width: 36px;
+        height: 36px;
+    }
+    .smacg-bell-wrap .smacg-bell-panel {
+        position: fixed !important;
+        top: 60px;
+        right: 8px !important;
+        left: 8px !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: calc(100vh - 80px);
+    }
+    body.admin-bar .smacg-bell-wrap .smacg-bell-panel {
+        top: 106px;
+        max-height: calc(100vh - 120px);
+    }
+}
+
+/* =====================================================
+   3. 會員中心 — 通知 tab（v1.1.0 全面對齊新版 class）
+   ===================================================== */
+.smacg-notif-page {
+    padding: 8px 0 24px;
+}
+
+/* ---- 3.1 標題列 ---- */
+.smacg-notif-page-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.smacg-notif-page-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+.smacg-notif-page-header h2 > i {
+    color: #ffb84d;
+    font-size: 22px;
+}
+.smacg-notif-page-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #ff4d6d 0%, #ff7e5f 100%);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(255, 77, 109, 0.35);
+}
+.smacg-notif-page-count:empty,
+.smacg-notif-page-count[data-unread-badge="0"] {
+    display: none;
+}
+
+/* ---- 3.2 工具列（filter + mark all） ---- */
+.smacg-notif-page-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.smacg-notif-filter {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #c9cdd9;
+    padding: 6px 14px;
+    border-radius: 18px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all .15s ease;
+}
+.smacg-notif-filter:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+.smacg-notif-filter.active,
+.smacg-notif-filter.is-active {
+    background: linear-gradient(135deg, #6bb6ff 0%, #4a90e2 100%);
+    border-color: transparent;
+    color: #0f1117;
+    font-weight: 700;
+    box-shadow: 0 2px 10px rgba(107, 182, 255, 0.3);
+}
+.smacg-notif-mark-all {
+    background: transparent;
+    border: 1px solid rgba(107, 182, 255, 0.35);
+    color: #6bb6ff;
+    padding: 6px 14px;
+    border-radius: 18px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .15s ease;
+}
+.smacg-notif-mark-all:hover:not(:disabled) {
+    background: rgba(107, 182, 255, 0.12);
+    border-color: rgba(107, 182, 255, 0.6);
+}
+.smacg-notif-mark-all:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+}
+
+/* ---- 3.3 通知列表 ---- */
+.smacg-notif-page-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 整張卡是 <a>，移除藍色底線、繼承文字色 */
+.smacg-notif-item,
+.smacg-notif-item:link,
+.smacg-notif-item:visited {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    transition: background .18s ease, border-color .18s ease, transform .18s ease;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+}
+.smacg-notif-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+.smacg-notif-item.is-unread {
+    background: linear-gradient(135deg, rgba(107, 182, 255, 0.08) 0%, rgba(107, 182, 255, 0.03) 100%);
+    border-color: rgba(107, 182, 255, 0.25);
+}
+.smacg-notif-item.is-unread::after {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 14px;
+    bottom: 14px;
+    width: 3px;
+    background: linear-gradient(180deg, #6bb6ff 0%, #4a90e2 100%);
+    border-radius: 3px;
+    box-shadow: 0 0 8px rgba(107, 182, 255, 0.5);
+}
+
+/* ---- 3.4 圖示（avatar + badge 疊加 / 純 badge） ---- */
+.smacg-notif-item-icon {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+}
+.smacg-notif-item-icon img {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+/* 有 avatar 時，badge 縮小貼右下角 */
+.smacg-notif-item-icon img + .smacg-notif-item-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #1a1d2e;
+    border: 2px solid #0f1117;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #fff;
+}
+/* 無 avatar 時，badge 撐滿整個 icon 區（圓形大圖） */
+.smacg-notif-item-badge--lg {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6bb6ff;
+    font-size: 18px;
+}
+
+/* 各 type 顏色 — 套用在 badge / badge--lg */
+.smacg-notif-item[data-type="follow"]        .smacg-notif-item-badge { background: linear-gradient(135deg,#ff6b9d,#ff4d6d); color:#fff; }
+.smacg-notif-item[data-type="comment_reply"] .smacg-notif-item-badge { background: linear-gradient(135deg,#6bb6ff,#4a90e2); color:#fff; }
+.smacg-notif-item[data-type="rating"]        .smacg-notif-item-badge { background: linear-gradient(135deg,#ffb84d,#ff8c42); color:#fff; }
+.smacg-notif-item[data-type="level_up"]      .smacg-notif-item-badge { background: linear-gradient(135deg,#b66bff,#8b5cf6); color:#fff; }
+.smacg-notif-item[data-type="rank_up"]       .smacg-notif-item-badge { background: linear-gradient(135deg,#ffd24d,#f0a020); color:#fff; }
+.smacg-notif-item[data-type="badge"]         .smacg-notif-item-badge { background: linear-gradient(135deg,#ffd24d,#ffb84d); color:#fff; }
+.smacg-notif-item[data-type="system"]        .smacg-notif-item-badge { background: linear-gradient(135deg,#9ca3af,#6b7280); color:#fff; }
+
+/* ---- 3.5 內容區 ---- */
+.smacg-notif-item-body {
+    flex: 1;
+    min-width: 0;
+}
+.smacg-notif-item-title {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: #fff;
+    word-break: break-word;
+}
+.smacg-notif-item-excerpt {
+    margin: 0 0 6px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #c9cdd9;
+    word-break: break-word;
+    /* 最多兩行 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.smacg-notif-item-time {
+    margin: 0;
+    font-size: 11px;
+    color: #8b8f9c;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.smacg-notif-item-time::before {
+    content: '\f017';   /* fa-clock */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 400;
+    font-size: 10px;
+    opacity: .7;
+}
+
+/* ---- 3.6 刪除按鈕 ---- */
+.smacg-notif-item-delete {
+    background: transparent;
+    border: 0;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+    align-self: flex-start;
+    transition: background .15s ease, color .15s ease;
+}
+.smacg-notif-item-delete:hover {
+    background: rgba(255, 77, 109, 0.12);
+    color: #ff6b9d;
+}
+
+/* ---- 3.7 空狀態 ---- */
+.smacg-notif-empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: #9ca3af;
+}
+.smacg-notif-empty i {
+    display: block;
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: .4;
+}
+.smacg-notif-empty p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* ---- 3.8 載入更多 ---- */
+.smacg-notif-page-more {
+    text-align: center;
+    margin-top: 18px;
+}
+.smacg-notif-loadmore {
+    background: rgba(107, 182, 255, 0.1);
+    border: 1px solid rgba(107, 182, 255, 0.3);
+    color: #6bb6ff;
+    padding: 10px 24px;
+    border-radius: 24px;
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .18s ease;
+}
+.smacg-notif-loadmore:hover {
+    background: rgba(107, 182, 255, 0.18);
+    border-color: rgba(107, 182, 255, 0.55);
+}
+.smacg-notif-loadmore:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+/* =====================================================
+   4. 設定頁 - 通知偏好卡片（不變）
+   ===================================================== */
+.mc-set-card--notif-prefs .notif-prefs-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+.mc-set-card--notif-prefs .notif-prefs-table thead th {
+    text-align: center;
+    padding: 10px 8px;
+    font-size: 12px;
+    color: #9ca3af;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.mc-set-card--notif-prefs .notif-prefs-table thead th:first-child {
+    text-align: left;
+}
+.mc-set-card--notif-prefs .notif-prefs-table tbody td {
+    padding: 12px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
+}
+.mc-set-card--notif-prefs .notif-prefs-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+.notif-prefs-type {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.notif-prefs-type i {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+    color: #6bb6ff;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.notif-prefs-type .name {
+    font-size: 14px;
+    color: #e6e9f2;
+    font-weight: 500;
+}
+.notif-prefs-type .desc {
+    display: block;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 2px;
+}
+.notif-prefs-toggle { text-align: center; }
+.notif-prefs-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #6bb6ff;
+}
+.notif-prefs-digest {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.notif-prefs-digest label { font-size: 14px; color: #c9cdd9; }
+.notif-prefs-digest select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e6e9f2;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.notif-prefs-digest select:focus {
+    outline: none;
+    border-color: #6bb6ff;
+}
+.notif-prefs-digest .desc {
+    flex: 1 1 100%;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 4px;
+}
+.notif-prefs-status {
+    margin-top: 12px;
+    font-size: 13px;
+    min-height: 20px;
+    transition: opacity .3s ease;
+}
+.notif-prefs-status.is-ok  { color: #6bff9d; }
+.notif-prefs-status.is-err { color: #ff6b9d; }
+.notif-prefs-status.is-saving { color: #9ca3af; }
+
+/* =====================================================
+   5. RWD
+   ===================================================== */
+@media (max-width: 640px) {
+    .smacg-notif-page-header {
+        gap: 10px;
+    }
+    .smacg-notif-page-header h2 {
+        font-size: 17px;
+    }
+    .smacg-notif-page-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+    .smacg-notif-filter {
+        padding: 5px 12px;
+        font-size: 12px;
+    }
+    .smacg-notif-mark-all {
+        padding: 5px 12px;
+        font-size: 12px;
+    }
+    .smacg-notif-item {
+        padding: 12px;
+        gap: 10px;
+    }
+    .smacg-notif-item-icon,
+    .smacg-notif-item-icon img,
+    .smacg-notif-item-badge--lg {
+        width: 38px;
+        height: 38px;
+    }
+    .smacg-notif-item-badge--lg { font-size: 15px; }
+    .smacg-notif-item-title { font-size: 13px; }
+    .smacg-notif-item-excerpt { font-size: 12px; }
+
+    /* 設定頁通知偏好 */
+    .mc-set-card--notif-prefs .notif-prefs-table thead th {
+        font-size: 11px;
+        padding: 8px 4px;
+    }
+    .mc-set-card--notif-prefs .notif-prefs-table tbody td {
+        padding: 10px 4px;
+    }
+    .notif-prefs-type { gap: 6px; }
+    .notif-prefs-type i { width: 24px; height: 24px; font-size: 11px; }
+    .notif-prefs-type .name { font-size: 13px; }
+    .notif-prefs-type .desc { font-size: 11px; }
+}

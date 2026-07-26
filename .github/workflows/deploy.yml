@@ -1,0 +1,25 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  web-deploy:
+    name: FTP Deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: 取得最新程式碼
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+      
+    - name: 透過 FTP 同步檔案到主機
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        # 既然 Hostinger FTP 登入後已經在 public_html 裡面，這裡設定為根目錄 ./ 即可
+        server-dir: ./
