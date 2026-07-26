@@ -367,11 +367,21 @@ class Anime_Sync_YouTube_Playlist_Sync {
 
         // 蒐集欄位裡「已存在的 video_id」,去重用
         $existing_ids = [];
+        $new_lines = [];
         foreach ( (array) $lines as $l ) {
             if ( preg_match( '#(?:youtu\.be/|[?&]v=|/embed/|/shorts/)([A-Za-z0-9_-]{6,})#', (string) $l, $mm ) ) {
+                if ( $force ) {
+                    // 手動同步時，直接捨棄舊的 YouTube 連結，準備重新抓取以修正排序
+                    continue;
+                }
                 $existing_ids[ $mm[1] ] = true;
+                $new_lines[] = $l;
+            } else {
+                // 非 YouTube 連結，永遠保留
+                $new_lines[] = $l;
             }
         }
+        $lines = $new_lines;
 
         foreach ( $videos as $v ) {
             // 1) 先過 PV/預告/OP/ED/主題曲 黑名單 → 命中就略過
