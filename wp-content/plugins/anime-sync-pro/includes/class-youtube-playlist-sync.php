@@ -68,8 +68,6 @@ class Anime_Sync_YouTube_Playlist_Sync {
         '本予告', '特報', '弾', 'digest', 'ダイジェスト',
         '精華', 'highlight', 'ハイライト',
         '片頭', '片尾', '歌詞', 'lyric',
-        ' OP', 'OP ', 'OP】', '【OP',
-        ' ED', 'ED ', 'ED】', '【ED',
     ];
 
     public function __construct() {
@@ -210,7 +208,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
         }
 
         if ( ! wp_next_scheduled( 'asp_yt_sync_single_bg', [ $post_id ] ) ) {
-            wp_schedule_single_event( time() + 5, 'asp_yt_sync_single_bg', [ $post_id ] );
+            wp_schedule_single_event( time() + 5, 'asp_yt_sync_single_bg', [ $post_id ] ) ;
         }
     }
 
@@ -529,6 +527,11 @@ class Anime_Sync_YouTube_Playlist_Sync {
     }
 
     private function is_pv_title( string $title ): bool {
+        // 獨立判斷 OP / ED，前後不可有英文字母 (避免英文字母裡剛好包含 ed/op 導致誤判，例如 Need)
+        if ( preg_match( '/(?<![a-zA-Z])(?:OP|ED)(?![a-zA-Z])/i', $title ) ) {
+            return true;
+        }
+
         $lower = mb_strtolower( $title );
         foreach ( self::PV_KEYWORDS as $kw ) {
             if ( mb_stripos( $lower, mb_strtolower( $kw ) ) !== false ) {
