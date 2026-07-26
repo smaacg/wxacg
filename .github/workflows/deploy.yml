@@ -15,11 +15,15 @@ jobs:
       with:
         fetch-depth: 2
       
+    - name: 偵測 FTP 目錄結構 (除錯用)
+      run: curl -s -l ftp://${{ secrets.FTP_SERVER }} --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+
+      
     - name: 透過 FTP 同步檔案到主機
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        # 將目的地指向 Hostinger 主帳號的預設網頁根目錄
-        server-dir: ./domains/weixiaoacg.com/public_html/
+        # 暫時改回根目錄以避免 Timeout
+        server-dir: ./
