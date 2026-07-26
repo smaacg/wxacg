@@ -21,5 +21,5 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        # 既然 Hostinger FTP 登入後已經在 public_html 裡面，這裡設定為根目錄 ./ 即可
-        server-dir: ./
+        # 將目的地指向 Hostinger 的網頁根目錄
+        server-dir: ./public_html/
