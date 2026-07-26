@@ -66,6 +66,10 @@ class Anime_Sync_YouTube_Playlist_Sync {
         'character', 'キャラクター', '聲優', '声優', 'interview', 'インタビュー',
         'OP主題', 'ED主題', 'OP theme', 'ED theme', 'MV', 'spot',
         '本予告', '特報', '弾', 'digest', 'ダイジェスト',
+        '精華', 'highlight', 'ハイライト',
+        '片頭', '片尾', '歌詞', 'lyric',
+        ' OP', 'OP ', 'OP】', '【OP',
+        ' ED', 'ED ', 'ED】', '【ED',
     ];
 
     public function __construct() {
