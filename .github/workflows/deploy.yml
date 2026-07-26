@@ -14,16 +14,11 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 2
-      
-    - name: 偵測 FTP 目錄結構 (除錯用)
-      run: curl -s -l ftp://${{ secrets.FTP_SERVER }} --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
-
-      
     - name: 透過 FTP 同步檔案到主機
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        # 暫時改回根目錄以避免 Timeout
-        server-dir: ./
+        # 精準指向 Hostinger 真實網站資料夾
+        server-dir: domains/weixiaoacg.com/public_html/
