@@ -80,7 +80,6 @@ $optional = [
     'image-optimizer',
     'ajax-news-filter',
     'search-hot',        // ★v2.25.0 熱門/最近搜尋 REST（有 file_exists 保護）
-    'wpdiscuz-spoiler-button',   // ★ 加這行
 ];
 
 
