@@ -217,12 +217,12 @@ add_action( 'wp_enqueue_scripts', function () {
 
         // 評分腳本只給動畫；漫畫只載追蹤相關
         $status_js = [
-            'weixiaoacg-anime-js' => 'anime.js',
-            'smacg-anime-status'  => 'anime-status.js',
+            'weixiaoacg-anime-js'  => 'anime.js',
+            'smacg-anime-status'   => 'anime-status.js',
+            'smacg-comment-rating' => 'comment-rating.js',  // anime + manga 都載，留言顯示評分小標
         ];
         if ( is_singular( 'anime' ) ) {
-            $status_js['smacg-anime-rating']  = 'anime-rating.js';
-            $status_js['smacg-comment-rating'] = 'comment-rating.js';
+            $status_js['smacg-anime-rating'] = 'anime-rating.js';
         }
 
         foreach ( $status_js as $h => $f ) {
