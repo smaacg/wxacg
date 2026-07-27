@@ -133,7 +133,7 @@ final class Wxacg_Catalog_Api_Cache {
 	}
 
 	public function invalidate_meta(
-		int $meta_id,
+		$meta_id,
 		int $post_id,
 		string $meta_key,
 		$meta_value
