@@ -546,15 +546,19 @@ class Anime_Sync_Cron_Manager {
 
         $items = [];
         foreach ( $candidate_ids as $id ) {
+
             $id = (int) $id;
 
-            // 排除 MOVIE / OVA / SPECIAL
+            $status = (string) get_post_meta( $id, 'anime_status', true );
+
+            // ✅ 只排除「已完結」的 MOVIE / OVA / SPECIAL（狀態不會再變）；
+            //    尚未播出 / 放映中的特別篇、劇場版、OVA 仍需納入，才能讓
+            //    開播即完結的單集作品狀態被 cron 自動翻正。
             $format = (string) get_post_meta( $id, 'anime_format', true );
-            if ( $format !== '' && in_array( $format, $excluded_formats, true ) ) {
+            if ( $status === 'FINISHED'
+                 && in_array( $format, $excluded_formats, true ) ) {
                 continue;
             }
-
-            $status = (string) get_post_meta( $id, 'anime_status', true );
 
             if ( $status === 'RELEASING' ) {
                 $start   = (int) get_post_meta( $id, 'anime_start_date', true );
