@@ -623,6 +623,113 @@ add_action( 'wp_footer', function () {
 }, 100 );
 
 
+/**
+ * 前端注入 wpDiscuz「暴雷（Spoiler）」按鈕。
+ * wpdiscuz_editor_buttons PHP filter 在此環境不生效（與 /user/ 改寫同樣情形），
+ * 改用 DOM 注入 + 自實作點擊邏輯，產生核心可辨識的 [spoiler title="..."] 短碼。
+ * 用法：留言框先反白選取要遮的文字 → 點暴雷按鈕 → 輸入提示標題 → 送出。
+ * @since 2.25.0
+ */
+add_action( 'wp_footer', function () {
+    if ( ! is_singular( [ 'anime', 'manga' ] ) ) return;
+    ?>
+    <script>
+    (function () {
+        var SPOILER_TITLE_PROMPT = '請輸入暴雷提示標題（例如：劇情雷、結局雷）';
+
+        // 眼睛-劃掉 圖示
+        var ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+        function insertSpoiler(toolbar) {
+            // wpDiscuz 工具列 id：wpd-editor-toolbar-<uid>；編輯器容器 id：wpd-editor-<uid>
+            var tid = toolbar.id || '';
+            var uid = tid.replace('wpd-editor-toolbar-', '');
+            var editorEl = document.getElementById('wpd-editor-' + uid);
+            if (!editorEl) return;
+
+            var qlEditor = editorEl.querySelector('.ql-editor');
+            if (!qlEditor) return;
+
+            var title = window.prompt(SPOILER_TITLE_PROMPT);
+            if (title === null) return;           // 使用者按取消
+            title = title.trim();
+            if (title === '') title = '暴雷';
+
+            var selText = '';
+            var sel = window.getSelection();
+            if (sel && sel.rangeCount > 0 && qlEditor.contains(sel.anchorNode)) {
+                selText = sel.toString();
+            }
+
+            var left  = ' [spoiler title="' + title + '"] ';
+            var right = ' [/spoiler] ';
+            var shortcode = selText ? (left + selText + right) : (left + right);
+
+            qlEditor.focus();
+            if (sel && sel.rangeCount > 0 && qlEditor.contains(sel.anchorNode)) {
+                var range = sel.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(document.createTextNode(shortcode));
+            } else {
+                qlEditor.appendChild(document.createTextNode(shortcode));
+            }
+            // 觸發 input 事件讓 Quill 同步內容
+            qlEditor.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        function addSpoilerButton(toolbar) {
+            if (toolbar.querySelector('.wpd-smacg-spoiler-btn')) return; // 已加過就跳過
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ql-smacg-spoiler wpd-smacg-spoiler-btn';
+            btn.title = '暴雷隱藏（先選取要遮住的文字再按）';
+            btn.innerHTML = ICON;
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                insertSpoiler(toolbar);
+            });
+            toolbar.appendChild(btn);
+        }
+
+        function scanToolbars(root) {
+            var toolbars = (root || document).querySelectorAll('[id^="wpd-editor-toolbar-"]');
+            toolbars.forEach(addSpoilerButton);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () { scanToolbars(document); });
+
+        // 回覆表單為 AJAX 動態產生，用 observer 補上按鈕
+        var obs = new MutationObserver(function (muts) {
+            muts.forEach(function (mu) {
+                mu.addedNodes.forEach(function (node) {
+                    if (node.nodeType !== 1) return;
+                    if (node.id && node.id.indexOf('wpd-editor-toolbar-') === 0) {
+                        addSpoilerButton(node);
+                    } else {
+                        scanToolbars(node);
+                    }
+                });
+            });
+        });
+        obs.observe(document.getElementById('wpdcom') || document.body, { childList: true, subtree: true });
+    })();
+    </script>
+    <style>
+    .wpd-smacg-spoiler-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 3px 5px;
+        color: #6b7280;
+        vertical-align: middle;
+        line-height: 1;
+    }
+    .wpd-smacg-spoiler-btn:hover { color: #e11d48; }
+    </style>
+    <?php
+}, 100 );
+
+
 add_filter('wpdiscuz_comment_author', function($author_name, $comment){
     $uid = (int)($comment->user_id ?? 0);
     if ($uid > 0) {
