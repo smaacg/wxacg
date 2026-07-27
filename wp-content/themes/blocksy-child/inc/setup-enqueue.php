@@ -232,6 +232,25 @@ add_action( 'wp_enqueue_scripts', function () {
             }
         }
 
+        // 這部作品所有評分者：user_nicename → 分數（供留言區顯示評分小標）
+        $smacg_comment_ratings = [];
+        global $wpdb;
+        $rt_table = $wpdb->prefix . 'anime_ratings';
+        $rt_rows  = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT u.user_nicename, r.score_overall
+                 FROM {$rt_table} r
+                 INNER JOIN {$wpdb->users} u ON u.ID = r.user_id
+                 WHERE r.anime_id = %d",
+                get_the_ID()
+            )
+        );
+        if ( $rt_rows ) {
+            foreach ( $rt_rows as $rt_row ) {
+                $smacg_comment_ratings[ strtolower( $rt_row->user_nicename ) ] = (float) $rt_row->score_overall;
+            }
+        }
+
         wp_localize_script( 'smacg-anime-status', 'SmacgConfig', [
             'apiUrl'    => esc_url_raw( rest_url( 'weixiaoacg/v1/' ) ),
             'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
@@ -242,6 +261,8 @@ add_action( 'wp_enqueue_scripts', function () {
             'postId'    => get_the_ID(),
             'permalink' => get_permalink(),
             'title'     => get_the_title(),
+            'userName'       => is_user_logged_in() ? wp_get_current_user()->display_name : '',
+            'commentRatings' => $smacg_comment_ratings,
         ] );
     }
 
