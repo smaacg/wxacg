@@ -221,7 +221,8 @@ add_action( 'wp_enqueue_scripts', function () {
             'smacg-anime-status'  => 'anime-status.js',
         ];
         if ( is_singular( 'anime' ) ) {
-            $status_js['smacg-anime-rating'] = 'anime-rating.js';
+            $status_js['smacg-anime-rating']  = 'anime-rating.js';
+            $status_js['smacg-comment-rating'] = 'comment-rating.js';
         }
 
         foreach ( $status_js as $h => $f ) {
