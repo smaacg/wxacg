@@ -6,8 +6,8 @@ on:
       - main
 
 jobs:
-  lint:
-    name: 程式碼檢查與靜態分析
+  web-deploy:
+    name: 檢查與 FTP 部署
     runs-on: ubuntu-latest
     steps:
     - name: 取得最新程式碼
@@ -42,16 +42,6 @@ jobs:
         else
           echo "本次更新沒有修改 JSON 檔案，跳過檢查。"
         fi
-
-  web-deploy:
-    name: FTP Deploy
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-    - name: 取得最新程式碼
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 2
 
     - name: 透過 FTP 同步檔案到主機
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
