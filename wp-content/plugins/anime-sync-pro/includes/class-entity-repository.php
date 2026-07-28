@@ -13,6 +13,12 @@
  *
  * 前端與外部 API 共用此層。
  *
+ * Changelog:
+ *   1.0.1 (2026-07-28)
+ *     - [修正] role 加入 clean_role() 清理半形/全形空格,排序更準、顯示乾淨。
+ *   1.0.0 (2026-07-28)
+ *     - [新增] 初版查詢層。
+ *
  * @package Anime_Sync_Pro
  */
 
@@ -135,7 +141,8 @@ class Anime_Sync_Entity_Repository {
 					'character_bgm_id' => (int) $row['character_bgm_id'],
 					'character_name'   => $this->fallback_name( $row['char_name'], $row['char_name_orig'] ),
 					'character_image'  => $this->fallback_image( $row['char_image'], self::PLACEHOLDER_CHAR ),
-					'role'             => (string) $row['role'],
+					'character_url'    => $this->character_url( (int) $row['character_bgm_id'], $row['char_name'] ),
+					'role'             => $this->clean_role( $row['role'] ),
 					'rel_type'         => (string) $row['rel_type'],
 				];
 			}
@@ -219,7 +226,7 @@ class Anime_Sync_Entity_Repository {
 			$aid = (int) $row['anime_id'];
 			if ( ! isset( $grouped[ $aid ] ) ) {
 				$grouped[ $aid ] = [
-					'role'          => (string) $row['role'],
+					'role'          => $this->clean_role( $row['role'] ),
 					'voice_actors'  => [],
 				];
 			}
@@ -248,7 +255,7 @@ class Anime_Sync_Entity_Repository {
 			$pseudo_rows,
 			function ( $row ) {
 				return [
-					'role'         => (string) $row['role'],
+					'role'         => $this->clean_role( $row['role'] ),
 					'voice_actors' => $row['voice_actors'],
 				];
 			}
@@ -295,7 +302,7 @@ class Anime_Sync_Entity_Repository {
 					'character_name'   => $this->fallback_name( $row['c_name'], $row['c_name_orig'] ),
 					'character_image'  => $this->fallback_image( $row['c_image'], self::PLACEHOLDER_CHAR ),
 					'character_url'    => $this->character_url( $cbgm, $row['c_name'] ),
-					'role'             => (string) $row['role'],
+					'role'             => $this->clean_role( $row['role'] ),
 					'voice_actors'     => [],
 				];
 			}
@@ -349,7 +356,7 @@ class Anime_Sync_Entity_Repository {
 				'bgm_id' => $pbgm,
 				'name'   => $this->fallback_name( $row['p_name'], $row['p_name_orig'] ),
 				'image'  => $this->fallback_image( $row['p_image'], self::PLACEHOLDER_PERSON ),
-				'role'   => (string) $row['role'],
+				'role'   => $this->clean_role( $row['role'] ),
 				'url'    => $this->person_url( $pbgm, $row['p_name'] ),
 			];
 		}
@@ -466,12 +473,18 @@ class Anime_Sync_Entity_Repository {
 	 * 角色排序權重:主角 0 → 配角 1 → 客串 2 → 其他 3。
 	 */
 	private function role_weight( string $role ): int {
-		$map = [
-			'主角' => 0,
-			'配角' => 1,
-			'客串' => 2,
-		];
+		$role = $this->clean_role( $role );
+		$map  = [ '主角' => 0, '配角' => 1, '客串' => 2 ];
 		return $map[ $role ] ?? 3;
+	}
+
+	/**
+	 * 清理 role 髒資料:半形/全形空格、不斷行空格。
+	 */
+	private function clean_role( ?string $role ): string {
+		$role = trim( (string) $role );
+		$role = str_replace( [ "\xE3\x80\x80", "\xC2\xA0" ], '', $role ); // 全形空格、不斷行空格
+		return trim( $role );
 	}
 
 	/**

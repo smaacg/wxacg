@@ -2,12 +2,19 @@
 /**
  * Plugin Name: Anime Sync Pro
  * Description: 從 AniList、Bangumi 自動同步動畫資料，並支援多媒體形式（動畫/漫畫/小說/遊戲/音樂）的作品系列聚合。
- * Version:     1.4.9
+ * Version:     1.5.0
  * Author:      weixiaoacg
  * Requires PHP: 8.0
  * Text Domain: anime-sync-pro
  *
  * 完整 Changelog 請見 CHANGELOG.md
+ *
+ * 1.5.0 — 角色/聲優獨立實體頁 /person/ /character/（2026-07-28）
+ *   - [新增] plugins_loaded 初始化 Anime_Sync_Entity_Routing
+ *     （/person/{bgm_id} 與 /character/{bgm_id} rewrite + template_include）
+ *   - [新增] Anime_Sync_Entity_Repository 唯讀查詢層（前端 + 未來 API 共用）
+ *   - [新增] WP-CLI: wp anime migrate-entities（cast/staff JSON 攤平進三張表）
+ *   - [向下相容] 100% 保留 v1.4.9 所有功能與 hook 順序
  *
  * 1.4.9 — 系列總覽頁 /series/（2026-07-20）
  *   - [新增] plugins_loaded 初始化 Anime_Sync_Series_Index
@@ -42,7 +49,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /* ============================================================
  * 1. 常數定義
  * ============================================================ */
-define( 'ANIME_SYNC_PRO_VERSION',  '1.4.9' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.5.0' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -590,6 +597,15 @@ add_action( 'plugins_loaded', function (): void {
 	// ------------------------------------------------------
 	if ( class_exists( 'Anime_Sync_Series_Index' ) ) {
 		Anime_Sync_Series_Index::init();
+	}
+
+	// ------------------------------------------------------
+	// 角色/聲優 獨立實體頁 /person/ /character/（v1.5.0 新增）
+	// 同 Series_Index,前後台都要註冊 rewrite / template_include,
+	// 放在 is_admin() 判斷之外,確保前台也生效。
+	// ------------------------------------------------------
+	if ( class_exists( 'Anime_Sync_Entity_Routing' ) ) {
+		Anime_Sync_Entity_Routing::init();
 	}
 
 	if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
