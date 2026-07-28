@@ -1,53 +1,25 @@
 /* =================================================================
-   Anime Sync Pro — entity.css  v1.3.1
-   對應 single-person.php / single-character.php
-   風格對齊 anime-single.css（深藍灰毛玻璃主題），獨立作用域
+   Anime Sync Pro — entity.css  v1.4.0
    Path: wp-content/plugins/anime-sync-pro/public/assets/entity.css
    2026-07-28
 
-   v1.3.1 changelog:
-     - [移除] 相簿 Gallery 相關樣式（.asa-entity-gallery /
-       .asa-gallery-grid / .asa-gallery-item / .asa-gallery-caption
-       以及 RWD 補充裡的 .asa-gallery-grid）。single-character.php
-       1.3.1 已移除相簿區塊，這些規則不再有對應 DOM。
-
-   v1.3.0 changelog:
-     - [新增] 參考 bgm.tv 角色頁版型，新增「基本資料」區塊
-       (.asa-basic-info / .asa-basic-info-grid / .asa-alias-list)，
-       顯示性別、生日、血型等屬性，以及別名/暱稱/稱號列表。
-       性別、生日等資料無值時整個區塊不渲染，不會出現空白卡片。
-     - [新增] 簡介/劇情簡介區塊 (.asa-entity-summary)，樣式對齊
-       anime-single.css 的 .asd-synopsis。
-     - [新增] 關聯角色 Relations (.asa-relations-group /
-       .asa-relations-grid / .asa-relation-card)，依關係類型
-       (朋友/親屬/配偶...) 分組顯示，圓形頭像 + fallback 色塊，
-       沿用 asa-entity-avatar-fb 同一套視覺語彙。
-     - [優化] RWD 補充：小螢幕下 relations / info grid 欄數調整。
-
-   v1.2.1 changelog:
-     - [修正] 圖片還是沒被裁切/限制大小的根本原因：Blocksy 主題自帶的
-       img 規則（或其他插件樣式）優先權比我們高，跟 anime-single.css
-       當初要在 .asd-poster-img 全部屬性都補 !important 是同一個原因。
-       entity.css 之前完全沒加 !important，等於形同虛設。
-       這版把大頭照(.asa-entity-avatar img)跟作品封面
-       (.asa-work-cover img) 的 width/height/object-fit/display
-       全部補上 !important，並把 max-width 明確蓋為 none，
-       確保不會被主題的 max-width:100%;height:auto 之類規則搶回原始尺寸。
-
-   v1.2.0 changelog:
-     - Hero 大頭照改為直式海報比例(3:4)、限制寬度，取代過大的
-       140x140 正方形；新增無圖 fallback 色塊（姓名縮寫）。
-     - 新增 Hero 徽章列(.asa-entity-badges / .asa-ebadge)，
-       對齊 asd-hero-badges 圓角膠囊樣式。
-     - 新增 Hero 外部連結按鈕列(.asa-entity-actions / .asa-action-btn)，
-       對齊 asd-hero-actions 的 ghost 按鈕樣式。
-     - 新增作品卡封面 fallback(.asa-work-cover-fb)。
-     - 移除舊版 .asa-entity-role-tag（改由徽章列呈現）。
-     - 作品卡 hover 陰影/位移微調，與動漫頁卡片節奏更一致。
+   v1.4.0 changelog:
+     - [改版] 參考 bgm.tv 版型，頁面主體改為左右兩欄：
+       左欄 (.asa-layout-side) sticky 資訊卡＝頭像＋基本資料清單；
+       右欄 (.asa-layout-main) 放簡介／作品／關聯。
+       新增 .asa-entity-layout grid 容器與對應 RWD（<900px 塌成單欄）。
+     - [新增] bgm 式縱向資訊清單 .asa-infolist（label 靠左、值靠右），
+       取代原本橫向 grid 的基本資料呈現（原 .asa-basic-info-grid 樣式
+       保留供相容，但模板改用 .asa-infolist）。
+     - [調整] 左欄頭像 .asa-side-avatar 改為佔滿側欄寬度的直式海報。
+   （以下 v1.3.1 起的 changelog 保留原樣）
+   v1.3.1: 移除相簿 Gallery 樣式。
+   v1.3.0: 新增基本資料/簡介/關聯角色區塊。
+   v1.2.x: Hero 改版、fallback、!important 修正。
    ================================================================= */
 
 /* ================================================================
-   0. 全域背景（比照 anime-single.css 的做法，蓋掉 Blocksy 預設背景）
+   0. 全域背景
    ================================================================ */
 html,
 body {
@@ -80,7 +52,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   1. CSS 變數（獨立作用域：.asa-entity-page，不依賴 .asd-wrap）
+   1. CSS 變數
    ================================================================ */
 .asa-entity-page {
     --asa-primary: #63A8FF;
@@ -106,7 +78,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     --asa-radius-xl: 22px;
     --asa-radius-pill: 50px;
 
-    --asa-container: 1000px;
+    --asa-container: 1080px;
     --asa-gap: 24px;
 
     --glass-blur: 14px;
@@ -139,14 +111,33 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   2. Header（頭像 + 名稱 + 徽章 + 外部連結）
+   1b. [v1.4.0] 兩欄 Layout（bgm 式：左窄資訊卡 + 右寬內容）
    ================================================================ */
-.asa-entity-header {
-    display: flex;
-    align-items: flex-start;
+.asa-entity-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
     gap: var(--asa-gap);
-    padding: var(--asa-gap);
-    margin-bottom: var(--asa-gap);
+    align-items: start;
+}
+
+.asa-layout-side {
+    position: sticky;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.asa-layout-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--asa-gap);
+}
+
+/* 左欄資訊卡 */
+.asa-side-card {
+    padding: 16px;
     border-radius: var(--asa-radius-lg);
     border: 1px solid var(--glass-border);
     background: var(--glass-bg);
@@ -155,23 +146,20 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
-/* ── 大頭照：直式海報比例(3:4)，限制寬度，避免過大的正方形大頭貼 ── */
-.asa-entity-avatar-wrap {
-    flex-shrink: 0;
-}
-
-.asa-entity-avatar {
+/* 左欄頭像：佔滿側欄寬的直式海報 */
+.asa-side-avatar {
     position: relative;
-    width: 150px;
+    width: 100%;
     aspect-ratio: 3 / 4;
-    border-radius: var(--asa-radius-xl);
+    border-radius: var(--asa-radius-md);
     overflow: hidden;
     border: 1px solid var(--asa-border);
-    box-shadow: var(--asa-shadow-lg);
+    box-shadow: var(--asa-shadow-md);
     background: rgba(255, 255, 255, .05);
+    margin-bottom: 14px;
 }
 
-.asa-entity-avatar img {
+.asa-side-avatar img {
     width: 100% !important;
     height: 100% !important;
     max-width: none !important;
@@ -180,7 +168,72 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     display: block !important;
 }
 
-/* 無圖 / 圖片載入失敗時的姓名縮寫色塊，對齊 asd-poster-fallback 的視覺語彙 */
+.asa-side-avatar .asa-entity-avatar-fb {
+    font-size: 2.4rem;
+}
+
+/* 左欄外部連結按鈕（縱向排列） */
+.asa-side-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.asa-side-actions .asa-action-btn {
+    justify-content: center;
+}
+
+/* ================================================================
+   1c. [v1.4.0] bgm 式縱向資訊清單
+   ================================================================ */
+.asa-infolist {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+.asa-infolist-row {
+    display: flex;
+    gap: 10px;
+    padding: 7px 0;
+    font-size: .82rem;
+    line-height: 1.5;
+    border-bottom: 1px solid rgba(255, 255, 255, .05);
+}
+
+.asa-infolist-row:last-child {
+    border-bottom: none;
+}
+
+.asa-infolist-label {
+    flex-shrink: 0;
+    min-width: 56px;
+    color: var(--asa-text-dim);
+}
+
+.asa-infolist-val {
+    color: var(--asa-text);
+    font-weight: 600;
+    word-break: break-word;
+}
+
+/* ================================================================
+   2. Header（右欄頂部：名稱 + 徽章；頭像已移到左欄）
+   ================================================================ */
+.asa-entity-header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: var(--asa-gap);
+    border-radius: var(--asa-radius-lg);
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    box-shadow: var(--asa-shadow-md);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
 .asa-entity-avatar-fb {
     position: absolute;
     inset: 0;
@@ -201,7 +254,6 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding-top: 2px;
 }
 
 .asa-entity-name {
@@ -221,7 +273,6 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     word-break: break-word;
 }
 
-/* ── 徽章列：身份 / 作品數，對齊 asd-hero-badges 的圓角膠囊樣式 ── */
 .asa-entity-badges {
     display: flex;
     flex-wrap: wrap;
@@ -249,7 +300,6 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     color: var(--asa-primary);
 }
 
-/* ── 外部連結按鈕列，對齊 asd-hero-actions 的 ghost 按鈕樣式 ── */
 .asa-entity-actions {
     display: flex;
     flex-wrap: wrap;
@@ -279,7 +329,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   3. 作品區塊標題
+   3. 區塊標題
    ================================================================ */
 .asa-section-title {
     display: flex;
@@ -307,11 +357,25 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   4. 作品 Grid + 卡片
+   4. 內容區塊卡片外框（右欄各 section 統一卡片感）
+   ================================================================ */
+.asa-layout-main>section {
+    padding: var(--asa-gap);
+    border-radius: var(--asa-radius-lg);
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    box-shadow: var(--asa-shadow-md);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    margin: 0;
+}
+
+/* ================================================================
+   5. 作品 Grid + 卡片
    ================================================================ */
 .asa-works-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 16px;
     list-style: none;
     margin: 0;
@@ -325,10 +389,8 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     padding: 12px;
     border-radius: var(--asa-radius-md);
     border: 1px solid var(--glass-border);
-    background: var(--glass-bg);
+    background: rgba(255, 255, 255, .03);
     box-shadow: var(--asa-shadow-sm);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
     transition: var(--trans-smooth);
 }
 
@@ -365,7 +427,6 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     display: block !important;
 }
 
-/* ── 作品封面 fallback：無封面圖或載入失敗時顯示作品名縮寫色塊 ── */
 .asa-work-cover-fb {
     position: absolute;
     inset: 0;
@@ -413,41 +474,8 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     text-decoration: underline;
 }
 
-.asa-role-badge {
-    display: inline-flex;
-    align-items: center;
-    margin-left: 4px;
-    padding: 1px 8px;
-    border-radius: var(--asa-radius-pill);
-    background: rgba(255, 255, 255, .08);
-    border: 1px solid rgba(255, 255, 255, .12);
-    color: var(--asa-text-dim);
-    font-size: .68rem;
-    font-weight: 600;
-}
-
 /* ================================================================
-   5. RWD（原始基礎斷點）
-   ================================================================ */
-@media (max-width: 640px) {
-    .asa-entity-header {
-        flex-direction: column;
-        align-items: flex-start;
-        text-align: left;
-    }
-
-    .asa-entity-avatar {
-        width: 118px;
-    }
-
-    .asa-works-grid {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 12px;
-    }
-}
-
-/* ================================================================
-   6. 麵包屑導航
+   6. 麵包屑
    ================================================================ */
 .asa-breadcrumb {
     margin-bottom: 16px;
@@ -484,7 +512,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   7. Hero 標籤（頁面類型小標）
+   7. Hero 標籤
    ================================================================ */
 .asa-entity-label {
     display: inline-block;
@@ -516,7 +544,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   9. 作品搜尋框
+   9. 搜尋框
    ================================================================ */
 .asa-work-search {
     flex: 1;
@@ -549,7 +577,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   10. 空狀態圖示
+   10. 空狀態
    ================================================================ */
 .asa-empty {
     display: flex;
@@ -564,103 +592,9 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   11. RWD 補充（麵包屑/搜尋框在小螢幕的排版）
-   ================================================================ */
-@media (max-width: 640px) {
-    .asa-section-title-row {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .asa-work-search {
-        max-width: 100%;
-        width: 100%;
-    }
-}
-
-/* ================================================================
-   12. [v1.3.0] 基本資料 Info Box（性別 / 生日 / 血型 / 別名）
-   ================================================================ */
-.asa-basic-info {
-    padding: var(--asa-gap);
-    margin-bottom: var(--asa-gap);
-    border-radius: var(--asa-radius-lg);
-    border: 1px solid var(--glass-border);
-    background: var(--glass-bg);
-    box-shadow: var(--asa-shadow-md);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-}
-
-.asa-basic-info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
-}
-
-.asa-info-item {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-
-.asa-info-item-label {
-    font-size: .70rem;
-    color: var(--asa-text-dim);
-    text-transform: uppercase;
-    letter-spacing: .5px;
-}
-
-.asa-info-item-val {
-    font-size: .88rem;
-    color: var(--asa-text);
-    font-weight: 600;
-    word-break: break-word;
-}
-
-.asa-alias-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255, 255, 255, .08);
-}
-
-.asa-basic-info-grid+.asa-alias-list {
-    margin-top: 14px;
-}
-
-.asa-alias-row {
-    display: flex;
-    gap: 10px;
-    font-size: .82rem;
-    line-height: 1.5;
-}
-
-.asa-alias-label {
-    color: var(--asa-text-dim);
-    min-width: 72px;
-    flex-shrink: 0;
-}
-
-.asa-alias-val {
-    color: var(--asa-text);
-    word-break: break-word;
-}
-
-/* ================================================================
-   13. [v1.3.0] 簡介／劇情簡介
+   11. 簡介
    ================================================================ */
 .asa-entity-summary {
-    padding: var(--asa-gap);
-    margin-bottom: var(--asa-gap);
-    border-radius: var(--asa-radius-lg);
-    border: 1px solid var(--glass-border);
-    background: var(--glass-bg);
-    box-shadow: var(--asa-shadow-md);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
     font-size: .92rem;
     line-height: 1.85;
     color: var(--asa-text-muted);
@@ -675,12 +609,8 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   14. [v1.3.0] 關聯角色 Relations
+   12. 關聯角色
    ================================================================ */
-.asa-entity-relations {
-    margin-bottom: var(--asa-gap);
-}
-
 .asa-relations-group {
     margin-bottom: 20px;
 }
@@ -700,7 +630,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 
 .asa-relations-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
     gap: 12px;
 }
 
@@ -764,29 +694,48 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     word-break: break-word;
 }
 
-.asa-relation-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0 8px;
-    min-height: 18px;
-    border-radius: var(--asa-radius-pill);
-    background: rgba(255, 255, 255, .08);
-    border: 1px solid rgba(255, 255, 255, .12);
-    color: var(--asa-text-dim);
-    font-size: .62rem;
-    font-weight: 600;
+/* ================================================================
+   13. [v1.4.0] RWD：兩欄在窄螢幕塌成單欄
+   ================================================================ */
+@media (max-width: 900px) {
+    .asa-entity-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .asa-layout-side {
+        position: static;
+        flex-direction: row;
+        gap: 16px;
+        align-items: flex-start;
+    }
+
+    .asa-side-card {
+        flex: 1;
+    }
+
+    .asa-side-avatar {
+        max-width: 180px;
+    }
 }
 
-/* ================================================================
-   15. [v1.3.0] RWD 補充：relations / info grid
-   ================================================================ */
 @media (max-width: 640px) {
-    .asa-basic-info-grid {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    .asa-layout-side {
+        flex-direction: column;
+    }
+
+    .asa-side-avatar {
+        max-width: 140px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .asa-works-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 12px;
     }
 
     .asa-relations-grid {
-        grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
         gap: 8px;
     }
 
