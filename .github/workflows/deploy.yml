@@ -16,7 +16,7 @@ jobs:
         fetch-depth: 2
         
     - name: 檢查 PHP 語法 (防止錯誤程式碼炸站)
-      run: find . -name "*.php" -print0 | xargs -0 -n1 php -l > /dev/null
+      run: find . -name "*.php" -print0 | xargs -0 -n1 -P 8 php -l > /dev/null
 
     - name: 透過 FTP 同步檔案到主機
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
