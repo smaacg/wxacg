@@ -1,5 +1,5 @@
 /* =================================================================
-   Anime Sync Pro — entity.css  v1.0
+   Anime Sync Pro — entity.css  v1.1.0
    對應 single-person.php / single-character.php
    風格對齊 anime-single.css（深藍灰毛玻璃主題），獨立作用域
    Path: wp-content/plugins/anime-sync-pro/public/assets/entity.css
@@ -299,7 +299,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   5. RWD
+   5. RWD（原始基礎斷點）
    ================================================================ */
 @media (max-width: 640px) {
     .asa-entity-header {
@@ -316,5 +316,138 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     .asa-works-grid {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
         gap: 12px;
+    }
+}
+
+/* ================================================================
+   6. 麵包屑導航（v1.1.0 新增，參考 series-index.php 的 asi-breadcrumb）
+   ================================================================ */
+.asa-breadcrumb {
+    margin-bottom: 16px;
+}
+
+.asa-breadcrumb ol {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--asa-text-dim);
+}
+
+.asa-breadcrumb li:not(:last-child)::after {
+    content: '›';
+    margin-left: 6px;
+    color: var(--asa-text-dim);
+}
+
+.asa-breadcrumb a {
+    color: var(--asa-text-muted);
+}
+
+.asa-breadcrumb a:hover {
+    color: var(--asa-primary);
+    text-decoration: underline;
+}
+
+.asa-breadcrumb li:last-child {
+    color: var(--asa-text-soft);
+}
+
+/* ================================================================
+   7. Hero 標籤（頁面類型小標，v1.1.0 新增）
+   ================================================================ */
+.asa-entity-label {
+    display: inline-block;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--asa-primary);
+    margin-bottom: 2px;
+}
+
+/* ================================================================
+   8. 作品區塊標題列（標題 + 搜尋框並排，v1.1.0 新增）
+   ================================================================ */
+.asa-section-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, .15);
+    padding-bottom: 10px;
+}
+
+.asa-section-title-row .asa-section-title {
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
+    flex-shrink: 0;
+}
+
+/* ================================================================
+   9. 作品搜尋框（v1.1.0 新增，參考 series-index.php 的 asi-search，
+      改用 entity.css 的深色毛玻璃變數）
+   ================================================================ */
+.asa-work-search {
+    flex: 1;
+    min-width: 180px;
+    max-width: 320px;
+    padding: 8px 14px;
+    font-size: .85rem;
+    color: var(--asa-text);
+    background: var(--asa-bg-card);
+    border: 1px solid var(--asa-border);
+    border-radius: var(--asa-radius-pill);
+    transition: var(--trans-smooth);
+}
+
+.asa-work-search::placeholder {
+    color: var(--asa-text-dim);
+}
+
+.asa-work-search:focus {
+    outline: none;
+    border-color: var(--asa-primary);
+    box-shadow: 0 0 0 3px rgba(99, 168, 255, .18);
+}
+
+.asa-noresult {
+    padding: 32px 0;
+    text-align: center;
+    color: var(--asa-text-dim);
+    font-size: .88rem;
+}
+
+/* ================================================================
+   10. 空狀態圖示（v1.1.0 新增，取代純文字 asa-empty）
+   ================================================================ */
+.asa-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.asa-empty-icon {
+    font-size: 40px;
+    opacity: .7;
+}
+
+/* ================================================================
+   11. RWD 補充（v1.1.0 新增，麵包屑/搜尋框在小螢幕的排版）
+   ================================================================ */
+@media (max-width: 640px) {
+    .asa-section-title-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .asa-work-search {
+        max-width: 100%;
+        width: 100%;
     }
 }
