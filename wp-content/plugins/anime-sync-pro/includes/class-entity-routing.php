@@ -2,7 +2,7 @@
 /**
  * Entity Routing (聲優/角色 個別頁路由)
  * Path: wp-content/plugins/anime-sync-pro/includes/class-entity-routing.php
- * Version: 1.1.0 (2026-07-28)
+ * Version: 1.1.1 (2026-07-28)
  *
  * 功能：攔截 /person/{bgm_id}/{name?} 與 /character/{bgm_id}/{name?}，
  *      載入對應模板。bgm_id 為真正識別碼,name 片段僅 SEO 裝飾(可省略)。
@@ -15,6 +15,16 @@
  *   - flush 靠主外掛版本號 +1 觸發(anime_sync_flush_rewrite flag)
  *
  * Changelog:
+ *   1.1.1 (2026-07-28)
+ *     - [修正] enqueue_assets() 的 entity.css 路徑改用
+ *              plugin_dir_url( dirname( __FILE__ ) )，避免組出
+ *              .../includes/../public/assets/entity.css 這種帶
+ *              「../」的網址。實測該網址在正式站（LiteSpeed Cache
+ *              環境）會回傳 404，導致 entity.css 完全沒有載入，
+ *              person/character 頁面因此沒有樣式（無毛玻璃卡片、
+ *              無深色主題）。改用 dirname(__FILE__) 先跳回外掛
+ *              根目錄，再接上 public/assets/entity.css，產生的
+ *              網址不含「../」，可正常存取。
  *   1.1.0 (2026-07-28)
  *     - [新增] enqueue_assets()：只在 person/character 頁掛載 entity.css，
  *              透過 is_entity_page() 判斷（用 query var，不依賴 is_page()
@@ -96,6 +106,14 @@ class Anime_Sync_Entity_Routing {
 
     /**
      * 只在 person/character 頁掛載 entity.css,其餘頁面不受影響。
+     *
+     * ⚠ 1.1.1 修正:不可用 plugin_dir_url( __FILE__ ) . '../public/...'
+     *   組路徑。__FILE__ 位在 includes/ 底下,這樣組出來的網址會帶
+     *   「includes/../public/」,實測在正式站(LiteSpeed Cache 環境)
+     *   會被解析成 404,導致 entity.css 完全沒有載入。
+     *   改用 plugin_dir_url( dirname( __FILE__ ) ),先用 dirname()
+     *   跳回外掛根目錄(anime-sync-pro/),再接上乾淨的
+     *   public/assets/entity.css,不會出現「../」。
      */
     public static function enqueue_assets() {
         if ( ! self::is_entity_page() ) {
@@ -104,7 +122,7 @@ class Anime_Sync_Entity_Routing {
 
         wp_enqueue_style(
             'anime-sync-entity',
-            plugin_dir_url( __FILE__ ) . '../public/assets/entity.css',
+            plugin_dir_url( dirname( __FILE__ ) ) . 'public/assets/entity.css',
             [],
             defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0'
         );
