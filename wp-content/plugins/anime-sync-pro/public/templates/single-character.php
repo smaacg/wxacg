@@ -213,7 +213,7 @@ get_header();
                 </div>
 
                 <div class="asa-side-name">
-                    <h2 class="asa-side-name-main"><?php echo esc_html( $character['name'] ); ?></h2>
+                    <h1 class="asa-side-name-main"><?php echo esc_html( $character['name'] ); ?></h1>
                     <?php if ( $character['name_original'] !== '' && $character['name_original'] !== $character['name'] ) : ?>
                         <p class="asa-side-name-orig"><?php echo esc_html( $character['name_original'] ); ?></p>
                     <?php endif; ?>
@@ -256,11 +256,7 @@ get_header();
         <div class="asa-layout-main">
 
             <header class="asa-entity-header">
-                <span class="asa-entity-label">🎭 角色個別頁</span>
-                <h1 class="asa-entity-name"><?php echo esc_html( $character['name'] ); ?></h1>
-                <?php if ( $character['name_original'] !== '' && $character['name_original'] !== $character['name'] ) : ?>
-                    <p class="asa-entity-name-original"><?php echo esc_html( $character['name_original'] ); ?></p>
-                <?php endif; ?>
+                <span class="asa-entity-label">🎭 角色個人頁</span>
 
                 <div class="asa-entity-actions">
                     <?php if ( is_user_logged_in() ) : ?>
