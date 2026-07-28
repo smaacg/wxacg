@@ -29,6 +29,26 @@ jobs:
           echo "本次更新沒有修改 PHP 檔案，跳過檢查。"
         fi
 
+    - name: 檢查 JSON 格式
+      run: |
+        if git rev-parse HEAD~1 >/dev/null 2>&1; then
+          CHANGED_JSON=$(git diff --name-only HEAD~1 HEAD | grep '\.json$' || true)
+        else
+          CHANGED_JSON=$(find . -name "*.json")
+        fi
+        
+        if [ -n "$CHANGED_JSON" ]; then
+          echo "$CHANGED_JSON" | xargs -n1 -P 8 jq empty
+        else
+          echo "本次更新沒有修改 JSON 檔案，跳過檢查。"
+        fi
+
+    - name: 執行 PHPStan 靜態邏輯檢查
+      run: |
+        cd wp-content/plugins/anime-sync-pro
+        composer install --prefer-dist --no-progress
+        vendor/bin/phpstan analyse
+
     - name: 透過 FTP 同步檔案到主機
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
