@@ -66,7 +66,7 @@ get_header();
                                          loading="lazy">
                                 </span>
                             <?php endif; ?>
-                            <span class="asa-work-title"><?php echo esc_html( $w['title'] ); ?></span>
+                            <span class="asa-work-title"><?php echo esc_html( trim( (string) $w['title'] ) ); ?></span>
                         </a>
 
                         <?php if ( ! empty( $w['voice_actors'] ) ) : ?>

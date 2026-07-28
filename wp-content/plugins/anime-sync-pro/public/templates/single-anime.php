@@ -4,9 +4,24 @@
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-anime.php
  *
- * @version 14.7 — 2026-07-25
+ * @version 14.8 — 2026-07-28
  *
  * Changelog:
+ *   14.8 — CAST/STAFF 角色與聲優/製作人員連結化
+ *          - [新增] $entity_url helper：產生 /person/{id}/{slug} 與
+ *                   /character/{id}/{slug} 連結，slug 產生邏輯對齊
+ *                   Anime_Sync_Entity_Repository::person_url() /
+ *                   character_url()（空格轉 - 再 rawurlencode），
+ *                   避免同一站出現兩套 URL 格式。
+ *          - [新增] CAST 區塊：角色名（asd-cast-char）與 CV 名
+ *                   （asd-cast-va-name）在 id > 0 時包成對應連結；
+ *                   id <= 0（無 bgm_id 對應）時維持純文字，不產生連結。
+ *          - [新增] STAFF 區塊：staff 名稱（asd-staff-name）同樣在
+ *                   id > 0 時包成 /person/{id}/ 連結（staff 走
+ *                   upsert_person，與聲優共用同一張 person 表）。
+ *          - [說明] CAST/STAFF JSON 的 id 欄位已由 dump 實測確認：
+ *                   角色/聲優/staff 皆為 id（純數字 bgm_id），無 fallback
+ *                   欄位名問題。
  *   14.7 — 簡體中文標題（anime_title_simplified）支援
  *          - [新增] Meta 區統一讀取 $title_simplified。
  *          - [新增] Hero 標題區塊在日文原名下方顯示簡體標題（讀者可見）。
@@ -97,6 +112,17 @@ while ( have_posts() ) :
 
     $starts_with = function ( $haystack, $needle ) {
         return $needle !== '' && strpos( $haystack, $needle ) === 0;
+    };
+
+    // [14.8] 產生 person/character 詳情頁連結，id <= 0 時回傳空字串（不產生連結）。
+    // slug 產生邏輯對齊 Anime_Sync_Entity_Repository::person_url() / character_url()：
+    // 空格轉 - 再 rawurlencode，避免同一站兩套 URL 格式並存。
+    $entity_url = function ( $type, $id, $name ) {
+        $id = (int) $id;
+        if ( $id <= 0 ) return '';
+        $name = trim( (string) $name );
+        $slug = $name !== '' ? rawurlencode( str_replace( ' ', '-', $name ) ) : '';
+        return home_url( '/' . $type . '/' . $id . '/' . $slug );
     };
 
     $substr_safe = function ( $text, $start, $length = null ) {
@@ -1049,106 +1075,6 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     <span class="asd-series-badge-count"><?php echo (int) $series_tax->count; ?> 部</span>
                     <span class="asd-series-badge-arrow">→</span>
                 </a>
-                <style>
-                .asd-series-entry-badge--hero {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 12px;
-                    padding: 10px 16px;
-                    margin: 12px 0;
-                    background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25));
-                    border: 1.5px solid rgba(168,85,247,0.6);
-                    border-radius: 12px;
-                    color: #fff !important;
-                    text-decoration: none !important;
-                    font-size: 14px;
-                    line-height: 1.3;
-                    box-shadow: 0 4px 14px rgba(168,85,247,0.25),
-                                inset 0 1px 0 rgba(255,255,255,0.1);
-                    transition: all 0.25s ease;
-                    position: relative;
-                    overflow: hidden;
-                }
-                .asd-series-entry-badge--hero::before {
-                    content: '';
-                    position: absolute;
-                    inset: 0;
-                    background: linear-gradient(120deg,
-                                  transparent 30%,
-                                  rgba(255,255,255,0.15) 50%,
-                                  transparent 70%);
-                    transform: translateX(-100%);
-                    transition: transform 0.6s ease;
-                }
-                .asd-series-entry-badge--hero:hover {
-                    transform: translateY(-2px);
-                    border-color: rgba(168,85,247,1);
-                    box-shadow: 0 8px 24px rgba(168,85,247,0.45),
-                                inset 0 1px 0 rgba(255,255,255,0.2);
-                    background: linear-gradient(135deg, rgba(99,102,241,0.4), rgba(168,85,247,0.4));
-                }
-                .asd-series-entry-badge--hero:hover::before {
-                    transform: translateX(100%);
-                }
-                .asd-series-badge-icon {
-                    font-size: 22px;
-                    line-height: 1;
-                    flex-shrink: 0;
-                }
-                .asd-series-badge-text {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 2px;
-                    min-width: 0;
-                }
-                .asd-series-badge-label {
-                    font-size: 11px;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    letter-spacing: 0.08em;
-                    opacity: 0.75;
-                    color: #c4b5fd;
-                }
-                .asd-series-badge-name {
-                    font-size: 15px;
-                    font-weight: 700;
-                    color: #fff;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    max-width: 320px;
-                }
-                .asd-series-badge-count {
-                    padding: 3px 10px;
-                    background: rgba(255,255,255,0.18);
-                    border-radius: 20px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    color: #fff;
-                    flex-shrink: 0;
-                }
-                .asd-series-badge-arrow {
-                    font-size: 18px;
-                    opacity: 0.7;
-                    transition: transform 0.25s ease;
-                    flex-shrink: 0;
-                }
-                .asd-series-entry-badge--hero:hover .asd-series-badge-arrow {
-                    transform: translateX(4px);
-                    opacity: 1;
-                }
-                @media (max-width: 600px) {
-                    .asd-series-entry-badge--hero {
-                        width: 100%;
-                        padding: 10px 12px;
-                        gap: 10px;
-                    }
-                    .asd-series-badge-name {
-                        max-width: none;
-                        white-space: normal;
-                    }
-                }
-                </style>
             <?php endif; endif; ?>
 
 
@@ -1661,14 +1587,22 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                         <h2 class="asd-section-title">🎬 STAFF</h2>
                         <div class="asd-staff-grid-v2" id="asd-staff-grid">
                             <?php foreach ( $staff_list as $i => $s ) :
+                                $s_id     = (int) ( $s['id'] ?? 0 );
                                 $s_name   = trim( $s['name']   ?? '' );
                                 $s_native = trim( $s['native'] ?? '' );
                                 $s_role   = wxacg_staff_role( $s['role'] ?? '' );
+                                $s_url    = $entity_url( 'person', $s_id, $s_name );
                             ?>
                                 <div class="asd-staff-card-v2<?php echo $i >= 10 ? ' asd-staff-hidden' : ''; ?>">
                                     <div class="asd-staff-info">
                                         <span class="asd-staff-role"><?php echo esc_html( $s_role ); ?></span>
-                                        <span class="asd-staff-name"><?php echo esc_html( $s_name ); ?></span>
+                                        <span class="asd-staff-name"><?php
+                                            if ( $s_url ) {
+                                                echo '<a href="' . esc_url( $s_url ) . '">' . esc_html( $s_name ) . '</a>';
+                                            } else {
+                                                echo esc_html( $s_name );
+                                            }
+                                        ?></span>
                                         <?php if ( $s_native && $s_native !== $s_name ) : ?>
                                             <span class="asd-staff-native"><?php echo esc_html( $s_native ); ?></span>
                                         <?php endif; ?>
@@ -1690,13 +1624,17 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                         <h2 class="asd-section-title">🎭 CAST</h2>
                         <div class="asd-cast-grid" id="asd-cast-grid">
                             <?php foreach ( $cast_to_display as $i => $c ) :
+                                $c_char_id     = (int) ( $c['id'] ?? 0 );
                                 $c_char_name   = trim( $c['name']   ?? '' );
                                 $c_char_native = trim( $c['native'] ?? '' );
                                 $c_char_image  = trim( $c['image']  ?? '' );
                                 $va            = ( ! empty( $c['voice_actors'] ) && is_array( $c['voice_actors'] ) ) ? $c['voice_actors'][0] : [];
+                                $c_va_id       = (int) ( $va['id'] ?? 0 );
                                 $c_va_name     = trim( $va['name']   ?? '' );
                                 $c_va_native   = trim( $va['native'] ?? '' );
                                 $c_fb          = function_exists( 'mb_substr' ) ? mb_substr( $c_char_name, 0, 2 ) : substr( $c_char_name, 0, 2 );
+                                $c_char_url    = $entity_url( 'character', $c_char_id, $c_char_name );
+                                $c_va_url      = $entity_url( 'person', $c_va_id, $c_va_name );
                             ?>
                                 <div class="asd-cast-card<?php echo $i >= 6 ? ' asd-cast-hidden' : ''; ?>">
                                     <div class="asd-cast-avatar-wrap">
@@ -1711,14 +1649,26 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                         <?php endif; ?>
                                     </div>
                                     <div class="asd-cast-info">
-                                        <span class="asd-cast-char"><?php echo esc_html( $c_char_name ); ?></span>
+                                        <span class="asd-cast-char"><?php
+                                            if ( $c_char_url ) {
+                                                echo '<a href="' . esc_url( $c_char_url ) . '">' . esc_html( $c_char_name ) . '</a>';
+                                            } else {
+                                                echo esc_html( $c_char_name );
+                                            }
+                                        ?></span>
                                         <?php if ( $c_char_native && $c_char_native !== $c_char_name ) : ?>
                                             <span class="asd-cast-char-native"><?php echo esc_html( $c_char_native ); ?></span>
                                         <?php endif; ?>
                                         <?php if ( $c_va_name ) : ?>
                                             <div class="asd-cast-va">
                                                 <div class="asd-cast-va-info">
-                                                    <span class="asd-cast-va-name">CV.<?php echo esc_html( $c_va_name ); ?></span>
+                                                    <span class="asd-cast-va-name">CV.<?php
+                                                        if ( $c_va_url ) {
+                                                            echo '<a href="' . esc_url( $c_va_url ) . '">' . esc_html( $c_va_name ) . '</a>';
+                                                        } else {
+                                                            echo esc_html( $c_va_name );
+                                                        }
+                                                    ?></span>
                                                     <?php if ( $c_va_native && $c_va_native !== $c_va_name ) : ?>
                                                         <span class="asd-cast-va-native"><?php echo esc_html( $c_va_native ); ?></span>
                                                     <?php endif; ?>

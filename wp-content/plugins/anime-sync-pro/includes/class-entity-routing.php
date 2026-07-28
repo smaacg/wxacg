@@ -2,7 +2,7 @@
 /**
  * Entity Routing (聲優/角色 個別頁路由)
  * Path: wp-content/plugins/anime-sync-pro/includes/class-entity-routing.php
- * Version: 1.0.0 (2026-07-28)
+ * Version: 1.1.0 (2026-07-28)
  *
  * 功能：攔截 /person/{bgm_id}/{name?} 與 /character/{bgm_id}/{name?}，
  *      載入對應模板。bgm_id 為真正識別碼,name 片段僅 SEO 裝飾(可省略)。
@@ -15,6 +15,11 @@
  *   - flush 靠主外掛版本號 +1 觸發(anime_sync_flush_rewrite flag)
  *
  * Changelog:
+ *   1.1.0 (2026-07-28)
+ *     - [新增] enqueue_assets()：只在 person/character 頁掛載 entity.css，
+ *              透過 is_entity_page() 判斷（用 query var，不依賴 is_page()
+ *              等原生條件標籤，因這兩頁是 rewrite 攔截後直接載入模板，
+ *              不是真正的 WP 文章）。
  *   1.0.0 (2026-07-28)
  *     - [新增] /person/ 與 /character/ rewrite + query var + template_include。
  */
@@ -32,6 +37,7 @@ class Anime_Sync_Entity_Routing {
         add_action( 'init',             [ __CLASS__, 'add_rewrite' ] );
         add_filter( 'query_vars',       [ __CLASS__, 'add_query_var' ] );
         add_filter( 'template_include', [ __CLASS__, 'load_template' ] );
+        add_action( 'wp_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
     }
 
     /**
@@ -76,6 +82,32 @@ class Anime_Sync_Entity_Routing {
         }
 
         return $template;
+    }
+
+    /**
+     * 是否目前為 person 或 character 個別頁。
+     * 用 query var 判斷,因為這兩頁是 rewrite 攔截後直接載入模板,
+     * 不是真正的 WP 文章,不能用 is_page()/is_singular() 判斷。
+     */
+    public static function is_entity_page() {
+        return (int) get_query_var( self::QV_PERSON ) > 0
+            || (int) get_query_var( self::QV_CHARACTER ) > 0;
+    }
+
+    /**
+     * 只在 person/character 頁掛載 entity.css,其餘頁面不受影響。
+     */
+    public static function enqueue_assets() {
+        if ( ! self::is_entity_page() ) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'anime-sync-entity',
+            plugin_dir_url( __FILE__ ) . '../public/assets/entity.css',
+            [],
+            defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0'
+        );
     }
 
     /**
