@@ -14,6 +14,12 @@
  * 故不提供 get_character_photos()。
  *
  * Changelog:
+ *   1.4.0 (2026-07-29)
+ *     - [修正] hydrate_works() 加入 $oldest_first 參數：
+ *       get_character_works() 傳 true（舊→新），本篇/原作排最前，
+ *       麵包屑取 $works[0] 即為正確的原始作品。
+ *       get_person_works() 維持預設 false（新→舊）。
+ *     - CACHE_VER v3 → v4（排序方向變更，舊快取需整批失效）。
  *   1.3.0 (2026-07-28)
  *     - [改版] get_character() 的別名改讀 wp_anime_characters.aliases_json
  *       (JSON 欄位)，新增 decode_aliases_json() 解碼成模板要的
@@ -49,7 +55,7 @@ class Anime_Sync_Entity_Repository {
 	private $t_char_rel;
 
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
-	const CACHE_VER = 'v3';
+	const CACHE_VER = 'v4';
 
 	const META_TITLE_ZH     = 'anime_title_chinese';
 	const META_TITLE_ROMAJI = 'anime_title_romaji';
@@ -256,7 +262,8 @@ class Anime_Sync_Entity_Repository {
 					'role'         => $this->clean_role( $row['role'] ),
 					'voice_actors' => $row['voice_actors'],
 				];
-			}
+			},
+			true  // 角色登場作品：舊→新（本篇/原作排在最前，麵包屑取 [0] 才正確）
 		);
 
 		set_transient( $cache_key, $works, self::CACHE_TTL );
@@ -501,7 +508,7 @@ class Anime_Sync_Entity_Repository {
 		return $aliases;
 	}
 
-	private function hydrate_works( array $rows, callable $extra_cb ): array {
+	private function hydrate_works( array $rows, callable $extra_cb, bool $oldest_first = false ): array {
 		if ( empty( $rows ) ) {
 			return [];
 		}
@@ -533,12 +540,16 @@ class Anime_Sync_Entity_Repository {
 			$works[] = array_merge( $base, (array) $extra_cb( $row ) );
 		}
 
-		usort( $works, function ( $a, $b ) {
+		usort( $works, function ( $a, $b ) use ( $oldest_first ) {
 			$rw = $this->role_weight( $a['role'] ?? '' ) <=> $this->role_weight( $b['role'] ?? '' );
 			if ( 0 !== $rw ) {
 				return $rw;
 			}
-			return ( (int) $b['_year'] ) <=> ( (int) $a['_year'] );
+			// $oldest_first=true（角色頁）：舊→新，原作/本篇排最前。
+			// $oldest_first=false（聲優頁）：新→舊，最新代表作優先。
+			return $oldest_first
+				? ( (int) $a['_year'] ) <=> ( (int) $b['_year'] )
+				: ( (int) $b['_year'] ) <=> ( (int) $a['_year'] );
 		} );
 
 		foreach ( $works as &$w ) {
