@@ -114,6 +114,22 @@ spl_autoload_register( function ( string $class ): void {
 } );
 
 /* ============================================================
+ * WP-CLI 指令:主動載入(spl_autoload 只在 class 被使用時才載,
+ * CLI 指令註冊需在啟動時就 require,故此處手動載入)
+ * ============================================================ */
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	$anime_sync_cli_files = [
+		ANIME_SYNC_PRO_DIR . 'includes/class-entity-migrator.php',
+	];
+	foreach ( $anime_sync_cli_files as $anime_sync_cli_file ) {
+		if ( file_exists( $anime_sync_cli_file ) ) {
+			require_once $anime_sync_cli_file;
+		}
+	}
+}
+
+
+/* ============================================================
  * 3. 註冊 Post Type 與 Taxonomy
  * ============================================================ */
 add_action( 'init', 'anime_sync_register_post_types', 10 );
