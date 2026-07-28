@@ -212,6 +212,12 @@ get_header();
                     <?php endif; ?>
                 </div>
 
+                <?php if ( $works_count > 0 ) : ?>
+                    <div class="asa-side-works-count">
+                        🎬 登場 <strong><?php echo (int) $works_count; ?></strong> 部作品
+                    </div>
+                <?php endif; ?>
+
                 <?php if ( ! empty( $basic_info_rows ) ) : ?>
                     <div class="asa-infolist">
                         <?php foreach ( $basic_info_rows as $row ) : ?>
@@ -248,13 +254,6 @@ get_header();
                 <?php if ( $character['name_original'] !== '' && $character['name_original'] !== $character['name'] ) : ?>
                     <p class="asa-entity-name-original"><?php echo esc_html( $character['name_original'] ); ?></p>
                 <?php endif; ?>
-
-                <div class="asa-entity-badges">
-                    <span class="asa-ebadge">角色</span>
-                    <?php if ( $works_count > 0 ) : ?>
-                        <span class="asa-ebadge asa-ebadge--accent">登場 <?php echo (int) $works_count; ?> 部作品</span>
-                    <?php endif; ?>
-                </div>
 
                 <div class="asa-entity-actions">
                     <?php if ( is_user_logged_in() ) : ?>

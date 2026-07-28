@@ -172,6 +172,24 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     font-size: 2.4rem;
 }
 
+/* 照片下方「登場 N 部作品」小標籤 */
+.asa-side-works-count {
+    margin: 10px 0 2px;
+    padding: 6px 10px;
+    background: rgba(99, 168, 255, .10);
+    border: 1px solid rgba(99, 168, 255, .25);
+    border-radius: var(--asa-radius-pill);
+    text-align: center;
+    font-size: .78rem;
+    color: var(--asa-text-soft);
+    letter-spacing: .02em;
+}
+
+.asa-side-works-count strong {
+    color: var(--asa-primary);
+    font-weight: 700;
+}
+
 /* 左欄外部連結按鈕（縱向排列） */
 .asa-side-actions {
     display: flex;
