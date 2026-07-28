@@ -366,7 +366,7 @@ jQuery( document ).ready( function ( $ ) {
 .aal-section-title { font-size: 15px; margin: 24px 0 10px; }
 
 .aal-summary-table, .aal-log-table { font-size: 13px; }
-.aal-col-num  { width: 90px; text-align: right; }
+th.aal-col-num, td.aal-col-num { width: 90px; text-align: left; }
 .aal-col-action { width: 130px; }
 .aal-col-time { width: 160px; font-size: 12px; color: #666; white-space: nowrap; }
 .aal-empty-note { color: #777; font-style: italic; }
