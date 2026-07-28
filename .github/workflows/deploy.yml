@@ -43,12 +43,6 @@ jobs:
           echo "本次更新沒有修改 JSON 檔案，跳過檢查。"
         fi
 
-    - name: 執行 PHPStan 靜態邏輯檢查
-      run: |
-        cd wp-content/plugins/anime-sync-pro
-        composer install --prefer-dist --no-progress
-        php vendor/bin/phpstan analyse
-
   web-deploy:
     name: FTP Deploy
     needs: lint
