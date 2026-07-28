@@ -6,6 +6,24 @@
  * 由 class-entity-routing.php 於命中 /character/{id} 時載入。
  *
  * Changelog:
+ *   1.3.1 (2026-07-28)
+ *     - [移除] 相簿 Gallery 區塊（連同未定義的 $character_photos 變數）。
+ *              repository 1.2.0 已移除 get_character_photos()，本區塊
+ *              永遠不渲染且會產生 undefined variable Notice，故整段刪除。
+ *   1.3.0 (2026-07-28)
+ *     - [新增] 參考 bgm.tv 角色頁版型，新增「基本資料」區塊：性別、
+ *              生日、血型、別名/暱稱/稱號（$character['gender'] /
+ *              ['birthday'] / ['bloodtype'] / ['aliases']）。
+ *              全部欄位都是 optional，沒資料就不顯示這個區塊。
+ *     - [新增] 簡介段落（$character['summary']），對齊 bgm 角色頁
+ *              左上角色描述文字。
+ *     - [新增] 關聯角色 Relations（$repo->get_character_relations()），
+ *              依關係類型（朋友/親屬/配偶...）分組顯示，圓形頭像 +
+ *              無圖 fallback 色塊。同樣是 optional，資料庫沒建置
+ *              對應方法時整段不渲染。
+ *     - [調整] 頁面區塊順序改為：Header → 基本資料 → 簡介 →
+ *              登場作品 → 關聯角色，對齊 bgm 角色頁的
+ *              資訊優先順序。
  *   1.2.0 (2026-07-28)
  *     - [改版] Hero 區塊比照 single-anime.php 視覺語彙重做：
  *              大頭照改為直式海報比例(3:4)並限制寬度，不再是過大的
@@ -51,8 +69,36 @@ $works_count = count( $works );
 $character_fallback = trim( wp_strip_all_tags( (string) $character['name'] ) );
 $character_fallback = $character_fallback === '' ? 'AN' : ( function_exists( 'mb_substr' ) ? mb_substr( $character_fallback, 0, 2 ) : substr( $character_fallback, 0, 2 ) );
 
+/* ── [1.3.0] 基本資料：性別 / 生日 / 血型（皆為 optional 欄位） ──
+   期望的資料形狀：
+     $character['gender']    string  例如 '男'
+     $character['birthday']  string  例如 '甲龍曆407年/公曆11月22日'
+     $character['bloodtype'] string  例如 'A'
+     $character['aliases']   array   例如 [ ['label' => '暱稱', 'value' => '魯迪'], ... ]
+     $character['summary']   string  角色簡介純文字（會自動 strip tags 再 esc）
+*/
+$basic_info_rows = [];
+if ( ! empty( $character['gender'] ) ) {
+    $basic_info_rows[] = [ '性別', $character['gender'] ];
+}
+if ( ! empty( $character['birthday'] ) ) {
+    $basic_info_rows[] = [ '生日', $character['birthday'] ];
+}
+if ( ! empty( $character['bloodtype'] ) ) {
+    $basic_info_rows[] = [ '血型', $character['bloodtype'] ];
+}
+
+$character_aliases = ( isset( $character['aliases'] ) && is_array( $character['aliases'] ) ) ? $character['aliases'] : [];
+
+$character_summary = isset( $character['summary'] ) ? trim( wp_strip_all_tags( (string) $character['summary'] ) ) : '';
+
+/* ── [1.4.0] 關聯角色：repository 尚未實作對應方法時自動略過 ──
+   期望的資料形狀：
+     get_character_relations($id) => [ ['relation' => '朋友', 'name' => ..., 'url' => ..., 'avatar' => ... (可選)], ... ]
+*/
+$character_relations = method_exists( $repo, 'get_character_relations' ) ? (array) $repo->get_character_relations( $character_bgm_id ) : [];
 /* ── JSON-LD：Person schema(虛構角色沒有 Character type 被 Google 廣泛支援，
-   用 Person + disambiguatingDescription 標註，是常見替代做法） ── */
+   用 Person + disambiguatingDescription 標註，是常見替代做法) ── */
 $schema = [
     '@context'                 => 'https://schema.org',
     '@type'                    => 'Person',
@@ -65,6 +111,12 @@ if ( $character['name_original'] !== '' && $character['name_original'] !== $char
 }
 if ( $character['image'] !== '' ) {
     $schema['image'] = $character['image'];
+}
+if ( ! empty( $character['gender'] ) && in_array( $character['gender'], [ '男', '女' ], true ) ) {
+    $schema['gender'] = ( $character['gender'] === '男' ) ? 'Male' : 'Female';
+}
+if ( $character_summary !== '' ) {
+    $schema['description'] = $character_summary;
 }
 $same_as = [];
 if ( $character['bgm_id'] > 0 ) {
@@ -89,7 +141,7 @@ if ( $character['anilist_id'] > 0 ) {
     $external_links[] = [ 'label' => 'AniList', 'icon' => '🔵', 'url' => 'https://anilist.co/character/' . $character['anilist_id'] ];
 }
 if ( $character['mal_id'] > 0 ) {
-    $external_links[] = [ 'label' => 'MyAnimeList', 'icon' => '🔵', 'url' => 'https://myanimelist.net/character/' . $character['mal_id'] ];
+    $external_links[] = [ 'label' => 'MyAnimeList', 'icon' => '🔵', 'url' => 'https://myanimelist.net/people/' . $character['mal_id'] ];
 }
 
 get_header();
@@ -151,6 +203,46 @@ get_header();
             <?php endif; ?>
         </div>
     </header>
+
+    <?php if ( ! empty( $basic_info_rows ) || ! empty( $character_aliases ) ) : ?>
+        <section class="asa-basic-info">
+            <h2 class="asa-section-title">基本資料</h2>
+
+            <?php if ( ! empty( $basic_info_rows ) ) : ?>
+                <div class="asa-basic-info-grid">
+                    <?php foreach ( $basic_info_rows as $row ) : ?>
+                        <div class="asa-info-item">
+                            <span class="asa-info-item-label"><?php echo esc_html( $row[0] ); ?></span>
+                            <span class="asa-info-item-val"><?php echo esc_html( $row[1] ); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ( ! empty( $character_aliases ) ) : ?>
+                <div class="asa-alias-list">
+                    <?php foreach ( $character_aliases as $alias ) :
+                        $a_label = isset( $alias['label'] ) ? trim( (string) $alias['label'] ) : '';
+                        $a_value = isset( $alias['value'] ) ? trim( (string) $alias['value'] ) : '';
+                        if ( $a_value === '' ) continue;
+                    ?>
+                        <div class="asa-alias-row">
+                            <?php if ( $a_label !== '' ) : ?>
+                                <span class="asa-alias-label"><?php echo esc_html( $a_label ); ?></span>
+                            <?php endif; ?>
+                            <span class="asa-alias-val"><?php echo esc_html( $a_value ); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
+    <?php if ( $character_summary !== '' ) : ?>
+        <section class="asa-entity-summary">
+            <?php echo wpautop( esc_html( $character_summary ) ); ?>
+        </section>
+    <?php endif; ?>
 
     <section class="asa-entity-works">
         <div class="asa-section-title-row">
@@ -215,6 +307,49 @@ get_header();
             </p>
         <?php endif; ?>
     </section>
+
+    <?php if ( ! empty( $character_relations ) ) :
+        /* 依關係類型分組，保留第一次出現的順序（對齊 bgm 角色頁的分組呈現） */
+        $relation_groups = [];
+        foreach ( $character_relations as $rel ) {
+            $rel_type = isset( $rel['relation'] ) ? trim( (string) $rel['relation'] ) : '';
+            if ( $rel_type === '' ) $rel_type = '其他';
+            $relation_groups[ $rel_type ][] = $rel;
+        }
+    ?>
+        <section class="asa-entity-relations">
+            <h2 class="asa-section-title">關聯角色</h2>
+
+            <?php foreach ( $relation_groups as $group_name => $items ) : ?>
+                <div class="asa-relations-group">
+                    <h3 class="asa-relations-group-title"><?php echo esc_html( $group_name ); ?></h3>
+                    <div class="asa-relations-grid">
+                        <?php foreach ( $items as $item ) :
+                            $r_name   = isset( $item['name'] ) ? trim( (string) $item['name'] ) : '';
+                            $r_url    = isset( $item['url'] ) ? $item['url'] : '#';
+                            $r_avatar = isset( $item['avatar'] ) ? $item['avatar'] : '';
+                            $r_fb     = $r_name === '' ? '?' : ( function_exists( 'mb_substr' ) ? mb_substr( $r_name, 0, 1 ) : substr( $r_name, 0, 1 ) );
+                        ?>
+                            <a class="asa-relation-card" href="<?php echo esc_url( $r_url ); ?>">
+                                <span class="asa-relation-avatar">
+                                    <?php if ( $r_avatar !== '' ) : ?>
+                                        <img src="<?php echo esc_url( $r_avatar ); ?>"
+                                             alt="<?php echo esc_attr( $r_name ); ?>"
+                                             loading="lazy"
+                                             onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+                                        <span class="asa-relation-avatar-fb" style="display:none"><?php echo esc_html( $r_fb ); ?></span>
+                                    <?php else : ?>
+                                        <span class="asa-relation-avatar-fb"><?php echo esc_html( $r_fb ); ?></span>
+                                    <?php endif; ?>
+                                </span>
+                                <span class="asa-relation-name"><?php echo esc_html( $r_name ); ?></span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </section>
+    <?php endif; ?>
 
 </div>
 

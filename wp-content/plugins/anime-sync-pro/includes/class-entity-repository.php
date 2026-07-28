@@ -2,22 +2,30 @@
 /**
  * Entity Repository — 角色/聲優/製作人員 的唯讀查詢層。
  *
- * 資料來源:wp_anime_characters / wp_anime_persons / wp_anime_relations
- * 三張表(由 Entity Migrator 攤平而來)。
+ * 資料來源:
+ *   - wp_anime_characters / wp_anime_persons / wp_anime_relations
+ *   - wp_anime_character_aliases / wp_anime_person_aliases（別名，一對多）
+ *   - wp_anime_character_relations（角色↔角色 關聯，自我參照一對多）
  *
- * 設計原則:
- *   1. 容錯:缺欄位一律回 fallback(空字串、placeholder),不回 null。
- *   2. relations 表為查詢主軸(bgm_id 一定在),不依賴實體表被填滿。
- *   3. 只回乾淨陣列,呈現交給前端/API。
- *   4. 重查詢(熱門聲優)加 transient 快取,降 DB 壓力 + 護 API。
+ * 上述新表與 wp_anime_characters / wp_anime_persons 的新增欄位
+ * (gender / birthday / bloodtype / summary) 需先執行
+ * entity-schema-migration-v2.sql 才能使用。
  *
- * 前端與外部 API 共用此層。
+ * 相簿功能已移除：bgm.tv 官方 API 的角色/人物 detail 端點只回傳
+ * 單張 images(small/grid/large/medium)，無多圖相簿資料源，
+ * 故不提供 get_character_photos()。
  *
  * Changelog:
- *   1.0.1 (2026-07-28)
- *     - [修正] role 加入 clean_role() 清理半形/全形空格,排序更準、顯示乾淨。
- *   1.0.0 (2026-07-28)
- *     - [新增] 初版查詢層。
+ *   1.2.0 (2026-07-28)
+ *     - [移除] get_character_photos()、$t_char_photo：相簿功能無穩定
+ *       資料源，移除以簡化維護範圍。
+ *     - CACHE_VER 由 v1 → v2（結構調整，舊快取需整批失效）。
+ *   1.1.0 (2026-07-28)
+ *     - [新增] get_character() / get_person() 補上 gender / birthday /
+ *       bloodtype / summary / aliases。
+ *     - [新增] get_character_relations()：角色↔角色 關聯，LEFT JOIN
+ *       角色表，對方資料不存在時自動跳過。
+ *   1.0.0 — 初版查詢層。
  *
  * @package Anime_Sync_Pro
  */
@@ -32,20 +40,19 @@ class Anime_Sync_Entity_Repository {
 	private $t_person;
 	private $t_rel;
 
-	/** 快取時間(秒)。作品/關聯變動不頻繁,設 6 小時。 */
+	private $t_char_alias;
+	private $t_person_alias;
+	private $t_char_rel;
+
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
+	const CACHE_VER = 'v2';
 
-	/** 快取版本;改欄位或邏輯時 +1,一鍵讓所有舊快取失效。 */
-	const CACHE_VER = 'v1';
-
-	/** ACF meta key(已於 class-acf-fields.php 確認) */
-	const META_TITLE_ZH    = 'anime_title_chinese';
+	const META_TITLE_ZH     = 'anime_title_chinese';
 	const META_TITLE_ROMAJI = 'anime_title_romaji';
-	const META_TITLE_EN    = 'anime_title_english';
-	const META_COVER       = 'anime_cover_image';
-	const META_YEAR        = 'anime_season_year';
+	const META_TITLE_EN     = 'anime_title_english';
+	const META_COVER        = 'anime_cover_image';
+	const META_YEAR         = 'anime_season_year';
 
-	/** 缺圖時的預設圖(前端可再覆蓋) */
 	const PLACEHOLDER_PERSON = '';
 	const PLACEHOLDER_CHAR   = '';
 
@@ -54,18 +61,16 @@ class Anime_Sync_Entity_Repository {
 		$this->t_char   = $wpdb->prefix . 'anime_characters';
 		$this->t_person = $wpdb->prefix . 'anime_persons';
 		$this->t_rel    = $wpdb->prefix . 'anime_relations';
+
+		$this->t_char_alias   = $wpdb->prefix . 'anime_character_aliases';
+		$this->t_person_alias = $wpdb->prefix . 'anime_person_aliases';
+		$this->t_char_rel     = $wpdb->prefix . 'anime_character_relations';
 	}
 
 	/* =====================================================================
 	 * 單一實體:人物(聲優 / 製作)
 	 * ===================================================================== */
 
-	/**
-	 * 取單一人物基本資料。
-	 *
-	 * @param int $bgm_id
-	 * @return array|null  找不到回 null;找到回乾淨陣列。
-	 */
 	public function get_person( int $bgm_id ): ?array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
@@ -74,7 +79,8 @@ class Anime_Sync_Entity_Repository {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT bgm_id, name, name_original, image, type, anilist_id, mal_id
+				"SELECT bgm_id, name, name_original, image, type, anilist_id, mal_id,
+				        gender, birthday, bloodtype, summary
 				 FROM {$this->t_person} WHERE bgm_id = %d",
 				$bgm_id
 			),
@@ -93,21 +99,15 @@ class Anime_Sync_Entity_Repository {
 			'type'          => (string) ( $row['type'] ?: 'cv' ),
 			'anilist_id'    => (int) $row['anilist_id'],
 			'mal_id'        => (int) $row['mal_id'],
+			'gender'        => $this->fallback_text( $row['gender'] ?? '' ),
+			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
+			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
+			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
+			'aliases'       => $this->get_entity_aliases( $this->t_person_alias, 'person_bgm_id', (int) $row['bgm_id'] ),
 			'url'           => $this->person_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
 
-	/**
-	 * 取某人物參與的所有作品(依角色主/配 + 年份新到舊排序)。
-	 *
-	 * 每部作品回傳:
-	 *   anime_id, title, cover, url,
-	 *   character_name, character_bgm_id, character_image, role
-	 *
-	 * @param int  $bgm_id
-	 * @param bool $cast_only  只回配音(cast),排除 staff。預設 true。
-	 * @return array
-	 */
 	public function get_person_works( int $bgm_id, bool $cast_only = true ): array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
@@ -156,9 +156,6 @@ class Anime_Sync_Entity_Repository {
 	 * 單一實體:角色
 	 * ===================================================================== */
 
-	/**
-	 * 取單一角色基本資料。
-	 */
 	public function get_character( int $bgm_id ): ?array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
@@ -167,7 +164,8 @@ class Anime_Sync_Entity_Repository {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT bgm_id, name, name_original, image, anilist_id, mal_id
+				"SELECT bgm_id, name, name_original, image, anilist_id, mal_id,
+				        gender, birthday, bloodtype, summary
 				 FROM {$this->t_char} WHERE bgm_id = %d",
 				$bgm_id
 			),
@@ -185,17 +183,15 @@ class Anime_Sync_Entity_Repository {
 			'image'         => $this->fallback_image( $row['image'], self::PLACEHOLDER_CHAR ),
 			'anilist_id'    => (int) $row['anilist_id'],
 			'mal_id'        => (int) $row['mal_id'],
+			'gender'        => $this->fallback_text( $row['gender'] ?? '' ),
+			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
+			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
+			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
+			'aliases'       => $this->get_entity_aliases( $this->t_char_alias, 'character_bgm_id', (int) $row['bgm_id'] ),
 			'url'           => $this->character_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
 
-	/**
-	 * 取某角色出現的所有作品 + 各作品的配音員。
-	 *
-	 * 每部作品回傳:
-	 *   anime_id, title, cover, url, role,
-	 *   voice_actors[] => { bgm_id, name, image, url }
-	 */
 	public function get_character_works( int $bgm_id ): array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
@@ -220,14 +216,13 @@ class Anime_Sync_Entity_Repository {
 			ARRAY_A
 		);
 
-		// 先依 anime_id 聚合,一部作品可能多個配音員(多語版等)
 		$grouped = [];
 		foreach ( $rows as $row ) {
 			$aid = (int) $row['anime_id'];
 			if ( ! isset( $grouped[ $aid ] ) ) {
 				$grouped[ $aid ] = [
-					'role'          => $this->clean_role( $row['role'] ),
-					'voice_actors'  => [],
+					'role'         => $this->clean_role( $row['role'] ),
+					'voice_actors' => [],
 				];
 			}
 			$p_bgm = (int) $row['person_bgm_id'];
@@ -241,7 +236,6 @@ class Anime_Sync_Entity_Repository {
 			}
 		}
 
-		// 攤成 works 陣列並補作品資訊 + 排序
 		$pseudo_rows = [];
 		foreach ( $grouped as $aid => $data ) {
 			$pseudo_rows[] = [
@@ -265,13 +259,60 @@ class Anime_Sync_Entity_Repository {
 		return $works;
 	}
 
+	/**
+	 * 取某角色的關聯角色(朋友/親屬/配偶/對手/師生等)。
+	 */
+	public function get_character_relations( int $bgm_id ): array {
+		global $wpdb;
+		if ( $bgm_id <= 0 ) {
+			return [];
+		}
+
+		$cache_key = $this->cache_key( 'character_relations', [ $bgm_id ] );
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			return $cached;
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT cr.relation_label, cr.related_character_bgm_id,
+				        c.name AS c_name, c.name_original AS c_name_orig, c.image AS c_image
+				 FROM {$this->t_char_rel} cr
+				 LEFT JOIN {$this->t_char} c ON c.bgm_id = cr.related_character_bgm_id
+				 WHERE cr.character_bgm_id = %d
+				 ORDER BY cr.sort_order ASC, cr.id ASC",
+				$bgm_id
+			),
+			ARRAY_A
+		);
+
+		$relations = [];
+		foreach ( (array) $rows as $row ) {
+			$rc_bgm = (int) $row['related_character_bgm_id'];
+			if ( $rc_bgm <= 0 || null === $row['c_name'] ) {
+				continue; // 對方角色資料不存在 → 跳過,避免死連結
+			}
+			$name = $this->fallback_name( $row['c_name'], $row['c_name_orig'] );
+			if ( '' === $name ) {
+				continue;
+			}
+			$relations[] = [
+				'relation' => $this->clean_role( $row['relation_label'] ),
+				'name'     => $name,
+				'avatar'   => $this->fallback_image( $row['c_image'], self::PLACEHOLDER_CHAR ),
+				'url'      => $this->character_url( $rc_bgm, $row['c_name'] ),
+			];
+		}
+
+		set_transient( $cache_key, $relations, self::CACHE_TTL );
+		return $relations;
+	}
+
 	/* =====================================================================
-	 * 單一作品:cast / staff(給 single-anime.php 加超連結用)
+	 * 單一作品:cast / staff
 	 * ===================================================================== */
 
-	/**
-	 * 取某作品的完整 cast(角色 + 配音員),依主/配排序。
-	 */
 	public function get_anime_cast( int $anime_id ): array {
 		global $wpdb;
 		if ( $anime_id <= 0 ) {
@@ -292,7 +333,6 @@ class Anime_Sync_Entity_Repository {
 			ARRAY_A
 		);
 
-		// 依角色聚合
 		$grouped = [];
 		foreach ( $rows as $row ) {
 			$cbgm = (int) $row['character_bgm_id'];
@@ -325,9 +365,6 @@ class Anime_Sync_Entity_Repository {
 		return $list;
 	}
 
-	/**
-	 * 取某作品的完整 staff(製作人員),同一人多職位會分開列。
-	 */
 	public function get_anime_staff( int $anime_id ): array {
 		global $wpdb;
 		if ( $anime_id <= 0 ) {
@@ -368,20 +405,42 @@ class Anime_Sync_Entity_Repository {
 	 * 內部工具
 	 * ===================================================================== */
 
-	/**
-	 * 把 relation rows 補上作品資訊(標題/封面/年份/permalink),
-	 * 排序(主角優先 → 年份新到舊),再套用 extra 欄位。
-	 *
-	 * @param array    $rows       至少含 anime_id、role
-	 * @param callable $extra_cb   針對每列額外欄位的產生器
-	 * @return array
-	 */
+	private function get_entity_aliases( string $table, string $fk_column, int $bgm_id ): array {
+		global $wpdb;
+		if ( $bgm_id <= 0 ) {
+			return [];
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT label, value FROM {$table}
+				 WHERE {$fk_column} = %d
+				 ORDER BY sort_order ASC, id ASC",
+				$bgm_id
+			),
+			ARRAY_A
+		);
+
+		$aliases = [];
+		foreach ( (array) $rows as $row ) {
+			$value = trim( (string) ( $row['value'] ?? '' ) );
+			if ( '' === $value ) {
+				continue;
+			}
+			$aliases[] = [
+				'label' => trim( (string) ( $row['label'] ?? '' ) ),
+				'value' => $value,
+			];
+		}
+
+		return $aliases;
+	}
+
 	private function hydrate_works( array $rows, callable $extra_cb ): array {
 		if ( empty( $rows ) ) {
 			return [];
 		}
 
-		// 收集不重複 anime_id,一次批量抓 meta(避免 N+1)
 		$anime_ids = array_values( array_unique( array_map(
 			function ( $r ) { return (int) $r['anime_id']; },
 			$rows
@@ -394,7 +453,6 @@ class Anime_Sync_Entity_Repository {
 			$aid = (int) $row['anime_id'];
 			$m   = $meta_cache[ $aid ] ?? null;
 
-			// 作品已被刪除或非 publish → 跳過,避免死連結
 			if ( null === $m ) {
 				continue;
 			}
@@ -404,13 +462,12 @@ class Anime_Sync_Entity_Repository {
 				'title'    => $m['title'],
 				'cover'    => $m['cover'],
 				'url'      => $m['url'],
-				'_year'    => $m['year'],  // 排序用,回傳前移除
+				'_year'    => $m['year'],
 			];
 
 			$works[] = array_merge( $base, (array) $extra_cb( $row ) );
 		}
 
-		// 排序:主角優先 → 年份新到舊
 		usort( $works, function ( $a, $b ) {
 			$rw = $this->role_weight( $a['role'] ?? '' ) <=> $this->role_weight( $b['role'] ?? '' );
 			if ( 0 !== $rw ) {
@@ -419,7 +476,6 @@ class Anime_Sync_Entity_Repository {
 			return ( (int) $b['_year'] ) <=> ( (int) $a['_year'] );
 		} );
 
-		// 移除排序用臨時欄位
 		foreach ( $works as &$w ) {
 			unset( $w['_year'] );
 		}
@@ -428,16 +484,11 @@ class Anime_Sync_Entity_Repository {
 		return $works;
 	}
 
-	/**
-	 * 批量抓多部作品的 meta,回 [ anime_id => [title, cover, url, year] ]。
-	 * 只回 publish 狀態的作品(其餘視為不存在)。
-	 */
 	private function batch_anime_meta( array $anime_ids ): array {
 		if ( empty( $anime_ids ) ) {
 			return [];
 		}
 
-		// 一次 get_posts 拉出有效作品,順便暖 meta 快取
 		$posts = get_posts( [
 			'post_type'      => 'anime',
 			'post_status'    => 'publish',
@@ -469,27 +520,18 @@ class Anime_Sync_Entity_Repository {
 		return $out;
 	}
 
-	/**
-	 * 角色排序權重:主角 0 → 配角 1 → 客串 2 → 其他 3。
-	 */
 	private function role_weight( string $role ): int {
 		$role = $this->clean_role( $role );
 		$map  = [ '主角' => 0, '配角' => 1, '客串' => 2 ];
 		return $map[ $role ] ?? 3;
 	}
 
-	/**
-	 * 清理 role 髒資料:半形/全形空格、不斷行空格。
-	 */
 	private function clean_role( ?string $role ): string {
 		$role = trim( (string) $role );
-		$role = str_replace( [ "\xE3\x80\x80", "\xC2\xA0" ], '', $role ); // 全形空格、不斷行空格
+		$role = str_replace( [ "\xE3\x80\x80", "\xC2\xA0" ], '', $role );
 		return trim( $role );
 	}
 
-	/**
-	 * 譯名 fallback:中文名空 → 原文名 → 空字串。
-	 */
 	private function fallback_name( ?string $name, ?string $original ): string {
 		$name = trim( (string) $name );
 		if ( '' !== $name ) {
@@ -498,46 +540,34 @@ class Anime_Sync_Entity_Repository {
 		return trim( (string) $original );
 	}
 
-	/**
-	 * 圖片 fallback:空 → placeholder。
-	 */
 	private function fallback_image( ?string $image, string $placeholder ): string {
 		$image = trim( (string) $image );
 		return '' !== $image ? $image : $placeholder;
 	}
 
-	/**
-	 * 人物頁 URL:/person/{bgm_id}/{name}(name 為 SEO 裝飾,可選)。
-	 */
+	private function fallback_text( ?string $value ): string {
+		return trim( (string) $value );
+	}
+
 	private function person_url( int $bgm_id, ?string $name = '' ): string {
 		$slug = $this->url_slug( $name );
 		return home_url( "/person/{$bgm_id}/" . $slug );
 	}
 
-	/**
-	 * 角色頁 URL:/character/{bgm_id}/{name}。
-	 */
 	private function character_url( int $bgm_id, ?string $name = '' ): string {
 		$slug = $this->url_slug( $name );
 		return home_url( "/character/{$bgm_id}/" . $slug );
 	}
 
-	/**
-	 * 把名字轉成 URL 安全片段(保留中日文,空則回空)。
-	 */
 	private function url_slug( ?string $name ): string {
 		$name = trim( (string) $name );
 		if ( '' === $name ) {
 			return '';
 		}
-		// 保留可讀性;空白轉 -,rawurlencode 交給 WP 輸出時處理
 		$name = str_replace( ' ', '-', $name );
 		return rawurlencode( $name );
 	}
 
-	/**
-	 * 快取鍵:含版本號,一改邏輯就整批失效。
-	 */
 	private function cache_key( string $scope, array $parts ): string {
 		return 'asp_ent_' . self::CACHE_VER . '_' . $scope . '_' . implode( '_', $parts );
 	}

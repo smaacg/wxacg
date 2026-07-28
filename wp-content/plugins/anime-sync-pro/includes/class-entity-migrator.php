@@ -11,6 +11,12 @@
  * 特性:冪等。用 bgm_id 去重、relations 用 unique key,重跑不會產生重複。
  * 譯名策略:非空中文優先,後寫入者若非空則覆蓋(讓整理過的譯名勝出)。
  *
+ * @changelog
+ *   1.1.0 (2026-07-28) — 新增 source guard:
+ *     CAST 只接受 source==='bangumi';STAFF 只接受 'bangumi' / 'bangumi_infobox'。
+ *     AniList fallback 的 id 不再被誤當 bgm_id 寫入,改計入 skipped。
+ *   1.0.0 — 初版。
+ *
  * @package Anime_Sync_Pro
  */
 
@@ -78,6 +84,12 @@ class Anime_Sync_Entity_Migrator {
 		$cast     = $this->decode( $cast_raw );
 
 		foreach ( $cast as $c ) {
+			// [1.1.0] source guard:只接受 Bangumi 來源,AniList fallback 一律略過
+			if ( ( $c['source'] ?? '' ) !== 'bangumi' ) {
+				$stats['skipped']++;
+				continue;
+			}
+
 			$char_bgm = (int) ( $c['id'] ?? 0 );
 			$char_nm  = trim( (string) ( $c['name'] ?? '' ) );
 			$char_img = (string) ( $c['image'] ?? '' );
@@ -128,6 +140,13 @@ class Anime_Sync_Entity_Migrator {
 		$staff     = $this->decode( $staff_raw );
 
 		foreach ( $staff as $s ) {
+			// [1.1.0] source guard:接受 bangumi 與 bangumi_infobox 兩種 Bangumi 來源
+			$src = $s['source'] ?? '';
+			if ( $src !== 'bangumi' && $src !== 'bangumi_infobox' ) {
+				$stats['skipped']++;
+				continue;
+			}
+
 			$p_bgm = (int) ( $s['id'] ?? 0 );
 			$p_nm  = trim( (string) ( $s['name'] ?? '' ) );
 			$p_img = (string) ( $s['image'] ?? '' );
@@ -271,7 +290,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '角色筆數    : ' . $stats['characters'] );
 		WP_CLI::log( '人物筆數    : ' . $stats['persons'] );
 		WP_CLI::log( '關聯筆數    : ' . $stats['relations'] );
-		WP_CLI::log( '略過(無id) : ' . $stats['skipped'] );
+		WP_CLI::log( '略過(非bgm/無id) : ' . $stats['skipped'] );
 		WP_CLI::success( $dry_run ? 'Dry run 完成(未寫入)' : '遷移完成' );
 	} );
 }

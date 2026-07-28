@@ -1581,7 +1581,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </section>
                 <?php endif; ?>
 
-                <?php /* Staff */ ?>
+                              <?php /* Staff */ ?>
                 <?php if ( ! empty( $staff_list ) ) : ?>
                     <section class="asd-section" id="asd-sec-staff">
                         <h2 class="asd-section-title">🎬 STAFF</h2>
@@ -1591,7 +1591,10 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                 $s_name   = trim( $s['name']   ?? '' );
                                 $s_native = trim( $s['native'] ?? '' );
                                 $s_role   = wxacg_staff_role( $s['role'] ?? '' );
-                                $s_url    = $entity_url( 'person', $s_id, $s_name );
+                                // [14.9] 只有 Bangumi 來源的 id 才是 bgm_id；AniList fallback 的 id 不是，
+                                //        直接產生 /person/{id}/ 會連到錯誤人物或 404，故非 bangumi 不給連結。
+                                $s_is_bgm = ( ( $s['source'] ?? '' ) === 'bangumi' );
+                                $s_url    = $s_is_bgm ? $entity_url( 'person', $s_id, $s_name ) : '';
                             ?>
                                 <div class="asd-staff-card-v2<?php echo $i >= 10 ? ' asd-staff-hidden' : ''; ?>">
                                     <div class="asd-staff-info">
@@ -1633,8 +1636,12 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                 $c_va_name     = trim( $va['name']   ?? '' );
                                 $c_va_native   = trim( $va['native'] ?? '' );
                                 $c_fb          = function_exists( 'mb_substr' ) ? mb_substr( $c_char_name, 0, 2 ) : substr( $c_char_name, 0, 2 );
-                                $c_char_url    = $entity_url( 'character', $c_char_id, $c_char_name );
-                                $c_va_url      = $entity_url( 'person', $c_va_id, $c_va_name );
+                                // [14.9] 只有 Bangumi 來源的角色/聲優 id 才是 bgm_id；AniList fallback 的 id 不是，
+                                //        故非 bangumi 一律退回純文字，不產生 /character/ 或 /person/ 連結。
+                                //        聲優沒有獨立 source 欄位，其 id 隨所屬角色來源，故共用 $c_is_bgm。
+                                $c_is_bgm      = ( ( $c['source'] ?? '' ) === 'bangumi' );
+                                $c_char_url    = $c_is_bgm ? $entity_url( 'character', $c_char_id, $c_char_name ) : '';
+                                $c_va_url      = $c_is_bgm ? $entity_url( 'person', $c_va_id, $c_va_name ) : '';
                             ?>
                                 <div class="asd-cast-card<?php echo $i >= 6 ? ' asd-cast-hidden' : ''; ?>">
                                     <div class="asd-cast-avatar-wrap">
@@ -1686,6 +1693,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                         <?php endif; ?>
                     </section>
                 <?php endif; ?>
+
              
                <?php /* 主題曲 */ ?>
                 <?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>

@@ -7,6 +7,15 @@
  * 資料全走 Anime_Sync_Entity_Repository(唯讀,含快取)。
  *
  * Changelog:
+ *   1.3.0 (2026-07-28)
+ *     - [新增] 參考 bgm.tv 角色頁版型，比照 single-character.php 新增
+ *              「基本資料」區塊：性別、生日、血型、別名/本名等
+ *              ($person['gender'] / ['birthday'] / ['bloodtype'] /
+ *              ['aliases'])。全部欄位皆為 optional，沒有資料就不
+ *              顯示這個區塊，不會出現空卡片。
+ *     - [新增] 簡介段落（$person['summary']），用於顯示聲優簡介、
+ *              代表作等純文字介紹。
+ *     - [調整] 頁面區塊順序改為：Header → 基本資料 → 簡介 → 參與作品。
  *   1.2.0 (2026-07-28)
  *     - [改版] Hero 區塊比照 single-anime.php 視覺語彙重做：
  *              大頭照改為直式海報比例(3:4)並限制寬度，不再是過大的
@@ -54,6 +63,29 @@ $role_label  = $is_cv ? '聲優' : '製作人員';
 $person_fallback = trim( wp_strip_all_tags( (string) $person['name'] ) );
 $person_fallback = $person_fallback === '' ? 'AN' : ( function_exists( 'mb_substr' ) ? mb_substr( $person_fallback, 0, 2 ) : substr( $person_fallback, 0, 2 ) );
 
+/* ── [1.3.0] 基本資料：性別 / 生日 / 血型（皆為 optional 欄位） ──
+   期望的資料形狀：
+     $person['gender']    string  例如 '男'
+     $person['birthday']  string  例如 '1985年7月8日'
+     $person['bloodtype'] string  例如 'A'
+     $person['aliases']   array   例如 [ ['label' => '本名', 'value' => '...'], ['label' => '暱稱', 'value' => '...'] ]
+     $person['summary']   string  簡介純文字（會自動 strip tags 再 esc）
+*/
+$basic_info_rows = [];
+if ( ! empty( $person['gender'] ) ) {
+    $basic_info_rows[] = [ '性別', $person['gender'] ];
+}
+if ( ! empty( $person['birthday'] ) ) {
+    $basic_info_rows[] = [ '生日', $person['birthday'] ];
+}
+if ( ! empty( $person['bloodtype'] ) ) {
+    $basic_info_rows[] = [ '血型', $person['bloodtype'] ];
+}
+
+$person_aliases = ( isset( $person['aliases'] ) && is_array( $person['aliases'] ) ) ? $person['aliases'] : [];
+
+$person_summary = isset( $person['summary'] ) ? trim( wp_strip_all_tags( (string) $person['summary'] ) ) : '';
+
 /* ── JSON-LD：Person schema，含 sameAs 外部資料庫連結 ── */
 $schema = [
     '@context' => 'https://schema.org',
@@ -69,6 +101,12 @@ if ( $person['image'] !== '' ) {
 }
 if ( $is_cv ) {
     $schema['jobTitle'] = '聲優';
+}
+if ( ! empty( $person['gender'] ) && in_array( $person['gender'], [ '男', '女' ], true ) ) {
+    $schema['gender'] = ( $person['gender'] === '男' ) ? 'Male' : 'Female';
+}
+if ( $person_summary !== '' ) {
+    $schema['description'] = $person_summary;
 }
 $same_as = [];
 if ( $person['bgm_id'] > 0 ) {
@@ -156,6 +194,46 @@ get_header();
             <?php endif; ?>
         </div>
     </header>
+
+    <?php if ( ! empty( $basic_info_rows ) || ! empty( $person_aliases ) ) : ?>
+        <section class="asa-basic-info">
+            <h2 class="asa-section-title">基本資料</h2>
+
+            <?php if ( ! empty( $basic_info_rows ) ) : ?>
+                <div class="asa-basic-info-grid">
+                    <?php foreach ( $basic_info_rows as $row ) : ?>
+                        <div class="asa-info-item">
+                            <span class="asa-info-item-label"><?php echo esc_html( $row[0] ); ?></span>
+                            <span class="asa-info-item-val"><?php echo esc_html( $row[1] ); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ( ! empty( $person_aliases ) ) : ?>
+                <div class="asa-alias-list">
+                    <?php foreach ( $person_aliases as $alias ) :
+                        $a_label = isset( $alias['label'] ) ? trim( (string) $alias['label'] ) : '';
+                        $a_value = isset( $alias['value'] ) ? trim( (string) $alias['value'] ) : '';
+                        if ( $a_value === '' ) continue;
+                    ?>
+                        <div class="asa-alias-row">
+                            <?php if ( $a_label !== '' ) : ?>
+                                <span class="asa-alias-label"><?php echo esc_html( $a_label ); ?></span>
+                            <?php endif; ?>
+                            <span class="asa-alias-val"><?php echo esc_html( $a_value ); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
+    <?php if ( $person_summary !== '' ) : ?>
+        <section class="asa-entity-summary">
+            <?php echo wpautop( esc_html( $person_summary ) ); ?>
+        </section>
+    <?php endif; ?>
 
     <section class="asa-entity-works">
         <div class="asa-section-title-row">
