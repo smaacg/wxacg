@@ -6,32 +6,18 @@
  * 由 class-entity-routing.php 於命中 /character/{id} 時載入。
  *
  * Changelog:
+ *   1.4.1 (2026-07-29)
+ *     - [修正] 修正上一版檔尾誤把 corrections shortcode 檔案內容貼進本檔、
+ *              且 get_footer() 後多出非法 <?php 導致 parse error 的問題。
+ *     - [強化] asa_get_character_comment_post_id() 以 function_exists 包裹，
+ *              避免模板重複載入時 Cannot redeclare function 致命錯誤。
  *   1.4.0 (2026-07-29)
- *     - [改版] 套用 entity.css v1.4.0 的 bgm.tv 式兩欄版型：
- *              .asa-entity-layout > .asa-layout-side（頭像 + 基本資料 asa-infolist
- *              + 外部連結按鈕）/ .asa-layout-main（Header 名稱徽章 + 簡介 +
- *              登場作品 + 關聯角色）。
- *              修正舊版 .asa-entity-avatar 頭像在寬螢幕下因 max-width:42vw
- *              (無上限) 被撐到將近 800px 寬、900px+ 高的問題 —
- *              新版頭像改放進固定 260px 的側欄容器，不再吃 42vw。
- *     - [新增] Header 加入「✏ 糾錯回報」按鈕，比照 single-anime.php 的
- *              asd-action-btn 樣式與 data-action，錨點指向
- *              #asa-sec-corrections。未登入時導向登入頁再導回。
- *     - [新增] 底部「基本資料回報」表單區塊 [wxacg_correction_form]，
- *              沿用 anime 頁相同 shortcode（若該 shortcode 需要 entity
- *              type/id 參數，請依你們後台實作補上，目前先原樣帶入）。
- *     - [保留] 留言（comments_template()）本頁尚未加入 — 見下方說明。
- *              character 資料來自自訂 repository（以 bgm_id 為主鍵），
- *              並非 WP 原生 post，comments_template() 需要綁定一個真的
- *              $post 物件才能運作，所以無法像 single-anime.php 一樣直接
- *              呼叫。這段留言到聊天室裡跟你確認要怎麼接。
- *   （以下 1.3.1 起沿用原邏輯不變）
- *   1.3.1 (2026-07-28)
- *     - [移除] 相簿 Gallery 區塊。
- *   1.3.0 (2026-07-28)
- *     - [新增] 基本資料/簡介/關聯角色區塊。
- *   1.2.0 (2026-07-28)
- *     - [改版] Hero 區塊重做、fallback、外部連結按鈕。
+ *     - [改版] 套用 entity.css v1.4.0 的 bgm.tv 式兩欄版型。
+ *     - [新增] Header 糾錯回報按鈕 + 底部 [wxacg_correction_form] 表單。
+ *     - [新增] wpDiscuz 留言（掛在影子 post 上）。
+ *   1.3.1 (2026-07-28) - [移除] 相簿 Gallery 區塊。
+ *   1.3.0 (2026-07-28) - [新增] 基本資料/簡介/關聯角色區塊。
+ *   1.2.0 (2026-07-28) - [改版] Hero 區塊重做、fallback、外部連結按鈕。
  *   1.1.0 / 1.0.0 — 初版。
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -57,14 +43,7 @@ $works_count = count( $works );
 $character_fallback = trim( wp_strip_all_tags( (string) $character['name'] ) );
 $character_fallback = $character_fallback === '' ? 'AN' : ( function_exists( 'mb_substr' ) ? mb_substr( $character_fallback, 0, 2 ) : substr( $character_fallback, 0, 2 ) );
 
-/* ── 基本資料：性別 / 生日 / 血型（皆為 optional 欄位） ──
-   期望的資料形狀：
-     $character['gender']    string  例如 '男'
-     $character['birthday']  string  例如 '3月2日'
-     $character['bloodtype'] string  例如 'B'
-     $character['aliases']   array   例如 [ ['label' => '暱稱', 'value' => '...'], ... ]
-     $character['summary']   string  角色簡介純文字
-*/
+/* ── 基本資料：性別 / 生日 / 血型 / 別名 ── */
 $basic_info_rows = [];
 if ( ! empty( $character['gender'] ) ) {
     $basic_info_rows[] = [ '性別', $character['gender'] ];
@@ -135,41 +114,21 @@ if ( $character['mal_id'] > 0 ) {
     $external_links[] = [ 'label' => 'MyAnimeList', 'icon' => '🔵', 'url' => 'https://myanimelist.net/character/' . $character['mal_id'] ];
 }
 
-/* ── 糾錯回報連結：見下方 header 內的 if/else，直接用 $character_permalink 組登入導回網址 ── */
+/* ── 糾錯回報：登入導回用網址 ── */
 $character_permalink = home_url( '/character/' . $character['bgm_id'] . '/' );
 
-/* ── [1.4.0] wpDiscuz 留言：影子 Post ──
- * wpDiscuz／WP 原生留言系統一律綁在真正的 $post（comment_post_ID）上，
- * 而角色頁的 $character 是用 bgm_id 查 repository 撈出來的陣列，不是
- * WP post，沒有現成的 post_id 可以掛留言。
+/* ── [1.4.0] wpDiscuz 留言 / 糾錯表單用的「影子 Post」 ──
+ * character 是用 bgm_id 查 repository 撈出來的陣列，不是 WP post，
+ * comments_template() 與 [wxacg_correction_form] 都依賴真正的 global $post，
+ * 因此每個角色對應一篇非公開的 asa_char_comments 影子 post 當掛勾。
  *
- * 解法：每個角色對應一篇「影子 post」（post_type = asa_char_comments，
- * 非公開、不會被收錄索引、只拿來當留言的掛勾），以 meta
- * asa_character_bgm_id 尋找／建立，找不到就自動建一篇。
- *
- * [重要] 這個 post type 也要記得去 wpDiscuz 後台設定：
- *   wpDiscuz → Settings → General → 載入文章類型
- *   把 asa_char_comments 打勾，留言 UI 才會完整顯示（跟 anime 頁的
- *   備註是同一件事）。
- *
- * [建議] 目前為求本檔案能獨立運作，註冊 post type 的程式碼直接寫在
- * 這個模板裡（並用 post_type_exists 防重複註冊）。正式環境建議把
- * asa_register_char_comment_cpt() 移到主外掛的 init hook 裡，效能更好、
- * 也才會在還沒進到這個模板前就完成註冊。
+ * [重要] 這個 post type 要去 wpDiscuz 後台勾選（Settings → General → 載入
+ * 文章類型），留言 UI 才會完整顯示。
+ * [建議] 正式環境把 register 移到主外掛 init hook，效能較好。
  */
 if ( ! post_type_exists( 'asa_char_comments' ) ) {
     register_post_type( 'asa_char_comments', [
         'label'               => '角色留言掛載',
-        // [重要] wpDiscuz「Settings → General → 載入文章類型」的核取方塊清單，
-        // 是依 public === true 的 post type 撈出來的；上一版設成 public => false
-        // 導致這個 post type 完全不會出現在清單裡，選不到、也開不了留言。
-        // 這裡改成 public => true，但用其他旗標把它「隱形」：
-        //   - publicly_queryable => false → 前台不會有單獨網址可以直接開到
-        //   - exclude_from_search => true → 不會被搜尋收錄
-        //   - rewrite => false / has_archive => false → 不產生 permalink 規則
-        //   - show_in_menu => false → 不會出現在後台側邊選單
-        // show_ui 保留 true，是因為部分外掛（含 wpDiscuz）判斷「可用文章類型」
-        // 時除了 public 還會看 show_ui；show_in_menu=false 已經足夠把它從側邊欄藏起來。
         'public'              => true,
         'publicly_queryable'  => false,
         'exclude_from_search' => true,
@@ -188,46 +147,48 @@ if ( ! post_type_exists( 'asa_char_comments' ) ) {
 /**
  * 取得（或建立）角色對應的留言掛載 post，回傳 post_id。
  *
- * @param array $character 來自 $repo->get_character() 的角色資料。
- * @return int
+ * [1.4.1] 以 function_exists 包裹，避免模板在同一次請求被載入兩次時
+ * 觸發 Cannot redeclare function 致命錯誤。
  */
-function asa_get_character_comment_post_id( array $character ) {
-    $bgm_id = (int) ( $character['bgm_id'] ?? 0 );
-    if ( $bgm_id <= 0 ) return 0;
+if ( ! function_exists( 'asa_get_character_comment_post_id' ) ) {
+    function asa_get_character_comment_post_id( array $character ) {
+        $bgm_id = (int) ( $character['bgm_id'] ?? 0 );
+        if ( $bgm_id <= 0 ) return 0;
 
-    $existing = get_posts( [
-        'post_type'      => 'asa_char_comments',
-        'post_status'    => 'publish',
-        'posts_per_page' => 1,
-        'no_found_rows'  => true,
-        'meta_query'     => [
-            [
-                'key'     => 'asa_character_bgm_id',
-                'value'   => $bgm_id,
-                'compare' => '=',
-                'type'    => 'NUMERIC',
+        $existing = get_posts( [
+            'post_type'      => 'asa_char_comments',
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                [
+                    'key'     => 'asa_character_bgm_id',
+                    'value'   => $bgm_id,
+                    'compare' => '=',
+                    'type'    => 'NUMERIC',
+                ],
             ],
-        ],
-    ] );
+        ] );
 
-    if ( ! empty( $existing ) ) {
-        return (int) $existing[0]->ID;
+        if ( ! empty( $existing ) ) {
+            return (int) $existing[0]->ID;
+        }
+
+        $new_id = wp_insert_post( [
+            'post_type'      => 'asa_char_comments',
+            'post_status'    => 'publish',
+            'post_title'     => wp_strip_all_tags( (string) $character['name'] ) . '（角色留言）',
+            'comment_status' => 'open',
+            'ping_status'    => 'closed',
+        ], true );
+
+        if ( is_wp_error( $new_id ) || ! $new_id ) {
+            return 0;
+        }
+
+        update_post_meta( $new_id, 'asa_character_bgm_id', $bgm_id );
+        return (int) $new_id;
     }
-
-    $new_id = wp_insert_post( [
-        'post_type'      => 'asa_char_comments',
-        'post_status'    => 'publish',
-        'post_title'     => wp_strip_all_tags( (string) $character['name'] ) . '（角色留言）',
-        'comment_status' => 'open',
-        'ping_status'    => 'closed',
-    ], true );
-
-    if ( is_wp_error( $new_id ) || ! $new_id ) {
-        return 0;
-    }
-
-    update_post_meta( $new_id, 'asa_character_bgm_id', $bgm_id );
-    return (int) $new_id;
 }
 
 $character_comment_post_id = asa_get_character_comment_post_id( $character );
@@ -434,17 +395,6 @@ get_header();
             <section class="asa-entity-corrections" id="asa-sec-corrections">
                 <h2 class="asa-section-title">✏ 糾錯回報</h2>
                 <?php
-                /*
-                 * anime 頁用的是不帶參數的 [wxacg_correction_form]，那個 shortcode
-                 * 內部應該是讀目前的全域 $post / get_the_ID() / get_permalink() 來判斷
-                 * 「這是在回報哪一篇」，而不是吃自訂 attribute。角色頁沒有真的 $post，
-                 * 所以上一版我自己加的 entity_type / entity_id 參數大概率沒用，表單
-                 * 送出也不會正確關聯到這個角色。
-                 *
-                 * 改成跟留言區同一招：暫時把全域 $post 換成留言用的那顆影子 post
-                 * （$character_comment_post_id），讓 shortcode 沿用它原本「讀 $post」
-                 * 的邏輯，不用改任何參數，跟 anime 頁行為一致。
-                 */
                 if ( $character_comment_post_id > 0 ) {
                     global $post;
                     $__asa_original_post = $post;
@@ -457,8 +407,6 @@ get_header();
                     $post = $__asa_original_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
                     wp_reset_postdata();
                 } else {
-                    // 影子 post 建立失敗（例如 wp_insert_post 出錯）時的保底：
-                    // 至少不要整段留白，讓管理者知道要去後台檢查。
                     echo '<p style="color:var(--asa-text-dim);font-size:.85rem;">糾錯表單暫時無法載入，請稍後再試。</p>';
                 }
                 ?>
@@ -469,14 +417,6 @@ get_header();
                 <section class="asa-entity-comments" id="asa-sec-comments">
                     <h2 class="asa-section-title">💬 留言</h2>
                     <?php
-                    /*
-                     * comments_template() 內部依賴全域 $post / $wp_query->post
-                     * 來判斷 comment_post_ID、open_status 等，所以這裡要暫時把
-                     * 全域 $post 換成影子 post，跑完再用 wp_reset_postdata()
-                     * 換回原本頁面的 query（雖然這頁本來就沒有真正的主 post，
-                     * 但養成 reset 的習慣比較保險，避免影響到後面任何用到
-                     * global $post 的程式碼，例如頁尾的追蹤程式碼或外掛）。
-                     */
                     global $post;
                     $__asa_original_post = $post;
 

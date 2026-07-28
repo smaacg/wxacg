@@ -2,21 +2,55 @@
 /**
  * SMACG Social — Corrections 前台表單 + AJAX 送出
  *
- * 提供 shortcode [wxacg_correction_form]，顯示在 anime / manga 條目頁。
+ * 提供 shortcode [wxacg_correction_form]，顯示在 anime / manga 條目頁，
+ * 現在也支援角色（character）頁面上掛的「影子 post」（post_type =
+ * asa_char_comments，見 single-character.php）。
  * 預設收起，點「發現資料有誤？點此回報」才展開。深色系樣式（v1.1.1 調亮文字對比）。
  * 會員選類別 + 描述問題 + 選填來源，AJAX 送出後存成 pending 的 wxacg_correction。
  * 完全不碰正式資料。
  *
- * @version 1.1.1  調亮文字對比 + 錨點自動展開
+ * @version 1.2.0  支援角色頁影子 post（改用 global $post 判斷，不再依賴 is_singular()）
+ *
+ * Changelog:
+ *   1.2.0 (2026-07-29)
+ *     - [修正] 顯示端原本用 is_singular( WXACG_CORR_POST_TYPES ) 判斷要不要輸出。
+ *              is_singular() 看的是「主查詢」($wp_query) 認不認得這是 anime/manga
+ *              的單篇頁面。角色頁（single-character.php）走的是自訂路由
+ *              （asa_character_id query var），主查詢根本不是任何 post 的
+ *              singular view，所以不管角色頁模板怎麼暫時替換 global $post，
+ *              is_singular() 永遠回傳 false，整個 shortcode 直接吐空字串 ——
+ *              這就是角色頁點「糾錯回報」下面完全沒東西的真正原因。
+ *              改成直接檢查 global $post 的 post_type 是否在允許清單內，
+ *              不再依賴主查詢的 singular 狀態。anime/manga 頁的主迴圈本來
+ *              就會把 global $post 設成當篇文章，行為完全不變；角色頁只要
+ *              在呼叫 shortcode 前把 global $post 換成對應的影子 post，
+ *              現在就能正確通過判斷。
+ *     - [新增] WXACG_CORR_POST_TYPES 加入 'asa_char_comments'（角色頁影子
+ *              post 的 post_type）。未來若人物 /person/ 頁也要接同一套，
+ *              一樣把對應的影子 post_type 加進這個陣列即可。
+ *     - [新增] 前端自動展開的錨點判斷，原本寫死只認 '#asd-sec-corrections'
+ *              （anime 頁用的 id），角色頁的 section id 是
+ *              '#asa-sec-corrections'，兩者都要能觸發自動展開，改成用陣列
+ *              比對，兩個 id 都支援。
+ *     - [保留] AJAX 送出端 (wxacg_submit_correction) 的驗證邏輯本來就是用
+ *              get_post_type($target_id) 直接查資料庫，不依賴主查詢，
+ *              只要 post_type 在允許清單內就會通過，不需要額外修改。
  */
 
 namespace WXACG\Social;
 
 defined( 'ABSPATH' ) || exit;
 
-/** 支援的作品類型 */
+/**
+ * 支援的作品／實體類型。
+ *
+ * [1.2.0] 加入 asa_char_comments：single-character.php 用它當作角色頁的
+ * 「影子 post」（不是真的作品，純粹讓留言 / 糾錯回報這類原生依賴 $post 的
+ * 功能可以掛得上去）。要幫其他非 anime/manga 的頁面（例如未來的 /person/
+ * 人物頁）接上同一套糾錯表單，一樣把對應的影子 post_type 加進這裡即可。
+ */
 if ( ! defined( 'WXACG_CORR_POST_TYPES' ) ) {
-    define( 'WXACG_CORR_POST_TYPES', [ 'anime', 'manga' ] );
+    define( 'WXACG_CORR_POST_TYPES', [ 'anime', 'manga', 'asa_char_comments' ] );
 }
 
 /* ============================================================
@@ -24,12 +58,25 @@ if ( ! defined( 'WXACG_CORR_POST_TYPES' ) ) {
    ============================================================ */
 add_shortcode( 'wxacg_correction_form', function () {
 
-    // 只在 anime / manga 單頁顯示
-    if ( ! is_singular( WXACG_CORR_POST_TYPES ) ) {
+    /*
+     * [1.2.0] 改用 global $post 的 post_type 判斷，不再用 is_singular()。
+     *
+     * is_singular() 看的是主查詢（$wp_query）認不認得目前頁面是哪個 post
+     * type 的單篇頁——對走自訂路由的角色頁來說，主查詢從頭到尾就不是任何
+     * post 的 singular view，這個判斷永遠是 false。
+     *
+     * global $post 才是「這個 shortcode 實際被塞進哪篇文章的情境」，anime /
+     * manga 的主迴圈本來就會設好它，角色頁模板呼叫這個 shortcode 前也已經
+     * 用 setup_postdata() 把 $post 換成對應的影子 post，所以直接看 $post
+     * 更準、也更不依賴頁面本身是怎麼路由的。
+     */
+    global $post;
+
+    if ( ! ( $post instanceof \WP_Post ) || ! in_array( $post->post_type, WXACG_CORR_POST_TYPES, true ) ) {
         return '';
     }
 
-    $target_id    = get_queried_object_id();
+    $target_id    = $post->ID;
     $target_title = get_the_title( $target_id );
 
     // 未登入：只顯示一行提示，不佔空間
@@ -104,13 +151,23 @@ add_shortcode( 'wxacg_correction_form', function () {
         });
         if (cancel) cancel.addEventListener('click', closePanel);
 
-        // 從頁面上方「糾錯回報」錨點跳過來時，自動展開面板
-        if (window.location.hash === '#asd-sec-corrections') {
+        /*
+         * [1.2.0] 「糾錯回報」錨點在不同模板裡的 id 前綴不一樣：
+         *   - anime 頁 (single-anime.php)：#asd-sec-corrections
+         *   - 角色頁 (single-character.php)：#asa-sec-corrections
+         * 原本寫死只認前者，角色頁點按鈕會捲過去但面板不會自動展開。
+         * 改成陣列比對，兩種都支援；以後其他模板要接，往陣列裡加就好。
+         */
+        var CORR_ANCHORS = ['#asd-sec-corrections', '#asa-sec-corrections'];
+
+        if (CORR_ANCHORS.indexOf(window.location.hash) !== -1) {
             openPanel();
         }
-        document.querySelectorAll('a[href="#asd-sec-corrections"]').forEach(function(a){
-            a.addEventListener('click', function(){
-                setTimeout(openPanel, 300); // 等頁面捲到定位後再展開
+        CORR_ANCHORS.forEach(function (anchor) {
+            document.querySelectorAll('a[href="' + anchor + '"]').forEach(function (a) {
+                a.addEventListener('click', function () {
+                    setTimeout(openPanel, 300); // 等頁面捲到定位後再展開
+                });
             });
         });
 
@@ -246,7 +303,7 @@ add_action( 'wp_ajax_wxacg_submit_correction', function () {
     $detail    = isset( $_POST['detail'] ) ? sanitize_textarea_field( wp_unslash( $_POST['detail'] ) ) : '';
     $source    = isset( $_POST['source'] ) ? esc_url_raw( wp_unslash( $_POST['source'] ) ) : '';
 
-    // 驗證：作品必須是 anime 或 manga
+    // 驗證：作品／實體必須是允許清單內的 post type（anime / manga / 角色影子 post 等）
     if ( ! $target_id || ! in_array( get_post_type( $target_id ), WXACG_CORR_POST_TYPES, true ) ) {
         wp_send_json_error( [ 'msg' => '無效的作品' ], 400 );
     }
