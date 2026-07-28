@@ -961,31 +961,9 @@ while ( have_posts() ) :
 <script type="application/ld+json"><?php echo wp_json_encode( $faq_schema, $json_ld_flags ); ?></script>
 <?php endif; ?>
 
-<?php /* 預設使用者評分（HTML 對所有人一致，可被 LiteSpeed 快取） */ ?>
+<?php /* 使用者評分預設值；實際回填由主題 anime-rating.js v1.5 透過 REST API 處理 */ ?>
 <script>
 window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
-<?php if ( is_user_logged_in() ) : ?>
-(function(){
-    var url = '<?php echo esc_url_raw( admin_url( 'admin-ajax.php' ) ); ?>'
-            + '?action=smacg_get_my_rating&post_id=<?php echo (int) $post_id; ?>';
-    fetch(url, { credentials: 'same-origin' })
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(res){
-        if (!res || !res.success || !res.data || !res.data.rated) return;
-        var d = res.data;
-        window.SmacgUserRating = {
-            story:     parseFloat(d.story)     || 5,
-            music:     parseFloat(d.music)     || 5,
-            animation: parseFloat(d.animation) || 5,
-            voice:     parseFloat(d.voice)     || 5
-        };
-        document.dispatchEvent(new CustomEvent('smacg:userRatingReady', {
-            detail: window.SmacgUserRating
-        }));
-    })
-    .catch(function(){});
-})();
-<?php endif; ?>
 </script>
 <style>
 /* 封面高度跟隨右側內容自動拉長 */
