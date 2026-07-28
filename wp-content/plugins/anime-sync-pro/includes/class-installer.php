@@ -3,9 +3,16 @@
  * Installer Class
  *
  * @package Anime_Sync_Pro
- * @version 1.3.1
+ * @version 1.3.2
  *
  * Changelog:
+ *   1.3.2 — [Entity] 角色 / 聲優獨立實體資料表
+ *           - [新增] create_tables() 尾端新增三張表：
+ *                   anime_characters（角色）、anime_persons（聲優/staff）、
+ *                   anime_relations（作品↔角色↔人 關聯）
+ *           - [新增] characters / persons 皆含 bgm_id(unique) + anilist_id + mal_id，
+ *                   供未來對接三大站 API
+ *           - [變更] DB_VERSION 1.0 → 1.1
  *   1.3.1 — [Fix-M3] DB 版本寫入
  *           - [新增] 定義 DB_VERSION 常數，activate() 與 maybe_upgrade()
  *                   皆寫入 update_option('anime_sync_db_version', self::DB_VERSION)，
@@ -42,7 +49,7 @@ class Anime_Sync_Installer {
 	 * activate()/maybe_upgrade() 會寫入 option 'anime_sync_db_version'，
 	 * dashboard 系統資訊即可正確顯示，不再 fallback 成「—」。
 	 */
-	private const DB_VERSION = '1.0';
+	private const DB_VERSION = '1.1';
 
 	/**
 	 * 季度 seed：往前 N 年 + 當年 + 當年+1 的範圍
@@ -451,6 +458,74 @@ class Anime_Sync_Installer {
 			KEY total_count (total_count)
 		) {$charset_collate};";
 		dbDelta( $us_stats_sql );
+
+		// =====================================================================
+		// v1.1 新增：角色 / 聲優獨立實體 + 關聯表（以 bgm id 為去重主鍵）
+		// 純新增，不影響上方既有 5 張表。留 anilist_id / mal_id 供未來對接三大站。
+		// =====================================================================
+
+		// 角色表
+		$characters_table = $wpdb->prefix . 'anime_characters';
+		$characters_sql   = "CREATE TABLE IF NOT EXISTS {$characters_table} (
+			id             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			bgm_id         BIGINT(20) UNSIGNED NOT NULL,
+			anilist_id     BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			mal_id         BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			name           VARCHAR(255) NOT NULL DEFAULT '',
+			name_original  VARCHAR(255) NOT NULL DEFAULT '',
+			image          TEXT,
+			created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY bgm_id (bgm_id),
+			KEY anilist_id (anilist_id),
+			KEY mal_id (mal_id),
+			KEY name (name)
+		) {$charset_collate};";
+		dbDelta( $characters_sql );
+
+		// 人物表（聲優 cv / 未來製作 staff，用 type 區分主要身分）
+		$persons_table = $wpdb->prefix . 'anime_persons';
+		$persons_sql   = "CREATE TABLE IF NOT EXISTS {$persons_table} (
+			id             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			bgm_id         BIGINT(20) UNSIGNED NOT NULL,
+			anilist_id     BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			mal_id         BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			name           VARCHAR(255) NOT NULL DEFAULT '',
+			name_original  VARCHAR(255) NOT NULL DEFAULT '',
+			image          TEXT,
+			type           VARCHAR(20) NOT NULL DEFAULT 'cv',
+			created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY bgm_id (bgm_id),
+			KEY anilist_id (anilist_id),
+			KEY mal_id (mal_id),
+			KEY name (name),
+			KEY type (type)
+		) {$charset_collate};";
+		dbDelta( $persons_sql );
+
+		// 關聯表（作品 ↔ 角色 ↔ 聲優 / staff）
+		$relations_table = $wpdb->prefix . 'anime_relations';
+		$relations_sql   = "CREATE TABLE IF NOT EXISTS {$relations_table} (
+			id                BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			anime_id          BIGINT(20) UNSIGNED NOT NULL,
+			character_bgm_id  BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			person_bgm_id     BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			rel_type          VARCHAR(10) NOT NULL DEFAULT 'cast',
+			role              VARCHAR(50) NOT NULL DEFAULT '',
+			created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY uniq_rel (anime_id, character_bgm_id, person_bgm_id, role),
+			KEY anime_id (anime_id),
+			KEY character_bgm_id (character_bgm_id),
+			KEY person_bgm_id (person_bgm_id),
+			KEY rel_type (rel_type),
+			KEY role (role)
+		) {$charset_collate};";
+		dbDelta( $relations_sql );
 	}
 
 	public function is_table_missing( string $table_name_without_prefix ): bool {
