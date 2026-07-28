@@ -435,15 +435,32 @@ get_header();
                 <h2 class="asa-section-title">✏ 糾錯回報</h2>
                 <?php
                 /*
-                 * [待確認] 沿用 anime 頁相同的 [wxacg_correction_form] shortcode。
-                 * anime 頁的表單能自動抓到當下這篇 WP 文章的 post_id，但角色頁
-                 * 的資料不是 WP post，是 repository 用 bgm_id 撈出來的陣列，
-                 * 所以這裡先把 bgm_id / 類型帶成參數，實際欄位名稱要對照你們
-                 * shortcode handler 目前吃的 attribute 再調整。
+                 * anime 頁用的是不帶參數的 [wxacg_correction_form]，那個 shortcode
+                 * 內部應該是讀目前的全域 $post / get_the_ID() / get_permalink() 來判斷
+                 * 「這是在回報哪一篇」，而不是吃自訂 attribute。角色頁沒有真的 $post，
+                 * 所以上一版我自己加的 entity_type / entity_id 參數大概率沒用，表單
+                 * 送出也不會正確關聯到這個角色。
+                 *
+                 * 改成跟留言區同一招：暫時把全域 $post 換成留言用的那顆影子 post
+                 * （$character_comment_post_id），讓 shortcode 沿用它原本「讀 $post」
+                 * 的邏輯，不用改任何參數，跟 anime 頁行為一致。
                  */
-                echo do_shortcode(
-                    '[wxacg_correction_form entity_type="character" entity_id="' . (int) $character['bgm_id'] . '"]'
-                );
+                if ( $character_comment_post_id > 0 ) {
+                    global $post;
+                    $__asa_original_post = $post;
+
+                    $post = get_post( $character_comment_post_id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride
+                    setup_postdata( $post );
+
+                    echo do_shortcode( '[wxacg_correction_form]' );
+
+                    $post = $__asa_original_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
+                    wp_reset_postdata();
+                } else {
+                    // 影子 post 建立失敗（例如 wp_insert_post 出錯）時的保底：
+                    // 至少不要整段留白，讓管理者知道要去後台檢查。
+                    echo '<p style="color:var(--asa-text-dim);font-size:.85rem;">糾錯表單暫時無法載入，請稍後再試。</p>';
+                }
                 ?>
             </section>
 
