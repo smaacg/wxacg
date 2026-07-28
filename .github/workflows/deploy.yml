@@ -49,6 +49,9 @@ jobs:
         composer install --prefer-dist --no-progress
         vendor/bin/phpstan analyse
 
+    - name: 清理編譯產物與暫存檔 (避免影響 FTP 同步)
+      run: git reset --hard HEAD && git clean -fd
+
     - name: 透過 FTP 同步檔案到主機
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
@@ -64,3 +67,4 @@ jobs:
           **/.git*/**
           .github/**
           .vscode/**
+
