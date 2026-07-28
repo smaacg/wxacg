@@ -16,7 +16,18 @@ jobs:
         fetch-depth: 2
         
     - name: 檢查 PHP 語法 (防止錯誤程式碼炸站)
-      run: find . -name "*.php" -print0 | xargs -0 -n1 -P 8 php -l > /dev/null
+      run: |
+        if git rev-parse HEAD~1 >/dev/null 2>&1; then
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '\.php$' || true)
+        else
+          CHANGED_FILES=$(find . -name "*.php")
+        fi
+        
+        if [ -n "$CHANGED_FILES" ]; then
+          echo "$CHANGED_FILES" | xargs -n1 -P 8 php -l > /dev/null
+        else
+          echo "本次更新沒有修改 PHP 檔案，跳過檢查。"
+        fi
 
     - name: 透過 FTP 同步檔案到主機
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
