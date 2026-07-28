@@ -744,3 +744,42 @@ body:has(.asa-entity-page) .ct-section-inner-container {
         height: 52px;
     }
 }
+
+/* ================================================================
+   14. [相容] 舊版模板 .asa-entity-avatar 尺寸修正
+   single-character.php / single-person.php 仍使用舊版
+   .asa-entity-avatar-wrap > .asa-entity-avatar > img 結構,
+   而 v1.4.0 CSS 只定義了新版 .asa-side-avatar,漏掉這組,
+   導致有立繪時圖片用原圖大小整個撐爆版面。此段補上尺寸。
+   ================================================================ */
+.asa-entity-avatar-wrap {
+    flex-shrink: 0;
+}
+
+.asa-entity-avatar {
+    position: relative;
+    width: 200px;
+    max-width: 42vw;
+    aspect-ratio: 3 / 4;
+    border-radius: var(--asa-radius-md);
+    overflow: hidden;
+    border: 1px solid var(--asa-border);
+    box-shadow: var(--asa-shadow-md);
+    background: rgba(255, 255, 255, .05);
+    margin: 0 auto;
+}
+
+.asa-entity-avatar img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    object-fit: cover !important;
+    object-position: center top !important;
+    display: block !important;
+}
+
+@media (max-width: 640px) {
+    .asa-entity-avatar {
+        width: 150px;
+    }
+}
