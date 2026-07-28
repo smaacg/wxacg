@@ -4,18 +4,22 @@
  *
  * 資料來源:
  *   - wp_anime_characters / wp_anime_persons / wp_anime_relations
- *   - wp_anime_character_aliases / wp_anime_person_aliases（別名，一對多）
- *   - wp_anime_character_relations（角色↔角色 關聯，自我參照一對多）
+ *   - wp_anime_character_relations（角色↔角色 關聯，自我參照一對多，若表存在）
  *
- * 上述新表與 wp_anime_characters / wp_anime_persons 的新增欄位
- * (gender / birthday / bloodtype / summary) 需先執行
- * entity-schema-migration-v2.sql 才能使用。
+ * 別名(aliases)改為存於 wp_anime_characters.aliases_json（JSON 欄位，
+ * 由 class-entity-migrator.php v1.4.0 寫入），不再使用獨立別名表。
  *
  * 相簿功能已移除：bgm.tv 官方 API 的角色/人物 detail 端點只回傳
  * 單張 images(small/grid/large/medium)，無多圖相簿資料源，
  * 故不提供 get_character_photos()。
  *
  * Changelog:
+ *   1.3.0 (2026-07-28)
+ *     - [改版] get_character() 的別名改讀 wp_anime_characters.aliases_json
+ *       (JSON 欄位)，新增 decode_aliases_json() 解碼成模板要的
+ *       [ ['label'=>..,'value'=>..], ... ] 格式。獨立別名表
+ *       wp_anime_character_aliases 實際未建置，故 character 不再查它。
+ *       (get_person 暫維持原 get_entity_aliases 呼叫，person 別名尚未導入。)
  *   1.2.0 (2026-07-28)
  *     - [移除] get_character_photos()、$t_char_photo：相簿功能無穩定
  *       資料源，移除以簡化維護範圍。
@@ -45,7 +49,7 @@ class Anime_Sync_Entity_Repository {
 	private $t_char_rel;
 
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
-	const CACHE_VER = 'v2';
+	const CACHE_VER = 'v3';
 
 	const META_TITLE_ZH     = 'anime_title_chinese';
 	const META_TITLE_ROMAJI = 'anime_title_romaji';
@@ -103,7 +107,7 @@ class Anime_Sync_Entity_Repository {
 			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
 			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
 			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
-			'aliases'       => $this->get_entity_aliases( $this->t_person_alias, 'person_bgm_id', (int) $row['bgm_id'] ),
+			'aliases'       => [], // person 別名尚未導入,先回空陣列(原查獨立表已停用)。
 			'url'           => $this->person_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
@@ -165,7 +169,7 @@ class Anime_Sync_Entity_Repository {
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT bgm_id, name, name_original, image, anilist_id, mal_id,
-				        gender, birthday, bloodtype, summary
+				        gender, birthday, bloodtype, summary, aliases_json
 				 FROM {$this->t_char} WHERE bgm_id = %d",
 				$bgm_id
 			),
@@ -187,7 +191,7 @@ class Anime_Sync_Entity_Repository {
 			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
 			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
 			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
-			'aliases'       => $this->get_entity_aliases( $this->t_char_alias, 'character_bgm_id', (int) $row['bgm_id'] ),
+			'aliases'       => $this->decode_aliases_json( $row['aliases_json'] ?? '' ),
 			'url'           => $this->character_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
@@ -261,10 +265,19 @@ class Anime_Sync_Entity_Repository {
 
 	/**
 	 * 取某角色的關聯角色(朋友/親屬/配偶/對手/師生等)。
+	 * 若 wp_anime_character_relations 表不存在,回空陣列(模板整段不渲染)。
 	 */
 	public function get_character_relations( int $bgm_id ): array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
+			return [];
+		}
+
+		// 表不存在時直接回空,避免 SQL 錯誤。
+		$exists = $wpdb->get_var(
+			$wpdb->prepare( 'SHOW TABLES LIKE %s', $this->t_char_rel )
+		);
+		if ( $exists !== $this->t_char_rel ) {
 			return [];
 		}
 
@@ -405,6 +418,58 @@ class Anime_Sync_Entity_Repository {
 	 * 內部工具
 	 * ===================================================================== */
 
+	/**
+	 * v1.3.0 — 把 wp_anime_characters.aliases_json
+	 * ( { "日文名":"蝶野 雛", "纯假名":"ちょうの ひな", ... } )
+	 * 解碼成模板要的 [ ['label'=>..,'value'=>..], ... ]。
+	 * 空值/解碼失敗回空陣列。也容忍已是 [ {label,value} ] 格式的輸入。
+	 */
+	private function decode_aliases_json( ?string $json ): array {
+		$json = trim( (string) $json );
+		if ( '' === $json ) {
+			return [];
+		}
+
+		$data = json_decode( $json, true );
+		if ( ! is_array( $data ) ) {
+			return [];
+		}
+
+		$aliases = [];
+		foreach ( $data as $key => $val ) {
+			// 情況一:關聯陣列 "label" => "value"(migrator v1.4.0 的格式)。
+			if ( is_string( $val ) || is_numeric( $val ) ) {
+				$value = trim( (string) $val );
+				if ( '' === $value ) {
+					continue;
+				}
+				$aliases[] = [
+					'label' => is_string( $key ) ? trim( $key ) : '',
+					'value' => $value,
+				];
+				continue;
+			}
+
+			// 情況二:已是 [ 'label'=>.., 'value'=>.. ] 物件(相容用)。
+			if ( is_array( $val ) ) {
+				$value = trim( (string) ( $val['value'] ?? '' ) );
+				if ( '' === $value ) {
+					continue;
+				}
+				$aliases[] = [
+					'label' => trim( (string) ( $val['label'] ?? '' ) ),
+					'value' => $value,
+				];
+			}
+		}
+
+		return $aliases;
+	}
+
+	/**
+	 * (保留備用) 從獨立別名表查別名。目前 character 已改讀 aliases_json,
+	 * 此方法暫無呼叫端;若未來導入 person 別名表可沿用。
+	 */
 	private function get_entity_aliases( string $table, string $fk_column, int $bgm_id ): array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
