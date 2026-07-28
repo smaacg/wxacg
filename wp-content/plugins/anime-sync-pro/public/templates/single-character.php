@@ -135,9 +135,8 @@ if ( $character['mal_id'] > 0 ) {
     $external_links[] = [ 'label' => 'MyAnimeList', 'icon' => '🔵', 'url' => 'https://myanimelist.net/character/' . $character['mal_id'] ];
 }
 
-/* ── 糾錯回報連結（比照 single-anime.php 的 hero action） ── */
+/* ── 糾錯回報連結：見下方 header 內的 if/else，直接用 $character_permalink 組登入導回網址 ── */
 $character_permalink = home_url( '/character/' . $character['bgm_id'] . '/' );
-$correction_url       = is_user_logged_in() ? '#asa-sec-corrections' : wp_login_url( $character_permalink . '#asa-sec-corrections' );
 
 /* ── [1.4.0] wpDiscuz 留言：影子 Post ──
  * wpDiscuz／WP 原生留言系統一律綁在真正的 $post（comment_post_ID）上，
@@ -161,12 +160,23 @@ $correction_url       = is_user_logged_in() ? '#asa-sec-corrections' : wp_login_
 if ( ! post_type_exists( 'asa_char_comments' ) ) {
     register_post_type( 'asa_char_comments', [
         'label'               => '角色留言掛載',
-        'public'              => false,
+        // [重要] wpDiscuz「Settings → General → 載入文章類型」的核取方塊清單，
+        // 是依 public === true 的 post type 撈出來的；上一版設成 public => false
+        // 導致這個 post type 完全不會出現在清單裡，選不到、也開不了留言。
+        // 這裡改成 public => true，但用其他旗標把它「隱形」：
+        //   - publicly_queryable => false → 前台不會有單獨網址可以直接開到
+        //   - exclude_from_search => true → 不會被搜尋收錄
+        //   - rewrite => false / has_archive => false → 不產生 permalink 規則
+        //   - show_in_menu => false → 不會出現在後台側邊選單
+        // show_ui 保留 true，是因為部分外掛（含 wpDiscuz）判斷「可用文章類型」
+        // 時除了 public 還會看 show_ui；show_in_menu=false 已經足夠把它從側邊欄藏起來。
+        'public'              => true,
         'publicly_queryable'  => false,
         'exclude_from_search' => true,
-        'show_ui'             => false,
+        'show_ui'             => true,
         'show_in_menu'        => false,
         'show_in_nav_menus'   => false,
+        'show_in_admin_bar'   => false,
         'show_in_rest'        => false,
         'has_archive'         => false,
         'rewrite'             => false,
@@ -300,7 +310,11 @@ get_header();
                 </div>
 
                 <div class="asa-entity-actions">
-                    <a href="<?php echo esc_url( $correction_url ); ?>" class="asa-action-btn" id="asa-corr-btn">✏ 糾錯回報</a>
+                    <?php if ( is_user_logged_in() ) : ?>
+                        <a href="#asa-sec-corrections" class="asa-action-btn" id="asa-hero-corr-btn">✏ 糾錯回報</a>
+                    <?php else : ?>
+                        <a href="<?php echo esc_url( wp_login_url( $character_permalink . '#asa-sec-corrections' ) ); ?>" class="asa-action-btn">✏ 糾錯回報</a>
+                    <?php endif; ?>
                 </div>
             </header>
 
