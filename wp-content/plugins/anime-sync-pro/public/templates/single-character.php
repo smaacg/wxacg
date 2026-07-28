@@ -186,10 +186,13 @@ get_header();
     <nav class="asa-breadcrumb" aria-label="麵包屑導航">
         <ol>
             <li><a href="<?php echo esc_url( home_url( '/' ) ); ?>">首頁</a></li>
-            <li>角色</li>
+            <?php if ( ! empty( $works ) ) : ?>
+                <li><a href="<?php echo esc_url( $works[0]['url'] ); ?>"><?php echo esc_html( $works[0]['title'] ); ?></a></li>
+            <?php endif; ?>
             <li><?php echo esc_html( $character['name'] ); ?></li>
         </ol>
     </nav>
+
 
     <div class="asa-entity-layout">
 
