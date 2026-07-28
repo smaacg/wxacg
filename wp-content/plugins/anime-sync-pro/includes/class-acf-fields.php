@@ -62,7 +62,6 @@ class Anime_Sync_ACF_Fields {
         $this->register_faq();
         $this->register_sync_control();
         $this->register_post_related_anime();   // ← 新增這一行
-        $this->register_youtube_playlist();   // ← 新增這行
         $this->register_manga_fields();      // ← 加這行,啟用漫畫欄位
         $this->register_manga_publication(); // ← 加這行,啟用漫畫出版資訊欄位(日出版社/雜誌/每卷 ISBN)
         $this->register_manga_external();    // ← 加這行,啟用漫畫外部資料庫 ID 欄位
@@ -1544,7 +1543,7 @@ private function register_manga_fields(): void {
                         'placeholder'   => 'https://youranimes.tw/animes/XXXX/onair',
                         'wrapper'       => [ 'width' => '100', 'class' => 'anime-youranimes-url-field' ],
                     ],
-                    [
+                      [
                         'key'          => 'field_anime_online_watch',
                         'label'        => '線上看（YouTube 嵌入）',
                         'name'         => 'anime_online_watch',
@@ -1560,6 +1559,49 @@ private function register_manga_fields(): void {
                         'required'     => 0,
                         'wrapper'      => [ 'width' => '100' ],
                     ],
+
+                    // ▶️ YouTube 播放清單自動同步（原獨立群組，改併入本群組，緊接線上看下方）
+                    [
+                        'key'          => 'field_anime_yt_playlist_url',
+                        'label'        => 'YouTube 播放清單網址',
+                        'name'         => 'anime_yt_playlist_url',
+                        'type'         => 'url',
+                        'instructions' => '貼上該作品的官方 YouTube 播放清單網址,系統會自動抓取新集數並補進上方「線上看」。<br>'
+                                        . '格式:<code>https://www.youtube.com/playlist?list=PLxxxxxxxx</code><br>'
+                                        . '只認標題含「第X話 / #X / EPx」的影片,PV/預告會自動略過。',
+                        'required'     => 0,
+                        'placeholder'  => 'https://www.youtube.com/playlist?list=PL...',
+                        'wrapper'      => [ 'width' => '100' ],
+                    ],
+                    [
+                        'key'          => 'field_anime_yt_sync_enabled',
+                        'label'        => '啟用自動同步',
+                        'name'         => 'anime_yt_sync_enabled',
+                        'type'         => 'true_false',
+                        'instructions' => '關閉後此作品不再自動抓取(適合已完結、不需再更新的作品)。',
+                        'default_value'=> 1,
+                        'ui'           => 1,
+                        'wrapper'      => [ 'width' => '50' ],
+                    ],
+                    [
+                        'key'          => 'field_anime_yt_last_sync',
+                        'label'        => '上次 YT 同步時間',
+                        'name'         => 'anime_yt_last_sync',
+                        'type'         => 'text',
+                        'instructions' => '系統自動記錄,請勿手動修改。',
+                        'required'     => 0,
+                        'wrapper'      => [ 'width' => '50', 'class' => 'asp-readonly' ],
+                    ],
+                    [
+                        'key'          => 'field_anime_yt_sync_log',
+                        'label'        => '同步紀錄',
+                        'name'         => 'anime_yt_sync_log',
+                        'type'         => 'textarea',
+                        'instructions' => '最近幾次自動同步的結果,方便排查。系統自動維護。',
+                        'required'     => 0,
+                        'rows'         => 3,
+                        'wrapper'      => [ 'width' => '100', 'class' => 'asp-readonly' ],
+                    ],
                 ]
             ),
             'location'    => [
@@ -1572,65 +1614,6 @@ private function register_manga_fields(): void {
         ] );
     }
 
-    // =========================================================================
-    // 群組:YouTube 播放清單自動同步
-    // =========================================================================
-    private function register_youtube_playlist(): void {
-        acf_add_local_field_group( [
-            'key'    => 'group_anime_yt_playlist',
-            'title'  => '▶️ YouTube 播放清單自動同步',
-            'fields' => [
-                [
-                    'key'          => 'field_anime_yt_playlist_url',
-                    'label'        => 'YouTube 播放清單網址',
-                    'name'         => 'anime_yt_playlist_url',
-                    'type'         => 'url',
-                    'instructions' => '貼上該作品的官方 YouTube 播放清單網址,系統會自動抓取新集數並補進上方「線上看」。<br>'
-                                    . '格式:<code>https://www.youtube.com/playlist?list=PLxxxxxxxx</code><br>'
-                                    . '只認標題含「第X話 / #X / EPx」的影片,PV/預告會自動略過。',
-                    'required'     => 0,
-                    'placeholder'  => 'https://www.youtube.com/playlist?list=PL...',
-                    'wrapper'      => [ 'width' => '100' ],
-                ],
-                [
-                    'key'          => 'field_anime_yt_sync_enabled',
-                    'label'        => '啟用自動同步',
-                    'name'         => 'anime_yt_sync_enabled',
-                    'type'         => 'true_false',
-                    'instructions' => '關閉後此作品不再自動抓取(適合已完結、不需再更新的作品)。',
-                    'default_value'=> 1,
-                    'ui'           => 1,
-                    'wrapper'      => [ 'width' => '50' ],
-                ],
-                [
-                    'key'          => 'field_anime_yt_last_sync',
-                    'label'        => '上次 YT 同步時間',
-                    'name'         => 'anime_yt_last_sync',
-                    'type'         => 'text',
-                    'instructions' => '系統自動記錄,請勿手動修改。',
-                    'required'     => 0,
-                    'wrapper'      => [ 'width' => '50', 'class' => 'asp-readonly' ],
-                ],
-                [
-                    'key'          => 'field_anime_yt_sync_log',
-                    'label'        => '同步紀錄',
-                    'name'         => 'anime_yt_sync_log',
-                    'type'         => 'textarea',
-                    'instructions' => '最近幾次自動同步的結果,方便排查。系統自動維護。',
-                    'required'     => 0,
-                    'rows'         => 3,
-                    'wrapper'      => [ 'width' => '100', 'class' => 'asp-readonly' ],
-                ],
-            ],
-            'location'   => [
-                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
-            ],
-            'menu_order' => 82,
-            'position'   => 'normal',
-            'style'      => 'default',
-            'active'     => true,
-        ] );
-    }
 
     // =========================================================================
     // 群組 9：常見問題（FAQ）
