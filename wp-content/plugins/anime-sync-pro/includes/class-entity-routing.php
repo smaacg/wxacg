@@ -122,7 +122,7 @@ class Anime_Sync_Entity_Routing {
 
         wp_enqueue_style(
             'anime-sync-entity',
-            plugin_dir_url( dirname( __FILE__ ) ) . 'public/assets/entity.css',
+            plugin_dir_url( dirname( __FILE__ ) ) . 'public/assets/css/entity.css',
             [],
             defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0'
         );
