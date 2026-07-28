@@ -7,11 +7,23 @@
  *   wp anime migrate-entities              # 全部作品
  *   wp anime migrate-entities --dry-run    # 只統計不寫入
  *   wp anime migrate-entities --post=2517  # 只處理單一作品(測試用)
+ *   wp anime backfill-characters           # 回填既有角色空白的 summary/infobox
+ *   wp anime backfill-characters --force   # 連已有 summary 的角色也重抓
+ *   wp anime backfill-characters --id=107704   # 只回填單一角色(測試用)
  *
  * 特性:冪等。用 bgm_id 去重、relations 用 unique key,重跑不會產生重複。
  * 譯名策略:非空中文優先,後寫入者若非空則覆蓋(讓整理過的譯名勝出)。
  *
  * @changelog
+ *   1.3.0 (2026-07-28) — 角色詳細欄位回填:
+ *     upsert_character() 在寫入時另打 Bangumi /v0/characters/{id},
+ *     解析 summary(簡介,經 OpenCC 轉繁) 與 infobox(性別/生日/血型/
+ *     日文名),補齊 gender / birthday / bloodtype / name_original /
+ *     summary 五欄。僅在該角色 summary 目前為空(NULL/'')時才打 API,
+ *     已填過的角色重跑不會重打,維持冪等且不狂打 API。
+ *     新增 WP-CLI 指令 `wp anime backfill-characters`,可單獨批次回填
+ *     既有(已進表但欄位空)的角色,無需整個重新遷移。打 API 之間
+ *     sleep(1) 節流,避免觸發 Bangumi rate limit。
  *   1.2.0 (2026-07-28) — 修正 source guard 邏輯(取代 1.1.0 的錯誤版本):
  *     匯入策略為「優先 AniList、Bangumi 輔助」,實測後確認:
  *       - character 的 id 只有 source==='bangumi' 時才是真 bgm_id;
@@ -33,6 +45,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Anime_Sync_Entity_Migrator {
+
+	const BGM_CHARACTER_URL = 'https://api.bgm.tv/v0/characters/';
+	const USER_AGENT        = 'weixiaoacg-Project/1.0 (https://weixiaoacg.com)';
 
 	private $t_char;
 	private $t_person;
@@ -186,29 +201,249 @@ class Anime_Sync_Entity_Migrator {
 	}
 
 	/**
-	 * upsert 角色:bgm_id 存在則更新(非空譯名/圖才覆蓋),否則新增
+	 * upsert 角色:bgm_id 存在則更新(非空譯名/圖才覆蓋),否則新增。
+	 *
+	 * v1.3.0 — 寫入時另打 /v0/characters/{id} 補 summary / infobox
+	 *          (gender / birthday / bloodtype / name_original)。
+	 *          僅在該角色 summary 目前為空時才打 API,已填過的角色重跑不重打。
 	 */
 	private function upsert_character( int $bgm_id, string $name, string $image ): void {
 		global $wpdb;
 
-		$exists = $wpdb->get_var(
-			$wpdb->prepare( "SELECT id FROM {$this->t_char} WHERE bgm_id = %d", $bgm_id )
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT id, summary, gender, birthday, bloodtype, name_original
+				 FROM {$this->t_char} WHERE bgm_id = %d",
+				$bgm_id
+			),
+			ARRAY_A
 		);
 
-		if ( $exists ) {
+		// 只有「新角色」或「既有角色 summary 仍為空」才打詳細端點,避免重跑狂打 API。
+		$needs_detail = ! $row || ( trim( (string) ( $row['summary'] ?? '' ) ) === '' );
+		$detail       = $needs_detail ? $this->fetch_bgm_character_detail( $bgm_id ) : [];
+
+		if ( $row ) {
 			$set = [];
-			if ( $name !== '' )  { $set['name'] = $name; }
+			if ( $name !== '' )  { $set['name']  = $name; }
 			if ( $image !== '' ) { $set['image'] = $image; }
+
+			// 只在既有欄位為空時才用 API 值回填(不覆蓋人工整理過的資料)。
+			if ( ! empty( $detail ) ) {
+				if ( trim( (string) ( $row['name_original'] ?? '' ) ) === '' && $detail['name_original'] !== '' ) {
+					$set['name_original'] = $detail['name_original'];
+				}
+				if ( trim( (string) ( $row['gender'] ?? '' ) ) === '' && $detail['gender'] !== '' ) {
+					$set['gender'] = $detail['gender'];
+				}
+				if ( trim( (string) ( $row['birthday'] ?? '' ) ) === '' && $detail['birthday'] !== '' ) {
+					$set['birthday'] = $detail['birthday'];
+				}
+				if ( trim( (string) ( $row['bloodtype'] ?? '' ) ) === '' && $detail['bloodtype'] !== '' ) {
+					$set['bloodtype'] = $detail['bloodtype'];
+				}
+				if ( trim( (string) ( $row['summary'] ?? '' ) ) === '' && $detail['summary'] !== '' ) {
+					$set['summary'] = $detail['summary'];
+				}
+			}
+
 			if ( ! empty( $set ) ) {
 				$wpdb->update( $this->t_char, $set, [ 'bgm_id' => $bgm_id ] );
 			}
 		} else {
 			$wpdb->insert( $this->t_char, [
-				'bgm_id' => $bgm_id,
-				'name'   => $name,
-				'image'  => $image,
+				'bgm_id'        => $bgm_id,
+				'name'          => $name,
+				'image'         => $image,
+				'name_original' => $detail['name_original'] ?? '',
+				'gender'        => $detail['gender']        ?? '',
+				'birthday'      => $detail['birthday']      ?? '',
+				'bloodtype'     => $detail['bloodtype']     ?? '',
+				'summary'       => $detail['summary']       ?? '',
 			] );
 		}
+	}
+
+	/**
+	 * v1.3.0 — 打 Bangumi /v0/characters/{id},解析角色詳細欄位。
+	 *
+	 * 回傳:[ 'name_original' => '', 'gender' => '', 'birthday' => '',
+	 *        'bloodtype' => '', 'summary' => '' ]
+	 * 任何失敗都回全空陣列,呼叫端據此不覆蓋。
+	 *
+	 * @param int $bgm_id
+	 * @return array
+	 */
+	private function fetch_bgm_character_detail( int $bgm_id ): array {
+		$empty = [
+			'name_original' => '',
+			'gender'        => '',
+			'birthday'      => '',
+			'bloodtype'     => '',
+			'summary'       => '',
+		];
+
+		if ( $bgm_id <= 0 ) {
+			return $empty;
+		}
+
+		$response = wp_remote_get( self::BGM_CHARACTER_URL . $bgm_id, [
+			'timeout' => 10,
+			'headers' => [ 'User-Agent' => self::USER_AGENT ],
+		] );
+
+		if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+			return $empty;
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $data ) ) {
+			return $empty;
+		}
+
+		$has_opencc = class_exists( 'Anime_Sync_CN_Converter' );
+		$convert    = static function ( string $s ) use ( $has_opencc ): string {
+			$s = trim( $s );
+			if ( $s === '' ) {
+				return '';
+			}
+			return $has_opencc ? Anime_Sync_CN_Converter::static_convert( $s ) : $s;
+		};
+
+		// summary(角色簡介),轉繁。
+		$summary = $convert( (string) ( $data['summary'] ?? '' ) );
+
+		// gender:Bangumi 頂層可能有 gender('male'/'female'/'' 或中文)。
+		$gender_raw = strtolower( trim( (string) ( $data['gender'] ?? '' ) ) );
+		$gender     = match ( $gender_raw ) {
+			'male'   => '男',
+			'female' => '女',
+			''       => '',
+			default  => (string) ( $data['gender'] ?? '' ),
+		};
+
+		// infobox:陣列,每筆 [ 'key' => .., 'value' => .. ]。
+		$name_original = '';
+		$birthday      = '';
+		$bloodtype     = '';
+
+		foreach ( (array) ( $data['infobox'] ?? [] ) as $rowbox ) {
+			$key   = trim( (string) ( $rowbox['key'] ?? '' ) );
+			$value = $rowbox['value'] ?? '';
+
+			// value 可能是字串,或別名那種陣列;這裡角色用到的都是字串。
+			if ( is_array( $value ) ) {
+				$parts = [];
+				foreach ( $value as $v ) {
+					if ( isset( $v['v'] ) && $v['v'] !== '' ) {
+						$parts[] = $v['v'];
+					}
+				}
+				$value = implode( '、', $parts );
+			}
+			$value = trim( (string) $value );
+			if ( $value === '' ) {
+				continue;
+			}
+
+			switch ( $key ) {
+				case '日文名':
+				case '简体中文名':
+				case '簡體中文名':
+					if ( $name_original === '' ) {
+						$name_original = $value; // 日文名不轉換,保留原文。
+					}
+					break;
+				case '生日':
+					$birthday = $value;
+					break;
+				case '血型':
+					$bloodtype = $value;
+					break;
+				case '性别':
+				case '性別':
+					if ( $gender === '' ) {
+						$gender = $value;
+					}
+					break;
+			}
+		}
+
+		return [
+			'name_original' => $name_original,
+			'gender'        => $gender,
+			'birthday'      => $birthday,
+			'bloodtype'     => $bloodtype,
+			'summary'       => $summary,
+		];
+	}
+
+	/**
+	 * v1.3.0 — 批次回填既有角色的空白詳細欄位(供 backfill-characters 指令用)。
+	 *
+	 * @param array $args ['force' => bool 連有 summary 的也重抓, 'bgm_id' => int 只處理單一角色]
+	 * @return array 統計
+	 */
+	public function backfill_characters( array $args = [] ): array {
+		global $wpdb;
+
+		$force  = ! empty( $args['force'] );
+		$one_id = (int) ( $args['bgm_id'] ?? 0 );
+
+		$stats = [ 'total' => 0, 'updated' => 0, 'no_change' => 0, 'failed' => 0 ];
+
+		if ( $one_id > 0 ) {
+			$ids = [ $one_id ];
+		} elseif ( $force ) {
+			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_char} WHERE bgm_id > 0" );
+		} else {
+			// 只抓 summary 為 NULL/'' 的角色。
+			$ids = $wpdb->get_col(
+				"SELECT bgm_id FROM {$this->t_char}
+				 WHERE bgm_id > 0 AND ( summary IS NULL OR summary = '' )"
+			);
+		}
+
+		foreach ( $ids as $bgm_id ) {
+			$bgm_id = (int) $bgm_id;
+			$stats['total']++;
+
+			$detail = $this->fetch_bgm_character_detail( $bgm_id );
+			if ( empty( array_filter( $detail ) ) ) {
+				$stats['failed']++;
+				sleep( 1 ); // Bangumi 節流。
+				continue;
+			}
+
+			$row = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT summary, gender, birthday, bloodtype, name_original
+					 FROM {$this->t_char} WHERE bgm_id = %d",
+					$bgm_id
+				),
+				ARRAY_A
+			);
+
+			$set = [];
+			foreach ( [ 'name_original', 'gender', 'birthday', 'bloodtype', 'summary' ] as $field ) {
+				$current = trim( (string) ( $row[ $field ] ?? '' ) );
+				$new     = (string) ( $detail[ $field ] ?? '' );
+				if ( $new !== '' && ( $force || $current === '' ) ) {
+					$set[ $field ] = $new;
+				}
+			}
+
+			if ( ! empty( $set ) ) {
+				$wpdb->update( $this->t_char, $set, [ 'bgm_id' => $bgm_id ] );
+				$stats['updated']++;
+			} else {
+				$stats['no_change']++;
+			}
+
+			sleep( 1 ); // 每筆之間 sleep 1 秒,避免觸發 Bangumi rate limit。
+		}
+
+		return $stats;
 	}
 
 	/**
@@ -299,5 +534,35 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '關聯筆數    : ' . $stats['relations'] );
 		WP_CLI::log( '略過(anilist角色/無id) : ' . $stats['skipped'] );
 		WP_CLI::success( $dry_run ? 'Dry run 完成(未寫入)' : '遷移完成' );
+	} );
+
+	/**
+	 * v1.3.0 — 回填既有角色的 summary / infobox 空白欄位。
+	 *   wp anime backfill-characters            # 只補 summary 為空的角色
+	 *   wp anime backfill-characters --force     # 連已有 summary 的也重抓
+	 *   wp anime backfill-characters --id=107704 # 只回填單一角色(測試用)
+	 */
+	WP_CLI::add_command( 'anime backfill-characters', function ( $args, $assoc_args ) {
+		$force  = isset( $assoc_args['force'] );
+		$bgm_id = isset( $assoc_args['id'] ) ? (int) $assoc_args['id'] : 0;
+
+		$migrator = new Anime_Sync_Entity_Migrator();
+
+		WP_CLI::log( '=== 回填角色詳細欄位(summary / 性別 / 生日 / 血型 / 日文名)===' );
+		if ( $force ) {
+			WP_CLI::log( '模式:--force(連已有 summary 的角色也重抓)' );
+		}
+
+		$stats = $migrator->backfill_characters( [
+			'force'  => $force,
+			'bgm_id' => $bgm_id,
+		] );
+
+		WP_CLI::log( '─────────────────────────────' );
+		WP_CLI::log( '掃描角色數  : ' . $stats['total'] );
+		WP_CLI::log( '已更新      : ' . $stats['updated'] );
+		WP_CLI::log( '無變更      : ' . $stats['no_change'] );
+		WP_CLI::log( '抓取失敗    : ' . $stats['failed'] );
+		WP_CLI::success( '回填完成' );
 	} );
 }
