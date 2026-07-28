@@ -14,6 +14,10 @@
  * 故不提供 get_character_photos()。
  *
  * Changelog:
+ *   1.4.1 (2026-07-29)
+ *     - [修正] 角色作品次要排序由「年份舊→新」改為「熱度高→低」（anime_popularity），
+ *       解決前傳和 OAD 暴日期比本篇更舊導致错排第一的問題。
+ *     - CACHE_VER v4 → v5。
  *   1.4.0 (2026-07-29)
  *     - [修正] hydrate_works() 加入 $oldest_first 參數：
  *       get_character_works() 傳 true（舊→新），本篇/原作排最前，
@@ -55,7 +59,7 @@ class Anime_Sync_Entity_Repository {
 	private $t_char_rel;
 
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
-	const CACHE_VER = 'v4';
+	const CACHE_VER = 'v5';
 
 	const META_TITLE_ZH     = 'anime_title_chinese';
 	const META_TITLE_ROMAJI = 'anime_title_romaji';
@@ -263,7 +267,7 @@ class Anime_Sync_Entity_Repository {
 					'voice_actors' => $row['voice_actors'],
 				];
 			},
-			true  // 角色登場作品：舊→新（本篇/原作排在最前，麵包屑取 [0] 才正確）
+			true  // 角色登場作品：用熱度降序，本篇熱度高排 [0]
 		);
 
 		set_transient( $cache_key, $works, self::CACHE_TTL );
@@ -508,7 +512,7 @@ class Anime_Sync_Entity_Repository {
 		return $aliases;
 	}
 
-	private function hydrate_works( array $rows, callable $extra_cb, bool $oldest_first = false ): array {
+	private function hydrate_works( array $rows, callable $extra_cb, bool $by_popularity = false ): array {
 		if ( empty( $rows ) ) {
 			return [];
 		}
@@ -530,30 +534,38 @@ class Anime_Sync_Entity_Repository {
 			}
 
 			$base = [
-				'anime_id' => $aid,
-				'title'    => $m['title'],
-				'cover'    => $m['cover'],
-				'url'      => $m['url'],
-				'_year'    => $m['year'],
+				'anime_id'    => $aid,
+				'title'       => $m['title'],
+				'cover'       => $m['cover'],
+				'url'         => $m['url'],
+				'_year'       => $m['year'],
+				'_popularity' => $m['popularity'],
 			];
 
 			$works[] = array_merge( $base, (array) $extra_cb( $row ) );
 		}
 
-		usort( $works, function ( $a, $b ) use ( $oldest_first ) {
+		usort( $works, function ( $a, $b ) use ( $by_popularity ) {
 			$rw = $this->role_weight( $a['role'] ?? '' ) <=> $this->role_weight( $b['role'] ?? '' );
 			if ( 0 !== $rw ) {
 				return $rw;
 			}
-			// $oldest_first=true（角色頁）：舊→新，原作/本篇排最前。
-			// $oldest_first=false（聲優頁）：新→舊，最新代表作優先。
-			return $oldest_first
-				? ( (int) $a['_year'] ) <=> ( (int) $b['_year'] )
-				: ( (int) $b['_year'] ) <=> ( (int) $a['_year'] );
+			// $by_popularity=true（角色頁）：熱度高→低。
+			// 本篇熱度遠高於 OAD/前傳/番外，出來的 $works[0] 就是本篇。
+			// $by_popularity=false（聲優頁）：新→舊年份，最新代表作優先。
+			if ( $by_popularity ) {
+				$pop = ( (int) $b['_popularity'] ) <=> ( (int) $a['_popularity'] );
+				if ( 0 !== $pop ) {
+					return $pop;
+				}
+				// 熱度相同時再用年份舊→新當次要鍵
+				return ( (int) $a['_year'] ) <=> ( (int) $b['_year'] );
+			}
+			return ( (int) $b['_year'] ) <=> ( (int) $a['_year'] );
 		} );
 
 		foreach ( $works as &$w ) {
-			unset( $w['_year'] );
+			unset( $w['_year'], $w['_popularity'] );
 		}
 		unset( $w );
 
@@ -586,10 +598,11 @@ class Anime_Sync_Entity_Repository {
 					?: get_the_title( $pid ) );
 
 			$out[ $pid ] = [
-				'title' => $title,
-				'cover' => (string) get_post_meta( $pid, self::META_COVER, true ),
-				'url'   => (string) get_permalink( $pid ),
-				'year'  => (int) get_post_meta( $pid, self::META_YEAR, true ),
+				'title'      => $title,
+				'cover'      => (string) get_post_meta( $pid, self::META_COVER, true ),
+				'url'        => (string) get_permalink( $pid ),
+				'year'       => (int) get_post_meta( $pid, self::META_YEAR, true ),
+				'popularity' => (int) get_post_meta( $pid, 'anime_popularity', true ),
 			];
 		}
 
