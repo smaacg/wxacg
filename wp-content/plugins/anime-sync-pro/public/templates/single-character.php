@@ -212,6 +212,13 @@ get_header();
                     <?php endif; ?>
                 </div>
 
+                <div class="asa-side-name">
+                    <h2 class="asa-side-name-main"><?php echo esc_html( $character['name'] ); ?></h2>
+                    <?php if ( $character['name_original'] !== '' && $character['name_original'] !== $character['name'] ) : ?>
+                        <p class="asa-side-name-orig"><?php echo esc_html( $character['name_original'] ); ?></p>
+                    <?php endif; ?>
+                </div>
+
                 <?php if ( $works_count > 0 ) : ?>
                     <div class="asa-side-works-count">
                         🎬 登場 <strong><?php echo (int) $works_count; ?></strong> 部作品

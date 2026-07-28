@@ -172,6 +172,27 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     font-size: 2.4rem;
 }
 
+/* 照片下方角色名稱 */
+.asa-side-name {
+    padding: 12px 4px 4px;
+    text-align: center;
+}
+
+.asa-side-name-main {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--asa-text);
+    line-height: 1.4;
+}
+
+.asa-side-name-orig {
+    margin: 3px 0 0;
+    font-size: .78rem;
+    color: var(--asa-text-muted);
+    line-height: 1.4;
+}
+
 /* 照片下方「登場 N 部作品」小標籤 */
 .asa-side-works-count {
     margin: 10px 0 2px;
