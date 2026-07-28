@@ -47,7 +47,7 @@ jobs:
       run: |
         cd wp-content/plugins/anime-sync-pro
         composer install --prefer-dist --no-progress
-        vendor/bin/phpstan analyse
+        php vendor/bin/phpstan analyse
 
   web-deploy:
     name: FTP Deploy
