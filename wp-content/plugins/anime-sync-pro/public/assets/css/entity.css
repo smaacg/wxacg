@@ -1,9 +1,20 @@
 /* =================================================================
-   Anime Sync Pro — entity.css  v1.1.0
+   Anime Sync Pro — entity.css  v1.2.0
    對應 single-person.php / single-character.php
    風格對齊 anime-single.css（深藍灰毛玻璃主題），獨立作用域
    Path: wp-content/plugins/anime-sync-pro/public/assets/entity.css
    2026-07-28
+
+   v1.2.0 changelog:
+     - Hero 大頭照改為直式海報比例(3:4)、限制寬度，取代過大的
+       140x140 正方形；新增無圖 fallback 色塊（姓名縮寫）。
+     - 新增 Hero 徽章列(.asa-entity-badges / .asa-ebadge)，
+       對齊 asd-hero-badges 圓角膠囊樣式。
+     - 新增 Hero 外部連結按鈕列(.asa-entity-actions / .asa-action-btn)，
+       對齊 asd-hero-actions 的 ghost 按鈕樣式。
+     - 新增作品卡封面 fallback(.asa-work-cover-fb)。
+     - 移除舊版 .asa-entity-role-tag（改由徽章列呈現）。
+     - 作品卡 hover 陰影/位移微調，與動漫頁卡片節奏更一致。
    ================================================================= */
 
 /* ================================================================
@@ -99,11 +110,11 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   2. Header（頭像 + 名稱 + 身份標籤）
+   2. Header（頭像 + 名稱 + 徽章 + 外部連結）
    ================================================================ */
 .asa-entity-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--asa-gap);
     padding: var(--asa-gap);
     margin-bottom: var(--asa-gap);
@@ -115,10 +126,15 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
-.asa-entity-avatar {
+/* ── [v1.2.0] 大頭照：直式海報比例(3:4)，限制寬度，避免過大的正方形大頭貼 ── */
+.asa-entity-avatar-wrap {
     flex-shrink: 0;
-    width: 140px;
-    height: 140px;
+}
+
+.asa-entity-avatar {
+    position: relative;
+    width: 150px;
+    aspect-ratio: 3 / 4;
     border-radius: var(--asa-radius-xl);
     overflow: hidden;
     border: 1px solid var(--asa-border);
@@ -131,13 +147,31 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     height: 100%;
     object-fit: cover;
     object-position: center top;
+    display: block;
+}
+
+/* 無圖 / 圖片載入失敗時的姓名縮寫色塊，對齊 asd-poster-fallback 的視覺語彙 */
+.asa-entity-avatar-fb {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(circle at 30% 20%, rgba(124, 92, 255, .35), transparent 34%),
+        linear-gradient(135deg, #182d53, #10213d);
+    color: #fff;
+    font-size: 2.1rem;
+    font-weight: 800;
+    overflow: hidden;
 }
 
 .asa-entity-meta {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    padding-top: 2px;
 }
 
 .asa-entity-name {
@@ -157,18 +191,61 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     word-break: break-word;
 }
 
-.asa-entity-role-tag {
+/* ── [v1.2.0] 徽章列：身份 / 作品數，對齊 asd-hero-badges 的圓角膠囊樣式 ── */
+.asa-entity-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 2px;
+}
+
+.asa-ebadge {
     display: inline-flex;
     align-items: center;
-    width: fit-content;
-    margin: 4px 0 0 0;
-    padding: 4px 14px;
+    min-height: 30px;
+    padding: 0 14px;
     border-radius: var(--asa-radius-pill);
-    background: rgba(99, 168, 255, .14);
-    border: 1px solid rgba(99, 168, 255, .28);
-    color: var(--asa-primary);
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid rgba(255, 255, 255, .12);
+    color: #fff;
     font-size: .78rem;
     font-weight: 700;
+    line-height: 1.2;
+}
+
+.asa-ebadge--accent {
+    background: rgba(99, 168, 255, .14);
+    border-color: rgba(99, 168, 255, .28);
+    color: var(--asa-primary);
+}
+
+/* ── [v1.2.0] 外部連結按鈕列，對齊 asd-hero-actions 的 ghost 按鈕樣式 ── */
+.asa-entity-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.asa-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--asa-radius-md);
+    font-size: .82rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid var(--asa-border);
+    color: var(--asa-text-muted);
+    cursor: pointer;
+    transition: var(--trans-smooth);
+}
+
+.asa-action-btn:hover {
+    background: rgba(99, 168, 255, .12);
+    border-color: rgba(99, 168, 255, .35);
+    color: var(--asa-primary);
 }
 
 /* ================================================================
@@ -227,6 +304,8 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 
 .asa-work-card:hover {
     background: rgba(255, 255, 255, .09);
+    border-color: rgba(99, 168, 255, .30);
+    box-shadow: var(--asa-shadow-md);
     transform: translateY(-2px);
 }
 
@@ -237,6 +316,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 .asa-work-cover {
+    position: relative;
     display: block;
     width: 100%;
     aspect-ratio: 2 / 3;
@@ -250,6 +330,21 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* ── [v1.2.0] 作品封面 fallback：無封面圖或載入失敗時顯示作品名縮寫色塊 ── */
+.asa-work-cover-fb {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(circle at 30% 20%, rgba(124, 92, 255, .28), transparent 34%),
+        linear-gradient(135deg, #182d53, #10213d);
+    color: #fff;
+    font-weight: 800;
+    font-size: 1rem;
 }
 
 .asa-work-title {
@@ -309,8 +404,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     }
 
     .asa-entity-avatar {
-        width: 110px;
-        height: 110px;
+        width: 118px;
     }
 
     .asa-works-grid {
@@ -320,7 +414,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   6. 麵包屑導航（v1.1.0 新增，參考 series-index.php 的 asi-breadcrumb）
+   6. 麵包屑導航
    ================================================================ */
 .asa-breadcrumb {
     margin-bottom: 16px;
@@ -357,7 +451,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   7. Hero 標籤（頁面類型小標，v1.1.0 新增）
+   7. Hero 標籤（頁面類型小標）
    ================================================================ */
 .asa-entity-label {
     display: inline-block;
@@ -368,7 +462,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   8. 作品區塊標題列（標題 + 搜尋框並排，v1.1.0 新增）
+   8. 作品區塊標題列（標題 + 搜尋框並排）
    ================================================================ */
 .asa-section-title-row {
     display: flex;
@@ -389,8 +483,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   9. 作品搜尋框（v1.1.0 新增，參考 series-index.php 的 asi-search，
-      改用 entity.css 的深色毛玻璃變數）
+   9. 作品搜尋框
    ================================================================ */
 .asa-work-search {
     flex: 1;
@@ -423,7 +516,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   10. 空狀態圖示（v1.1.0 新增，取代純文字 asa-empty）
+   10. 空狀態圖示
    ================================================================ */
 .asa-empty {
     display: flex;
@@ -438,7 +531,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   11. RWD 補充（v1.1.0 新增，麵包屑/搜尋框在小螢幕的排版）
+   11. RWD 補充（麵包屑/搜尋框在小螢幕的排版）
    ================================================================ */
 @media (max-width: 640px) {
     .asa-section-title-row {

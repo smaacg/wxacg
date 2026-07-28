@@ -7,6 +7,19 @@
  * 資料全走 Anime_Sync_Entity_Repository(唯讀,含快取)。
  *
  * Changelog:
+ *   1.2.0 (2026-07-28)
+ *     - [改版] Hero 區塊比照 single-anime.php 視覺語彙重做：
+ *              大頭照改為直式海報比例(3:4)並限制寬度，不再是過大的
+ *              140x140 正方形；無圖時改用漸層色塊 + 姓名縮寫 fallback
+ *              （對齊 asd-poster-fallback 的做法）。
+ *     - [新增] Hero 徽章列（身份 / 參與作品數，asa-ebadge），
+ *              對齊 asd-hero-badges 的圓角膠囊樣式。
+ *     - [新增] Hero 外部連結按鈕列（Bangumi / AniList / MyAnimeList，
+ *              直接沿用既有 $same_as 來源的 ID，不重複計算），
+ *              對齊 asd-hero-actions 的 ghost 按鈕樣式。
+ *     - [新增] 作品卡封面 fallback：無封面圖時顯示姓名縮寫色塊，
+ *              取代原本「沒有圖就整個 cover 區塊消失」的做法。
+ *     - [移除] 舊版 asa-entity-role-tag 純文字身份標籤（改由徽章列呈現）。
  *   1.1.0 (2026-07-28)
  *     - [新增] 麵包屑導航(參考 series-index.php)
  *     - [新增] Person JSON-LD 結構化資料(含 sameAs → bgm/anilist/mal)
@@ -36,6 +49,10 @@ $works       = $repo->get_person_works( $person_bgm_id ); // 預設只回 cast
 $works_count = count( $works );
 $is_cv       = ( $person['type'] === 'cv' );
 $role_label  = $is_cv ? '聲優' : '製作人員';
+
+/* ── [1.2.0] 姓名縮寫 fallback（無大頭照時使用，對齊 asd 的 $fallback_text 邏輯） ── */
+$person_fallback = trim( wp_strip_all_tags( (string) $person['name'] ) );
+$person_fallback = $person_fallback === '' ? 'AN' : ( function_exists( 'mb_substr' ) ? mb_substr( $person_fallback, 0, 2 ) : substr( $person_fallback, 0, 2 ) );
 
 /* ── JSON-LD：Person schema，含 sameAs 外部資料庫連結 ── */
 $schema = [
@@ -67,6 +84,18 @@ if ( ! empty( $same_as ) ) {
     $schema['sameAs'] = $same_as;
 }
 
+/* ── [1.2.0] Hero 外部連結按鈕（沿用上面已算好的 ID，不重複判斷） ── */
+$external_links = [];
+if ( $person['bgm_id'] > 0 ) {
+    $external_links[] = [ 'label' => 'Bangumi', 'icon' => '🍡', 'url' => 'https://bgm.tv/person/' . $person['bgm_id'] ];
+}
+if ( $person['anilist_id'] > 0 ) {
+    $external_links[] = [ 'label' => 'AniList', 'icon' => '🔵', 'url' => 'https://anilist.co/staff/' . $person['anilist_id'] ];
+}
+if ( $person['mal_id'] > 0 ) {
+    $external_links[] = [ 'label' => 'MyAnimeList', 'icon' => '🔵', 'url' => 'https://myanimelist.net/people/' . $person['mal_id'] ];
+}
+
 get_header();
 ?>
 
@@ -83,13 +112,20 @@ get_header();
     </nav>
 
     <header class="asa-entity-header">
-        <?php if ( $person['image'] !== '' ) : ?>
+
+        <div class="asa-entity-avatar-wrap">
             <div class="asa-entity-avatar">
-                <img src="<?php echo esc_url( $person['image'] ); ?>"
-                     alt="<?php echo esc_attr( $person['name'] ); ?>"
-                     loading="lazy">
+                <?php if ( $person['image'] !== '' ) : ?>
+                    <img src="<?php echo esc_url( $person['image'] ); ?>"
+                         alt="<?php echo esc_attr( $person['name'] ); ?>"
+                         loading="lazy"
+                         onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <div class="asa-entity-avatar-fb" style="display:none"><span><?php echo esc_html( $person_fallback ); ?></span></div>
+                <?php else : ?>
+                    <div class="asa-entity-avatar-fb"><span><?php echo esc_html( $person_fallback ); ?></span></div>
+                <?php endif; ?>
             </div>
-        <?php endif; ?>
+        </div>
 
         <div class="asa-entity-meta">
             <span class="asa-entity-label"><?php echo $is_cv ? '🎙️ 聲優個別頁' : '🛠️ 製作人員個別頁'; ?></span>
@@ -99,7 +135,25 @@ get_header();
                 <p class="asa-entity-name-original"><?php echo esc_html( $person['name_original'] ); ?></p>
             <?php endif; ?>
 
-            <p class="asa-entity-role-tag"><?php echo esc_html( $role_label ); ?></p>
+            <div class="asa-entity-badges">
+                <span class="asa-ebadge"><?php echo esc_html( $role_label ); ?></span>
+                <?php if ( $works_count > 0 ) : ?>
+                    <span class="asa-ebadge asa-ebadge--accent">參與 <?php echo (int) $works_count; ?> 部作品</span>
+                <?php endif; ?>
+            </div>
+
+            <?php if ( ! empty( $external_links ) ) : ?>
+                <div class="asa-entity-actions">
+                    <?php foreach ( $external_links as $el ) : ?>
+                        <a href="<?php echo esc_url( $el['url'] ); ?>"
+                           target="_blank" rel="noopener noreferrer"
+                           class="asa-action-btn">
+                            <span><?php echo esc_html( $el['icon'] ); ?></span>
+                            <span><?php echo esc_html( $el['label'] ); ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
     </header>
 
@@ -124,17 +178,24 @@ get_header();
             </div>
         <?php else : ?>
             <ul class="asa-works-grid" id="asa-works-grid">
-                <?php foreach ( $works as $w ) : ?>
-                    <li class="asa-work-card" data-title="<?php echo esc_attr( mb_strtolower( trim( (string) $w['title'] ) ) ); ?>">
+                <?php foreach ( $works as $w ) :
+                    $w_title    = trim( (string) $w['title'] );
+                    $w_fallback = $w_title === '' ? '動漫' : ( function_exists( 'mb_substr' ) ? mb_substr( $w_title, 0, 2 ) : substr( $w_title, 0, 2 ) );
+                ?>
+                    <li class="asa-work-card" data-title="<?php echo esc_attr( mb_strtolower( $w_title ) ); ?>">
                         <a href="<?php echo esc_url( $w['url'] ); ?>" class="asa-work-link">
-                            <?php if ( $w['cover'] !== '' ) : ?>
-                                <span class="asa-work-cover">
+                            <span class="asa-work-cover">
+                                <?php if ( $w['cover'] !== '' ) : ?>
                                     <img src="<?php echo esc_url( $w['cover'] ); ?>"
-                                         alt="<?php echo esc_attr( $w['title'] ); ?>"
-                                         loading="lazy">
-                                </span>
-                            <?php endif; ?>
-                            <span class="asa-work-title"><?php echo esc_html( trim( (string) $w['title'] ) ); ?></span>
+                                         alt="<?php echo esc_attr( $w_title ); ?>"
+                                         loading="lazy"
+                                         onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+                                    <span class="asa-work-cover-fb" style="display:none"><?php echo esc_html( $w_fallback ); ?></span>
+                                <?php else : ?>
+                                    <span class="asa-work-cover-fb"><?php echo esc_html( $w_fallback ); ?></span>
+                                <?php endif; ?>
+                            </span>
+                            <span class="asa-work-title"><?php echo esc_html( $w_title ); ?></span>
                         </a>
 
                         <?php if ( ! empty( $w['character_name'] ) ) : ?>
