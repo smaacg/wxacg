@@ -297,6 +297,29 @@ function anime_sync_register_post_types(): void {
 	anime_sync_register_hidden_cpt( 'novel', '小說', 'dashicons-book-alt', 7 );
 	anime_sync_register_hidden_cpt( 'game',  '遊戲', 'dashicons-games',    8 );
 	anime_sync_register_hidden_cpt( 'music', '音樂', 'dashicons-format-audio', 9 );
+
+	// [v1.5.1 / 2026-07-29] 角色留言影子 post
+	// 影子 post用途：給 single-character.php 的 wpDiscuz 留言與
+	// [wxacg_correction_form] shortcode 提供一篇真正的 WP Post 當掛勾點。
+	// public => true 是讓 wpDiscuz 後台設定頁面能列出此 CPT 並勾選。
+	// 其他旗標將前台存取路徑、搜尋、選單都藏起來。
+	if ( ! post_type_exists( 'asa_char_comments' ) ) {
+		register_post_type( 'asa_char_comments', [
+			'label'               => '角色留言掛載',
+			'public'              => true,
+			'publicly_queryable'  => false,
+			'exclude_from_search' => true,
+			'show_ui'             => true,
+			'show_in_menu'        => false,
+			'show_in_nav_menus'   => false,
+			'show_in_admin_bar'   => false,
+			'show_in_rest'        => false,
+			'has_archive'         => false,
+			'rewrite'             => false,
+			'query_var'           => false,
+			'supports'            => [ 'title', 'comments' ],
+		] );
+	}
 }
 
 function anime_sync_register_hidden_cpt(

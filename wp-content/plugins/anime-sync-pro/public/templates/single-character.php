@@ -117,32 +117,15 @@ if ( $character['mal_id'] > 0 ) {
 /* ── 糾錯回報：登入導回用網址 ── */
 $character_permalink = home_url( '/character/' . $character['bgm_id'] . '/' );
 
-/* ── [1.4.0] wpDiscuz 留言 / 糾錯表單用的「影子 Post」 ──
+/* ── wpDiscuz 留言 / 糾錯表單用的「影子 Post」 ──
  * character 是用 bgm_id 查 repository 撈出來的陣列，不是 WP post，
  * comments_template() 與 [wxacg_correction_form] 都依賴真正的 global $post，
  * 因此每個角色對應一篇非公開的 asa_char_comments 影子 post 當掛勾。
  *
- * [重要] 這個 post type 要去 wpDiscuz 後台勾選（Settings → General → 載入
- * 文章類型），留言 UI 才會完整顯示。
- * [建議] 正式環境把 register 移到主外掛 init hook，效能較好。
+ * [v1.4.2] asa_char_comments CPT 已移至主外掛 anime_sync_register_post_types()
+ * 在 init hook 統一註冊，確保後台管理頁（wpDiscuz 設定）也能偵測到此 CPT。
+ * 本模板不再重複 register，只負責查詢 / 建立影子 post。
  */
-if ( ! post_type_exists( 'asa_char_comments' ) ) {
-    register_post_type( 'asa_char_comments', [
-        'label'               => '角色留言掛載',
-        'public'              => true,
-        'publicly_queryable'  => false,
-        'exclude_from_search' => true,
-        'show_ui'             => true,
-        'show_in_menu'        => false,
-        'show_in_nav_menus'   => false,
-        'show_in_admin_bar'   => false,
-        'show_in_rest'        => false,
-        'has_archive'         => false,
-        'rewrite'             => false,
-        'query_var'           => false,
-        'supports'            => [ 'title', 'comments' ],
-    ] );
-}
 
 /**
  * 取得（或建立）角色對應的留言掛載 post，回傳 post_id。

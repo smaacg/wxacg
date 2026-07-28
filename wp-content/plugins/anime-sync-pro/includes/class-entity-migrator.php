@@ -228,9 +228,13 @@ class Anime_Sync_Entity_Migrator {
 			ARRAY_A
 		);
 
-		// 只有「新角色」或「既有角色 summary 仍為空」才打詳細端點,避免重跑狂打 API。
-		$needs_detail = ! $row || ( trim( (string) ( $row['summary'] ?? '' ) ) === '' );
+		// 只有「新角色」、「summary 為空」或「aliases_json 為空」才打詳細端點。
+		// v1.4.0：加入 aliases_json 空白判斷，避免已有 summary 但無別名的角色漏填。
+		$needs_detail = ! $row
+			|| ( trim( (string) ( $row['summary']      ?? '' ) ) === '' )
+			|| ( trim( (string) ( $row['aliases_json'] ?? '' ) ) === '' );
 		$detail       = $needs_detail ? $this->fetch_bgm_character_detail( $bgm_id ) : [];
+
 
 		// 別名:非空才 JSON 編碼,空陣列存 ''(方便判空)。
 		$aliases_json = ( ! empty( $detail['aliases'] ) )
