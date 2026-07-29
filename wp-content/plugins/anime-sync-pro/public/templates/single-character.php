@@ -6,6 +6,9 @@
  * 由 class-entity-routing.php 於命中 /character/{id} 時載入。
  *
  * Changelog:
+ *   1.5.1 (2026-07-29)
+ *     - [修正] summary 清理 Bangumi 原始 BBCode 劇透標籤 [mask] / [/mask]
+ *              (wp_strip_all_tags 只清 HTML,不清 BBCode,故先 str_replace 移除)。
  *   1.5.0 (2026-07-29)
  *     - [新增] 四語主名顯示:繁(name)/簡(name_cn)/日(name_original)/英(別名「英文名」)。
  *              英文名從別名清單抽出、與簡日並列於標題區;基本資料清單不再重複顯示
@@ -96,7 +99,10 @@ foreach ( $character_aliases as $alias ) {
     $basic_info_rows[] = [ $a_label !== '' ? $a_label : '別名', $a_value ];
 }
 
-$character_summary = isset( $character['summary'] ) ? trim( wp_strip_all_tags( (string) $character['summary'] ) ) : '';
+/* summary:先清掉 Bangumi BBCode 劇透標籤 [mask]/[/mask],再 strip HTML */
+$character_summary = isset( $character['summary'] )
+    ? trim( wp_strip_all_tags( str_replace( [ '[mask]', '[/mask]' ], '', (string) $character['summary'] ) ) )
+    : '';
 
 /* ── 關聯角色：repository 尚未實作對應方法時自動略過 ── */
 $character_relations = method_exists( $repo, 'get_character_relations' ) ? (array) $repo->get_character_relations( $character_bgm_id ) : [];
