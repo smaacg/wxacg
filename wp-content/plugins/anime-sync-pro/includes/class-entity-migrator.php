@@ -15,6 +15,19 @@
  * 譯名策略:非空中文優先,後寫入者若非空則覆蓋(讓整理過的譯名勝出)。
  *
  * @changelog
+ *   1.5.0 (2026-07-29) — 自動化攤平支援:
+ *     - 建構子新增可注入的 Anime_Sync_Rate_Limiter,預設用 singleton
+ *       實例,與 api-handler.php 共用同一節流節奏。
+ *     - fetch_bgm_character_detail() 打 Bangumi detail API 前先呼叫
+ *       wait_if_needed('bangumi'),避免自動化後短時間連續打多個角色
+ *       的 detail 觸發限流。
+ *     - run() / migrate_one() 新增 $deadline 參數:每處理完一個角色
+ *       就檢查是否逾時,逾時則中止當前作品處理並回傳 false;run()
+ *       偵測到未做完時,若在 cron 執行環境下會自動排程
+ *       anime_sync_migrate_entities 稍後接續處理該作品剩餘角色,
+ *       避免角色數多的作品拖長單次 cron 執行時間、被伺服器
+ *       max_execution_time 中斷導致資料寫到一半。
+ *     - $deadline 預設 0(不限制),CLI 手動執行時行為完全不變。
  *   1.4.0 (2026-07-28) — 別名(aliases)支援:
  *     fetch_bgm_character_detail() 新增解析 infobox 的「别名」巢狀陣列
  *     (日文名 / 纯假名 / 罗马字 等),回傳 aliases 陣列並以 JSON 存入
@@ -61,22 +74,39 @@ class Anime_Sync_Entity_Migrator {
 	private $t_person;
 	private $t_rel;
 
-	public function __construct() {
+	/**
+	 * ★ [1.5.0] 節流器:fetch_bgm_character_detail() 會打 Bangumi API,
+	 *   需與 api-handler.php 其他呼叫共用同一節流節奏,避免自動化後
+	 *   短時間內對同一部作品的多個角色連續發送請求觸發限流。
+	 */
+	private ?Anime_Sync_Rate_Limiter $rate_limiter;
+
+	public function __construct( ?Anime_Sync_Rate_Limiter $rate_limiter = null ) {
 		global $wpdb;
 		$this->t_char   = $wpdb->prefix . 'anime_characters';
 		$this->t_person = $wpdb->prefix . 'anime_persons';
 		$this->t_rel    = $wpdb->prefix . 'anime_relations';
+
+		$this->rate_limiter = $rate_limiter
+			?? ( class_exists( 'Anime_Sync_Rate_Limiter' ) ? Anime_Sync_Rate_Limiter::get_instance() : null );
 	}
 
 	/**
 	 * 主要遷移入口
 	 *
-	 * @param array $args  ['dry_run' => bool, 'post_id' => int(0=全部)]
-	 * @return array 統計
+	 * @param array $args  [
+	 *   'dry_run'  => bool,
+	 *   'post_id'  => int (0=全部),
+	 *   'deadline' => int Unix timestamp,超過此時間就中止當前作品處理
+	 *                 並(在 cron 環境下)自動排程稍後接續。0 = 不限制
+	 *                 (CLI 手動執行預設值,行為與舊版完全一致)。
+	 * ]
+	 * @return array 統計(新增 'deferred' => bool,代表是否因逾時提前結束)
 	 */
 	public function run( array $args = [] ): array {
-		$dry_run = ! empty( $args['dry_run'] );
-		$post_id = (int) ( $args['post_id'] ?? 0 );
+		$dry_run  = ! empty( $args['dry_run'] );
+		$post_id  = (int) ( $args['post_id'] ?? 0 );
+		$deadline = isset( $args['deadline'] ) ? (int) $args['deadline'] : 0;
 
 		$stats = [
 			'anime'      => 0,
@@ -84,6 +114,7 @@ class Anime_Sync_Entity_Migrator {
 			'persons'    => 0,
 			'relations'  => 0,
 			'skipped'    => 0,
+			'deferred'   => false,
 		];
 
 		if ( $post_id > 0 ) {
@@ -99,8 +130,24 @@ class Anime_Sync_Entity_Migrator {
 
 		foreach ( $ids as $aid ) {
 			$aid = (int) $aid;
-			$this->migrate_one( $aid, $dry_run, $stats );
+
+			$finished = $this->migrate_one( $aid, $dry_run, $stats, $deadline );
 			$stats['anime']++;
+
+			// ★ [1.5.0] 這部作品角色沒做完(逾時中斷):
+			//   在 cron 環境下自動排程稍後接著做剩下的角色,然後整批
+			//   直接停止(避免超時後還繼續處理下一部作品,雪上加霜)。
+			if ( ! $finished && $deadline > 0 ) {
+				$stats['deferred'] = true;
+
+				if ( defined( 'DOING_CRON' ) && DOING_CRON
+					&& ! wp_next_scheduled( 'anime_sync_migrate_entities', [ $aid ] )
+				) {
+					wp_schedule_single_event( time() + 20, 'anime_sync_migrate_entities', [ $aid ] );
+				}
+
+				break;
+			}
 		}
 
 		return $stats;
@@ -108,13 +155,23 @@ class Anime_Sync_Entity_Migrator {
 
 	/**
 	 * 處理單一作品
+	 *
+	 * ★ [1.5.0] 新增 $deadline 參數與逾時檢查,回傳 bool:
+	 *   true  = 這部作品的 CAST/STAFF 全部處理完畢
+	 *   false = 中途逾時,未處理完(呼叫端 run() 會自動排程接續)
 	 */
-	private function migrate_one( int $anime_id, bool $dry_run, array &$stats ): void {
+	private function migrate_one( int $anime_id, bool $dry_run, array &$stats, int $deadline = 0 ): bool {
 		// ---- CAST ----
 		$cast_raw = get_post_meta( $anime_id, 'anime_cast_json', true );
 		$cast     = $this->decode( $cast_raw );
 
 		foreach ( $cast as $c ) {
+
+			// ★ [1.5.0] 逾時檢查:每處理一個角色就看一次時間。
+			if ( $deadline > 0 && time() >= $deadline ) {
+				return false;
+			}
+
 			// [1.2.0] character 只有 source==='bangumi' 時 id 才是真 bgm_id。
 			//         非 bangumi 時角色不寫(綁 0),但底下聲優照常寫入。
 			$char_is_bgm = ( ( $c['source'] ?? '' ) === 'bangumi' );
@@ -195,6 +252,8 @@ class Anime_Sync_Entity_Migrator {
 			$stats['persons']++;
 			$stats['relations']++;
 		}
+
+		return true; // 這部作品全部處理完
 	}
 
 	/**
@@ -289,6 +348,8 @@ class Anime_Sync_Entity_Migrator {
 
 	/**
 	 * v1.4.0 — 打 Bangumi /v0/characters/{id},解析角色詳細欄位。
+	 * v1.5.0 — 打 API 前先節流(wait_if_needed('bangumi')),避免自動化
+	 *          攤平時短時間內連續打多個角色的 detail 觸發 Bangumi 限流。
 	 *
 	 * 回傳:[ 'name_original' => '', 'gender' => '', 'birthday' => '',
 	 *        'bloodtype' => '', 'summary' => '', 'aliases' => [] ]
@@ -309,6 +370,11 @@ class Anime_Sync_Entity_Migrator {
 
 		if ( $bgm_id <= 0 ) {
 			return $empty;
+		}
+
+		// ★ [1.5.0] 與 api-handler.php 共用同一節流節奏。
+		if ( $this->rate_limiter ) {
+			$this->rate_limiter->wait_if_needed( 'bangumi' );
 		}
 
 		$response = wp_remote_get( self::BGM_CHARACTER_URL . $bgm_id, [
@@ -590,6 +656,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		$stats = $migrator->run( [
 			'dry_run' => $dry_run,
 			'post_id' => $post_id,
+			// CLI 手動執行不設 deadline,維持舊版行為(一次做完)。
 		] );
 
 		WP_CLI::log( '─────────────────────────────' );

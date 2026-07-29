@@ -2,12 +2,31 @@
 /**
  * Plugin Name: Anime Sync Pro
  * Description: 從 AniList、Bangumi 自動同步動畫資料，並支援多媒體形式（動畫/漫畫/小說/遊戲/音樂）的作品系列聚合。
- * Version:     1.5.0
+ * Version:     1.5.1
  * Author:      weixiaoacg
  * Requires PHP: 8.0
  * Text Domain: anime-sync-pro
  *
  * 完整 Changelog 請見 CHANGELOG.md
+ *
+ * 1.5.1 — 角色/聲優頁自動攤平（2026-07-29）
+ *   - [新增] enrich_anime_data() 成功後，自動排程獨立的
+ *     anime_sync_migrate_entities 事件，把 anime_cast_json /
+ *     anime_staff_json 攤平進 wp_anime_characters /
+ *     wp_anime_persons / wp_anime_relations 三張表，不必再手動下
+ *     wp anime migrate-entities 指令，/person/ /character/ 頁面
+ *     即可直接顯示內容。
+ *   - [新增] anime_sync_migrate_entities cron callback：帶逾時保護
+ *     （抓 max_execution_time 留 10 秒緩衝），角色數多的作品若單次
+ *     處理不完，會自動排程接續，不會被伺服器執行時間限制中斷到
+ *     資料寫一半。
+ *   - [新增] save_post_anime 追加一個 hook：偵測到文章已有
+ *     anime_cast_json / anime_staff_json 時，存檔（例如人工校對
+ *     台灣譯名後儲存）會自動重新排程攤平，讓 person/character 頁面
+ *     同步顯示最新譯名，不需要記得手動重跑遷移指令。
+ *   - [向下相容] 100% 保留 v1.5.0 所有功能與 hook 順序；未安裝/未啟用
+ *     entity-migrator 相關功能時（class_exists 檢查失敗）不影響
+ *     既有匯入 / enrich 流程。
  *
  * 1.5.0 — 角色/聲優獨立實體頁 /person/ /character/（2026-07-28）
  *   - [新增] plugins_loaded 初始化 Anime_Sync_Entity_Routing
@@ -49,7 +68,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /* ============================================================
  * 1. 常數定義
  * ============================================================ */
-define( 'ANIME_SYNC_PRO_VERSION',  '1.5.0' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.5.1' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -709,6 +728,20 @@ add_action( 'plugins_loaded', function (): void {
 				if ( ! is_wp_error( $result ) ) {
 					delete_post_meta( $post_id, '_enrich_retry' );
 
+					// ------------------------------------------------------
+					// ★ [1.5.1] enrich 完成後排程獨立的角色/聲優攤平任務，
+					// 不同步執行，避免角色多的作品拖長本次 cron 執行時間、
+					// 甚至被伺服器 max_execution_time 中斷。
+					//
+					// 冪等設計（見 class-entity-migrator.php），重跑不會
+					// 產生重複資料，失敗也不影響 enrich 本身的結果。
+					// ------------------------------------------------------
+					if ( class_exists( 'Anime_Sync_Entity_Migrator' )
+						&& ! wp_next_scheduled( 'anime_sync_migrate_entities', [ $post_id ] )
+					) {
+						wp_schedule_single_event( time() + 30, 'anime_sync_migrate_entities', [ $post_id ] );
+					}
+
 					return;
 				}
 
@@ -743,6 +776,45 @@ add_action( 'plugins_loaded', function (): void {
 							'error_code'  => $result->get_error_code(),
 						]
 					);
+				}
+			}
+		);
+
+		// ------------------------------------------------------
+		// ★ [1.5.1] 角色/聲優攤平獨立任務。
+		//
+		// 與 enrich 分開排程執行，避免角色數多的作品拖長 enrich
+		// 本身的 cron 執行時間。內建逾時保護：抓伺服器
+		// max_execution_time 並保留 10 秒緩衝，逾時就中止並由
+		// Anime_Sync_Entity_Migrator::run() 自動排程接續處理
+		// 剩餘角色，不會因超時被中斷導致資料寫到一半。
+		// ------------------------------------------------------
+		add_action(
+			'anime_sync_migrate_entities',
+			function ( int $post_id ): void {
+
+				if ( ! class_exists( 'Anime_Sync_Entity_Migrator' ) ) {
+					return;
+				}
+
+				$max_exec = (int) ini_get( 'max_execution_time' );
+				// 有設定執行時間上限時，保留 10 秒緩衝；
+				// 無限制（0）時保守抓 50 秒，避免長時間佔用 cron worker。
+				$budget   = $max_exec > 0 ? max( 10, $max_exec - 10 ) : 50;
+				$deadline = time() + $budget;
+
+				try {
+					( new Anime_Sync_Entity_Migrator() )->run( [
+						'post_id'  => $post_id,
+						'deadline' => $deadline,
+					] );
+				} catch ( \Throwable $e ) {
+					if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+						Anime_Sync_Error_Logger::error(
+							"Entity migration failed for post {$post_id}: " . $e->getMessage(),
+							[ 'post_id' => $post_id ]
+						);
+					}
 				}
 			}
 		);
@@ -840,6 +912,47 @@ add_action( 'save_post_manga', function ( int $post_id, WP_Post $post, bool $upd
 
 	if ( $current_meta === '' || $current_meta === null ) {
 		update_post_meta( $post_id, 'anime_title_chinese', $new_title );
+	}
+
+}, 20, 3 );
+
+/* ============================================================
+ * 8.2. ★ [1.5.1] 人工整理 CAST/STAFF JSON（翻譯校對）存檔後，
+ *      自動重新排程角色/聲優攤平任務，讓 /person/ /character/
+ *      頁面同步顯示最新譯名，不需要記得手動下
+ *      wp anime migrate-entities 指令。
+ *
+ *      只在文章已有 anime_cast_json 或 anime_staff_json 內容時
+ *      才排程，避免空白文章也被排程浪費資源。冪等設計，
+ *      重複排程 / 重複執行都不會產生重複資料。
+ * ============================================================ */
+add_action( 'save_post_anime', function ( int $post_id, WP_Post $post, bool $update ): void {
+
+	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+		return;
+	}
+
+	if ( wp_is_post_revision( $post_id ) ) {
+		return;
+	}
+
+	if ( in_array( $post->post_status, [ 'auto-draft', 'inherit', 'trash' ], true ) ) {
+		return;
+	}
+
+	if ( ! class_exists( 'Anime_Sync_Entity_Migrator' ) ) {
+		return;
+	}
+
+	$has_cast  = ! empty( get_post_meta( $post_id, 'anime_cast_json', true ) );
+	$has_staff = ! empty( get_post_meta( $post_id, 'anime_staff_json', true ) );
+
+	if ( ! $has_cast && ! $has_staff ) {
+		return;
+	}
+
+	if ( ! wp_next_scheduled( 'anime_sync_migrate_entities', [ $post_id ] ) ) {
+		wp_schedule_single_event( time() + 30, 'anime_sync_migrate_entities', [ $post_id ] );
 	}
 
 }, 20, 3 );
