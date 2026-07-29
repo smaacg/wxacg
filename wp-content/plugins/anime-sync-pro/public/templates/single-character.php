@@ -6,6 +6,11 @@
  * 由 class-entity-routing.php 於命中 /character/{id} 時載入。
  *
  * Changelog:
+ *   1.5.0 (2026-07-29)
+ *     - [新增] 四語主名顯示:繁(name)/簡(name_cn)/日(name_original)/英(別名「英文名」)。
+ *              英文名從別名清單抽出、與簡日並列於標題區;基本資料清單不再重複顯示
+ *              簡/日/英,其餘別名(純假名、羅馬字等)保留。
+ *     - [依賴] repository get_character() 需回傳 name_cn(v 對應版本)。
  *   1.4.1 (2026-07-29)
  *     - [修正] 修正上一版檔尾誤把 corrections shortcode 檔案內容貼進本檔、
  *              且 get_footer() 後多出非法 <?php 導致 parse error 的問題。
@@ -43,7 +48,32 @@ $works_count = count( $works );
 $character_fallback = trim( wp_strip_all_tags( (string) $character['name'] ) );
 $character_fallback = $character_fallback === '' ? 'AN' : ( function_exists( 'mb_substr' ) ? mb_substr( $character_fallback, 0, 2 ) : substr( $character_fallback, 0, 2 ) );
 
-/* ── 基本資料：性別 / 生日 / 血型 / 別名 ── */
+/* ── 四語主名:繁 name / 簡 name_cn / 日 name_original / 英(從別名抽) ── */
+$name_tw = trim( (string) $character['name'] );
+$name_cn = isset( $character['name_cn'] ) ? trim( (string) $character['name_cn'] ) : '';
+$name_ja = trim( (string) $character['name_original'] );
+
+$character_aliases = ( isset( $character['aliases'] ) && is_array( $character['aliases'] ) ) ? $character['aliases'] : [];
+
+/* 英文名:從 aliases 找 label 為「英文名」的那筆 */
+$name_en = '';
+foreach ( $character_aliases as $alias ) {
+    $a_label = isset( $alias['label'] ) ? trim( (string) $alias['label'] ) : '';
+    $a_value = isset( $alias['value'] ) ? trim( (string) $alias['value'] ) : '';
+    if ( $a_value === '' ) continue;
+    if ( $a_label === '英文名' || $a_label === '英文名稱' ) {
+        $name_en = $a_value;
+        break;
+    }
+}
+
+/* 四語主名清單(標題區用):值非空、且與繁體不重複才收 */
+$name_multi = [];
+if ( $name_cn !== '' && $name_cn !== $name_tw ) $name_multi[] = [ 'lang' => '簡', 'value' => $name_cn ];
+if ( $name_ja !== '' && $name_ja !== $name_tw ) $name_multi[] = [ 'lang' => '日', 'value' => $name_ja ];
+if ( $name_en !== '' )                          $name_multi[] = [ 'lang' => 'EN', 'value' => $name_en ];
+
+/* ── 基本資料：性別 / 生日 / 血型 / 其餘別名 ── */
 $basic_info_rows = [];
 if ( ! empty( $character['gender'] ) ) {
     $basic_info_rows[] = [ '性別', $character['gender'] ];
@@ -55,11 +85,14 @@ if ( ! empty( $character['bloodtype'] ) ) {
     $basic_info_rows[] = [ '血型', $character['bloodtype'] ];
 }
 
-$character_aliases = ( isset( $character['aliases'] ) && is_array( $character['aliases'] ) ) ? $character['aliases'] : [];
+/* 其餘別名:跳過已在標題區顯示的簡/日/英,其餘(純假名、羅馬字等)保留 */
+$alias_skip_labels = [ '英文名', '英文名稱', '简体中文名', '簡體中文名', '日文名', '日文名稱' ];
 foreach ( $character_aliases as $alias ) {
     $a_label = isset( $alias['label'] ) ? trim( (string) $alias['label'] ) : '';
     $a_value = isset( $alias['value'] ) ? trim( (string) $alias['value'] ) : '';
     if ( $a_value === '' ) continue;
+    if ( in_array( $a_label, $alias_skip_labels, true ) ) continue;
+    if ( $a_value === $name_cn || $a_value === $name_ja || $a_value === $name_en ) continue;
     $basic_info_rows[] = [ $a_label !== '' ? $a_label : '別名', $a_value ];
 }
 
@@ -76,8 +109,12 @@ $schema = [
     'url'                       => home_url( '/character/' . $character['bgm_id'] . '/' ),
     'disambiguatingDescription' => '動漫作品中的虛構角色',
 ];
-if ( $character['name_original'] !== '' && $character['name_original'] !== $character['name'] ) {
-    $schema['alternateName'] = $character['name_original'];
+$schema_alt = [];
+if ( $name_ja !== '' && $name_ja !== $character['name'] ) $schema_alt[] = $name_ja;
+if ( $name_cn !== '' && $name_cn !== $character['name'] ) $schema_alt[] = $name_cn;
+if ( $name_en !== '' )                                    $schema_alt[] = $name_en;
+if ( ! empty( $schema_alt ) ) {
+    $schema['alternateName'] = count( $schema_alt ) === 1 ? $schema_alt[0] : $schema_alt;
 }
 if ( $character['image'] !== '' ) {
     $schema['image'] = $character['image'];
@@ -117,22 +154,7 @@ if ( $character['mal_id'] > 0 ) {
 /* ── 糾錯回報：登入導回用網址 ── */
 $character_permalink = home_url( '/character/' . $character['bgm_id'] . '/' );
 
-/* ── wpDiscuz 留言 / 糾錯表單用的「影子 Post」 ──
- * character 是用 bgm_id 查 repository 撈出來的陣列，不是 WP post，
- * comments_template() 與 [wxacg_correction_form] 都依賴真正的 global $post，
- * 因此每個角色對應一篇非公開的 asa_char_comments 影子 post 當掛勾。
- *
- * [v1.4.2] asa_char_comments CPT 已移至主外掛 anime_sync_register_post_types()
- * 在 init hook 統一註冊，確保後台管理頁（wpDiscuz 設定）也能偵測到此 CPT。
- * 本模板不再重複 register，只負責查詢 / 建立影子 post。
- */
-
-/**
- * 取得（或建立）角色對應的留言掛載 post，回傳 post_id。
- *
- * [1.4.1] 以 function_exists 包裹，避免模板在同一次請求被載入兩次時
- * 觸發 Cannot redeclare function 致命錯誤。
- */
+/* ── wpDiscuz 留言 / 糾錯表單用的「影子 Post」 ── */
 if ( ! function_exists( 'asa_get_character_comment_post_id' ) ) {
     function asa_get_character_comment_post_id( array $character ) {
         $bgm_id = (int) ( $character['bgm_id'] ?? 0 );
@@ -213,9 +235,16 @@ get_header();
                 </div>
 
                 <div class="asa-side-name">
-                    <h1 class="asa-side-name-main"><?php echo esc_html( $character['name'] ); ?></h1>
-                    <?php if ( $character['name_original'] !== '' && $character['name_original'] !== $character['name'] ) : ?>
-                        <p class="asa-side-name-orig"><?php echo esc_html( $character['name_original'] ); ?></p>
+                    <h1 class="asa-side-name-main"><?php echo esc_html( $name_tw !== '' ? $name_tw : $character['name'] ); ?></h1>
+                    <?php if ( ! empty( $name_multi ) ) : ?>
+                        <div class="asa-side-name-langs">
+                            <?php foreach ( $name_multi as $nm ) : ?>
+                                <p class="asa-side-name-alt">
+                                    <span class="asa-name-lang-tag"><?php echo esc_html( $nm['lang'] ); ?></span>
+                                    <span class="asa-name-lang-val"><?php echo esc_html( $nm['value'] ); ?></span>
+                                </p>
+                            <?php endforeach; ?>
+                        </div>
                     <?php endif; ?>
                 </div>
 

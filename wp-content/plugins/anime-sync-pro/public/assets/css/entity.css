@@ -822,3 +822,44 @@ body:has(.asa-entity-page) .ct-section-inner-container {
         width: 150px;
     }
 }
+
+/* ================================================================
+   15. [v1.5.0] 角色標題區 — 四語主名(繁大標 + 簡/日/英並列)
+   ================================================================ */
+.asa-side-name-langs {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: center;
+}
+
+.asa-side-name-alt {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0;
+    font-size: .8rem;
+    line-height: 1.4;
+    color: var(--asa-text-muted);
+}
+
+.asa-name-lang-tag {
+    flex: 0 0 auto;
+    min-width: 1.9em;
+    text-align: center;
+    font-size: .66rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(99, 168, 255, .12);
+    border: 1px solid rgba(99, 168, 255, .22);
+    color: var(--asa-primary);
+    letter-spacing: .02em;
+}
+
+.asa-name-lang-val {
+    flex: 1 1 auto;
+    word-break: break-word;
+    text-align: left;
+}

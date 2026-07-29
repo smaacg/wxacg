@@ -14,6 +14,12 @@
  * 故不提供 get_character_photos()。
  *
  * Changelog:
+ *   1.5.0 (2026-07-29)
+ *     - [新增] get_character() 回傳 name_cn（Bangumi 原始簡體主名，
+ *       由 class-entity-migrator.php v1.6.0 寫入 wp_anime_characters.name_cn）。
+ *       供 single-character.php 四語主名顯示（繁 name / 簡 name_cn /
+ *       日 name_original / 英 別名「英文名」）。get_character() 不走 transient，
+ *       故 CACHE_VER 不變（v5）。
  *   1.4.1 (2026-07-29)
  *     - [修正] 角色作品次要排序由「年份舊→新」改為「熱度高→低」（anime_popularity），
  *       解決前傳和 OAD 暴日期比本篇更舊導致错排第一的問題。
@@ -178,7 +184,7 @@ class Anime_Sync_Entity_Repository {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT bgm_id, name, name_original, image, anilist_id, mal_id,
+				"SELECT bgm_id, name, name_cn, name_original, image, anilist_id, mal_id,
 				        gender, birthday, bloodtype, summary, aliases_json
 				 FROM {$this->t_char} WHERE bgm_id = %d",
 				$bgm_id
@@ -193,6 +199,7 @@ class Anime_Sync_Entity_Repository {
 		return [
 			'bgm_id'        => (int) $row['bgm_id'],
 			'name'          => $this->fallback_name( $row['name'], $row['name_original'] ),
+			'name_cn'       => $this->fallback_text( $row['name_cn'] ?? '' ),
 			'name_original' => (string) $row['name_original'],
 			'image'         => $this->fallback_image( $row['image'], self::PLACEHOLDER_CHAR ),
 			'anilist_id'    => (int) $row['anilist_id'],
