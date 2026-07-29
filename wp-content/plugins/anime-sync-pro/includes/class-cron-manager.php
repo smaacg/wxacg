@@ -4,6 +4,25 @@
  * Cron Manager — 排程同步管理
  *
  * 修正紀錄：
+ * - [v1.5.0] [Fix 未定檔期死結 + seasonYear 同步] 根治「動畫化確定但未定檔期」的作品
+ *            開播日/播出年份永遠是舊資料的問題：
+ *            背景：build_daily_queue() 的 NOT_YET_RELEASED 分支原本要求
+ *            start_date 落在「未來 30 天 ~ 過去 30 天」窗口內才納入佇列。但未定
+ *            檔期的作品 anime_start_date 為 0 / 空，永遠不符合窗口，導致它們
+ *            從來不會被每小時 cron 碰到。等 AniList 之後公布了日期，cron 也
+ *            掃不到、開播日與 seasonYear 永遠補不上，形成「要有日期才進佇列、
+ *            要進佇列才能補日期」的死結。
+ *            修正：
+ *            (1) build_daily_queue() NOT_YET_RELEASED 分支新增：start_date <= 0
+ *                （未定檔期）也一律納入監控，sort 設 0（同級最後）。有開播日者
+ *                維持原本 30 天窗口邏輯不變。
+ *            (2) fetch_anilist_dynamic() 的 GraphQL query 加入 season / seasonYear。
+ *            (3) sync_dynamic_for_post() 新增 seasonYear / season 回寫區塊：
+ *                AniList 提供非 0 年份 / 非空季度且未鎖定時自動寫入
+ *                anime_season_year / anime_season，前台即可正常顯示。
+ *            提醒：如需從後台鎖定播出年份 / 季度不被 cron 覆蓋，
+ *            register_sync_control() 的 choices 需加入 anime_season_year /
+ *            anime_season 兩個 key（本檔已支援 $is_locked 判斷）。
  * - [v1.4.9] [Fix 缺失方法] 補上遺失的 sync_episodes_for_post()：run_themes_episodes_update()
  *            的 _run_themes_episodes_inner() 每 15 分鐘會呼叫 $this->sync_episodes_for_post(
  *            $post_id )，但此方法先前未被定義，導致每次執行到第一部作品就
@@ -505,12 +524,14 @@ class Anime_Sync_Cron_Manager {
 
     /**
      * 建立每日待處理佇列。
+     * ✅ [v1.5.0] NOT_YET_RELEASED 且尚無開播日（start_date=0）者也納入監控,
+     *   修正「未定檔期作品永遠進不了佇列 → seasonYear/開播日永遠補不上」的死結。
      * ✅ [v1.4.1] 完結日比較改用純數字（int），與 start_date 判斷統一。
      * ✅ [v1.3.9] 新番優先排序（即將開播 > 放映中 > 剛完結，同級按日期由新到舊）。
      * ✅ [v1.3.8] 簡單 IN 撈狀態 + PHP 過濾，避免多層巢狀 meta_query 生成錯誤 SQL。
-     *   - 排除 MOVIE / OVA / SPECIAL 格式。
+     *   - 排除 MOVIE / OVA / SPECIAL 格式（僅限已完結）。
      *   - RELEASING：全納入。
-     *   - NOT_YET_RELEASED：開播日在未來 30 天內。
+     *   - NOT_YET_RELEASED：開播日在未來 30 天內，或尚未定檔（start_date=0）。
      *   - FINISHED：完結日在 30 天內。
      * ✅ [v1.2.9] 5 分鐘短效快取，防止重複觸發時的多餘 DB full scan。
      */
@@ -565,7 +586,13 @@ class Anime_Sync_Cron_Manager {
                 $items[] = [ 'id' => $id, 'prio' => self::PRIO_RELEASING, 'sort' => $start ];
             } elseif ( $status === 'NOT_YET_RELEASED' ) {
                 $start = (int) get_post_meta( $id, 'anime_start_date', true );
-                if ( $start <= $window_ymd && $start >= $cutoff_ymd ) {
+                // ✅ [v1.5.0] 未定檔期（start_date 為 0 或空）也一律納入監控，
+                //    否則 AniList 之後定檔了 cron 也永遠掃不到、開播日/seasonYear
+                //    永遠補不上（死結）。sort 設 0，排在同級（PRIO_UPCOMING）最後。
+                //    有開播日者維持原本 30 天窗口邏輯不變。
+                if ( $start <= 0 ) {
+                    $items[] = [ 'id' => $id, 'prio' => self::PRIO_UPCOMING, 'sort' => 0 ];
+                } elseif ( $start <= $window_ymd && $start >= $cutoff_ymd ) {
                     $items[] = [ 'id' => $id, 'prio' => self::PRIO_UPCOMING, 'sort' => $start ];
                 }
             } elseif ( $status === 'FINISHED' ) {
@@ -744,8 +771,35 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
+        // ✅ [v1.5.0] 播出年份 seasonYear：AniList 之後補上年份時自動回寫。
+        //   前台 single-anime.php 對 0 視為「尚未公布」，補上後即正常顯示。
+        //   僅在 AniList 回傳非 0 年份且未鎖定時才寫入，避免把已有年份覆蓋成 0。
+        if ( ! $is_locked( 'anime_season_year' )
+             && isset( $media['seasonYear'] )
+             && $media['seasonYear'] !== null ) {
+            $old_val = (int) get_post_meta( $post_id, 'anime_season_year', true );
+            $new_val = (int) $media['seasonYear'];
+            if ( $new_val > 0 && $old_val !== $new_val ) {
+                update_post_meta( $post_id, 'anime_season_year', $new_val );
+                $diff[] = '播出年份 ' . $old_val . '→' . $new_val;
+            }
+        }
+
+        // ✅ [v1.5.0] 季度 season（WINTER / SPRING / SUMMER / FALL）
+        if ( ! $is_locked( 'anime_season' )
+             && isset( $media['season'] )
+             && $media['season'] !== null
+             && $media['season'] !== '' ) {
+            $old_val = (string) get_post_meta( $post_id, 'anime_season', true );
+            $new_val = (string) $media['season'];
+            if ( $old_val !== $new_val ) {
+                update_post_meta( $post_id, 'anime_season', $new_val );
+                $diff[] = '季度 ' . $old_val . '→' . $new_val;
+            }
+        }
+
         // ✅ [v1.4.3] 開播日：僅在 AniList 提供完整年月日時才回寫，避免尚未定檔（只有年份）
-        //   時被補成 YYYY0101 污染。提早匯入的作品待 AniList 定檔後由 cron 自動補正。
+        //   時被補成 YYYY0101 污染。提早匯入的作品待 AniList 定檔後由每小時 cron 自動補正。
         if ( ! $is_locked( 'anime_start_date' )
              && ! empty( $media['startDate']['year'] )
              && ! empty( $media['startDate']['month'] )
@@ -788,6 +842,7 @@ class Anime_Sync_Cron_Manager {
     }
 
     private function fetch_anilist_dynamic( int $anilist_id ): ?array {
+        // ✅ [v1.5.0] 加入 season / seasonYear，供未定檔期作品定檔後自動回寫播出年份/季度。
         $query = <<<'GQL'
         query ($id: Int) {
             Media(id: $id, type: ANIME) {
@@ -796,6 +851,8 @@ class Anime_Sync_Cron_Manager {
                 episodes
                 averageScore
                 popularity
+                season
+                seasonYear
                 startDate { year month day }
                 endDate { year month day }
                 nextAiringEpisode { airingAt episode }
