@@ -15,6 +15,15 @@
  * 譯名策略:非空中文優先,後寫入者若非空則覆蓋(讓整理過的譯名勝出)。
  *
  * @changelog
+ *   1.6.0 (2026-07-29) — 原始簡體名(name_cn)支援:
+ *     fetch_bgm_character_detail() 新增回傳 name_cn(Bangumi 角色 API
+ *     頂層 name,即原始簡體主名,不經 OpenCC 轉繁)。upsert_character()
+ *     與 backfill_characters() 同步寫入 name_cn 欄位,供前端四語顯示
+ *     (繁 name / 簡 name_cn / 日 name_original / 英 aliases_json[英文名])。
+ *     backfill_characters() 的預設 WHERE 條件加入 name_cn 空白判斷,
+ *     確保先前已遷移、summary/aliases 已有值但缺 name_cn 的角色也會被補。
+ *     ⚠ 需先執行:ALTER TABLE wp_anime_characters
+ *         ADD COLUMN name_cn VARCHAR(255) NULL DEFAULT NULL AFTER name;
  *   1.5.0 (2026-07-29) — 自動化攤平支援:
  *     - 建構子新增可注入的 Anime_Sync_Rate_Limiter,預設用 singleton
  *       實例,與 api-handler.php 共用同一節流節奏。
@@ -270,6 +279,7 @@ class Anime_Sync_Entity_Migrator {
 	/**
 	 * upsert 角色:bgm_id 存在則更新(非空譯名/圖才覆蓋),否則新增。
 	 *
+	 * v1.6.0 — 另存 name_cn(Bangumi 原始簡體主名)。
 	 * v1.4.0 — 另存 aliases_json(別名)。
 	 * v1.3.0 — 寫入時另打 /v0/characters/{id} 補 summary / infobox
 	 *          (gender / birthday / bloodtype / name_original)。
@@ -280,18 +290,21 @@ class Anime_Sync_Entity_Migrator {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT id, summary, gender, birthday, bloodtype, name_original, aliases_json
+				"SELECT id, summary, gender, birthday, bloodtype, name_original, name_cn, aliases_json
 				 FROM {$this->t_char} WHERE bgm_id = %d",
 				$bgm_id
 			),
 			ARRAY_A
 		);
 
-		// 只有「新角色」、「summary 為空」或「aliases_json 為空」才打詳細端點。
-		// v1.4.0：加入 aliases_json 空白判斷，避免已有 summary 但無別名的角色漏填。
+		// 只有「新角色」、「summary 為空」、「aliases_json 為空」或
+		// 「name_cn 為空」才打詳細端點。
+		// v1.6.0：加入 name_cn 空白判斷,確保先前遷移、summary/aliases 已有
+		//         但缺原始簡體名的角色也會補打。
 		$needs_detail = ! $row
 			|| ( trim( (string) ( $row['summary']      ?? '' ) ) === '' )
-			|| ( trim( (string) ( $row['aliases_json'] ?? '' ) ) === '' );
+			|| ( trim( (string) ( $row['aliases_json'] ?? '' ) ) === '' )
+			|| ( trim( (string) ( $row['name_cn']      ?? '' ) ) === '' );
 		$detail       = $needs_detail ? $this->fetch_bgm_character_detail( $bgm_id ) : [];
 
 
@@ -309,6 +322,10 @@ class Anime_Sync_Entity_Migrator {
 			if ( ! empty( $detail ) ) {
 				if ( trim( (string) ( $row['name_original'] ?? '' ) ) === '' && $detail['name_original'] !== '' ) {
 					$set['name_original'] = $detail['name_original'];
+				}
+				// ★ [1.6.0] 原始簡體名:既有為空且抓到才寫。
+				if ( trim( (string) ( $row['name_cn'] ?? '' ) ) === '' && ( $detail['name_cn'] ?? '' ) !== '' ) {
+					$set['name_cn'] = $detail['name_cn'];
 				}
 				if ( trim( (string) ( $row['gender'] ?? '' ) ) === '' && $detail['gender'] !== '' ) {
 					$set['gender'] = $detail['gender'];
@@ -335,6 +352,7 @@ class Anime_Sync_Entity_Migrator {
 			$wpdb->insert( $this->t_char, [
 				'bgm_id'        => $bgm_id,
 				'name'          => $name,
+				'name_cn'       => $detail['name_cn']       ?? '',
 				'image'         => $image,
 				'name_original' => $detail['name_original'] ?? '',
 				'aliases_json'  => $aliases_json,
@@ -347,12 +365,13 @@ class Anime_Sync_Entity_Migrator {
 	}
 
 	/**
-	 * v1.4.0 — 打 Bangumi /v0/characters/{id},解析角色詳細欄位。
+	 * v1.6.0 — 打 Bangumi /v0/characters/{id},解析角色詳細欄位。
+	 *          新增回傳 name_cn(頂層 name,原始簡體主名,不轉繁)。
 	 * v1.5.0 — 打 API 前先節流(wait_if_needed('bangumi')),避免自動化
 	 *          攤平時短時間內連續打多個角色的 detail 觸發 Bangumi 限流。
 	 *
-	 * 回傳:[ 'name_original' => '', 'gender' => '', 'birthday' => '',
-	 *        'bloodtype' => '', 'summary' => '', 'aliases' => [] ]
+	 * 回傳:[ 'name_original' => '', 'name_cn' => '', 'gender' => '',
+	 *        'birthday' => '', 'bloodtype' => '', 'summary' => '', 'aliases' => [] ]
 	 * 任何失敗都回全空陣列(aliases 為空陣列),呼叫端據此不覆蓋。
 	 *
 	 * @param int $bgm_id
@@ -361,6 +380,7 @@ class Anime_Sync_Entity_Migrator {
 	private function fetch_bgm_character_detail( int $bgm_id ): array {
 		$empty = [
 			'name_original' => '',
+			'name_cn'       => '',
 			'gender'        => '',
 			'birthday'      => '',
 			'bloodtype'     => '',
@@ -400,6 +420,9 @@ class Anime_Sync_Entity_Migrator {
 			return $has_opencc ? Anime_Sync_CN_Converter::static_convert( $s ) : $s;
 		};
 
+		// ★ [1.6.0] 原始簡體主名:Bangumi 頂層 name,不經 OpenCC 轉換。
+		$name_cn_top = trim( (string) ( $data['name'] ?? '' ) );
+
 		// summary(角色簡介),轉繁。
 		$summary = $convert( (string) ( $data['summary'] ?? '' ) );
 
@@ -413,11 +436,11 @@ class Anime_Sync_Entity_Migrator {
 		};
 
 		// infobox:陣列,每筆 [ 'key' => .., 'value' => .. ]。
-		$name_ja   = ''; // 日文名(藏在「别名」巢狀陣列內)
-		$name_cn   = ''; // 简体中文名(top-level)
-		$birthday  = '';
-		$bloodtype = '';
-		$aliases   = []; // 完整別名 k => v
+		$name_ja        = ''; // 日文名(藏在「别名」巢狀陣列內)
+		$name_cn_ibox   = ''; // 简体中文名(infobox,頂層缺時的備援)
+		$birthday       = '';
+		$bloodtype      = '';
+		$aliases        = []; // 完整別名 k => v
 
 		foreach ( (array) ( $data['infobox'] ?? [] ) as $rowbox ) {
 			$key   = trim( (string) ( $rowbox['key'] ?? '' ) );
@@ -464,8 +487,8 @@ class Anime_Sync_Entity_Migrator {
 			switch ( $key ) {
 				case '简体中文名':
 				case '簡體中文名':
-					if ( $name_cn === '' ) {
-						$name_cn = $value;
+					if ( $name_cn_ibox === '' ) {
+						$name_cn_ibox = $value;
 					}
 					break;
 				case '生日':
@@ -483,11 +506,15 @@ class Anime_Sync_Entity_Migrator {
 			}
 		}
 
+		// ★ [1.6.0] 原始簡體名:優先頂層 name,頂層缺時退而用 infobox 简体中文名。
+		$name_cn = $name_cn_top !== '' ? $name_cn_top : $name_cn_ibox;
+
 		// name_original 優先日文名;無日文名時退而用简体中文名(轉繁)。
-		$name_original = $name_ja !== '' ? $name_ja : $convert( $name_cn );
+		$name_original = $name_ja !== '' ? $name_ja : $convert( $name_cn_ibox !== '' ? $name_cn_ibox : $name_cn_top );
 
 		return [
 			'name_original' => $name_original,
+			'name_cn'       => $name_cn,
 			'gender'        => $gender,
 			'birthday'      => $birthday,
 			'bloodtype'     => $bloodtype,
@@ -497,7 +524,9 @@ class Anime_Sync_Entity_Migrator {
 	}
 
 	/**
-	 * v1.4.0 — 批次回填既有角色的空白詳細欄位(供 backfill-characters 指令用)。
+	 * v1.6.0 — 批次回填既有角色的空白詳細欄位(供 backfill-characters 指令用)。
+	 *          預設 WHERE 加入 name_cn 空白判斷,確保先前已遷移但缺原始簡體
+	 *          名的角色也會被補。
 	 *
 	 * @param array $args ['force' => bool 連有 summary 的也重抓, 'bgm_id' => int 只處理單一角色]
 	 * @return array 統計
@@ -515,11 +544,13 @@ class Anime_Sync_Entity_Migrator {
 		} elseif ( $force ) {
 			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_char} WHERE bgm_id > 0" );
 		} else {
-			// 只抓 summary 為 NULL/'' 或 aliases_json 為空的角色。
+			// 只抓 summary / aliases_json / name_cn 任一為空的角色。
 			$ids = $wpdb->get_col(
 				"SELECT bgm_id FROM {$this->t_char}
 				 WHERE bgm_id > 0
-				 AND ( summary IS NULL OR summary = '' OR aliases_json IS NULL OR aliases_json = '' )"
+				 AND ( summary IS NULL OR summary = ''
+				    OR aliases_json IS NULL OR aliases_json = ''
+				    OR name_cn IS NULL OR name_cn = '' )"
 			);
 		}
 
@@ -542,7 +573,7 @@ class Anime_Sync_Entity_Migrator {
 
 			$row = $wpdb->get_row(
 				$wpdb->prepare(
-					"SELECT summary, gender, birthday, bloodtype, name_original, aliases_json
+					"SELECT summary, gender, birthday, bloodtype, name_original, name_cn, aliases_json
 					 FROM {$this->t_char} WHERE bgm_id = %d",
 					$bgm_id
 				),
@@ -550,7 +581,7 @@ class Anime_Sync_Entity_Migrator {
 			);
 
 			$set = [];
-			foreach ( [ 'name_original', 'gender', 'birthday', 'bloodtype', 'summary' ] as $field ) {
+			foreach ( [ 'name_original', 'name_cn', 'gender', 'birthday', 'bloodtype', 'summary' ] as $field ) {
 				$current = trim( (string) ( $row[ $field ] ?? '' ) );
 				$new     = (string) ( $detail[ $field ] ?? '' );
 				if ( $new !== '' && ( $force || $current === '' ) ) {
@@ -669,8 +700,8 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	} );
 
 	/**
-	 * v1.4.0 — 回填既有角色的 summary / infobox / 別名 空白欄位。
-	 *   wp anime backfill-characters            # 只補 summary 或別名為空的角色
+	 * v1.6.0 — 回填既有角色的 summary / infobox / 別名 / 原始簡體名 空白欄位。
+	 *   wp anime backfill-characters            # 只補 summary / 別名 / name_cn 為空的角色
 	 *   wp anime backfill-characters --force     # 連已有資料的也重抓
 	 *   wp anime backfill-characters --id=107704 # 只回填單一角色(測試用)
 	 */
@@ -680,7 +711,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 		$migrator = new Anime_Sync_Entity_Migrator();
 
-		WP_CLI::log( '=== 回填角色詳細欄位(summary / 性別 / 生日 / 血型 / 日文名 / 別名)===' );
+		WP_CLI::log( '=== 回填角色詳細欄位(簡體名 / summary / 性別 / 生日 / 血型 / 日文名 / 別名)===' );
 		if ( $force ) {
 			WP_CLI::log( '模式:--force(連已有資料的角色也重抓)' );
 		}
