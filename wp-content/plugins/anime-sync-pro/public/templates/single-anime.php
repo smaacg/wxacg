@@ -1622,17 +1622,25 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                 $c_va_url      = $c_va_id > 0 ? $entity_url( 'person', $c_va_id, $c_va_name ) : '';
                             ?>
                                 <div class="asd-cast-card<?php echo $i >= 6 ? ' asd-cast-hidden' : ''; ?>">
-                                    <div class="asd-cast-avatar-wrap">
-                                        <?php if ( $c_char_image ) : ?>
-                                            <img src="<?php echo esc_url( $c_char_image ); ?>"
-                                                 alt="<?php echo esc_attr( $c_char_name ); ?>"
-                                                 loading="lazy"
-                                                 onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
-                                            <div class="asd-cast-avatar-fb" style="display:none"><span><?php echo esc_html( $c_fb ); ?></span></div>
-                                        <?php else : ?>
-                                            <div class="asd-cast-avatar-fb"><span><?php echo esc_html( $c_fb ); ?></span></div>
-                                        <?php endif; ?>
-                                    </div>
+<?php if ( $c_char_url ) : ?>
+<a href="<?php echo esc_url( $c_char_url ); ?>" class="asd-cast-avatar-wrap asd-cast-avatar-wrap--link" aria-label="<?php echo esc_attr( $c_char_name ); ?>">
+<?php else : ?>
+<div class="asd-cast-avatar-wrap">
+<?php endif; ?>
+    <?php if ( $c_char_image ) : ?>
+        <img src="<?php echo esc_url( $c_char_image ); ?>"
+             alt="<?php echo esc_attr( $c_char_name ); ?>"
+             loading="lazy"
+             onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+        <div class="asd-cast-avatar-fb" style="display:none"><span><?php echo esc_html( $c_fb ); ?></span></div>
+    <?php else : ?>
+        <div class="asd-cast-avatar-fb"><span><?php echo esc_html( $c_fb ); ?></span></div>
+    <?php endif; ?>
+<?php if ( $c_char_url ) : ?>
+</a>
+<?php else : ?>
+</div>
+<?php endif; ?>
                                     <div class="asd-cast-info">
                                         <span class="asd-cast-char"><?php
                                             if ( $c_char_url ) {
