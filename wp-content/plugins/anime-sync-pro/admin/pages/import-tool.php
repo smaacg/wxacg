@@ -974,13 +974,13 @@ function asc_progress_block( $prefix ) {
             var noDateCount = res.data.no_date_count || 0;
 
             // 組合摘要文字
-            var summary = '共找到 ' + list.length + ' 部';
+            var summaryText = '共找到 ' + list.length + ' 部';
             if (noDateCount > 0) {
-                summary += '（其中 ' + noDateCount + ' 部日期未定）';
+                summaryText += '（其中 ' + noDateCount + ' 部日期未定）';
             }
-            summary += '，' + imported + ' 部已匯入。';
-            if (res.data.warning) summary += ' ⚠️ ' + res.data.warning;
-            $('#announced-preview-summary').text(summary);
+            summaryText += '，' + imported + ' 部已匯入。';
+            if (res.data.warning) summaryText += ' ⚠️ ' + res.data.warning;
+            $('#announced-preview-summary').html(escHtml(summaryText) + '<strong id="announced-selected-badge" style="color:#63A8FF;margin-left:8px;">（已勾選 0 部）</strong>');
 
             var tbody = $('#announced-tbody').empty();
             var cards = $('#announced-cards').empty();
@@ -1023,10 +1023,31 @@ function asc_progress_block( $prefix ) {
                 }, 'announced-item-check'));
             });
 
+            function updateAnnouncedSelectedCount() {
+                var count = collectIds('.announced-item-check').length;
+                $('#announced-selected-badge').text('（已勾選 ' + count + ' 部）');
+                if (count > 0) {
+                    $('#btn-announced-import').text('第二步：匯入選中的 ' + count + ' 部作品（草稿）');
+                } else {
+                    $('#btn-announced-import').text('第二步：匯入選中作品（草稿）');
+                }
+            }
+
             $('#announced-select-all').off('change').on('change', function(){
                 $('.announced-item-check:not(:disabled)').prop('checked', $(this).prop('checked'));
+                updateAnnouncedSelectedCount();
             });
 
+            $(document).off('change', '.announced-item-check').on('change', '.announced-item-check', function(){
+                var aid = $(this).data('id');
+                var isChecked = $(this).prop('checked');
+                if (aid) {
+                    $('.announced-item-check[data-id="' + aid + '"]').prop('checked', isChecked);
+                }
+                updateAnnouncedSelectedCount();
+            });
+
+            updateAnnouncedSelectedCount();
             $('#announced-preview').show();
         }).fail(function(){
             $('#btn-announced-query').prop('disabled', false);
