@@ -687,7 +687,9 @@ class Anime_Sync_Admin {
         $year    = intval( $_POST['year']   ?? 0 );
         $sort    = sanitize_key( $_POST['sort'] ?? 'POPULARITY_DESC' );
         $formats = isset( $_POST['formats'] ) ? (array) $_POST['formats'] : [];
-        $formats = array_filter( array_map( 'sanitize_key', $formats ) );
+        $formats = array_filter( array_map( function( $f ) {
+            return strtoupper( sanitize_text_field( $f ) );
+        }, $formats ) );
 
         $allowed_sorts   = [ 'POPULARITY_DESC', 'START_DATE' ];
         $allowed_formats = [ 'TV', 'MOVIE', 'OVA', 'ONA', 'SPECIAL', 'MUSIC' ];
