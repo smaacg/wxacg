@@ -33,6 +33,21 @@ if ( null === $character ) {
 $works       = $repo->get_character_works( $character_bgm_id );
 $works_count = count( $works );
 
+/* ── 提取唯一的配音員 (CV) ── */
+$character_cvs = [];
+$cvs_map       = [];
+foreach ( $works as $w ) {
+    if ( ! empty( $w['voice_actors'] ) ) {
+        foreach ( $w['voice_actors'] as $va ) {
+            $va_id = (int) $va['bgm_id'];
+            if ( $va_id > 0 && ! isset( $cvs_map[ $va_id ] ) ) {
+                $cvs_map[ $va_id ] = true;
+                $character_cvs[]   = $va;
+            }
+        }
+    }
+}
+
 /* ── 星座:由「N月N日」推算,無法解析回空字串 ── */
 if ( ! function_exists( 'asa_zodiac_from_birthday' ) ) {
     function asa_zodiac_from_birthday( string $birthday ): string {
@@ -290,6 +305,19 @@ get_header();
                 <?php if ( $works_count > 0 ) : ?>
                     <div class="asa-side-works-count">
                         🎬 登場 <strong><?php echo (int) $works_count; ?></strong> 部作品
+                    </div>
+                <?php endif; ?>
+
+                <?php if ( ! empty( $character_cvs ) ) : ?>
+                    <div class="asa-infolist">
+                        <div class="asa-infolist-subtitle" style="margin-top:4px; border-top:none; padding-top:0;">配音員 (CV)</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 4px 8px;">
+                            <?php foreach ( $character_cvs as $cv ) : ?>
+                                <a href="<?php echo esc_url( $cv['url'] ); ?>" class="asa-role-badge" style="margin:0;">
+                                    <?php echo esc_html( $cv['name'] ); ?>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 <?php endif; ?>
 

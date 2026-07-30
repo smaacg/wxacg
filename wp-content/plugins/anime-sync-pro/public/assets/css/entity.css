@@ -634,6 +634,13 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     border-radius: var(--asa-radius-pill);
     white-space: nowrap;
     vertical-align: middle;
+    transition: var(--trans-smooth);
+}
+
+.asa-role-badge[href]:hover {
+    background: rgba(99, 168, 255, .25);
+    color: #fff;
+    text-decoration: none;
 }
 
 /* ================================================================
