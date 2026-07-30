@@ -126,7 +126,27 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    /* 隱藏捲軸但保留可捲動（Firefox / WebKit） */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, .15) transparent;
 }
+
+/* 左欄內部捲軸美化（WebKit） */
+.asa-layout-side::-webkit-scrollbar {
+    width: 6px;
+}
+
+.asa-layout-side::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, .15);
+    border-radius: 3px;
+}
+
+.asa-layout-side::-webkit-scrollbar-track {
+    background: transparent;
+}
+
 
 .asa-layout-main {
     min-width: 0;
