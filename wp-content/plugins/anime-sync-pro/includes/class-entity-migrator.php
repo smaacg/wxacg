@@ -10,11 +10,14 @@
  *   wp anime backfill-characters           # 回填既有角色空白的 summary/infobox
  *   wp anime backfill-characters --force   # 連已有 summary 的角色也重抓
  *   wp anime backfill-characters --id=107704   # 只回填單一角色(測試用)
+ *   wp anime backfill-characters --limit=300   # ★[1.7.1] 本批只跑 300 筆(分批,避免被主機砍)
  *
  * 特性:冪等。用 bgm_id 去重、relations 用 unique key,重跑不會產生重複。
  * 譯名策略:非空中文優先,後寫入者若非空則覆蓋(讓整理過的譯名勝出)。
  *
  * @changelog
+ *   1.7.1 (2026-07-30) — backfill 新增 --limit 參數:每批限制筆數,
+ *     搭配外部迴圈分批跑完,避免共享主機砍掉長時間 CLI 進程。
  *   1.7.0 (2026-07-29) — 身高/體重 + 完整 infobox 保存:
  *     fetch_bgm_character_detail() 新增解析 infobox 的「身高/身長」與
  *     「体重/體重」,並額外回傳整包 infobox(key => value,已轉繁、
@@ -480,6 +483,7 @@ class Anime_Sync_Entity_Migrator {
 
 	/**
 	 * 批次回填。
+	 * v1.7.1 — 新增 --limit(每批筆數上限)。
 	 * v1.7.0 — 預設 WHERE 加入 height / weight / infobox_json 空白判斷;
 	 *          回填欄位清單加入 height / weight;另寫 infobox_json。
 	 */
@@ -507,6 +511,12 @@ class Anime_Sync_Entity_Migrator {
 				    OR weight IS NULL OR weight = ''
 				    OR infobox_json IS NULL OR infobox_json = '' )"
 			);
+		}
+
+		// ★ [1.7.1] 分批:--limit 限制本批筆數,避免主機砍長進程。0=不限。
+		$limit = (int) ( $args['limit'] ?? 0 );
+		if ( $limit > 0 && count( $ids ) > $limit ) {
+			$ids = array_slice( $ids, 0, $limit );
 		}
 
 		foreach ( $ids as $bgm_id ) {
@@ -653,6 +663,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( 'anime backfill-characters', function ( $args, $assoc_args ) {
 		$force  = isset( $assoc_args['force'] );
 		$bgm_id = isset( $assoc_args['id'] ) ? (int) $assoc_args['id'] : 0;
+		$limit  = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0; // ★ [1.7.1]
 
 		$migrator = new Anime_Sync_Entity_Migrator();
 
@@ -660,10 +671,14 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		if ( $force ) {
 			WP_CLI::log( '模式:--force(連已有資料的角色也重抓)' );
 		}
+		if ( $limit > 0 ) {
+			WP_CLI::log( '本批上限:--limit=' . $limit );
+		}
 
 		$stats = $migrator->backfill_characters( [
 			'force'  => $force,
 			'bgm_id' => $bgm_id,
+			'limit'  => $limit, // ★ [1.7.1]
 		] );
 
 		WP_CLI::log( '─────────────────────────────' );
