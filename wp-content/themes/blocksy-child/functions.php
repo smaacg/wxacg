@@ -631,7 +631,7 @@ add_action( 'wp_footer', function () {
  * @since 2.25.0
  */
 add_action( 'wp_footer', function () {
-    if ( ! is_singular( [ 'anime', 'manga' ] ) ) return;
+    if ( ! is_singular( [ 'anime', 'manga', 'asa_char_comments' ] ) ) return;
     ?>
     <script>
     (function () {
