@@ -915,3 +915,16 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     color: #fff;
     text-decoration: underline;
 }
+
+/* ================================================================
+   17. [v1.5.2] 修正左欄 sticky 滾動卡頓
+   移除內部 max-height / overflow，改用單純 sticky
+   ================================================================ */
+@media (min-width: 901px) {
+    .asa-layout-side {
+        max-height: none;
+        overflow-y: visible;
+        align-self: start;
+    }
+    .asa-layout-side::-webkit-scrollbar { width: 0; }
+}
