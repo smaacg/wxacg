@@ -16,7 +16,7 @@
  *   _wxacg_corr_admin_note  text    管理員處理備註（駁回原因等）
  *   _wxacg_corr_exp_awarded '1'     已發過 EXP 的標記（防重複發放）
  *
- * @version 1.1.0  選單顯示待處理筆數氣泡
+ * @version 1.2.0  修正選單氣泡：改用 admin_menu 注入原生氣泡，避免 HTML 被轉義成亂碼
  */
 
 namespace WXACG\Social;
@@ -49,6 +49,8 @@ final class Corrections_CPT {
 
     private function __construct() {
         add_action( 'init', [ __CLASS__, 'register' ], 10 );
+        // 用 admin_menu 注入待處理氣泡（不要塞進 labels，否則會被轉義成亂碼）
+        add_action( 'admin_menu', [ __CLASS__, 'add_menu_bubble' ], 999 );
     }
 
     /** 目前待處理（pending）筆數 */
@@ -66,23 +68,11 @@ final class Corrections_CPT {
 
     public static function register(): void {
 
-        // 選單名稱：有待處理時顯示紅色氣泡數字
-        $menu_name = '修正建議';
-        if ( is_admin() ) {
-            $pending = self::pending_count();
-            if ( $pending > 0 ) {
-                $menu_name = sprintf(
-                    '修正建議 <span class="awaiting-mod update-plugins count-%1$d"><span class="pending-count">%1$d</span></span>',
-                    $pending
-                );
-            }
-        }
-
         register_post_type( self::POST_TYPE, [
             'labels' => [
                 'name'          => '修正建議',
                 'singular_name' => '修正建議',
-                'menu_name'     => $menu_name,
+                'menu_name'     => '修正建議',   // 純文字，氣泡另由 add_menu_bubble() 注入
                 'all_items'     => '所有回報',
                 'edit_item'     => '檢視回報',
                 'search_items'  => '搜尋回報',
@@ -102,6 +92,36 @@ final class Corrections_CPT {
             'capability_type'     => 'post',
             'map_meta_cap'        => true,
         ] );
+    }
+
+    /**
+     * 在後台選單標題注入待處理數字氣泡（WordPress 原生氣泡樣式）。
+     * 直接改全域 $menu 陣列的標題，HTML 不會被轉義，可正常顯示紅色氣泡。
+     */
+    public static function add_menu_bubble(): void {
+        global $menu;
+        if ( ! is_array( $menu ) ) {
+            return;
+        }
+
+        $pending = self::pending_count();
+        if ( $pending < 1 ) {
+            return;
+        }
+
+        $slug   = 'edit.php?post_type=' . self::POST_TYPE;
+        $bubble = sprintf(
+            ' <span class="awaiting-mod update-plugins count-%1$d"><span class="pending-count">%1$d</span></span>',
+            $pending
+        );
+
+        foreach ( $menu as $key => $item ) {
+            // $item[2] 為選單 slug
+            if ( isset( $item[2] ) && $item[2] === $slug ) {
+                $menu[ $key ][0] .= $bubble;
+                break;
+            }
+        }
     }
 
     /** 類別 key → 中文標籤 */
