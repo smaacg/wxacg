@@ -4,6 +4,10 @@
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-person.php
  *
  * Changelog:
+ *   1.5.0 (2026-07-30)
+ *     - [新增] 生日欄位自動附上年紀與星座：例「1995年12月2日（30 歲 · 射手座）」。
+ *              支援 YYYY年MM月DD日 / YYYY-MM-DD / 僅 MM月DD日(僅星座) 三種格式;
+ *              年紀依當下日期即時計算,無年份時只顯示星座。
  *   1.4.0 (2026-07-30)
  *     - [改版] 版型比照 single-character.php 兩欄化：
  *              左欄 sticky 資訊卡(海報 + 姓名 + 基本資料 + 外部連結)、
@@ -17,6 +21,56 @@
  *   1.0.0 - [新增] 初版。
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
+
+/* ── 解析生日字串 → [year, month, day]（任一項無法解析為 0） ── */
+if ( ! function_exists( 'asa_parse_birthday' ) ) {
+    function asa_parse_birthday( string $raw ): array {
+        $raw = trim( $raw );
+        $y = 0; $m = 0; $d = 0;
+
+        // 格式 1：YYYY-MM-DD 或 YYYY/MM/DD
+        if ( preg_match( '/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/', $raw, $mm ) ) {
+            return [ (int) $mm[1], (int) $mm[2], (int) $mm[3] ];
+        }
+        // 格式 2：YYYY年MM月DD日（年份可省略）
+        if ( preg_match( '/(\d{4})\s*年/u', $raw, $mm ) ) $y = (int) $mm[1];
+        if ( preg_match( '/(\d{1,2})\s*月/u', $raw, $mm ) ) $m = (int) $mm[1];
+        if ( preg_match( '/(\d{1,2})\s*日/u', $raw, $mm ) ) $d = (int) $mm[1];
+
+        return [ $y, $m, $d ];
+    }
+}
+
+/* ── 由月日判斷星座 ── */
+if ( ! function_exists( 'asa_zodiac_sign' ) ) {
+    function asa_zodiac_sign( int $m, int $d ): string {
+        if ( $m < 1 || $m > 12 || $d < 1 ) return '';
+        $signs = [
+            [ 1, 20, '摩羯座' ], [ 2, 19, '水瓶座' ], [ 3, 21, '雙魚座' ],
+            [ 4, 20, '牡羊座' ], [ 5, 21, '金牛座' ], [ 6, 22, '雙子座' ],
+            [ 7, 23, '巨蟹座' ], [ 8, 23, '獅子座' ], [ 9, 23, '處女座' ],
+            [ 10, 24, '天秤座' ], [ 11, 23, '天蠍座' ], [ 12, 22, '射手座' ],
+        ];
+        // 當日 < 該月分界日 → 前一個星座
+        [ $bm, $bd, $sign ] = $signs[ $m - 1 ];
+        if ( $d < $bd ) {
+            $prev = $signs[ ( $m + 10 ) % 12 ];
+            return $prev[2];
+        }
+        return $sign;
+    }
+}
+
+/* ── 由年月日算實歲（無年份回 0） ── */
+if ( ! function_exists( 'asa_calc_age' ) ) {
+    function asa_calc_age( int $y, int $m, int $d ): int {
+        if ( $y < 1900 || $m < 1 || $d < 1 ) return 0;
+        $today = new DateTime( 'now', wp_timezone() );
+        $birth = DateTime::createFromFormat( 'Y-n-j', sprintf( '%d-%d-%d', $y, $m, $d ), wp_timezone() );
+        if ( ! $birth ) return 0;
+        return (int) $birth->diff( $today )->y;
+    }
+}
 
 $person_bgm_id = (int) get_query_var( 'asa_person_id' );
 
@@ -64,13 +118,29 @@ $name_multi = [];
 if ( $name_ja !== '' && $name_ja !== $name_tw ) $name_multi[] = [ 'lang' => '日', 'value' => $name_ja ];
 if ( $name_en !== '' )                          $name_multi[] = [ 'lang' => 'EN', 'value' => $name_en ];
 
-/* ── 基本資料：性別 / 生日 / 血型 / 身高 + 其餘別名 ── */
+/* ── 基本資料：性別 / 生日(附年紀+星座) / 血型 / 身高 + 其餘別名 ── */
 $basic_info_rows = [];
 if ( ! empty( $person['gender'] ) ) {
     $basic_info_rows[] = [ '性別', $person['gender'] ];
 }
 if ( ! empty( $person['birthday'] ) ) {
-    $basic_info_rows[] = [ '生日', $person['birthday'] ];
+    [ $by, $bm, $bd ] = asa_parse_birthday( (string) $person['birthday'] );
+    $bday_display = (string) $person['birthday'];
+
+    $extra_bits = [];
+    $age = asa_calc_age( $by, $bm, $bd );
+    if ( $age > 0 ) {
+        $extra_bits[] = $age . ' 歲';
+    }
+    $zodiac = asa_zodiac_sign( $bm, $bd );
+    if ( $zodiac !== '' ) {
+        $extra_bits[] = $zodiac;
+    }
+    if ( ! empty( $extra_bits ) ) {
+        $bday_display .= '（' . implode( ' · ', $extra_bits ) . '）';
+    }
+
+    $basic_info_rows[] = [ '生日', $bday_display ];
 }
 if ( ! empty( $person['bloodtype'] ) ) {
     $basic_info_rows[] = [ '血型', $person['bloodtype'] ];
