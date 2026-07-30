@@ -1116,6 +1116,49 @@ add_action( 'acf/save_post', function ( $post_id ) {
 }, 20 ); // priority 20：在 ACF 把欄位寫入資料庫（預設 10）之後才執行
 
 
+/* ============================================================
+ * 角色頁 (/character/xxx/) 讓 wpDiscuz 認得 post type，
+ * 使留言框套用 wpDiscuz 樣式（與作品頁一致）
+ * ============================================================ */
+add_action( 'wp', function () {
+    $char_id = (int) get_query_var( 'asa_character_id' );
+    if ( $char_id <= 0 ) {
+        return;
+    }
+
+    // 找出這個角色對應的留言承載 post（asa_char_comments）
+    $posts = get_posts( [
+        'post_type'      => 'asa_char_comments',
+        'post_status'    => 'publish',
+        'posts_per_page' => 1,
+        'no_found_rows'  => true,
+        'meta_query'     => [
+            [
+                'key'     => 'asa_character_bgm_id',
+                'value'   => $char_id,
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            ],
+        ],
+    ] );
+
+    if ( empty( $posts ) ) {
+        return;
+    }
+
+    global $wp_query;
+    $cpost = $posts[0];
+
+    // 把主查詢偽裝成「正在看這篇 asa_char_comments」，
+    // 讓 wpDiscuz 的 is_singular / postTypes 白名單判斷通過
+    $wp_query->is_singular       = true;
+    $wp_query->is_single         = true;
+    $wp_query->is_page           = false;
+    $wp_query->is_404            = false;
+    $wp_query->queried_object    = $cpost;
+    $wp_query->queried_object_id = $cpost->ID;
+}, 1 );
+
 // AdBlock 偵測
 add_action('wp_footer', function() {
     $adcheck_url = content_url('uploads/adcheck/adsbygoogle.js');
