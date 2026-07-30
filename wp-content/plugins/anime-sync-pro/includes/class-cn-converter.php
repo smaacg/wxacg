@@ -6,6 +6,15 @@
  * 流程：OpenCC（S2TWP）→ 自訂站內字典覆寫。
  * 若 OpenCC 不可用，則 fallback 至靜態字典。
  *
+ * @changelog
+ *   2.0.0 (2026-07-30) — 修正 OpenCC 未啟用問題:
+ *     本站 vendor/autoload.php 未上傳(composer autoloader 缺失),
+ *     導致 is_opencc_available() 直接 return false、一路 fallback
+ *     到 2234 條的靜態字典,漏轉「识→識 / 选→選」等常用字。
+ *     改為:autoload.php 不存在時,手動 require php-opencc 的 5 個
+ *     src 檔(ConverterInterface / Strategy / Dictionary / Converter /
+ *     OpenCC),字典檔由 OpenCC 自身相對路徑載入,無需 composer。
+ *
  * @package Anime_Sync_Pro
  */
 
@@ -132,23 +141,43 @@ class Anime_Sync_CN_Converter {
         }
     }
 
+    /**
+     * 判斷 OpenCC 是否可用。
+     * v2.0.0：autoload.php 缺失時,改手動 require php-opencc 的 src 檔。
+     */
     private static function is_opencc_available(): bool {
         if ( self::$opencc_available !== null ) {
             return self::$opencc_available;
         }
 
+        // 已載入 → 直接可用
+        if ( class_exists( 'Overtrue\PHPOpenCC\OpenCC', false ) ) {
+            self::$opencc_available = true;
+            return true;
+        }
+
+        // 優先使用 composer autoload（若存在）
         $autoload = self::get_autoload_path();
-
-        if ( ! file_exists( $autoload ) ) {
-            self::$opencc_available = false;
-            return false;
-        }
-
-        if ( ! class_exists( 'Overtrue\PHPOpenCC\OpenCC', false ) ) {
+        if ( file_exists( $autoload ) ) {
             require_once $autoload;
+        } else {
+            // autoload.php 缺失 → 手動 require OpenCC src 檔（順序：被依賴者在前）
+            $src = self::get_vendor_path() . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR;
+            $files = [
+                'Contracts' . DIRECTORY_SEPARATOR . 'ConverterInterface.php',
+                'Strategy.php',
+                'Dictionary.php',
+                'Converter.php',
+                'OpenCC.php',
+            ];
+            foreach ( $files as $f ) {
+                $path = $src . $f;
+                if ( file_exists( $path ) ) {
+                    require_once $path;
+                }
+            }
         }
 
-        // ★ 修正：false → true，允許 autoload 觸發類別偵測
         self::$opencc_available = class_exists( 'Overtrue\PHPOpenCC\OpenCC', true );
         return self::$opencc_available;
     }

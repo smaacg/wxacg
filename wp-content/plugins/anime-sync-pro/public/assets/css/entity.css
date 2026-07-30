@@ -900,3 +900,18 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     word-break: break-word;
     font-weight: 500;
 }
+
+/* ================================================================
+   16. [v1.5.1] 其他資料 — 可點連結樣式
+   ================================================================ */
+.asa-infolist-link {
+    color: var(--asa-primary);
+    font-weight: 600;
+    word-break: break-all;
+    transition: var(--trans-smooth);
+}
+
+.asa-infolist-link:hover {
+    color: #fff;
+    text-decoration: underline;
+}

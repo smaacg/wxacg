@@ -4,17 +4,15 @@
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-person.php
  *
  * Changelog:
+ *   1.5.1 (2026-07-30)
+ *     - [修正] 星座判斷錯誤(12/2 誤判天蠍→正確射手);改用起始日邏輯。
+ *     - [新增] 「其他資料」中的網址/社群值自動轉為可點連結
+ *              (個人網站/官網/X/Twitter/Instagram/微博 等)。
  *   1.5.0 (2026-07-30)
- *     - [新增] 生日欄位自動附上年紀與星座：例「1995年12月2日（30 歲 · 射手座）」。
- *              支援 YYYY年MM月DD日 / YYYY-MM-DD / 僅 MM月DD日(僅星座) 三種格式;
- *              年紀依當下日期即時計算,無年份時只顯示星座。
+ *     - [新增] 生日欄位自動附上年紀與星座。
  *   1.4.0 (2026-07-30)
- *     - [改版] 版型比照 single-character.php 兩欄化：
- *              左欄 sticky 資訊卡(海報 + 姓名 + 基本資料 + 外部連結)、
- *              右欄內容(簡介 + 參與作品)。
- *     - [新增] 身高、別名併入基本資料;新增「其他資料」infobox 通用展開
- *              (出生地/事務所/唱片公司/官網/社群等,由 repository v1.7.0
- *              的 $person['infobox'] 提供)。
+ *     - [改版] 版型比照 single-character.php 兩欄化。
+ *     - [新增] 身高、別名併入基本資料;「其他資料」infobox 通用展開。
  *   1.3.0 (2026-07-28) - [新增] 基本資料、簡介區塊。
  *   1.2.0 (2026-07-28) - [改版] Hero 直式海報、徽章、外部連結。
  *   1.1.0 (2026-07-28) - [新增] 麵包屑、JSON-LD、作品搜尋。
@@ -41,23 +39,28 @@ if ( ! function_exists( 'asa_parse_birthday' ) ) {
     }
 }
 
-/* ── 由月日判斷星座 ── */
+/* ── 由月日判斷星座（以起始日為準） ── */
 if ( ! function_exists( 'asa_zodiac_sign' ) ) {
     function asa_zodiac_sign( int $m, int $d ): string {
         if ( $m < 1 || $m > 12 || $d < 1 ) return '';
-        $signs = [
-            [ 1, 20, '摩羯座' ], [ 2, 19, '水瓶座' ], [ 3, 21, '雙魚座' ],
-            [ 4, 20, '牡羊座' ], [ 5, 21, '金牛座' ], [ 6, 22, '雙子座' ],
-            [ 7, 23, '巨蟹座' ], [ 8, 23, '獅子座' ], [ 9, 23, '處女座' ],
-            [ 10, 24, '天秤座' ], [ 11, 23, '天蠍座' ], [ 12, 22, '射手座' ],
+        // 各星座起始日：從該日(含)起進入此星座
+        $z = [
+            [ '摩羯座', 12, 22 ], [ '水瓶座', 1, 20 ], [ '雙魚座', 2, 19 ],
+            [ '牡羊座', 3, 21 ],  [ '金牛座', 4, 20 ], [ '雙子座', 5, 21 ],
+            [ '巨蟹座', 6, 22 ],  [ '獅子座', 7, 23 ], [ '處女座', 8, 23 ],
+            [ '天秤座', 9, 23 ],  [ '天蠍座', 10, 24 ], [ '射手座', 11, 23 ],
         ];
-        // 當日 < 該月分界日 → 前一個星座
-        [ $bm, $bd, $sign ] = $signs[ $m - 1 ];
-        if ( $d < $bd ) {
-            $prev = $signs[ ( $m + 10 ) % 12 ];
-            return $prev[2];
+        foreach ( $z as [ $name, $zm, $zd ] ) {
+            if ( $m === $zm && $d >= $zd ) return $name;
+            if ( $name === '摩羯座' && $m === 1 && $d <= 19 ) return $name; // 摩羯跨年
         }
-        return $sign;
+        // 落在起始日之前 → 前一個月的星座
+        $prevMap = [
+            1 => '摩羯座', 2 => '水瓶座', 3 => '雙魚座', 4 => '牡羊座',
+            5 => '金牛座', 6 => '雙子座', 7 => '巨蟹座', 8 => '獅子座',
+            9 => '處女座', 10 => '天秤座', 11 => '天蠍座', 12 => '射手座',
+        ];
+        return $prevMap[ $m ] ?? '';
     }
 }
 
@@ -69,6 +72,41 @@ if ( ! function_exists( 'asa_calc_age' ) ) {
         $birth = DateTime::createFromFormat( 'Y-n-j', sprintf( '%d-%d-%d', $y, $m, $d ), wp_timezone() );
         if ( ! $birth ) return 0;
         return (int) $birth->diff( $today )->y;
+    }
+}
+
+/* ── 依 label / value 判斷是否為連結，回傳 [url, text] 或 null ── */
+if ( ! function_exists( 'asa_infobox_link' ) ) {
+    function asa_infobox_link( string $label, string $value ): ?array {
+        $value = trim( $value );
+        if ( $value === '' ) return null;
+
+        // 已是完整網址
+        if ( preg_match( '#^https?://#i', $value ) ) {
+            return [ $value, $value ];
+        }
+
+        $label_l = mb_strtolower( $label );
+        $is_x  = ( strpos( $label_l, 'x' ) !== false || strpos( $label_l, 'twitter' ) !== false );
+        $is_ig = ( strpos( $label_l, 'instagram' ) !== false || $label_l === 'ig' );
+        $is_wb = ( strpos( $label, '微博' ) !== false || strpos( $label_l, 'weibo' ) !== false );
+
+        // @handle 或純帳號
+        $handle = ltrim( $value, '@＠' );
+        if ( $is_x && preg_match( '/^[A-Za-z0-9_]{1,30}$/', $handle ) ) {
+            return [ 'https://x.com/' . $handle, '@' . $handle ];
+        }
+        if ( $is_ig && preg_match( '/^[A-Za-z0-9_.]{1,30}$/', $handle ) ) {
+            return [ 'https://instagram.com/' . $handle, '@' . $handle ];
+        }
+        if ( $is_wb ) {
+            return null; // 微博 ID 規則不定，維持純文字
+        }
+        // 沒有 http 但看起來像網域
+        if ( preg_match( '#^[a-z0-9-]+(\.[a-z0-9-]+)+#i', $value ) && strpos( $value, ' ' ) === false ) {
+            return [ 'https://' . $value, $value ];
+        }
+        return null;
     }
 }
 
@@ -169,7 +207,9 @@ foreach ( $infobox_all as $item ) {
     $i_value = isset( $item['value'] ) ? trim( (string) $item['value'] ) : '';
     if ( $i_value === '' || $i_label === '' ) continue;
     if ( in_array( $i_label, $infobox_skip, true ) ) continue;
-    $extra_info_rows[] = [ $i_label, $i_value ];
+    // 判斷是否為連結
+    $link = asa_infobox_link( $i_label, $i_value );
+    $extra_info_rows[] = [ 'label' => $i_label, 'value' => $i_value, 'link' => $link ];
 }
 
 $person_summary = isset( $person['summary'] ) ? trim( wp_strip_all_tags( (string) $person['summary'] ) ) : '';
@@ -290,8 +330,16 @@ get_header();
                         <div class="asa-infolist-subtitle">其他資料</div>
                         <?php foreach ( $extra_info_rows as $row ) : ?>
                             <div class="asa-infolist-row">
-                                <span class="asa-infolist-label"><?php echo esc_html( $row[0] ); ?></span>
-                                <span class="asa-infolist-val"><?php echo esc_html( $row[1] ); ?></span>
+                                <span class="asa-infolist-label"><?php echo esc_html( $row['label'] ); ?></span>
+                                <span class="asa-infolist-val">
+                                    <?php if ( is_array( $row['link'] ) ) : ?>
+                                        <a href="<?php echo esc_url( $row['link'][0] ); ?>"
+                                           target="_blank" rel="noopener noreferrer"
+                                           class="asa-infolist-link"><?php echo esc_html( $row['link'][1] ); ?></a>
+                                    <?php else : ?>
+                                        <?php echo esc_html( $row['value'] ); ?>
+                                    <?php endif; ?>
+                                </span>
                             </div>
                         <?php endforeach; ?>
                     </div>

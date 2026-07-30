@@ -6,9 +6,13 @@
  * 用法(SSH):
  *   wp anime migrate-entities
  *   wp anime backfill-characters [--force] [--id=N] [--limit=N]
- *   wp anime backfill-persons    [--force] [--id=N] [--limit=N]   ★[1.8.0]
+ *   wp anime backfill-persons    [--force] [--id=N] [--limit=N]
  *
  * @changelog
+ *   1.8.1 (2026-07-30) — infobox 的 key(label)也做簡轉繁:
+ *     修正 fetch_bgm_character_detail() / fetch_bgm_person_detail() 中
+ *     $infobox_all 的 key 未經 $convert() 導致「事务所/唱片公司/出道
+ *     时间/个人网站/性别」等 label 顯示簡體的問題。需 --force 重抓覆蓋。
  *   1.8.0 (2026-07-30) — 人物(聲優/製作)詳細欄位支援:
  *     新增 fetch_bgm_person_detail()、擴充 upsert_person() 抓 detail、
  *     新增 backfill_persons() 與 `wp anime backfill-persons` 指令。
@@ -429,7 +433,7 @@ class Anime_Sync_Entity_Migrator {
 			}
 
 			if ( ! in_array( $key, $infobox_skip, true ) ) {
-				$infobox_all[ $key ] = $convert( $value );
+				$infobox_all[ $convert( $key ) ] = $convert( $value );
 			}
 		}
 
@@ -760,7 +764,7 @@ class Anime_Sync_Entity_Migrator {
 			}
 
 			if ( ! in_array( $key, $infobox_skip, true ) ) {
-				$infobox_all[ $key ] = $convert( $value );
+				$infobox_all[ $convert( $key ) ] = $convert( $value );
 			}
 		}
 
