@@ -4,38 +4,23 @@
  * wp_anime_characters / wp_anime_persons / wp_anime_relations 三張表。
  *
  * 用法(SSH):
- *   wp anime migrate-entities              # 全部作品
- *   wp anime migrate-entities --dry-run    # 只統計不寫入
- *   wp anime migrate-entities --post=2517  # 只處理單一作品(測試用)
- *   wp anime backfill-characters           # 回填既有角色空白的 summary/infobox
- *   wp anime backfill-characters --force   # 連已有 summary 的角色也重抓
- *   wp anime backfill-characters --id=107704   # 只回填單一角色(測試用)
- *   wp anime backfill-characters --limit=300   # ★[1.7.1] 本批只跑 300 筆(分批,避免被主機砍)
- *
- * 特性:冪等。用 bgm_id 去重、relations 用 unique key,重跑不會產生重複。
- * 譯名策略:非空中文優先,後寫入者若非空則覆蓋(讓整理過的譯名勝出)。
+ *   wp anime migrate-entities
+ *   wp anime backfill-characters [--force] [--id=N] [--limit=N]
+ *   wp anime backfill-persons    [--force] [--id=N] [--limit=N]   ★[1.8.0]
  *
  * @changelog
- *   1.7.1 (2026-07-30) — backfill 新增 --limit 參數:每批限制筆數,
- *     搭配外部迴圈分批跑完,避免共享主機砍掉長時間 CLI 進程。
- *   1.7.0 (2026-07-29) — 身高/體重 + 完整 infobox 保存:
- *     fetch_bgm_character_detail() 新增解析 infobox 的「身高/身長」與
- *     「体重/體重」,並額外回傳整包 infobox(key => value,已轉繁、
- *     排除巢狀的「别名」;别名另存 aliases_json)。upsert_character()
- *     與 backfill_characters() 同步寫入 height / weight / infobox_json。
- *     供前端顯示身高、體重、星座(前端由 birthday 推算),以及「BGM 有的
- *     其他欄位」通用展開。
+ *   1.8.0 (2026-07-30) — 人物(聲優/製作)詳細欄位支援:
+ *     新增 fetch_bgm_person_detail()、擴充 upsert_person() 抓 detail、
+ *     新增 backfill_persons() 與 `wp anime backfill-persons` 指令。
+ *     寫入 name_original / gender / birthday / bloodtype / height /
+ *     summary / aliases_json / infobox_json。
  *     ⚠ 需先執行:
- *       ALTER TABLE wp_anime_characters ADD COLUMN height VARCHAR(20) NULL DEFAULT NULL AFTER bloodtype;
- *       ALTER TABLE wp_anime_characters ADD COLUMN weight VARCHAR(20) NULL DEFAULT NULL AFTER height;
- *       ALTER TABLE wp_anime_characters ADD COLUMN infobox_json TEXT NULL DEFAULT NULL AFTER summary;
- *   1.6.0 (2026-07-29) — 原始簡體名(name_cn)支援。
- *   1.5.0 (2026-07-29) — 自動化攤平支援(rate limiter / deadline)。
- *   1.4.0 (2026-07-28) — 別名(aliases)支援。
- *   1.3.0 (2026-07-28) — 角色詳細欄位回填。
- *   1.2.0 (2026-07-28) — 修正 source guard 邏輯。
- *   1.1.0 — (已作廢)。
- *   1.0.0 — 初版。
+ *       ALTER TABLE wp_anime_persons ADD COLUMN height VARCHAR(20) NULL DEFAULT NULL AFTER bloodtype;
+ *       ALTER TABLE wp_anime_persons ADD COLUMN aliases_json TEXT NULL DEFAULT NULL AFTER summary;
+ *       ALTER TABLE wp_anime_persons ADD COLUMN infobox_json TEXT NULL DEFAULT NULL AFTER aliases_json;
+ *   1.7.1 (2026-07-30) — backfill 新增 --limit 參數。
+ *   1.7.0 (2026-07-29) — 角色身高/體重 + 完整 infobox 保存。
+ *   1.6.0 ~ 1.0.0 — 早期版本。
  *
  * @package Anime_Sync_Pro
  */
@@ -47,6 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Anime_Sync_Entity_Migrator {
 
 	const BGM_CHARACTER_URL = 'https://api.bgm.tv/v0/characters/';
+	const BGM_PERSON_URL    = 'https://api.bgm.tv/v0/persons/';
 	const USER_AGENT        = 'weixiaoacg-Project/1.0 (https://weixiaoacg.com)';
 
 	private $t_char;
@@ -207,10 +193,6 @@ class Anime_Sync_Entity_Migrator {
 
 	/**
 	 * upsert 角色。
-	 * v1.7.0 — 另存 height / weight / infobox_json。
-	 * v1.6.0 — 另存 name_cn。
-	 * v1.4.0 — 另存 aliases_json。
-	 * v1.3.0 — 打 detail 補 summary / infobox。
 	 */
 	private function upsert_character( int $bgm_id, string $name, string $image ): void {
 		global $wpdb;
@@ -225,8 +207,6 @@ class Anime_Sync_Entity_Migrator {
 			ARRAY_A
 		);
 
-		// ★ [1.7.0] 追加 height / weight / infobox_json 空白判斷,
-		//   確保先前遷移但缺這三者的角色也會補打。
 		$needs_detail = ! $row
 			|| ( trim( (string) ( $row['summary']      ?? '' ) ) === '' )
 			|| ( trim( (string) ( $row['aliases_json'] ?? '' ) ) === '' )
@@ -240,7 +220,6 @@ class Anime_Sync_Entity_Migrator {
 			? wp_json_encode( $detail['aliases'], JSON_UNESCAPED_UNICODE )
 			: '';
 
-		// ★ [1.7.0] 整包 infobox。
 		$infobox_json = ( ! empty( $detail['infobox'] ) )
 			? wp_json_encode( $detail['infobox'], JSON_UNESCAPED_UNICODE )
 			: '';
@@ -266,7 +245,6 @@ class Anime_Sync_Entity_Migrator {
 				if ( trim( (string) ( $row['bloodtype'] ?? '' ) ) === '' && $detail['bloodtype'] !== '' ) {
 					$set['bloodtype'] = $detail['bloodtype'];
 				}
-				// ★ [1.7.0] 身高 / 體重:既有為空且抓到才寫。
 				if ( trim( (string) ( $row['height'] ?? '' ) ) === '' && ( $detail['height'] ?? '' ) !== '' ) {
 					$set['height'] = $detail['height'];
 				}
@@ -279,7 +257,6 @@ class Anime_Sync_Entity_Migrator {
 				if ( trim( (string) ( $row['aliases_json'] ?? '' ) ) === '' && $aliases_json !== '' ) {
 					$set['aliases_json'] = $aliases_json;
 				}
-				// ★ [1.7.0] 整包 infobox:既有為空且抓到才寫。
 				if ( trim( (string) ( $row['infobox_json'] ?? '' ) ) === '' && $infobox_json !== '' ) {
 					$set['infobox_json'] = $infobox_json;
 				}
@@ -299,22 +276,16 @@ class Anime_Sync_Entity_Migrator {
 				'gender'        => $detail['gender']        ?? '',
 				'birthday'      => $detail['birthday']      ?? '',
 				'bloodtype'     => $detail['bloodtype']     ?? '',
-				'height'        => $detail['height']        ?? '', // ★ [1.7.0]
-				'weight'        => $detail['weight']        ?? '', // ★ [1.7.0]
+				'height'        => $detail['height']        ?? '',
+				'weight'        => $detail['weight']        ?? '',
 				'summary'       => $detail['summary']       ?? '',
-				'infobox_json'  => $infobox_json,                  // ★ [1.7.0]
+				'infobox_json'  => $infobox_json,
 			] );
 		}
 	}
 
 	/**
 	 * 打 Bangumi /v0/characters/{id},解析角色詳細欄位。
-	 * v1.7.0 — 新增 height / weight,並回傳整包 infobox(排除巢狀「别名」)。
-	 * v1.6.0 — 新增 name_cn。
-	 * v1.5.0 — 打 API 前先節流。
-	 *
-	 * 回傳:[ 'name_original','name_cn','gender','birthday','bloodtype',
-	 *        'height','weight','summary','aliases'=>[],'infobox'=>[] ]
 	 */
 	private function fetch_bgm_character_detail( int $bgm_id ): array {
 		$empty = [
@@ -323,11 +294,11 @@ class Anime_Sync_Entity_Migrator {
 			'gender'        => '',
 			'birthday'      => '',
 			'bloodtype'     => '',
-			'height'        => '', // ★ [1.7.0]
-			'weight'        => '', // ★ [1.7.0]
+			'height'        => '',
+			'weight'        => '',
 			'summary'       => '',
 			'aliases'       => [],
-			'infobox'       => [], // ★ [1.7.0]
+			'infobox'       => [],
 		];
 
 		if ( $bgm_id <= 0 ) {
@@ -376,12 +347,11 @@ class Anime_Sync_Entity_Migrator {
 		$name_cn_ibox   = '';
 		$birthday       = '';
 		$bloodtype      = '';
-		$height         = ''; // ★ [1.7.0]
-		$weight         = ''; // ★ [1.7.0]
+		$height         = '';
+		$weight         = '';
 		$aliases        = [];
-		$infobox_all    = []; // ★ [1.7.0] 通用整包(key => value,已轉繁,排除别名)
+		$infobox_all    = [];
 
-		// ★ [1.7.0] 不收進通用 infobox 的 key(已另有專屬欄位或無展示意義)。
 		$infobox_skip = [
 			'简体中文名', '簡體中文名', '别名', '別名',
 			'引用来源', '引用來源', '来源', '來源',
@@ -439,13 +409,13 @@ class Anime_Sync_Entity_Migrator {
 					$bloodtype = $value;
 					break;
 				case '身高':
-				case '身長': // ★ [1.7.0]
+				case '身長':
 					if ( $height === '' ) {
 						$height = $value;
 					}
 					break;
 				case '体重':
-				case '體重': // ★ [1.7.0]
+				case '體重':
 					if ( $weight === '' ) {
 						$weight = $value;
 					}
@@ -458,7 +428,6 @@ class Anime_Sync_Entity_Migrator {
 					break;
 			}
 
-			// ★ [1.7.0] 通用整包:除了排除清單,其餘 key 一律收進來(value 轉繁)。
 			if ( ! in_array( $key, $infobox_skip, true ) ) {
 				$infobox_all[ $key ] = $convert( $value );
 			}
@@ -473,19 +442,16 @@ class Anime_Sync_Entity_Migrator {
 			'gender'        => $gender,
 			'birthday'      => $birthday,
 			'bloodtype'     => $bloodtype,
-			'height'        => $height,      // ★ [1.7.0]
-			'weight'        => $weight,      // ★ [1.7.0]
+			'height'        => $height,
+			'weight'        => $weight,
 			'summary'       => $summary,
 			'aliases'       => $aliases,
-			'infobox'       => $infobox_all, // ★ [1.7.0]
+			'infobox'       => $infobox_all,
 		];
 	}
 
 	/**
-	 * 批次回填。
-	 * v1.7.1 — 新增 --limit(每批筆數上限)。
-	 * v1.7.0 — 預設 WHERE 加入 height / weight / infobox_json 空白判斷;
-	 *          回填欄位清單加入 height / weight;另寫 infobox_json。
+	 * 批次回填角色。
 	 */
 	public function backfill_characters( array $args = [] ): array {
 		global $wpdb;
@@ -500,7 +466,6 @@ class Anime_Sync_Entity_Migrator {
 		} elseif ( $force ) {
 			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_char} WHERE bgm_id > 0" );
 		} else {
-			// ★ [1.7.0] 追加 height / weight / infobox_json 空白條件。
 			$ids = $wpdb->get_col(
 				"SELECT bgm_id FROM {$this->t_char}
 				 WHERE bgm_id > 0
@@ -513,7 +478,6 @@ class Anime_Sync_Entity_Migrator {
 			);
 		}
 
-		// ★ [1.7.1] 分批:--limit 限制本批筆數,避免主機砍長進程。0=不限。
 		$limit = (int) ( $args['limit'] ?? 0 );
 		if ( $limit > 0 && count( $ids ) > $limit ) {
 			$ids = array_slice( $ids, 0, $limit );
@@ -547,7 +511,6 @@ class Anime_Sync_Entity_Migrator {
 			);
 
 			$set = [];
-			// ★ [1.7.0] 欄位清單加入 height / weight。
 			foreach ( [ 'name_original', 'name_cn', 'gender', 'birthday', 'bloodtype', 'height', 'weight', 'summary' ] as $field ) {
 				$current = trim( (string) ( $row[ $field ] ?? '' ) );
 				$new     = (string) ( $detail[ $field ] ?? '' );
@@ -561,7 +524,6 @@ class Anime_Sync_Entity_Migrator {
 				$set['aliases_json'] = wp_json_encode( $aliases, JSON_UNESCAPED_UNICODE );
 			}
 
-			// ★ [1.7.0] 整包 infobox:既有為空(或 --force)且抓到才寫。
 			$cur_infobox = trim( (string) ( $row['infobox_json'] ?? '' ) );
 			if ( ! empty( $infobox ) && ( $force || $cur_infobox === '' ) ) {
 				$set['infobox_json'] = wp_json_encode( $infobox, JSON_UNESCAPED_UNICODE );
@@ -580,32 +542,330 @@ class Anime_Sync_Entity_Migrator {
 		return $stats;
 	}
 
+	/**
+	 * upsert 人物(聲優 / 製作)。
+	 * v1.8.0 — 打 detail 補 name_original / gender / birthday / bloodtype /
+	 *          height / summary / aliases_json / infobox_json。
+	 */
 	private function upsert_person( int $bgm_id, string $name, string $image, string $type, bool $set_type = true ): void {
 		global $wpdb;
 
 		$row = $wpdb->get_row(
-			$wpdb->prepare( "SELECT id, type FROM {$this->t_person} WHERE bgm_id = %d", $bgm_id ),
+			$wpdb->prepare(
+				"SELECT id, type, name_original, gender, birthday, bloodtype,
+				        height, summary, aliases_json, infobox_json
+				 FROM {$this->t_person} WHERE bgm_id = %d",
+				$bgm_id
+			),
 			ARRAY_A
 		);
 
+		$needs_detail = ! $row
+			|| ( trim( (string) ( $row['summary']       ?? '' ) ) === '' )
+			|| ( trim( (string) ( $row['aliases_json']  ?? '' ) ) === '' )
+			|| ( trim( (string) ( $row['name_original'] ?? '' ) ) === '' )
+			|| ( trim( (string) ( $row['height']        ?? '' ) ) === '' )
+			|| ( trim( (string) ( $row['infobox_json']  ?? '' ) ) === '' );
+		$detail = $needs_detail ? $this->fetch_bgm_person_detail( $bgm_id ) : [];
+
+		$aliases_json = ( ! empty( $detail['aliases'] ) )
+			? wp_json_encode( $detail['aliases'], JSON_UNESCAPED_UNICODE )
+			: '';
+		$infobox_json = ( ! empty( $detail['infobox'] ) )
+			? wp_json_encode( $detail['infobox'], JSON_UNESCAPED_UNICODE )
+			: '';
+
 		if ( $row ) {
 			$set = [];
-			if ( $name !== '' )  { $set['name'] = $name; }
+			if ( $name !== '' )  { $set['name']  = $name; }
 			if ( $image !== '' ) { $set['image'] = $image; }
 			if ( $set_type && ( $row['type'] ?? '' ) !== 'cv' ) {
 				$set['type'] = $type;
 			}
+
+			if ( ! empty( $detail ) ) {
+				if ( trim( (string) ( $row['name_original'] ?? '' ) ) === '' && ( $detail['name_original'] ?? '' ) !== '' ) {
+					$set['name_original'] = $detail['name_original'];
+				}
+				if ( trim( (string) ( $row['gender'] ?? '' ) ) === '' && ( $detail['gender'] ?? '' ) !== '' ) {
+					$set['gender'] = $detail['gender'];
+				}
+				if ( trim( (string) ( $row['birthday'] ?? '' ) ) === '' && ( $detail['birthday'] ?? '' ) !== '' ) {
+					$set['birthday'] = $detail['birthday'];
+				}
+				if ( trim( (string) ( $row['bloodtype'] ?? '' ) ) === '' && ( $detail['bloodtype'] ?? '' ) !== '' ) {
+					$set['bloodtype'] = $detail['bloodtype'];
+				}
+				if ( trim( (string) ( $row['height'] ?? '' ) ) === '' && ( $detail['height'] ?? '' ) !== '' ) {
+					$set['height'] = $detail['height'];
+				}
+				if ( trim( (string) ( $row['summary'] ?? '' ) ) === '' && ( $detail['summary'] ?? '' ) !== '' ) {
+					$set['summary'] = $detail['summary'];
+				}
+				if ( trim( (string) ( $row['aliases_json'] ?? '' ) ) === '' && $aliases_json !== '' ) {
+					$set['aliases_json'] = $aliases_json;
+				}
+				if ( trim( (string) ( $row['infobox_json'] ?? '' ) ) === '' && $infobox_json !== '' ) {
+					$set['infobox_json'] = $infobox_json;
+				}
+			}
+
 			if ( ! empty( $set ) ) {
 				$wpdb->update( $this->t_person, $set, [ 'bgm_id' => $bgm_id ] );
 			}
 		} else {
 			$wpdb->insert( $this->t_person, [
-				'bgm_id' => $bgm_id,
-				'name'   => $name,
-				'image'  => $image,
-				'type'   => $type,
+				'bgm_id'        => $bgm_id,
+				'name'          => $name,
+				'image'         => $image,
+				'type'          => $type,
+				'name_original' => $detail['name_original'] ?? '',
+				'gender'        => $detail['gender']        ?? '',
+				'birthday'      => $detail['birthday']      ?? '',
+				'bloodtype'     => $detail['bloodtype']     ?? '',
+				'height'        => $detail['height']        ?? '',
+				'summary'       => $detail['summary']       ?? '',
+				'aliases_json'  => $aliases_json,
+				'infobox_json'  => $infobox_json,
 			] );
 		}
+	}
+
+	/**
+	 * 打 Bangumi /v0/persons/{id},解析人物詳細欄位。
+	 * 結構與 characters 幾乎相同,沿用同套 infobox 解析。
+	 */
+	private function fetch_bgm_person_detail( int $bgm_id ): array {
+		$empty = [
+			'name_original' => '',
+			'gender'        => '',
+			'birthday'      => '',
+			'bloodtype'     => '',
+			'height'        => '',
+			'summary'       => '',
+			'aliases'       => [],
+			'infobox'       => [],
+		];
+
+		if ( $bgm_id <= 0 ) {
+			return $empty;
+		}
+
+		if ( $this->rate_limiter ) {
+			$this->rate_limiter->wait_if_needed( 'bangumi' );
+		}
+
+		$response = wp_remote_get( self::BGM_PERSON_URL . $bgm_id, [
+			'timeout' => 10,
+			'headers' => [ 'User-Agent' => self::USER_AGENT ],
+		] );
+
+		if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+			return $empty;
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $data ) ) {
+			return $empty;
+		}
+
+		$has_opencc = class_exists( 'Anime_Sync_CN_Converter' );
+		$convert    = static function ( string $s ) use ( $has_opencc ): string {
+			$s = trim( $s );
+			if ( $s === '' ) {
+				return '';
+			}
+			return $has_opencc ? Anime_Sync_CN_Converter::static_convert( $s ) : $s;
+		};
+
+		$summary = $convert( (string) ( $data['summary'] ?? '' ) );
+
+		$gender_raw = strtolower( trim( (string) ( $data['gender'] ?? '' ) ) );
+		$gender     = match ( $gender_raw ) {
+			'male'   => '男',
+			'female' => '女',
+			''       => '',
+			default  => (string) ( $data['gender'] ?? '' ),
+		};
+
+		$name_ja     = '';
+		$birthday    = '';
+		$bloodtype   = '';
+		$height      = '';
+		$aliases     = [];
+		$infobox_all = [];
+
+		$infobox_skip = [
+			'简体中文名', '簡體中文名', '别名', '別名',
+			'引用来源', '引用來源', '来源', '來源',
+		];
+
+		foreach ( (array) ( $data['infobox'] ?? [] ) as $rowbox ) {
+			$key   = trim( (string) ( $rowbox['key'] ?? '' ) );
+			$value = $rowbox['value'] ?? '';
+
+			if ( $key === '别名' || $key === '別名' ) {
+				if ( is_array( $value ) ) {
+					foreach ( $value as $alias ) {
+						$k = trim( (string) ( $alias['k'] ?? '' ) );
+						$v = trim( (string) ( $alias['v'] ?? '' ) );
+						if ( $v === '' ) {
+							continue;
+						}
+						if ( $k === '' ) {
+							$k = '別名' . ( count( $aliases ) + 1 );
+						}
+						$aliases[ $k ] = $v;
+						if ( ( $k === '日文名' || $k === '日文名稱' ) && $name_ja === '' ) {
+							$name_ja = $v;
+						}
+					}
+				}
+				continue;
+			}
+
+			if ( is_array( $value ) ) {
+				$parts = [];
+				foreach ( $value as $v ) {
+					if ( isset( $v['v'] ) && $v['v'] !== '' ) {
+						$parts[] = $v['v'];
+					}
+				}
+				$value = implode( '、', $parts );
+			}
+			$value = trim( (string) $value );
+			if ( $value === '' ) {
+				continue;
+			}
+
+			switch ( $key ) {
+				case '生日':
+					$birthday = $value;
+					break;
+				case '血型':
+					$bloodtype = $value;
+					break;
+				case '身高':
+				case '身長':
+					if ( $height === '' ) {
+						$height = $value;
+					}
+					break;
+				case '性别':
+				case '性別':
+					if ( $gender === '' ) {
+						$gender = $value;
+					}
+					break;
+			}
+
+			if ( ! in_array( $key, $infobox_skip, true ) ) {
+				$infobox_all[ $key ] = $convert( $value );
+			}
+		}
+
+		return [
+			'name_original' => $name_ja,
+			'gender'        => $gender,
+			'birthday'      => $birthday,
+			'bloodtype'     => $bloodtype,
+			'height'        => $height,
+			'summary'       => $summary,
+			'aliases'       => $aliases,
+			'infobox'       => $infobox_all,
+		];
+	}
+
+	/**
+	 * 批次回填人物(聲優/製作)。
+	 * v1.8.0 — 新增。與 backfill_characters 對稱。
+	 */
+	public function backfill_persons( array $args = [] ): array {
+		global $wpdb;
+
+		$force  = ! empty( $args['force'] );
+		$one_id = (int) ( $args['bgm_id'] ?? 0 );
+
+		$stats = [ 'total' => 0, 'updated' => 0, 'no_change' => 0, 'failed' => 0 ];
+
+		if ( $one_id > 0 ) {
+			$ids = [ $one_id ];
+		} elseif ( $force ) {
+			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_person} WHERE bgm_id > 0" );
+		} else {
+			$ids = $wpdb->get_col(
+				"SELECT bgm_id FROM {$this->t_person}
+				 WHERE bgm_id > 0
+				 AND ( summary IS NULL OR summary = ''
+				    OR aliases_json IS NULL OR aliases_json = ''
+				    OR name_original IS NULL OR name_original = ''
+				    OR height IS NULL OR height = ''
+				    OR infobox_json IS NULL OR infobox_json = '' )"
+			);
+		}
+
+		$limit = (int) ( $args['limit'] ?? 0 );
+		if ( $limit > 0 && count( $ids ) > $limit ) {
+			$ids = array_slice( $ids, 0, $limit );
+		}
+
+		foreach ( $ids as $bgm_id ) {
+			$bgm_id = (int) $bgm_id;
+			$stats['total']++;
+
+			$detail = $this->fetch_bgm_person_detail( $bgm_id );
+
+			$aliases     = $detail['aliases'] ?? [];
+			$infobox     = $detail['infobox'] ?? [];
+			$scalar_part = $detail;
+			unset( $scalar_part['aliases'], $scalar_part['infobox'] );
+
+			if ( empty( array_filter( $scalar_part ) ) && empty( $aliases ) && empty( $infobox ) ) {
+				$stats['failed']++;
+				sleep( 1 );
+				continue;
+			}
+
+			$row = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT summary, gender, birthday, bloodtype, name_original,
+					        height, aliases_json, infobox_json
+					 FROM {$this->t_person} WHERE bgm_id = %d",
+					$bgm_id
+				),
+				ARRAY_A
+			);
+
+			$set = [];
+			foreach ( [ 'name_original', 'gender', 'birthday', 'bloodtype', 'height', 'summary' ] as $field ) {
+				$current = trim( (string) ( $row[ $field ] ?? '' ) );
+				$new     = (string) ( $detail[ $field ] ?? '' );
+				if ( $new !== '' && ( $force || $current === '' ) ) {
+					$set[ $field ] = $new;
+				}
+			}
+
+			$cur_aliases = trim( (string) ( $row['aliases_json'] ?? '' ) );
+			if ( ! empty( $aliases ) && ( $force || $cur_aliases === '' ) ) {
+				$set['aliases_json'] = wp_json_encode( $aliases, JSON_UNESCAPED_UNICODE );
+			}
+
+			$cur_infobox = trim( (string) ( $row['infobox_json'] ?? '' ) );
+			if ( ! empty( $infobox ) && ( $force || $cur_infobox === '' ) ) {
+				$set['infobox_json'] = wp_json_encode( $infobox, JSON_UNESCAPED_UNICODE );
+			}
+
+			if ( ! empty( $set ) ) {
+				$wpdb->update( $this->t_person, $set, [ 'bgm_id' => $bgm_id ] );
+				$stats['updated']++;
+			} else {
+				$stats['no_change']++;
+			}
+
+			sleep( 1 );
+		}
+
+		return $stats;
 	}
 
 	private function upsert_relation( int $anime_id, int $char_bgm, int $person_bgm, string $rel_type, string $role ): void {
@@ -663,7 +923,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( 'anime backfill-characters', function ( $args, $assoc_args ) {
 		$force  = isset( $assoc_args['force'] );
 		$bgm_id = isset( $assoc_args['id'] ) ? (int) $assoc_args['id'] : 0;
-		$limit  = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0; // ★ [1.7.1]
+		$limit  = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0;
 
 		$migrator = new Anime_Sync_Entity_Migrator();
 
@@ -678,11 +938,40 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		$stats = $migrator->backfill_characters( [
 			'force'  => $force,
 			'bgm_id' => $bgm_id,
-			'limit'  => $limit, // ★ [1.7.1]
+			'limit'  => $limit,
 		] );
 
 		WP_CLI::log( '─────────────────────────────' );
 		WP_CLI::log( '掃描角色數  : ' . $stats['total'] );
+		WP_CLI::log( '已更新      : ' . $stats['updated'] );
+		WP_CLI::log( '無變更      : ' . $stats['no_change'] );
+		WP_CLI::log( '抓取失敗    : ' . $stats['failed'] );
+		WP_CLI::success( '回填完成' );
+	} );
+
+	WP_CLI::add_command( 'anime backfill-persons', function ( $args, $assoc_args ) {
+		$force  = isset( $assoc_args['force'] );
+		$bgm_id = isset( $assoc_args['id'] ) ? (int) $assoc_args['id'] : 0;
+		$limit  = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0;
+
+		$migrator = new Anime_Sync_Entity_Migrator();
+
+		WP_CLI::log( '=== 回填人物詳細欄位(日文名 / summary / 性別 / 生日 / 血型 / 身高 / 別名 / infobox)===' );
+		if ( $force ) {
+			WP_CLI::log( '模式:--force(連已有資料的人物也重抓)' );
+		}
+		if ( $limit > 0 ) {
+			WP_CLI::log( '本批上限:--limit=' . $limit );
+		}
+
+		$stats = $migrator->backfill_persons( [
+			'force'  => $force,
+			'bgm_id' => $bgm_id,
+			'limit'  => $limit,
+		] );
+
+		WP_CLI::log( '─────────────────────────────' );
+		WP_CLI::log( '掃描人物數  : ' . $stats['total'] );
 		WP_CLI::log( '已更新      : ' . $stats['updated'] );
 		WP_CLI::log( '無變更      : ' . $stats['no_change'] );
 		WP_CLI::log( '抓取失敗    : ' . $stats['failed'] );
