@@ -2,28 +2,19 @@
 /**
  * Entity Repository — 角色/聲優/製作人員 的唯讀查詢層。
  *
- * 資料來源:
- *   - wp_anime_characters / wp_anime_persons / wp_anime_relations
- *   - wp_anime_character_relations（角色↔角色 關聯，自我參照一對多，若表存在）
- *
  * Changelog:
- *   1.6.0 (2026-07-29)
- *     - [新增] get_character() 回傳 height / weight / infobox。height、weight
- *       為 Bangumi 身高體重;infobox 為整包其他欄位,由 decode_infobox_json()
- *       解成 [ ['label'=>..,'value'=>..], ... ] 供前端通用展開。
- *       (由 class-entity-migrator.php v1.7.0 寫入對應資料庫欄位。)
- *   1.5.0 (2026-07-29)
- *     - [新增] get_character() 回傳 name_cn（Bangumi 原始簡體主名）。
- *   1.4.1 (2026-07-29)
- *     - [修正] 角色作品次要排序由「年份舊→新」改為「熱度高→低」。CACHE_VER v4 → v5。
- *   1.4.0 (2026-07-29)
- *     - [修正] hydrate_works() 加入 $oldest_first 參數。CACHE_VER v3 → v4。
- *   1.3.0 (2026-07-28)
- *     - [改版] get_character() 別名改讀 aliases_json,新增 decode_aliases_json()。
- *   1.2.0 (2026-07-28)
- *     - [移除] get_character_photos()。CACHE_VER v1 → v2。
- *   1.1.0 (2026-07-28)
- *     - [新增] gender / birthday / bloodtype / summary / aliases、get_character_relations()。
+ *   1.7.0 (2026-07-30)
+ *     - [新增] get_person() 回傳 height / aliases / infobox。比照 get_character:
+ *       SQL 加讀 height / aliases_json / infobox_json;aliases 由
+ *       decode_aliases_json() 解、infobox 由 decode_infobox_json() 解。
+ *       (由 class-entity-migrator.php v1.8.0 寫入對應資料庫欄位。)
+ *   1.6.0 (2026-07-29) — get_character() 回傳 height / weight / infobox。
+ *   1.5.0 (2026-07-29) — get_character() 回傳 name_cn。
+ *   1.4.1 (2026-07-29) — 角色作品次要排序改「熱度高→低」。CACHE_VER v4→v5。
+ *   1.4.0 (2026-07-29) — hydrate_works() 加 $oldest_first。CACHE_VER v3→v4。
+ *   1.3.0 (2026-07-28) — 角色別名改讀 aliases_json。
+ *   1.2.0 (2026-07-28) — 移除 get_character_photos()。CACHE_VER v1→v2。
+ *   1.1.0 (2026-07-28) — gender/birthday/bloodtype/summary/aliases、關聯。
  *   1.0.0 — 初版查詢層。
  *
  * @package Anime_Sync_Pro
@@ -79,7 +70,8 @@ class Anime_Sync_Entity_Repository {
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT bgm_id, name, name_original, image, type, anilist_id, mal_id,
-				        gender, birthday, bloodtype, summary
+				        gender, birthday, bloodtype, height, summary,
+				        aliases_json, infobox_json
 				 FROM {$this->t_person} WHERE bgm_id = %d",
 				$bgm_id
 			),
@@ -101,8 +93,10 @@ class Anime_Sync_Entity_Repository {
 			'gender'        => $this->fallback_text( $row['gender'] ?? '' ),
 			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
 			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
+			'height'        => $this->fallback_text( $row['height'] ?? '' ),   // ★ [1.7.0]
 			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
-			'aliases'       => [],
+			'aliases'       => $this->decode_aliases_json( $row['aliases_json'] ?? '' ), // ★ [1.7.0]
+			'infobox'       => $this->decode_infobox_json( $row['infobox_json'] ?? '' ), // ★ [1.7.0]
 			'url'           => $this->person_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
@@ -187,11 +181,11 @@ class Anime_Sync_Entity_Repository {
 			'gender'        => $this->fallback_text( $row['gender'] ?? '' ),
 			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
 			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
-			'height'        => $this->fallback_text( $row['height'] ?? '' ),   // ★ [1.6.0]
-			'weight'        => $this->fallback_text( $row['weight'] ?? '' ),   // ★ [1.6.0]
+			'height'        => $this->fallback_text( $row['height'] ?? '' ),
+			'weight'        => $this->fallback_text( $row['weight'] ?? '' ),
 			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
 			'aliases'       => $this->decode_aliases_json( $row['aliases_json'] ?? '' ),
-			'infobox'       => $this->decode_infobox_json( $row['infobox_json'] ?? '' ), // ★ [1.6.0]
+			'infobox'       => $this->decode_infobox_json( $row['infobox_json'] ?? '' ),
 			'url'           => $this->character_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
@@ -455,8 +449,7 @@ class Anime_Sync_Entity_Repository {
 	}
 
 	/**
-	 * v1.6.0 — 把 wp_anime_characters.infobox_json
-	 * ( { "性别":"男","生日":"3月20日","身高":"173cm", ... } )
+	 * 把 infobox_json ( { "性别":"男","身高":"173cm", ... } )
 	 * 解成模板要的 [ ['label'=>..,'value'=>..], ... ]。空/失敗回空陣列。
 	 */
 	private function decode_infobox_json( ?string $json ): array {
