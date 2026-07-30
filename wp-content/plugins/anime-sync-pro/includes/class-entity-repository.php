@@ -6,45 +6,24 @@
  *   - wp_anime_characters / wp_anime_persons / wp_anime_relations
  *   - wp_anime_character_relations（角色↔角色 關聯，自我參照一對多，若表存在）
  *
- * 別名(aliases)改為存於 wp_anime_characters.aliases_json（JSON 欄位，
- * 由 class-entity-migrator.php v1.4.0 寫入），不再使用獨立別名表。
- *
- * 相簿功能已移除：bgm.tv 官方 API 的角色/人物 detail 端點只回傳
- * 單張 images(small/grid/large/medium)，無多圖相簿資料源，
- * 故不提供 get_character_photos()。
- *
  * Changelog:
+ *   1.6.0 (2026-07-29)
+ *     - [新增] get_character() 回傳 height / weight / infobox。height、weight
+ *       為 Bangumi 身高體重;infobox 為整包其他欄位,由 decode_infobox_json()
+ *       解成 [ ['label'=>..,'value'=>..], ... ] 供前端通用展開。
+ *       (由 class-entity-migrator.php v1.7.0 寫入對應資料庫欄位。)
  *   1.5.0 (2026-07-29)
- *     - [新增] get_character() 回傳 name_cn（Bangumi 原始簡體主名，
- *       由 class-entity-migrator.php v1.6.0 寫入 wp_anime_characters.name_cn）。
- *       供 single-character.php 四語主名顯示（繁 name / 簡 name_cn /
- *       日 name_original / 英 別名「英文名」）。get_character() 不走 transient，
- *       故 CACHE_VER 不變（v5）。
+ *     - [新增] get_character() 回傳 name_cn（Bangumi 原始簡體主名）。
  *   1.4.1 (2026-07-29)
- *     - [修正] 角色作品次要排序由「年份舊→新」改為「熱度高→低」（anime_popularity），
- *       解決前傳和 OAD 暴日期比本篇更舊導致错排第一的問題。
- *     - CACHE_VER v4 → v5。
+ *     - [修正] 角色作品次要排序由「年份舊→新」改為「熱度高→低」。CACHE_VER v4 → v5。
  *   1.4.0 (2026-07-29)
- *     - [修正] hydrate_works() 加入 $oldest_first 參數：
- *       get_character_works() 傳 true（舊→新），本篇/原作排最前，
- *       麵包屑取 $works[0] 即為正確的原始作品。
- *       get_person_works() 維持預設 false（新→舊）。
- *     - CACHE_VER v3 → v4（排序方向變更，舊快取需整批失效）。
+ *     - [修正] hydrate_works() 加入 $oldest_first 參數。CACHE_VER v3 → v4。
  *   1.3.0 (2026-07-28)
- *     - [改版] get_character() 的別名改讀 wp_anime_characters.aliases_json
- *       (JSON 欄位)，新增 decode_aliases_json() 解碼成模板要的
- *       [ ['label'=>..,'value'=>..], ... ] 格式。獨立別名表
- *       wp_anime_character_aliases 實際未建置，故 character 不再查它。
- *       (get_person 暫維持原 get_entity_aliases 呼叫，person 別名尚未導入。)
+ *     - [改版] get_character() 別名改讀 aliases_json,新增 decode_aliases_json()。
  *   1.2.0 (2026-07-28)
- *     - [移除] get_character_photos()、$t_char_photo：相簿功能無穩定
- *       資料源，移除以簡化維護範圍。
- *     - CACHE_VER 由 v1 → v2（結構調整，舊快取需整批失效）。
+ *     - [移除] get_character_photos()。CACHE_VER v1 → v2。
  *   1.1.0 (2026-07-28)
- *     - [新增] get_character() / get_person() 補上 gender / birthday /
- *       bloodtype / summary / aliases。
- *     - [新增] get_character_relations()：角色↔角色 關聯，LEFT JOIN
- *       角色表，對方資料不存在時自動跳過。
+ *     - [新增] gender / birthday / bloodtype / summary / aliases、get_character_relations()。
  *   1.0.0 — 初版查詢層。
  *
  * @package Anime_Sync_Pro
@@ -123,7 +102,7 @@ class Anime_Sync_Entity_Repository {
 			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
 			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
 			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
-			'aliases'       => [], // person 別名尚未導入,先回空陣列(原查獨立表已停用)。
+			'aliases'       => [],
 			'url'           => $this->person_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
@@ -185,7 +164,8 @@ class Anime_Sync_Entity_Repository {
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT bgm_id, name, name_cn, name_original, image, anilist_id, mal_id,
-				        gender, birthday, bloodtype, summary, aliases_json
+				        gender, birthday, bloodtype, height, weight, summary,
+				        aliases_json, infobox_json
 				 FROM {$this->t_char} WHERE bgm_id = %d",
 				$bgm_id
 			),
@@ -207,8 +187,11 @@ class Anime_Sync_Entity_Repository {
 			'gender'        => $this->fallback_text( $row['gender'] ?? '' ),
 			'birthday'      => $this->fallback_text( $row['birthday'] ?? '' ),
 			'bloodtype'     => $this->fallback_text( $row['bloodtype'] ?? '' ),
+			'height'        => $this->fallback_text( $row['height'] ?? '' ),   // ★ [1.6.0]
+			'weight'        => $this->fallback_text( $row['weight'] ?? '' ),   // ★ [1.6.0]
 			'summary'       => $this->fallback_text( $row['summary'] ?? '' ),
 			'aliases'       => $this->decode_aliases_json( $row['aliases_json'] ?? '' ),
+			'infobox'       => $this->decode_infobox_json( $row['infobox_json'] ?? '' ), // ★ [1.6.0]
 			'url'           => $this->character_url( (int) $row['bgm_id'], $row['name'] ),
 		];
 	}
@@ -274,24 +257,19 @@ class Anime_Sync_Entity_Repository {
 					'voice_actors' => $row['voice_actors'],
 				];
 			},
-			true  // 角色登場作品：用熱度降序，本篇熱度高排 [0]
+			true
 		);
 
 		set_transient( $cache_key, $works, self::CACHE_TTL );
 		return $works;
 	}
 
-	/**
-	 * 取某角色的關聯角色(朋友/親屬/配偶/對手/師生等)。
-	 * 若 wp_anime_character_relations 表不存在,回空陣列(模板整段不渲染)。
-	 */
 	public function get_character_relations( int $bgm_id ): array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
 			return [];
 		}
 
-		// 表不存在時直接回空,避免 SQL 錯誤。
 		$exists = $wpdb->get_var(
 			$wpdb->prepare( 'SHOW TABLES LIKE %s', $this->t_char_rel )
 		);
@@ -322,7 +300,7 @@ class Anime_Sync_Entity_Repository {
 		foreach ( (array) $rows as $row ) {
 			$rc_bgm = (int) $row['related_character_bgm_id'];
 			if ( $rc_bgm <= 0 || null === $row['c_name'] ) {
-				continue; // 對方角色資料不存在 → 跳過,避免死連結
+				continue;
 			}
 			$name = $this->fallback_name( $row['c_name'], $row['c_name_orig'] );
 			if ( '' === $name ) {
@@ -436,12 +414,6 @@ class Anime_Sync_Entity_Repository {
 	 * 內部工具
 	 * ===================================================================== */
 
-	/**
-	 * v1.3.0 — 把 wp_anime_characters.aliases_json
-	 * ( { "日文名":"蝶野 雛", "纯假名":"ちょうの ひな", ... } )
-	 * 解碼成模板要的 [ ['label'=>..,'value'=>..], ... ]。
-	 * 空值/解碼失敗回空陣列。也容忍已是 [ {label,value} ] 格式的輸入。
-	 */
 	private function decode_aliases_json( ?string $json ): array {
 		$json = trim( (string) $json );
 		if ( '' === $json ) {
@@ -455,7 +427,6 @@ class Anime_Sync_Entity_Repository {
 
 		$aliases = [];
 		foreach ( $data as $key => $val ) {
-			// 情況一:關聯陣列 "label" => "value"(migrator v1.4.0 的格式)。
 			if ( is_string( $val ) || is_numeric( $val ) ) {
 				$value = trim( (string) $val );
 				if ( '' === $value ) {
@@ -468,7 +439,6 @@ class Anime_Sync_Entity_Repository {
 				continue;
 			}
 
-			// 情況二:已是 [ 'label'=>.., 'value'=>.. ] 物件(相容用)。
 			if ( is_array( $val ) ) {
 				$value = trim( (string) ( $val['value'] ?? '' ) );
 				if ( '' === $value ) {
@@ -485,9 +455,37 @@ class Anime_Sync_Entity_Repository {
 	}
 
 	/**
-	 * (保留備用) 從獨立別名表查別名。目前 character 已改讀 aliases_json,
-	 * 此方法暫無呼叫端;若未來導入 person 別名表可沿用。
+	 * v1.6.0 — 把 wp_anime_characters.infobox_json
+	 * ( { "性别":"男","生日":"3月20日","身高":"173cm", ... } )
+	 * 解成模板要的 [ ['label'=>..,'value'=>..], ... ]。空/失敗回空陣列。
 	 */
+	private function decode_infobox_json( ?string $json ): array {
+		$json = trim( (string) $json );
+		if ( '' === $json ) {
+			return [];
+		}
+
+		$data = json_decode( $json, true );
+		if ( ! is_array( $data ) ) {
+			return [];
+		}
+
+		$rows = [];
+		foreach ( $data as $key => $val ) {
+			if ( is_array( $val ) ) {
+				$val = implode( '、', array_map( 'strval', $val ) );
+			}
+			$value = trim( (string) $val );
+			$label = is_string( $key ) ? trim( $key ) : '';
+			if ( '' === $value ) {
+				continue;
+			}
+			$rows[] = [ 'label' => $label, 'value' => $value ];
+		}
+
+		return $rows;
+	}
+
 	private function get_entity_aliases( string $table, string $fk_column, int $bgm_id ): array {
 		global $wpdb;
 		if ( $bgm_id <= 0 ) {
@@ -557,15 +555,11 @@ class Anime_Sync_Entity_Repository {
 			if ( 0 !== $rw ) {
 				return $rw;
 			}
-			// $by_popularity=true（角色頁）：熱度高→低。
-			// 本篇熱度遠高於 OAD/前傳/番外，出來的 $works[0] 就是本篇。
-			// $by_popularity=false（聲優頁）：新→舊年份，最新代表作優先。
 			if ( $by_popularity ) {
 				$pop = ( (int) $b['_popularity'] ) <=> ( (int) $a['_popularity'] );
 				if ( 0 !== $pop ) {
 					return $pop;
 				}
-				// 熱度相同時再用年份舊→新當次要鍵
 				return ( (int) $a['_year'] ) <=> ( (int) $b['_year'] );
 			}
 			return ( (int) $b['_year'] ) <=> ( (int) $a['_year'] );

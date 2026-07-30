@@ -3,30 +3,16 @@
  * Single Character 角色 個別頁
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-character.php
  *
- * 由 class-entity-routing.php 於命中 /character/{id} 時載入。
- *
  * Changelog:
- *   1.5.1 (2026-07-29)
- *     - [修正] summary 清理 Bangumi 原始 BBCode 劇透標籤 [mask] / [/mask]
- *              (wp_strip_all_tags 只清 HTML,不清 BBCode,故先 str_replace 移除)。
- *   1.5.0 (2026-07-29)
- *     - [新增] 四語主名顯示:繁(name)/簡(name_cn)/日(name_original)/英(別名「英文名」)。
- *              英文名從別名清單抽出、與簡日並列於標題區;基本資料清單不再重複顯示
- *              簡/日/英,其餘別名(純假名、羅馬字等)保留。
- *     - [依賴] repository get_character() 需回傳 name_cn(v 對應版本)。
- *   1.4.1 (2026-07-29)
- *     - [修正] 修正上一版檔尾誤把 corrections shortcode 檔案內容貼進本檔、
- *              且 get_footer() 後多出非法 <?php 導致 parse error 的問題。
- *     - [強化] asa_get_character_comment_post_id() 以 function_exists 包裹，
- *              避免模板重複載入時 Cannot redeclare function 致命錯誤。
- *   1.4.0 (2026-07-29)
- *     - [改版] 套用 entity.css v1.4.0 的 bgm.tv 式兩欄版型。
- *     - [新增] Header 糾錯回報按鈕 + 底部 [wxacg_correction_form] 表單。
- *     - [新增] wpDiscuz 留言（掛在影子 post 上）。
- *   1.3.1 (2026-07-28) - [移除] 相簿 Gallery 區塊。
- *   1.3.0 (2026-07-28) - [新增] 基本資料/簡介/關聯角色區塊。
- *   1.2.0 (2026-07-28) - [改版] Hero 區塊重做、fallback、外部連結按鈕。
- *   1.1.0 / 1.0.0 — 初版。
+ *   1.6.0 (2026-07-29)
+ *     - [新增] 基本資料加身高、體重;新增星座(由 birthday 推算,不進 DB)。
+ *     - [新增] 「BGM 資料」通用展開區塊:把 repository 回傳的 infobox
+ *              (排除已顯示的性別/生日/身高/體重等)全部列出。
+ *   1.5.1 (2026-07-29) - [修正] summary 清 [mask]/[/mask] 劇透 BBCode。
+ *   1.5.0 (2026-07-29) - [新增] 四語主名(繁/簡/日/英)。
+ *   1.4.1 (2026-07-29) - [修正] 檔尾 parse error;函式 function_exists 包裹。
+ *   1.4.0 (2026-07-29) - [改版] 兩欄版型、糾錯按鈕、wpDiscuz 留言。
+ *   1.3.1 / 1.3.0 / 1.2.0 / 1.1.0 / 1.0.0 — 早期版本。
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
@@ -47,6 +33,36 @@ if ( null === $character ) {
 $works       = $repo->get_character_works( $character_bgm_id );
 $works_count = count( $works );
 
+/* ── 星座:由「N月N日」推算,無法解析回空字串 ── */
+if ( ! function_exists( 'asa_zodiac_from_birthday' ) ) {
+    function asa_zodiac_from_birthday( string $birthday ): string {
+        if ( ! preg_match( '/(\d{1,2})\s*月\s*(\d{1,2})\s*日/u', $birthday, $m ) ) {
+            return '';
+        }
+        $mon = (int) $m[1];
+        $day = (int) $m[2];
+        if ( $mon < 1 || $mon > 12 || $day < 1 || $day > 31 ) {
+            return '';
+        }
+        $signs = [
+            1  => [ 20, '摩羯座', '水瓶座' ],
+            2  => [ 19, '水瓶座', '雙魚座' ],
+            3  => [ 21, '雙魚座', '牡羊座' ],
+            4  => [ 20, '牡羊座', '金牛座' ],
+            5  => [ 21, '金牛座', '雙子座' ],
+            6  => [ 22, '雙子座', '巨蟹座' ],
+            7  => [ 23, '巨蟹座', '獅子座' ],
+            8  => [ 23, '獅子座', '處女座' ],
+            9  => [ 23, '處女座', '天秤座' ],
+            10 => [ 24, '天秤座', '天蠍座' ],
+            11 => [ 23, '天蠍座', '射手座' ],
+            12 => [ 22, '射手座', '摩羯座' ],
+        ];
+        [ $cut, $before, $after ] = $signs[ $mon ];
+        return $day < $cut ? $before : $after;
+    }
+}
+
 /* ── 姓名縮寫 fallback（無立繪時使用） ── */
 $character_fallback = trim( wp_strip_all_tags( (string) $character['name'] ) );
 $character_fallback = $character_fallback === '' ? 'AN' : ( function_exists( 'mb_substr' ) ? mb_substr( $character_fallback, 0, 2 ) : substr( $character_fallback, 0, 2 ) );
@@ -58,7 +74,6 @@ $name_ja = trim( (string) $character['name_original'] );
 
 $character_aliases = ( isset( $character['aliases'] ) && is_array( $character['aliases'] ) ) ? $character['aliases'] : [];
 
-/* 英文名:從 aliases 找 label 為「英文名」的那筆 */
 $name_en = '';
 foreach ( $character_aliases as $alias ) {
     $a_label = isset( $alias['label'] ) ? trim( (string) $alias['label'] ) : '';
@@ -70,22 +85,31 @@ foreach ( $character_aliases as $alias ) {
     }
 }
 
-/* 四語主名清單(標題區用):值非空、且與繁體不重複才收 */
 $name_multi = [];
 if ( $name_cn !== '' && $name_cn !== $name_tw ) $name_multi[] = [ 'lang' => '簡', 'value' => $name_cn ];
 if ( $name_ja !== '' && $name_ja !== $name_tw ) $name_multi[] = [ 'lang' => '日', 'value' => $name_ja ];
 if ( $name_en !== '' )                          $name_multi[] = [ 'lang' => 'EN', 'value' => $name_en ];
 
-/* ── 基本資料：性別 / 生日 / 血型 / 其餘別名 ── */
+/* ── 基本資料：性別 / 生日 / 星座 / 血型 / 身高 / 體重 / 其餘別名 ── */
 $basic_info_rows = [];
 if ( ! empty( $character['gender'] ) ) {
     $basic_info_rows[] = [ '性別', $character['gender'] ];
 }
 if ( ! empty( $character['birthday'] ) ) {
     $basic_info_rows[] = [ '生日', $character['birthday'] ];
+    $zodiac = asa_zodiac_from_birthday( (string) $character['birthday'] );
+    if ( $zodiac !== '' ) {
+        $basic_info_rows[] = [ '星座', $zodiac ];
+    }
 }
 if ( ! empty( $character['bloodtype'] ) ) {
     $basic_info_rows[] = [ '血型', $character['bloodtype'] ];
+}
+if ( ! empty( $character['height'] ) ) {
+    $basic_info_rows[] = [ '身高', $character['height'] ];
+}
+if ( ! empty( $character['weight'] ) ) {
+    $basic_info_rows[] = [ '體重', $character['weight'] ];
 }
 
 /* 其餘別名:跳過已在標題區顯示的簡/日/英,其餘(純假名、羅馬字等)保留 */
@@ -99,12 +123,24 @@ foreach ( $character_aliases as $alias ) {
     $basic_info_rows[] = [ $a_label !== '' ? $a_label : '別名', $a_value ];
 }
 
+/* ── BGM 其他資料:infobox 通用展開,排除已在基本資料顯示的欄位 ── */
+$infobox_all  = ( isset( $character['infobox'] ) && is_array( $character['infobox'] ) ) ? $character['infobox'] : [];
+$infobox_skip = [ '性别', '性別', '生日', '血型', '身高', '身長', '体重', '體重' ];
+$extra_info_rows = [];
+foreach ( $infobox_all as $item ) {
+    $i_label = isset( $item['label'] ) ? trim( (string) $item['label'] ) : '';
+    $i_value = isset( $item['value'] ) ? trim( (string) $item['value'] ) : '';
+    if ( $i_value === '' || $i_label === '' ) continue;
+    if ( in_array( $i_label, $infobox_skip, true ) ) continue;
+    $extra_info_rows[] = [ $i_label, $i_value ];
+}
+
 /* summary:先清掉 Bangumi BBCode 劇透標籤 [mask]/[/mask],再 strip HTML */
 $character_summary = isset( $character['summary'] )
     ? trim( wp_strip_all_tags( str_replace( [ '[mask]', '[/mask]' ], '', (string) $character['summary'] ) ) )
     : '';
 
-/* ── 關聯角色：repository 尚未實作對應方法時自動略過 ── */
+/* ── 關聯角色 ── */
 $character_relations = method_exists( $repo, 'get_character_relations' ) ? (array) $repo->get_character_relations( $character_bgm_id ) : [];
 
 /* ── JSON-LD：Person schema ── */
@@ -145,7 +181,7 @@ if ( ! empty( $same_as ) ) {
     $schema['sameAs'] = $same_as;
 }
 
-/* ── 外部連結按鈕（放到左側欄） ── */
+/* ── 外部連結按鈕 ── */
 $external_links = [];
 if ( $character['bgm_id'] > 0 ) {
     $external_links[] = [ 'label' => 'Bangumi', 'icon' => '🍡', 'url' => 'https://bgm.tv/character/' . $character['bgm_id'] ];
@@ -157,10 +193,8 @@ if ( $character['mal_id'] > 0 ) {
     $external_links[] = [ 'label' => 'MyAnimeList', 'icon' => '🔵', 'url' => 'https://myanimelist.net/character/' . $character['mal_id'] ];
 }
 
-/* ── 糾錯回報：登入導回用網址 ── */
 $character_permalink = home_url( '/character/' . $character['bgm_id'] . '/' );
 
-/* ── wpDiscuz 留言 / 糾錯表單用的「影子 Post」 ── */
 if ( ! function_exists( 'asa_get_character_comment_post_id' ) ) {
     function asa_get_character_comment_post_id( array $character ) {
         $bgm_id = (int) ( $character['bgm_id'] ?? 0 );
@@ -224,7 +258,6 @@ get_header();
 
     <div class="asa-entity-layout">
 
-        <!-- ============ 左欄：頭像 + 基本資料 + 外部連結 ============ -->
         <aside class="asa-layout-side">
             <div class="asa-side-card">
 
@@ -271,6 +304,18 @@ get_header();
                     </div>
                 <?php endif; ?>
 
+                <?php if ( ! empty( $extra_info_rows ) ) : ?>
+                    <div class="asa-infolist asa-infolist-extra">
+                        <div class="asa-infolist-subtitle">其他資料</div>
+                        <?php foreach ( $extra_info_rows as $row ) : ?>
+                            <div class="asa-infolist-row">
+                                <span class="asa-infolist-label"><?php echo esc_html( $row[0] ); ?></span>
+                                <span class="asa-infolist-val"><?php echo esc_html( $row[1] ); ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
                 <?php if ( ! empty( $external_links ) ) : ?>
                     <div class="asa-side-actions">
                         <?php foreach ( $external_links as $el ) : ?>
@@ -287,7 +332,6 @@ get_header();
             </div>
         </aside>
 
-        <!-- ============ 右欄：名稱／簡介／作品／關聯 ============ -->
         <div class="asa-layout-main">
 
             <header class="asa-entity-header">
@@ -358,7 +402,7 @@ get_header();
                                             $cv_links[] = '<a href="' . esc_url( $va['url'] ) . '">'
                                                 . esc_html( $va['name'] ) . '</a>';
                                         }
-                                        echo implode( '、', $cv_links ); // 已 esc,安全
+                                        echo implode( '、', $cv_links );
                                         ?>
                                     </p>
                                 <?php endif; ?>
@@ -414,7 +458,6 @@ get_header();
                 </section>
             <?php endif; ?>
 
-            <!-- ============ 糾錯回報表單 ============ -->
             <section class="asa-entity-corrections" id="asa-sec-corrections">
                 <h2 class="asa-section-title">✏ 糾錯回報</h2>
                 <?php
@@ -435,7 +478,6 @@ get_header();
                 ?>
             </section>
 
-            <?php /* ============ 留言（wpDiscuz，掛在影子 post 上） ============ */ ?>
             <?php if ( $character_comment_post_id > 0 ) : ?>
                 <section class="asa-entity-comments" id="asa-sec-comments">
                     <h2 class="asa-section-title">💬 留言</h2>
