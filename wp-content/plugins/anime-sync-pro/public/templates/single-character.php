@@ -346,11 +346,13 @@ get_header();
                 </div>
             </header>
 
-            <?php if ( $character_summary !== '' ) : ?>
+                  <?php if ( $character_summary !== '' ) : ?>
                 <section class="asa-entity-summary">
+                    <h2 class="asa-section-title">角色介紹</h2>
                     <?php echo wpautop( esc_html( $character_summary ) ); ?>
                 </section>
             <?php endif; ?>
+
 
             <section class="asa-entity-works">
                 <div class="asa-section-title-row">
