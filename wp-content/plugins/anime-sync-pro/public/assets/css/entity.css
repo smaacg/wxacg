@@ -1,7 +1,20 @@
 /* =================================================================
-   Anime Sync Pro — entity.css  v1.4.0
+   Anime Sync Pro — entity.css  v1.6.0
    Path: wp-content/plugins/anime-sync-pro/public/assets/entity.css
-   2026-07-28
+   2026-07-31
+
+   v1.6.0 changelog:
+     - [修正] 補上模板已使用但 CSS 缺失的 .asa-role-badge
+       （作品卡片角色身分小標籤）與 .asa-infolist-subtitle
+       （「其他資料」小標題），先前這兩者皆無樣式。
+     - [新增] 統一鍵盤 focus-visible 樣式，改善可及性。
+     - [新增] 作品卡片封面 hover 放大 + 外框發光提示可點。
+     - [新增] 外部連結按鈕 hover 箭頭滑出動畫。
+     - [新增] 側欄基本資料列 hover 微高亮，方便掃視對照。
+     - [新增] 頭像／封面／關聯頭像統一骨架載入背景，減少版面跳動。
+     - [新增] 尊重 prefers-reduced-motion，關閉不必要動畫。
+     - [新增] 觸控裝置下按鈕最小點擊熱區 44px。
+     - [新增] 統一文字選取顏色。
 
    v1.4.0 changelog:
      - [改版] 參考 bgm.tv 版型，頁面主體改為左右兩欄：
@@ -194,16 +207,17 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 
 /* 照片下方角色名稱 */
 .asa-side-name {
-    padding: 12px 4px 4px;
+    padding: 14px 6px 4px;
     text-align: center;
 }
 
 .asa-side-name-main {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--asa-text);
-    line-height: 1.4;
+    margin: 0 0 2px;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: .01em;
+    color: #fff;
+    line-height: 1.35;
 }
 
 .asa-side-name-orig {
@@ -255,10 +269,17 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 .asa-infolist-row {
     display: flex;
     gap: 10px;
-    padding: 7px 0;
+    padding: 7px 4px;
+    margin: 0 -4px;
     font-size: .82rem;
     line-height: 1.5;
     border-bottom: 1px solid rgba(255, 255, 255, .05);
+    border-radius: 4px;
+    transition: background .18s ease;
+}
+
+.asa-infolist-row:hover {
+    background: rgba(255, 255, 255, .04);
 }
 
 .asa-infolist-row:last-child {
@@ -275,6 +296,24 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     color: var(--asa-text);
     font-weight: 600;
     word-break: break-word;
+}
+
+/* 「其他資料」小標題（v1.6.0 補：模板已使用，先前無樣式） */
+.asa-infolist-subtitle {
+    margin: 14px 0 6px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, .07);
+    font-size: .74rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--asa-text-dim);
+}
+
+.asa-infolist-extra .asa-infolist-subtitle:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
 }
 
 /* ================================================================
@@ -370,6 +409,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-height: 40px;
     padding: 8px 16px;
     border-radius: var(--asa-radius-md);
     font-size: .82rem;
@@ -385,6 +425,34 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     background: rgba(99, 168, 255, .12);
     border-color: rgba(99, 168, 255, .35);
     color: var(--asa-primary);
+}
+
+@media (pointer: coarse) {
+    .asa-action-btn {
+        min-height: 44px;
+    }
+}
+
+/* 左欄外部連結按鈕：hover 箭頭滑出提示可點（v1.6.0） */
+.asa-side-actions .asa-action-btn {
+    position: relative;
+    padding-right: 30px;
+}
+
+.asa-side-actions .asa-action-btn::after {
+    content: '→';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translate(-4px, -50%);
+    opacity: 0;
+    transition: transform .2s ease, opacity .2s ease;
+    color: var(--asa-primary);
+}
+
+.asa-side-actions .asa-action-btn:hover::after {
+    opacity: 1;
+    transform: translate(0, -50%);
 }
 
 /* ================================================================
@@ -474,21 +542,40 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     border-radius: var(--asa-radius-sm);
     overflow: hidden;
     border: 1px solid var(--asa-border);
-    background: rgba(255, 255, 255, .04);
+    background-color: rgba(255, 255, 255, .04);
+    background-image: linear-gradient(100deg,
+            rgba(255, 255, 255, .02) 30%,
+            rgba(255, 255, 255, .06) 50%,
+            rgba(255, 255, 255, .02) 70%);
+    background-size: 200% 100%;
+    transition: box-shadow .25s ease;
+}
+
+.asa-work-card:hover .asa-work-cover {
+    box-shadow: 0 0 0 1px rgba(99, 168, 255, .45);
 }
 
 .asa-work-cover img {
+    position: relative;
+    z-index: 1;
     width: 100% !important;
     height: 100% !important;
     max-width: none !important;
     object-fit: cover !important;
     object-position: center top !important;
     display: block !important;
+    transition: transform .35s ease, filter .35s ease;
+}
+
+.asa-work-card:hover .asa-work-cover img {
+    transform: scale(1.08);
+    filter: brightness(1.05);
 }
 
 .asa-work-cover-fb {
     position: absolute;
     inset: 0;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -533,6 +620,22 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     text-decoration: underline;
 }
 
+/* 作品卡片角色身分小標籤（v1.6.0 補：模板已使用，先前無樣式） */
+.asa-role-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 8px;
+    font-size: .68rem;
+    font-weight: 700;
+    line-height: 1.6;
+    color: var(--asa-primary);
+    background: rgba(99, 168, 255, .12);
+    border: 1px solid rgba(99, 168, 255, .25);
+    border-radius: var(--asa-radius-pill);
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
 /* ================================================================
    6. 麵包屑
    ================================================================ */
@@ -558,6 +661,8 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 .asa-breadcrumb a {
+    display: inline-block;
+    padding: 2px 1px;
     color: var(--asa-text-muted);
 }
 
@@ -615,7 +720,12 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     background: var(--asa-bg-card);
     border: 1px solid var(--asa-border);
     border-radius: var(--asa-radius-pill);
+    cursor: text;
     transition: var(--trans-smooth);
+}
+
+.asa-work-search:hover {
+    border-color: rgba(99, 168, 255, .30);
 }
 
 .asa-work-search::placeholder {
@@ -626,6 +736,11 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     outline: none;
     border-color: var(--asa-primary);
     box-shadow: 0 0 0 3px rgba(99, 168, 255, .18);
+}
+
+.asa-work-search::-webkit-search-cancel-button {
+    filter: invert(1) opacity(.5);
+    cursor: pointer;
 }
 
 .asa-noresult {
@@ -716,13 +831,19 @@ body:has(.asa-entity-page) .ct-section-inner-container {
     border-radius: 50%;
     overflow: hidden;
     border: 1px solid var(--asa-border);
-    background: rgba(255, 255, 255, .05);
+    background-color: rgba(255, 255, 255, .05);
+    background-image: linear-gradient(100deg,
+            rgba(255, 255, 255, .02) 30%,
+            rgba(255, 255, 255, .06) 50%,
+            rgba(255, 255, 255, .02) 70%);
+    background-size: 200% 100%;
     flex-shrink: 0;
 }
 
 .asa-relation-avatar img {
     position: absolute;
     inset: 0;
+    z-index: 1;
     width: 100% !important;
     height: 100% !important;
     max-width: none !important;
@@ -734,6 +855,7 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 .asa-relation-avatar-fb {
     position: absolute;
     inset: 0;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -846,20 +968,6 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 /* ================================================================
    15. [v1.5.1] 角色標題區 — 四語主名(繁大標 + 簡/日/英並列)
    ================================================================ */
-.asa-side-name {
-    padding: 14px 6px 4px;
-    text-align: center;
-}
-
-.asa-side-name-main {
-    margin: 0 0 2px;
-    font-size: 1.25rem;
-    font-weight: 800;
-    letter-spacing: .01em;
-    color: #fff;
-    line-height: 1.35;
-}
-
 .asa-side-name-langs {
     margin-top: 10px;
     padding-top: 10px;
@@ -926,5 +1034,48 @@ body:has(.asa-entity-page) .ct-section-inner-container {
         overflow-y: visible;
         align-self: start;
     }
-    .asa-layout-side::-webkit-scrollbar { width: 0; }
+
+    .asa-layout-side::-webkit-scrollbar {
+        width: 0;
+    }
+}
+
+/* ================================================================
+   18. [v1.6.0] 瀏覽體驗優化
+   ================================================================ */
+
+/* 18.1 統一鍵盤 focus 樣式（可及性 + 視覺回饋） */
+.asa-entity-page a:focus-visible,
+.asa-entity-page button:focus-visible,
+.asa-entity-page input:focus-visible,
+.asa-work-card:focus-within {
+    outline: 2px solid var(--asa-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* 18.2 內文選取顏色統一（避免瀏覽器預設藍與主題衝突） */
+.asa-entity-page ::selection {
+    background: rgba(99, 168, 255, .35);
+    color: #fff;
+}
+
+/* 18.3 尊重「減少動態效果」系統設定 */
+@media (prefers-reduced-motion: reduce) {
+
+    .asa-entity-page,
+    .asa-entity-page * {
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .asa-work-card:hover,
+    .asa-relation-card:hover {
+        transform: none !important;
+    }
+
+    .asa-work-card:hover .asa-work-cover img {
+        transform: none !important;
+    }
 }
