@@ -1025,18 +1025,34 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* ================================================================
-   17. [v1.5.2] 修正左欄 sticky 滾動卡頓
-   移除內部 max-height / overflow，改用單純 sticky
+   17. [v1.6.1] 左欄：sticky + 內部獨立捲動
+   左欄內容可能比視窗高（頭像＋基本資料＋其他資料＋外部連結），
+   純 sticky 無法自己捲動，只能等右欄捲完才會跟著移動。
+   改回限制高度＋內部 overflow-y:auto，讓左欄能獨立滑到底部；
+   同時用 overscroll-behavior 避免捲到底時把捲動事件傳給整個頁面
+   （避免使用者滑左欄時不小心把整頁也拉動），
+   並用 contain 降低 backdrop-filter 重繪造成的卡頓。
    ================================================================ */
 @media (min-width: 901px) {
     .asa-layout-side {
-        max-height: none;
-        overflow-y: visible;
-        align-self: start;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        contain: layout paint;
+        -webkit-overflow-scrolling: touch;
     }
 
     .asa-layout-side::-webkit-scrollbar {
-        width: 0;
+        width: 5px;
+    }
+
+    .asa-layout-side::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, .15);
+        border-radius: 3px;
+    }
+
+    .asa-layout-side::-webkit-scrollbar-track {
+        background: transparent;
     }
 }
 
