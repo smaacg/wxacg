@@ -308,21 +308,21 @@ get_header();
                     </div>
                 <?php endif; ?>
 
-                <?php if ( ! empty( $character_cvs ) ) : ?>
+                <?php if ( ! empty( $character_cvs ) || ! empty( $basic_info_rows ) ) : ?>
                     <div class="asa-infolist">
-                        <div class="asa-infolist-subtitle" style="margin-top:4px; border-top:none; padding-top:0;">配音員 (CV)</div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 4px 8px;">
-                            <?php foreach ( $character_cvs as $cv ) : ?>
-                                <a href="<?php echo esc_url( $cv['url'] ); ?>" class="asa-role-badge" style="margin:0;">
-                                    <?php echo esc_html( $cv['name'] ); ?>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
+                        <?php if ( ! empty( $character_cvs ) ) : ?>
+                            <div class="asa-infolist-row" style="align-items: center;">
+                                <span class="asa-infolist-label">聲優(CV)</span>
+                                <span class="asa-infolist-val" style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                    <?php foreach ( $character_cvs as $cv ) : ?>
+                                        <a href="<?php echo esc_url( $cv['url'] ); ?>" class="asa-role-badge" style="margin:0;">
+                                            <?php echo esc_html( $cv['name'] ); ?>
+                                        </a>
+                                    <?php endforeach; ?>
+                                </span>
+                            </div>
+                        <?php endif; ?>
 
-                <?php if ( ! empty( $basic_info_rows ) ) : ?>
-                    <div class="asa-infolist">
                         <?php foreach ( $basic_info_rows as $row ) : ?>
                             <div class="asa-infolist-row">
                                 <span class="asa-infolist-label"><?php echo esc_html( $row[0] ); ?></span>
