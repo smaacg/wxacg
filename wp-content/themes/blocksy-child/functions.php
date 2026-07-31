@@ -1390,3 +1390,58 @@ add_filter( 'wp_kses_allowed_html', function ( $tags, $context ) {
     }
     return $tags;
 }, 10, 2 );
+
+// ==========================================
+// 建立 AI 翻譯專用 REST API (輸出動漫多國語言字典)
+// ==========================================
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'wxacg/v1', '/glossary', array(
+        'methods'  => 'GET',
+        'permission_callback' => '__return_true',
+        'callback' => function( $request ) {
+            global $wpdb;
+            $cached_glossary = get_transient( 'wxacg_ai_glossary' );
+            if ( false !== $cached_glossary ) {
+                return rest_ensure_response( $cached_glossary );
+            }
+
+            $glossary = array();
+            $query = "
+                SELECT pm.post_id, pm.meta_key, pm.meta_value 
+                FROM {$wpdb->postmeta} pm
+                INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+                WHERE p.post_type = 'anime' 
+                AND p.post_status = 'publish'
+                AND pm.meta_key IN ('anime_title_chinese', 'anime_title_native', 'anime_title_english', 'anime_title_simplified')
+                AND pm.meta_value != ''
+            ";
+            
+            $results = $wpdb->get_results( $query );
+            if ( ! is_array( $results ) ) {
+                $results = array();
+            }
+
+            $grouped_data = array();
+            foreach ( $results as $row ) {
+                $grouped_data[ $row->post_id ][ $row->meta_key ] = trim($row->meta_value);
+            }
+
+            foreach ( $grouped_data as $post_id => $meta ) {
+                if ( empty( $meta['anime_title_chinese'] ) ) continue;
+                $tw_title = $meta['anime_title_chinese'];
+                if ( ! empty( $meta['anime_title_native'] ) ) {
+                    $glossary[ $meta['anime_title_native'] ] = $tw_title;
+                }
+                if ( ! empty( $meta['anime_title_english'] ) ) {
+                    $glossary[ $meta['anime_title_english'] ] = $tw_title;
+                }
+                if ( ! empty( $meta['anime_title_simplified'] ) ) {
+                    $glossary[ $meta['anime_title_simplified'] ] = $tw_title;
+                }
+            }
+
+            set_transient( 'wxacg_ai_glossary', $glossary, 12 * HOUR_IN_SECONDS );
+            return rest_ensure_response( $glossary );
+        }
+    ) );
+} );
