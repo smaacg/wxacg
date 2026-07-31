@@ -1345,103 +1345,143 @@ add_action('wp_head', function () {
     echo '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3709514691049766" crossorigin="anonymous"></script>' . "\n";
 }, 5);
 
-// 允許 Python API 自動寫入 Rank Math SEO 欄位 (加入權限宣告)
-add_action( 'rest_api_init', function() {
-    register_meta( 'post', 'rank_math_focus_keyword', array(
-        'type'          => 'string',
-        'single'        => true,
-        'show_in_rest'  => true,
-        'auth_callback' => function() {
-            // 只要是有權限發文的帳號，就允許修改這個欄位
-            return current_user_can( 'edit_posts' ); 
-        }
-    ) );
-    
-    register_meta( 'post', 'rank_math_description', array(
-        'type'          => 'string',
-        'single'        => true,
-        'show_in_rest'  => true,
-        'auth_callback' => function() {
-            return current_user_can( 'edit_posts' );
-        }
-    ) );
-} );
-
-// 允許 WordPress 透過 API 儲存 <style> 和 <iframe> 標籤
-add_filter( 'wp_kses_allowed_html', function ( $tags, $context ) {
-    if ( 'post' === $context ) {
-        // 解鎖 CSS 樣式標籤
-        $tags['style'] = array(
-            'type'  => true,
-            'media' => true,
-        );
-        // 解鎖 YouTube 影片標籤
-        $tags['iframe'] = array(
-            'src'             => true,
-            'height'          => true,
-            'width'           => true,
-            'frameborder'     => true,
-            'allowfullscreen' => true,
-            'allow'           => true,
-            'title'           => true,
-            'class'           => true,
-            'style'           => true,
-        );
-    }
-    return $tags;
-}, 10, 2 );
-
 // ==========================================
-// 建立 AI 翻譯專用 REST API (輸出動漫多國語言字典)
+// 建立 AI 翻譯專用 REST API (支援差分/差異化極速升級架構)
 // ==========================================
 add_action( 'rest_api_init', function () {
     register_rest_route( 'wxacg/v1', '/glossary', array(
-        'methods'  => 'GET',
-        'permission_callback' => '__return_true',
-        'callback' => function( $request ) {
-            global $wpdb;
-            $cached_glossary = get_transient( 'wxacg_ai_glossary' );
-            if ( false !== $cached_glossary ) {
-                return rest_ensure_response( $cached_glossary );
-            }
-
-            $glossary = array();
-            $query = "
-                SELECT pm.post_id, pm.meta_key, pm.meta_value 
-                FROM {$wpdb->postmeta} pm
-                INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
-                WHERE p.post_type = 'anime' 
-                AND p.post_status = 'publish'
-                AND pm.meta_key IN ('anime_title_chinese', 'anime_title_native', 'anime_title_english', 'anime_title_simplified')
-                AND pm.meta_value != ''
-            ";
-            
-            $results = $wpdb->get_results( $query );
-            if ( ! is_array( $results ) ) {
-                $results = array();
-            }
-
-            $grouped_data = array();
-            foreach ( $results as $row ) {
-                $grouped_data[ $row->post_id ][ $row->meta_key ] = trim($row->meta_value);
-            }
-
-            foreach ( $grouped_data as $post_id => $meta ) {
-                if ( empty( $meta['anime_title_chinese'] ) ) continue;
-                $tw_title = $meta['anime_title_chinese'];
-                if ( ! empty( $meta['anime_title_native'] ) ) {
-                    $glossary[ $meta['anime_title_native'] ] = $tw_title;
-                }
-                if ( ! empty( $meta['anime_title_english'] ) ) {
-                    $glossary[ $meta['anime_title_english'] ] = $tw_title;
-                }
-                if ( ! empty( $meta['anime_title_simplified'] ) ) {
-                    $glossary[ $meta['anime_title_simplified'] ] = $tw_title;
-                }
-            }
-
-            set_transient( 'wxacg_ai_glossary', $glossary, 12 * HOUR_IN_SECONDS );
-            return rest_ensure_response( $glossary );
-        }
+        'methods'             => 'GET',
+        'permission_callback' => '__return_true', // 開放本機及外部 Python 微服務讀取
+        'callback'            => 'wxacg_get_ai_glossary_delta',
     ) );
 } );
+
+function wxacg_get_ai_glossary_delta( $request ) {
+    global $wpdb;
+
+    // 取得自帶的時間戳記 (since) 或者是指定要求結構封包的標記
+    $since_param  = $request->get_param( 'since' );
+    $with_time    = $request->get_param( 'with_timestamp' );
+    $current_time = current_time( 'mysql' );
+
+    $glossary = array();
+    $is_delta = false;
+    $since_date = null;
+
+    // 1. 若有傳入 since 參數，啟動極省資源的「差異化檢索模式」
+    if ( ! empty( $since_param ) ) {
+        $is_delta = true;
+        if ( is_numeric( $since_param ) ) {
+            // Unix 時間戳處理
+            $since_date = gmdate( 'Y-m-d H:i:s', (int) $since_param + ( (float) get_option( 'gmt_offset' ) * HOUR_IN_SECONDS ) );
+        } else {
+            // 日期字串處理 (如 2026-08-01 06:00:00)
+            $since_date = date( 'Y-m-d H:i:s', strtotime( $since_param ) );
+        }
+
+        // 僅查詢該時段之後有「被新增」或「曾遭受編輯更新」的動畫 ID (移除多餘的 OR 日期比對，提升檢索精準度)
+        $query_modified = $wpdb->prepare( "
+            SELECT ID FROM {$wpdb->posts} 
+            WHERE post_type = 'anime' 
+            AND post_status = 'publish' 
+            AND post_modified >= %s
+        ", $since_date );
+
+        $modified_ids = $wpdb->get_col( $query_modified );
+
+        // 當期間內毫無動畫被更新時，不啟動 meta 讀取與運算，回傳極簡回應，運算成本極限降至 0！
+        if ( empty( $modified_ids ) ) {
+            return rest_ensure_response( array(
+                'status'        => 'up_to_date',
+                'updated_count' => 0,
+                'timestamp'     => $current_time,
+                'data'          => new stdClass(), // 空 JSON 物件 '{}'
+            ) );
+        }
+
+        // 僅撈取這幾個受調整番劇的對應名冊欄位
+        $ids_sql = implode( ',', array_map( 'intval', $modified_ids ) );
+        $results = $wpdb->get_results( "
+            SELECT post_id, meta_key, meta_value 
+            FROM {$wpdb->postmeta} 
+            WHERE post_id IN ({$ids_sql}) 
+            AND meta_key IN ('anime_title_chinese', 'anime_title_native', 'anime_title_english', 'anime_title_simplified')
+            AND meta_value != ''
+        " );
+    } else {
+        // 2. 全量索取模式（初次下載 Cold Start）：優先全面攔截並享受 12 小時快取，確保頻繁拉取時 MySQL 負擔皆為 0
+        $cached_raw = get_transient( 'wxacg_ai_glossary_raw_v2' );
+        if ( false !== $cached_raw ) {
+            // 若為自帶時間戳的要求，將記憶庫裡的清單換件外殼再出發，保持 0 運算消耗！
+            if ( ! empty( $with_time ) ) {
+                return rest_ensure_response( array(
+                    'status'        => 'full_sync',
+                    'updated_count' => count( $cached_raw ),
+                    'timestamp'     => $current_time,
+                    'data'          => $cached_raw,
+                ) );
+            }
+            // 傳統常態性訪問直接歸納回傳
+            return rest_ensure_response( $cached_raw );
+        }
+
+        $results = $wpdb->get_results( "
+            SELECT pm.post_id, pm.meta_key, pm.meta_value 
+            FROM {$wpdb->postmeta} pm
+            INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+            WHERE p.post_type = 'anime' 
+            AND p.post_status = 'publish'
+            AND pm.meta_key IN ('anime_title_chinese', 'anime_title_native', 'anime_title_english', 'anime_title_simplified')
+            AND pm.meta_value != ''
+        " );
+    }
+
+    if ( ! is_array( $results ) ) {
+        $results = array();
+    }
+
+    // 將查詢到的 meta 結果重新聚合為 post_id 為群組的結構
+    $grouped_data = array();
+    foreach ( $results as $row ) {
+        $grouped_data[ $row->post_id ][ $row->meta_key ] = trim( $row->meta_value );
+    }
+
+    // 組裝多語系（外語/簡中 -> 繁英名映射）
+    foreach ( $grouped_data as $post_id => $meta ) {
+        if ( empty( $meta['anime_title_chinese'] ) ) {
+            continue;
+        }
+        $tw_title = $meta['anime_title_chinese'];
+        if ( ! empty( $meta['anime_title_native'] ) ) {
+            $glossary[ $meta['anime_title_native'] ] = $tw_title;
+        }
+        if ( ! empty( $meta['anime_title_english'] ) ) {
+            $glossary[ $meta['anime_title_english'] ] = $tw_title;
+        }
+        if ( ! empty( $meta['anime_title_simplified'] ) ) {
+            $glossary[ $meta['anime_title_simplified'] ] = $tw_title;
+        }
+    }
+
+    // 只要是全量同步，一律妥置存回 12 小時快取防線
+    if ( ! $is_delta ) {
+        set_transient( 'wxacg_ai_glossary_raw_v2', $glossary, 12 * HOUR_IN_SECONDS );
+        if ( empty( $with_time ) ) {
+            return rest_ensure_response( $glossary );
+        }
+    }
+
+    // 若有採用差分請求或帶上 with_timestamp，吐回包含時間標識和資料筆數的旗艦對齊結構
+    return rest_ensure_response( array(
+        'status'        => $is_delta ? 'delta_sync' : 'full_sync',
+        'updated_count' => count( $glossary ),
+        'timestamp'     => $current_time,
+        'data'          => empty( $glossary ) ? new stdClass() : $glossary,
+    ) );
+}
+
+// 附加當任何番劇儲存時，立即重啟傳統純字典快取，保障時無死無傷
+add_action( 'save_post_anime', function() {
+    delete_transient( 'wxacg_ai_glossary_raw_v2' );
+} );
+
