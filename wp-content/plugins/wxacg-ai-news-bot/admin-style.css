@@ -1,0 +1,256 @@
+/* ==========================================
+ * 微笑動漫 AI 新聞自駕中心 精簡與耐讀外掛樣式
+ * 移除多餘裝飾與高大笨拙樣式，回歸現代俐落氣場
+ * ========================================== */
+
+.wxacg-ai-container {
+    max-width: 1080px;
+    margin-top: 20px;
+    color: #2c3338;
+}
+
+.wxacg-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #1d2327;
+}
+
+.wxacg-box {
+    background: #ffffff;
+    border: 1px solid #dcdcdc;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    padding: 24px 28px;
+    margin-bottom: 30px;
+}
+
+.wxacg-settings-box {
+    border-top: 4px solid #6c757d;
+    background: #fcfbfa;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #1a1f24;
+}
+
+.divider {
+    height: 1px;
+    background: #eaeaea;
+    margin-bottom: 20px;
+}
+
+.wxacg-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 18px;
+}
+
+@media (max-width: 768px) {
+    .wxacg-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.wxacg-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.wxacg-col label {
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #333;
+}
+
+.wxacg-textarea {
+    width: 100%;
+    border-radius: 4px;
+    border: 1px solid #8c8f94;
+    padding: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+.wxacg-textarea:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.wxacg-select {
+    width: 100%;
+    border-radius: 4px;
+    height: 38px;
+    padding: 0 10px;
+    font-size: 14px;
+    border: 1px solid #8c8f94;
+    background: #fff;
+}
+
+.wxacg-action-row {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+/* 修正按鈕為完全絕對居中、排版清單舒適之按扣設定 */
+.wxacg-btn-simple {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: #2271b1 !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-size: 14.5px !important;
+    font-weight: 600 !important;
+    line-height: 1 !important;
+    border-radius: 6px !important;
+    padding: 0 24px !important;
+    height: 38px !important;
+    box-shadow: 0 2px 5px rgba(34, 113, 177, 0.25) !important;
+    transition: background-color 0.15s, transform 0.1s !important;
+}
+
+.wxacg-btn-simple:hover {
+    background-color: #135e96 !important;
+    transform: translateY(-1px);
+}
+
+.wxacg-btn-simple:active {
+    transform: translateY(0px);
+}
+
+.wxacg-btn-simple:disabled {
+    background-color: #79a1c1 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    cursor: not-allowed;
+}
+
+/* ================== 小而美終端監視黑曜器 ================== */
+.wxacg-terminal-box {
+    margin-top: 25px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.terminal-bar {
+    background: #161b22;
+    padding: 7px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #30363d;
+}
+
+.terminal-dots {
+    display: flex;
+    gap: 6px;
+    margin-right: 14px;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.red { background-color: #ff5f56; }
+.yellow { background-color: #ffbd2e; }
+.green { background-color: #27c93f; }
+
+.terminal-header-title {
+    color: #8b949e;
+    font-size: 12px;
+    font-family: "Cascadia Code", Consolas, Monaco, monospace;
+    flex-grow: 1;
+}
+
+.terminal-clear-btn {
+    background: #21262d !important;
+    border: 1px solid #363b42 !important;
+    color: #8b949e !important;
+    font-size: 11px !important;
+    padding: 1px 10px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+}
+
+.terminal-clear-btn:hover {
+    color: #c9d1d9 !important;
+    border-color: #8b949e !important;
+}
+
+.terminal-screen {
+    padding: 14px 16px;
+    height: 180px; 
+    overflow-y: auto;
+    font-family: "Cascadia Code", "Courier New", Consolas, Monaco, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #58a6ff;
+    background: #0d1117;
+}
+
+.term-line {
+    margin-bottom: 3px;
+    word-break: break-all;
+}
+
+.term-time {
+    color: #8b949e;
+    margin-right: 6px;
+}
+
+.term-line-ok { color: #3fb950; }
+.term-line-err { color: #ff7b72; font-weight: bold; }
+.term-line-warn { color: #d29922; }
+
+/* ================== 設定表格及鎖門介面 ================== */
+.wxacg-table th {
+    width: 22%;
+    vertical-align: top;
+    padding-top: 15px;
+    font-size: 13.5px;
+}
+
+.lock-panel {
+    background: #fff5f5;
+    border: 1px solid #feb2b2;
+    padding: 16px;
+    border-radius: 6px;
+    color: #9b2c2c;
+}
+
+.lock-panel input[type="password"] {
+    width: 200px;
+    margin-right: 6px;
+    border: 1px solid #c53030;
+    border-radius: 4px;
+    height: 32px;
+}
+
+.unlock-panel {
+    margin-top: 10px;
+    padding: 18px;
+    border: 1px solid #68d391;
+    border-radius: 6px;
+    background: #f0fff4;
+}
+
+.unlock-title {
+    margin: 0 0 14px;
+    font-weight: bold;
+    color: #22543d;
+    font-size: 14px;
+}
