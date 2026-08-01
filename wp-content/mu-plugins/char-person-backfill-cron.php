@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 // 'characters' = 補角色； 'persons' = 補聲優； 'off' = 停止
 define( 'MY_BACKFILL_MODE', 'characters' );
 
-// 每批處理幾筆（BGM 有每秒限速，一批不要太多，5分鐘內跑得完即可）
+// 每批處理幾筆（BGM 有每秒限速，一批約60筆，5分鐘內跑得完）
 define( 'MY_BACKFILL_BATCH', 60 );
 
 // ===== 註冊每5分鐘的排程 =====
@@ -30,14 +30,12 @@ add_action( 'init', function () {
 
 // ===== 實際執行 =====
 add_action( 'my_backfill_event', function () {
-    global $wpdb;
 
     if ( MY_BACKFILL_MODE === 'off' ) { return; }
 
     // 上鎖，避免上一批還沒跑完又重疊
-    $lock = get_transient( 'my_backfill_lock' );
-    if ( $lock ) { return; }
-    set_transient( 'my_backfill_lock', 1, 290 ); // 鎖 290 秒
+    if ( get_transient( 'my_backfill_lock' ) ) { return; }
+    set_transient( 'my_backfill_lock', 1, 290 );
 
     if ( ! class_exists( 'Anime_Sync_Entity_Migrator' ) ) {
         delete_transient( 'my_backfill_lock' );
@@ -46,39 +44,18 @@ add_action( 'my_backfill_event', function () {
     }
 
     $migrator = new Anime_Sync_Entity_Migrator();
-    $batch    = (int) MY_BACKFILL_BATCH;
+    $args = array( 'limit' => (int) MY_BACKFILL_BATCH );
 
-    if ( MY_BACKFILL_MODE === 'characters' ) {
-        $table = $wpdb->prefix . 'anime_characters';
-        $method = 'backfill_characters';
-    } else {
-        $table = $wpdb->prefix . 'anime_persons';
-        $method = 'backfill_persons';
-    }
-
-    $ids = $wpdb->get_col(
-        "SELECT bgm_id FROM {$table}
-         WHERE summary IS NULL OR summary = ''
-         LIMIT {$batch}"
-    );
-
-    if ( empty( $ids ) ) {
-        error_log( 'my_backfill: 沒有待補的資料了，模式=' . MY_BACKFILL_MODE );
-        delete_transient( 'my_backfill_lock' );
-        return;
-    }
-
-    foreach ( $ids as $id ) {
-        if ( method_exists( $migrator, $method ) ) {
-            // 依你外掛方法簽名呼叫；多數版本接受 (id, force)
-            try {
-                $migrator->{$method}( (int) $id, true );
-            } catch ( \Throwable $e ) {
-                error_log( 'my_backfill 例外 id=' . $id . ' : ' . $e->getMessage() );
-            }
+    try {
+        if ( MY_BACKFILL_MODE === 'characters' ) {
+            $stats = $migrator->backfill_characters( $args );
+        } else {
+            $stats = $migrator->backfill_persons( $args );
         }
+        error_log( 'my_backfill 完成 模式=' . MY_BACKFILL_MODE . ' : ' . wp_json_encode( $stats ) );
+    } catch ( \Throwable $e ) {
+        error_log( 'my_backfill 例外: ' . $e->getMessage() );
     }
 
-    error_log( 'my_backfill: 本批處理 ' . count( $ids ) . ' 筆，模式=' . MY_BACKFILL_MODE );
     delete_transient( 'my_backfill_lock' );
 } );
