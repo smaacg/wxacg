@@ -1345,6 +1345,52 @@ add_action('wp_head', function () {
     echo '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3709514691049766" crossorigin="anonymous"></script>' . "\n";
 }, 5);
 
+// 允許 Python API 自動寫入 Rank Math SEO 欄位 (加入權限宣告)
+add_action( 'rest_api_init', function() {
+    register_meta( 'post', 'rank_math_focus_keyword', array(
+        'type'          => 'string',
+        'single'        => true,
+        'show_in_rest'  => true,
+        'auth_callback' => function() {
+            // 只要是有權限發文的帳號，就允許修改這個欄位
+            return current_user_can( 'edit_posts' ); 
+        }
+    ) );
+    
+    register_meta( 'post', 'rank_math_description', array(
+        'type'          => 'string',
+        'single'        => true,
+        'show_in_rest'  => true,
+        'auth_callback' => function() {
+            return current_user_can( 'edit_posts' );
+        }
+    ) );
+} );
+
+// 允許 WordPress 透過 API 儲存 <style> 和 <iframe> 標籤
+add_filter( 'wp_kses_allowed_html', function ( $tags, $context ) {
+    if ( 'post' === $context ) {
+        // 解鎖 CSS 樣式標籤
+        $tags['style'] = array(
+            'type'  => true,
+            'media' => true,
+        );
+        // 解鎖 YouTube 影片標籤
+        $tags['iframe'] = array(
+            'src'             => true,
+            'height'          => true,
+            'width'           => true,
+            'frameborder'     => true,
+            'allowfullscreen' => true,
+            'allow'           => true,
+            'title'           => true,
+            'class'           => true,
+            'style'           => true,
+        );
+    }
+    return $tags;
+}, 10, 2 );
+
 // ==========================================
 // 建立 AI 翻譯專用 REST API (支援差分/差異化極速升級架構)
 // ==========================================
