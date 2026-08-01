@@ -45,8 +45,7 @@ class WXACG_AI_News_Engine_Plugin {
      * 註冊常規與隱藏型保護設置欄位 (供全網一體維持共用的通用參數庫)
      */
     public function register_settings() {
-        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_model', ['default' => 'gemini-3.6-flash']);
-        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_post_status', ['default' => 'draft']);
+        # 將原全域模組移離至各私人帳號的 user_meta 區間自帶維和；留其餘共用站址維持全域選項
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_url', ['default' => '']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_token', ['default' => 'wxacg-super-secret-master-key-2026']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_unlock_password', ['default' => '123456789']);
@@ -84,13 +83,15 @@ class WXACG_AI_News_Engine_Plugin {
             $channel_terms = [];
         }
 
-        # 【個人隔離區】由「User Meta」撈出，若是從沒填打或初度造訪的新主編皆為空白無字！
+        # 【個人隔離區】由「User Meta」撈出，若是從沒填打或初度造訪的新主編皆為空白無字或取預設值！
         $app_pass = get_user_meta($user_id, 'wxacg_ai_news_app_password', true);
         $api_key = get_user_meta($user_id, 'wxacg_ai_news_api_key', true);
+        $model_name = get_user_meta($user_id, 'wxacg_ai_news_model', true);
+        if (empty($model_name)) { $model_name = 'gemini-3.6-flash'; }
+        $post_status = get_user_meta($user_id, 'wxacg_ai_news_post_status', true);
+        if (empty($post_status)) { $post_status = 'draft'; }
 
-        # 【全網公務區】獲取選項表中所儲藏的常規總局配置
-        $model_name = get_option('wxacg_ai_news_model', 'gemini-3.6-flash');
-        $post_status = get_option('wxacg_ai_news_post_status', 'draft');
+        # 【全網公務區】獲取選項表中所儲藏的常規總局配置 (雲端伺服連接點與鎖)
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
         $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
         $unlock_pass = get_option('wxacg_ai_news_unlock_password', '123456789');
@@ -205,17 +206,18 @@ class WXACG_AI_News_Engine_Plugin {
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><label for="wxacg_ai_news_model">使用模型名稱</label></th>
+                            <th scope="row"><label for="wxacg_ai_news_model">使用模型名稱<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
                                 <input type="text" id="wxacg_ai_news_model" name="wxacg_ai_news_model" class="regular-text code" value="<?php echo esc_attr($model_name); ?>" placeholder="gemini-3.6-flash">
-                                <p class="description">開放填入形式。若為 Google AI，目前強烈推薦為 <code>gemini-3.6-flash</code>。</p>
+                                <p class="description">開放填入形式，並為每名個人登入主編所私設領用。若為 Google AI，目前強烈推薦為 <code>gemini-3.6-flash</code>。</p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><label>文章默認產出狀態</label></th>
+                            <th scope="row"><label>文章默認產出狀態<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
                                 <label><input type="radio" name="wxacg_ai_news_post_status" value="draft" <?php checked($post_status, 'draft'); ?>> 存放在草稿 (Draft)</label> &nbsp;&nbsp;&nbsp;
                                 <label><input type="radio" name="wxacg_ai_news_post_status" value="publish" <?php checked($post_status, 'publish'); ?>> 立即正式發行 (Publish)</label>
+                                <p class="description">不同的小編帳號均可隨自愛挑要送進草稿匣精煉或直出公海發行，不互相搶局。</p>
                             </td>
                         </tr>
 
@@ -274,21 +276,21 @@ class WXACG_AI_News_Engine_Plugin {
 
         $user_id = get_current_user_id();
 
-        # 1. 寫入私人使用者級別之隔離授權屬性 (User Meta)
+        # 1. 寫入私人使用者級別之隔離授權屬性與編輯自訂習性 (User Meta)
         if (isset($_POST['wxacg_ai_news_app_password'])) {
             update_user_meta($user_id, 'wxacg_ai_news_app_password', sanitize_text_field(trim($_POST['wxacg_ai_news_app_password'])));
         }
         if (isset($_POST['wxacg_ai_news_api_key'])) {
             update_user_meta($user_id, 'wxacg_ai_news_api_key', sanitize_text_field(trim($_POST['wxacg_ai_news_api_key'])));
         }
-
-        # 2. 寫入總局共用式系統選項 (WordPress Options)
         if (isset($_POST['wxacg_ai_news_model'])) {
-            update_option('wxacg_ai_news_model', sanitize_text_field(trim($_POST['wxacg_ai_news_model'])));
+            update_user_meta($user_id, 'wxacg_ai_news_model', sanitize_text_field(trim($_POST['wxacg_ai_news_model'])));
         }
         if (isset($_POST['wxacg_ai_news_post_status'])) {
-            update_option('wxacg_ai_news_post_status', sanitize_text_field($_POST['wxacg_ai_news_post_status']));
+            update_user_meta($user_id, 'wxacg_ai_news_post_status', sanitize_text_field($_POST['wxacg_ai_news_post_status']));
         }
+
+        # 2. 寫入總局共用式系統選項 (WordPress Options - 唯伺服端點網址跟主控鎖是全體合一)
         if (isset($_POST['wxacg_ai_news_cloud_url'])) {
             update_option('wxacg_ai_news_cloud_url', esc_url_raw(trim($_POST['wxacg_ai_news_cloud_url'])));
         }
@@ -322,14 +324,16 @@ class WXACG_AI_News_Engine_Plugin {
         $target_category = isset($_POST['target_category']) ? intval($_POST['target_category']) : 9;
         $target_channel = isset($_POST['target_channel']) ? intval($_POST['target_channel']) : 12;
 
-        # 自發令者帳單下方調取專有之私房金鑰 (User Meta)
+        # 自發令者帳單下方調取專有之私房金鑰與編輯慣性設定 (User Meta 獨立保存領域)
         $user_id = get_current_user_id();
         $app_pass = get_user_meta($user_id, 'wxacg_ai_news_app_password', true);
         $api_key = get_user_meta($user_id, 'wxacg_ai_news_api_key', true);
+        $model_name = get_user_meta($user_id, 'wxacg_ai_news_model', true);
+        if (empty($model_name)) { $model_name = 'gemini-3.6-flash'; }
+        $post_status = get_user_meta($user_id, 'wxacg_ai_news_post_status', true);
+        if (empty($post_status)) { $post_status = 'draft'; }
 
-        # 自總體選項庫存引出伺服聯網端
-        $model_name = get_option('wxacg_ai_news_model', 'gemini-3.6-flash');
-        $post_status = get_option('wxacg_ai_news_post_status', 'draft');
+        # 自總體選項庫存引出伺服聯網端 (此為不被破壞的全域共向處)
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
         $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
 
