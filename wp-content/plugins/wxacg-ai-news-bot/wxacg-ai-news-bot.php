@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 微笑動漫 AI 新聞自駕中心
  * Description: 提供海外新聞一鍵抓取、自動翻譯、分類排版與實時終端監控的高效能管理工具。
- * Version: 2.2.1
+ * Version: 2.3.0
  * Author: 微笑動漫開發組
  * Text Domain: wxacg-ai-news
  */
@@ -18,8 +18,12 @@ class WXACG_AI_News_Engine_Plugin {
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         
+        # 註冊 AJAX 下單與輪詢處理
         add_action('wp_ajax_wxacg_trigger_ai_news', [$this, 'handle_trigger_ai_news']);
         add_action('wp_ajax_wxacg_poll_task_status', [$this, 'handle_poll_task_status']);
+
+        # 註冊雙軌獨立保存自定處理端點 (區分全域與使用者獨立金鑰)
+        add_action('admin_post_wxacg_save_settings', [$this, 'handle_save_settings']);
     }
 
     /**
@@ -38,11 +42,9 @@ class WXACG_AI_News_Engine_Plugin {
     }
 
     /**
-     * 註冊常規與隱藏型保護設置欄位
+     * 註冊常規與隱藏型保護設置欄位 (供全網一體維持共用的通用參數庫)
      */
     public function register_settings() {
-        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_app_password');
-        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_api_key');
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_model', ['default' => 'gemini-3.6-flash']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_post_status', ['default' => 'draft']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_url', ['default' => '']);
@@ -57,8 +59,8 @@ class WXACG_AI_News_Engine_Plugin {
         if ($hook !== 'toplevel_page_wxacg-ai-news-engine') {
             return;
         }
-        wp_enqueue_style('wxacg-ai-admin-style', plugin_dir_url(__FILE__) . 'admin-style.css', [], '2.2.1');
-        wp_enqueue_script('wxacg-ai-admin-script', plugin_dir_url(__FILE__) . 'admin-script.js', ['jquery'], '2.2.1', true);
+        wp_enqueue_style('wxacg-ai-admin-style', plugin_dir_url(__FILE__) . 'admin-style.css', [], '2.3.0');
+        wp_enqueue_script('wxacg-ai-admin-script', plugin_dir_url(__FILE__) . 'admin-script.js', ['jquery'], '2.3.0', true);
         
         wp_localize_script('wxacg-ai-admin-script', 'wxacgAIParams', [
             'ajaxurl' => admin_url('admin-ajax.php'),
@@ -70,8 +72,9 @@ class WXACG_AI_News_Engine_Plugin {
      * 後台主主控板渲染
      */
     public function render_admin_dashboard() {
-        # 讀取當前管理人的帳號認證狀態 (僅供閱讀)
+        # 讀取當前管理人的帳號認證狀態與ID (僅供閱讀與提取身分專用 Meta)
         $current_user = wp_get_current_user();
+        $user_id = $current_user->ID;
         $user_display_identity = $current_user->exists() ? ($current_user->user_login . ' (' . $current_user->user_email . ')') : '未知';
 
         # 抓取目前全網頁所建設好的文章分類以及頻道分類 (Channel)
@@ -81,9 +84,11 @@ class WXACG_AI_News_Engine_Plugin {
             $channel_terms = [];
         }
 
-        # 獲取選項表中所儲藏的長期數據
-        $app_pass = get_option('wxacg_ai_news_app_password', '');
-        $api_key = get_option('wxacg_ai_news_api_key', '');
+        # 【個人隔離區】由「User Meta」撈出，若是從沒填打或初度造訪的新主編皆為空白無字！
+        $app_pass = get_user_meta($user_id, 'wxacg_ai_news_app_password', true);
+        $api_key = get_user_meta($user_id, 'wxacg_ai_news_api_key', true);
+
+        # 【全網公務區】獲取選項表中所儲藏的常規總局配置
         $model_name = get_option('wxacg_ai_news_model', 'gemini-3.6-flash');
         $post_status = get_option('wxacg_ai_news_post_status', 'draft');
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
@@ -93,6 +98,12 @@ class WXACG_AI_News_Engine_Plugin {
         ?>
         <div class="wrap wxacg-ai-container">
             <h1 class="wxacg-title">AI 新聞發佈中心</h1>
+
+            <?php if (isset($_GET['updated']) && $_GET['updated'] === 'true') : ?>
+                <div class="notice notice-success is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid #46b450; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <p style="margin:0; font-size:14px; font-weight:600; color:#1b4a24;">✔ 儲存順暢：您本帳戶專注綁定的授權金鑰與總體設定皆已安穩記錄成妥！</p>
+                </div>
+            <?php endif; ?>
 
             <!-- ================= 第二大類：日常新聞產製區 ================= -->
             <div class="wxacg-box">
@@ -167,14 +178,16 @@ class WXACG_AI_News_Engine_Plugin {
                 <h2 class="section-title">核心授權與連線設定</h2>
                 <div class="divider"></div>
 
-                <form method="post" action="options.php">
-                    <?php settings_fields('wxacg_ai_news_settings_group'); ?>
+                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                    <input type="hidden" name="action" value="wxacg_save_settings">
+                    <?php wp_nonce_field('wxacg_save_settings_nonce', 'wxacg_settings_nonce_field'); ?>
+
                     <table class="form-table wxacg-table">
                         <tr>
-                            <th scope="row"><label for="wxacg_ai_news_app_password">WordPress 應用程式密碼</label></th>
+                            <th scope="row"><label for="wxacg_ai_news_app_password">WordPress 應用程式密碼<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
                                 <input type="text" id="wxacg_ai_news_app_password" name="wxacg_ai_news_app_password" class="regular-text code" value="<?php echo esc_attr($app_pass); ?>" placeholder="XXXX XXXX XXXX XXXX XXXX XXXX">
-                                <p class="description">從 wp-admin 的「使用者 -> 個人資料」最底部的應用程式密碼創建。</p>
+                                <p class="description">本欄位採個人獨立紀錄。新來者或不同小編進此必呈空白，各自只需去個人中心申請乙組貼回按下方的儲存，從不互犯或露餡。</p>
                             </td>
                         </tr>
                         <tr>
@@ -185,10 +198,10 @@ class WXACG_AI_News_Engine_Plugin {
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><label for="wxacg_ai_news_api_key">AI 授權金鑰 (API Key)</label></th>
+                            <th scope="row"><label for="wxacg_ai_news_api_key">AI 授權金鑰 (API Key)<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
-                                <input type="password" id="wxacg_ai_news_api_key" name="wxacg_ai_news_api_key" class="regular-text code" value="<?php echo esc_attr($api_key); ?>">
-                                <p class="description">支援輸入您使用的任何 AI 主機中心對接密鑰（如 Gemini 或 OpenAI 等專門金鑰）。</p>
+                                <input type="password" id="wxacg_ai_news_api_key" name="wxacg_ai_news_api_key" class="regular-text code" value="<?php echo esc_attr($api_key); ?>" placeholder="在此填寫專屬於您本人動用的 AI API Key...">
+                                <p class="description">同樣採私人護禦保存！一人填放僅自人獨自調度運算，保障付費額度或權限無嫌隱患。</p>
                             </td>
                         </tr>
                         <tr>
@@ -252,6 +265,46 @@ class WXACG_AI_News_Engine_Plugin {
     }
 
     /**
+     * 自訂表單送出接應：同時進行 User Meta 私有保全處理與 Options 總體存查
+     */
+    public function handle_save_settings() {
+        if (!current_user_can('manage_options') || !isset($_POST['wxacg_settings_nonce_field']) || !wp_verify_nonce($_POST['wxacg_settings_nonce_field'], 'wxacg_save_settings_nonce')) {
+            wp_die('資安防護檢查失敗：您未持有儲存或更動本頁數值配置的工作權益。');
+        }
+
+        $user_id = get_current_user_id();
+
+        # 1. 寫入私人使用者級別之隔離授權屬性 (User Meta)
+        if (isset($_POST['wxacg_ai_news_app_password'])) {
+            update_user_meta($user_id, 'wxacg_ai_news_app_password', sanitize_text_field(trim($_POST['wxacg_ai_news_app_password'])));
+        }
+        if (isset($_POST['wxacg_ai_news_api_key'])) {
+            update_user_meta($user_id, 'wxacg_ai_news_api_key', sanitize_text_field(trim($_POST['wxacg_ai_news_api_key'])));
+        }
+
+        # 2. 寫入總局共用式系統選項 (WordPress Options)
+        if (isset($_POST['wxacg_ai_news_model'])) {
+            update_option('wxacg_ai_news_model', sanitize_text_field(trim($_POST['wxacg_ai_news_model'])));
+        }
+        if (isset($_POST['wxacg_ai_news_post_status'])) {
+            update_option('wxacg_ai_news_post_status', sanitize_text_field($_POST['wxacg_ai_news_post_status']));
+        }
+        if (isset($_POST['wxacg_ai_news_cloud_url'])) {
+            update_option('wxacg_ai_news_cloud_url', esc_url_raw(trim($_POST['wxacg_ai_news_cloud_url'])));
+        }
+        if (isset($_POST['wxacg_ai_news_cloud_token'])) {
+            update_option('wxacg_ai_news_cloud_token', sanitize_text_field(trim($_POST['wxacg_ai_news_cloud_token'])));
+        }
+        if (isset($_POST['wxacg_ai_news_unlock_password'])) {
+            update_option('wxacg_ai_news_unlock_password', sanitize_text_field($_POST['wxacg_ai_news_unlock_password']));
+        }
+
+        # 保存完畢，攜帶反饋狀態順暢轉送返回原操作面壁
+        wp_redirect(add_query_arg(['page' => 'wxacg-ai-news-engine', 'updated' => 'true'], admin_url('admin.php')));
+        exit;
+    }
+
+    /**
      * AJAX 接收處理事件並轉呼叫 雲端 Engine
      */
     public function handle_trigger_ai_news() {
@@ -269,15 +322,19 @@ class WXACG_AI_News_Engine_Plugin {
         $target_category = isset($_POST['target_category']) ? intval($_POST['target_category']) : 9;
         $target_channel = isset($_POST['target_channel']) ? intval($_POST['target_channel']) : 12;
 
-        $app_pass = get_option('wxacg_ai_news_app_password', '');
-        $api_key = get_option('wxacg_ai_news_api_key', '');
+        # 自發令者帳單下方調取專有之私房金鑰 (User Meta)
+        $user_id = get_current_user_id();
+        $app_pass = get_user_meta($user_id, 'wxacg_ai_news_app_password', true);
+        $api_key = get_user_meta($user_id, 'wxacg_ai_news_api_key', true);
+
+        # 自總體選項庫存引出伺服聯網端
         $model_name = get_option('wxacg_ai_news_model', 'gemini-3.6-flash');
         $post_status = get_option('wxacg_ai_news_post_status', 'draft');
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
         $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
 
         if (empty($cloud_url) || empty($api_key) || empty($app_pass)) {
-            wp_send_json_error(['message' => '錯誤：請查探下方第一類當中，WP應用密碼、AI Key 與 主機 URL 是否有完備填入？']);
+            wp_send_json_error(['message' => '錯誤：您個人的【WordPress 應用程式密碼】與【AI 授權金鑰 (API Key)】，或是主機 URL 不可是空白狀態！請至上方列表確認存妥沒？']);
         }
 
         $current_user = wp_get_current_user();
