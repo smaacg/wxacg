@@ -16,6 +16,7 @@ class WXACG_AI_News_Engine_Plugin {
     public function __construct() {
         add_action('admin_menu', [$this, 'register_admin_menu']);
         add_action('admin_init', [$this, 'register_settings']);
+        add_action('admin_init', [$this, 'register_custom_capability']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         
         # 註冊 AJAX 下單與輪詢處理
@@ -27,13 +28,27 @@ class WXACG_AI_News_Engine_Plugin {
     }
 
     /**
+     * 註冊獨立的客製化能力權柄，令【User Role Editor】得以順遂捉捕該名字牌 (use_wxacg_ai_news)
+     */
+    public function register_custom_capability() {
+        $admin_role = get_role('administrator');
+        if ($admin_role && !$admin_role->has_cap('use_wxacg_ai_news')) {
+            $admin_role->add_cap('use_wxacg_ai_news');
+        }
+        $editor_role = get_role('editor');
+        if ($editor_role && !$editor_role->has_cap('use_wxacg_ai_news')) {
+            $editor_role->add_cap('use_wxacg_ai_news');
+        }
+    }
+
+    /**
      * 註冊管理側邊欄頁面
      */
     public function register_admin_menu() {
         add_menu_page(
             'AI 新聞發佈中心',
             'AI 新聞部',
-            'manage_options',
+            'use_wxacg_ai_news', # 改赴【方案B】獨一無二之御用權狀，憑牌放行不憑舊有單面階級
             'wxacg-ai-news-engine',
             [$this, 'render_admin_dashboard'],
             'dashicons-media-text',
@@ -270,7 +285,7 @@ class WXACG_AI_News_Engine_Plugin {
      * 自訂表單送出接應：同時進行 User Meta 私有保全處理與 Options 總體存查
      */
     public function handle_save_settings() {
-        if (!current_user_can('manage_options') || !isset($_POST['wxacg_settings_nonce_field']) || !wp_verify_nonce($_POST['wxacg_settings_nonce_field'], 'wxacg_save_settings_nonce')) {
+        if (!current_user_can('use_wxacg_ai_news') || !isset($_POST['wxacg_settings_nonce_field']) || !wp_verify_nonce($_POST['wxacg_settings_nonce_field'], 'wxacg_save_settings_nonce')) {
             wp_die('資安防護檢查失敗：您未持有儲存或更動本頁數值配置的工作權益。');
         }
 
@@ -311,8 +326,8 @@ class WXACG_AI_News_Engine_Plugin {
      */
     public function handle_trigger_ai_news() {
         check_ajax_referer('wxacg_ai_news_action_nonce', 'nonce');
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => '毫無足夠管理操作權益！']);
+        if (!current_user_can('use_wxacg_ai_news')) {
+            wp_send_json_error(['message' => '毫無足夠管理與主編級操作權益！']);
         }
 
         $target_url = isset($_POST['target_url']) ? esc_url_raw($_POST['target_url']) : '';

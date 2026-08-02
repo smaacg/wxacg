@@ -7,6 +7,24 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+/* ===== 【雙重智慧安防：杜絕本地端狂戰卡頓與無數轉圈報錯災厄】 ===== */
+# 1. 偵測若為本次 PC 開發或測試領空 (WP_ENVIRONMENT_TYPE為local、或網址含有 .local / .test / localhost / 127.0.0.1 等)，本機直接全體靜默打烊、釋收安養
+if (
+    (function_exists('wp_get_environment_type') && wp_get_environment_type() === 'local') ||
+    (defined('WP_ENVIRONMENT_TYPE') && WP_ENVIRONMENT_TYPE === 'local') ||
+    strpos(home_url(), '.local') !== false ||
+    strpos(home_url(), '.test') !== false ||
+    strpos(home_url(), 'localhost') !== false ||
+    strpos(home_url(), '127.0.0.1') !== false
+) {
+    return; # 當下宣告封筆，後方的定時超負荷輪詢全面免出
+}
+# 2. 探究即便在遠海主網，為防傷亡仍須先經審，查證 wp_anime_characters 資料庫中含 name_cn 新欄才被核准闖關
+global $wpdb;
+if (empty($wpdb->get_results("SHOW COLUMNS FROM `wp_anime_characters` LIKE 'name_cn'"))) {
+    return; # 若遭逢尚未蓋整齊之場域（含未擴建之分支站），當下即收兵避免釀災
+}
+
 /* ===== 開關：一次只開一個 =====
  * 'characters' = 補角色
  * 'persons'    = 補聲優
