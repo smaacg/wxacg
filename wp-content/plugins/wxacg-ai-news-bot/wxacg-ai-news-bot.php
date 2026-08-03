@@ -166,10 +166,20 @@ class WXACG_AI_News_Engine_Plugin {
                     </div>
                 </div>
 
-                <div class="wxacg-action-row">
+                <div class="wxacg-action-row" style="display: flex; align-items: center; flex-wrap: wrap;">
                     <button id="wxacg_btn_generate" class="button button-primary wxacg-btn-simple">
                         開始生成報導
                     </button>
+                    <div style="display: flex; align-items: center; margin-left: 28px;">
+                        <label for="wxacg_ai_style" style="font-weight: 700; color: #d63638; font-size: 14px; white-space: nowrap; margin: 0 8px 0 0; display: inline-block;">風格：</label>
+                        <select id="wxacg_ai_style" class="wxacg-select" style="min-width: 180px; font-weight: 500; margin: 0;">
+                            <option value="default">1. AI預設(直譯改寫)</option>
+                            <option value="professional">2. 正規專業報導</option>
+                            <option value="passionate">3. 熱血巴哈鄉民</option>
+                            <option value="deep">4. 御宅深度賞析</option>
+                            <option value="meme">5. 迷因善意吐嘈風</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- 壓縮減低後的實用型即時監視器屏 -->
@@ -336,6 +346,7 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         $custom_glossary = isset($_POST['custom_glossary']) ? sanitize_textarea_field($_POST['custom_glossary']) : '';
+        $style = isset($_POST['style']) ? sanitize_text_field(trim($_POST['style'])) : 'default';
         $target_category = isset($_POST['target_category']) ? intval($_POST['target_category']) : 9;
         $target_channel = isset($_POST['target_channel']) ? intval($_POST['target_channel']) : 12;
 
@@ -369,6 +380,7 @@ class WXACG_AI_News_Engine_Plugin {
             'post_status' => $post_status,
             'cloud_secret_token' => $cloud_token,
             'target_url' => $target_url,
+            'style' => $style,
             'custom_glossary' => $custom_glossary,
             'target_category_id' => $target_category,
             'target_channel_id' => $target_channel,
