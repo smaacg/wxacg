@@ -130,7 +130,7 @@ class WXACG_AI_News_Engine_Plugin {
                     <div class="wxacg-col">
                         <label for="wxacg_target_url"><strong>新聞網址 (Target URL)</strong></label>
                         <textarea id="wxacg_target_url" class="wxacg-textarea" rows="2" style="height: 54px; min-height: 54px; resize: none;" placeholder="請貼上海外報導原文網址..."></textarea>
-                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                        <div class="wxacg-rec-sources" style="margin-top: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
                             <span style="font-weight: 700; color: #d63638; font-size: 13.5px;">💡 建議新聞來源：</span>
                             <a href="https://www.oricon.co.jp/category/anime/" target="_blank" rel="noopener" class="button" style="text-decoration: none; border-radius: 99px; font-weight: 600; font-size: 13px; padding: 2px 14px;">Oricon</a>
                             <a href="https://www.animatetimes.com/anime/" target="_blank" rel="noopener" class="button" style="text-decoration: none; border-radius: 99px; font-weight: 600; font-size: 13px; padding: 2px 14px;">Animate</a>
@@ -176,7 +176,7 @@ class WXACG_AI_News_Engine_Plugin {
                     <button id="wxacg_btn_generate" class="button button-primary wxacg-btn-simple">
                         開始生成報導
                     </button>
-                    <div style="display: flex; align-items: center; margin-left: 28px;">
+                    <div class="wxacg-style-wrap" style="display: flex; align-items: center; margin-left: 28px;">
                         <label for="wxacg_ai_style" style="font-weight: 700; color: #d63638; font-size: 14px; white-space: nowrap; margin: 0 8px 0 0; display: inline-block;">風格：</label>
                         <select id="wxacg_ai_style" class="wxacg-select" style="min-width: 180px; font-weight: 500; margin: 0;">
                             <option value="default">1. AI預設(直譯改寫)</option>
