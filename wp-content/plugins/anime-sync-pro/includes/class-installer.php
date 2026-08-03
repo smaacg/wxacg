@@ -49,7 +49,7 @@ class Anime_Sync_Installer {
 	 * activate()/maybe_upgrade() 會寫入 option 'anime_sync_db_version'，
 	 * dashboard 系統資訊即可正確顯示，不再 fallback 成「—」。
 	 */
-	private const DB_VERSION = '1.1';
+	private const DB_VERSION = '1.2';
 
 	/**
 	 * 季度 seed：往前 N 年 + 當年 + 當年+1 的範圍
@@ -107,11 +107,12 @@ class Anime_Sync_Installer {
 
 	public function maybe_upgrade(): bool {
 		$current_version = get_option( 'anime_sync_version', '0.0.0' );
+		$db_version      = get_option( 'anime_sync_db_version', '' );
 
-		if ( version_compare( $current_version, ANIME_SYNC_PRO_VERSION, '>=' ) ) {
+		if ( version_compare( $current_version, ANIME_SYNC_PRO_VERSION, '>=' ) && $db_version === self::DB_VERSION ) {
 			// [Fix-M3] 即使外掛版本沒變，若 db_version 從未寫入（舊站升級而來），
 			// 也補寫一次，確保 dashboard 不再顯示「—」。
-			if ( get_option( 'anime_sync_db_version', '' ) === '' ) {
+			if ( $db_version === '' ) {
 				update_option( 'anime_sync_db_version', self::DB_VERSION );
 			}
 			return false;
@@ -472,7 +473,16 @@ class Anime_Sync_Installer {
 			anilist_id     BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
 			mal_id         BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
 			name           VARCHAR(255) NOT NULL DEFAULT '',
+			name_cn        VARCHAR(255) NOT NULL DEFAULT '',
 			name_original  VARCHAR(255) NOT NULL DEFAULT '',
+			gender         VARCHAR(20) NOT NULL DEFAULT '',
+			birthday       VARCHAR(50) NOT NULL DEFAULT '',
+			bloodtype      VARCHAR(20) NOT NULL DEFAULT '',
+			height         VARCHAR(50) NOT NULL DEFAULT '',
+			weight         VARCHAR(50) NOT NULL DEFAULT '',
+			summary        LONGTEXT,
+			aliases_json   LONGTEXT,
+			infobox_json   LONGTEXT,
 			image          TEXT,
 			created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -493,6 +503,14 @@ class Anime_Sync_Installer {
 			mal_id         BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
 			name           VARCHAR(255) NOT NULL DEFAULT '',
 			name_original  VARCHAR(255) NOT NULL DEFAULT '',
+			gender         VARCHAR(20) NOT NULL DEFAULT '',
+			birthday       VARCHAR(50) NOT NULL DEFAULT '',
+			bloodtype      VARCHAR(20) NOT NULL DEFAULT '',
+			height         VARCHAR(50) NOT NULL DEFAULT '',
+			weight         VARCHAR(50) NOT NULL DEFAULT '',
+			summary        LONGTEXT,
+			aliases_json   LONGTEXT,
+			infobox_json   LONGTEXT,
 			image          TEXT,
 			type           VARCHAR(20) NOT NULL DEFAULT 'cv',
 			created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

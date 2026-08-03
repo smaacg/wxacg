@@ -1,26 +1,30 @@
 <?php
 /**
  * Plugin Name: 角色/聲優自動回補 (wp-cron, 跳過空資料版)
- * Description: 每5分鐘補一批 BGM 資料；補完仍無 summary 的 bgm_id 會被記入跳過名單，避免死循環。
+ * Description: 每5分鐘補一批 BGM 資料；本機(LocalWP)自動停用，只在正式站執行。補完仍無 summary 的 bgm_id 會記入跳過名單，避免死循環。
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-/* ===== 【雙重智慧安防：杜絕本地端狂戰卡頓與無數轉圈報錯災厄】 ===== */
-# 1. 偵測若為本次 PC 開發或測試領空 (WP_ENVIRONMENT_TYPE為local、或網址含有 .local / .test / localhost / 127.0.0.1 等)，本機直接全體靜默打烊、釋收安養
-if (
-    (function_exists('wp_get_environment_type') && wp_get_environment_type() === 'local') ||
-    (defined('WP_ENVIRONMENT_TYPE') && WP_ENVIRONMENT_TYPE === 'local') ||
-    strpos(home_url(), '.local') !== false ||
-    strpos(home_url(), '.test') !== false ||
-    strpos(home_url(), 'localhost') !== false ||
-    strpos(home_url(), '127.0.0.1') !== false
-) {
-    return; # 當下宣告封筆，後方的定時超負荷輪詢全面免出
+/* ===== 環境守門：只在「正式站」執行，本機(LocalWP)一律靜默 =====
+ * 判斷不碰 $wpdb、不碰 home_url()，只用常數與檔案路徑，絕對安全、載入極早也不會出錯。
+ */
+if ( ! my_backfill_is_production() ) {
+    return; // 本機：整支不載入任何 hook，不排程、不寫入、不查 DB、不報錯
 }
-# 2. 探究即便在遠海主網，為防傷亡仍須先經審，查證 wp_anime_characters 資料庫中含 name_cn 新欄才被核准闖關
-global $wpdb;
-if (empty($wpdb->get_results("SHOW COLUMNS FROM `wp_anime_characters` LIKE 'name_cn'"))) {
-    return; # 若遭逢尚未蓋整齊之場域（含未擴建之分支站），當下即收兵避免釀災
+
+function my_backfill_is_production(): bool {
+    // 1. LocalWP 預設 WP_ENVIRONMENT_TYPE = 'local'
+    if ( function_exists( 'wp_get_environment_type' ) && wp_get_environment_type() === 'local' ) {
+        return false;
+    }
+    if ( defined( 'WP_ENVIRONMENT_TYPE' ) && WP_ENVIRONMENT_TYPE === 'local' ) {
+        return false;
+    }
+    // 2. 檔案實體路徑必須是正式站路徑（LocalWP 的路徑一定不同，雙保險）
+    if ( strpos( __FILE__, '/home/u393305917/domains/weixiaoacg.com/public_html' ) === false ) {
+        return false;
+    }
+    return true;
 }
 
 /* ===== 開關：一次只開一個 =====
