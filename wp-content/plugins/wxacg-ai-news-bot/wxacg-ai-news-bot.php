@@ -181,7 +181,7 @@ class WXACG_AI_News_Engine_Plugin {
                         <select id="wxacg_ai_style" class="wxacg-select" style="min-width: 180px; font-weight: 500; margin: 0;">
                             <option value="default">1. AI預設(直譯改寫)</option>
                             <option value="professional">2. 正規專業報導</option>
-                            <option value="passionate">3. 熱血巴哈鄉民</option>
+                            <option value="passionate">3. 熱血網路鄉民</option>
                             <option value="deep">4. 御宅深度賞析</option>
                             <option value="meme">5. 迷因善意吐嘈風</option>
                         </select>
