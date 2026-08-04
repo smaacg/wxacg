@@ -134,7 +134,7 @@ class WXACG_AI_News_Engine_Plugin {
                             <span style="font-weight: 700; color: #d63638; font-size: 13.5px;">💡 建議新聞來源：</span>
                             <a href="https://www.oricon.co.jp/category/anime/" target="_blank" rel="noopener" class="button" style="text-decoration: none; border-radius: 99px; font-weight: 600; font-size: 13px; padding: 2px 14px;">Oricon</a>
                             <a href="https://www.animatetimes.com/anime/" target="_blank" rel="noopener" class="button" style="text-decoration: none; border-radius: 99px; font-weight: 600; font-size: 13px; padding: 2px 14px;">Animate</a>
-                            <a href="https://animeanime.jp/category/report/japan/latest/" target="_blank" rel="noopener" class="button" style="text-decoration: none; border-radius: 99px; font-weight: 600; font-size: 13px; padding: 2px 14px;">Anime!Anime!</a>
+                            <a href="https://s.animeanime.jp/" target="_blank" rel="noopener" class="button" style="text-decoration: none; border-radius: 99px; font-weight: 600; font-size: 13px; padding: 2px 14px;">Anime!Anime!</a>
                         </div>
                     </div>
 
