@@ -219,7 +219,7 @@ class WXACG_AI_News_Engine_Plugin {
                             <th scope="row"><label for="wxacg_ai_news_app_password">WordPress 應用程式密碼<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
                                 <input type="text" id="wxacg_ai_news_app_password" name="wxacg_ai_news_app_password" class="regular-text code" value="<?php echo esc_attr($app_pass); ?>" placeholder="XXXX XXXX XXXX XXXX XXXX XXXX">
-                                <p class="description">本欄位採個人獨立紀錄。新來者或不同小編進此必呈空白，各自只需去個人中心申請乙組貼回按下方的儲存，從不互犯或露餡。</p>
+                                <p class="description">採個人獨立紀錄【使用者 ➔ 個人資料 ➔ 應用程式密碼➔ 新增一組密碼並貼回儲存】</p>
                             </td>
                         </tr>
                         <tr>
@@ -233,33 +233,33 @@ class WXACG_AI_News_Engine_Plugin {
                             <th scope="row"><label for="wxacg_ai_news_api_key">AI 授權金鑰 (API Key)<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
                                 <input type="password" id="wxacg_ai_news_api_key" name="wxacg_ai_news_api_key" class="regular-text code" value="<?php echo esc_attr($api_key); ?>" placeholder="在此填寫專屬於您本人動用的 AI API Key...">
-                                <p class="description">同樣採私人護禦保存！一人填放僅自人獨自調度運算，保障付費額度或權限無嫌隱患。</p>
+                                <p class="description">採個人獨立紀錄【金鑰僅供本人獨立運算調用，保障專屬於您的權限與付費額度】</p>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="wxacg_ai_news_model">使用模型名稱<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
                                 <input type="text" id="wxacg_ai_news_model" name="wxacg_ai_news_model" class="regular-text code" value="<?php echo esc_attr($model_name); ?>" placeholder="gemini-3.6-flash">
-                                <p class="description">開放填入形式，並為每名個人登入主編所私設領用。若為 Google AI，目前強烈推薦為 <code>gemini-3.6-flash</code>。</p>
+                                <p class="description">開放填入形式【AI的模型名稱。若為 Google AI，推薦 <code>gemini-3.6-flash</code>】</p>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row"><label>文章默認產出狀態<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
-                                <label><input type="radio" name="wxacg_ai_news_post_status" value="draft" <?php checked($post_status, 'draft'); ?>> 存放在草稿 (Draft)</label> &nbsp;&nbsp;&nbsp;
-                                <label><input type="radio" name="wxacg_ai_news_post_status" value="publish" <?php checked($post_status, 'publish'); ?>> 立即正式發行 (Publish)</label>
-                                <p class="description">不同的小編帳號均可隨自愛挑要送進草稿匣精煉或直出公海發行，不互相搶局。</p>
+                                <label><input type="radio" name="wxacg_ai_news_post_status" value="draft" <?php checked($post_status, 'draft'); ?>> 草稿 (Draft)</label> &nbsp;&nbsp;&nbsp;
+                                <label><input type="radio" name="wxacg_ai_news_post_status" value="publish" <?php checked($post_status, 'publish'); ?>> 發佈(Publish)</label>
+                                <p class="description">AI產出文章後的後台狀態【草稿or直接發佈】</p>
                             </td>
                         </tr>
 
                         <!-- 加密防禦大門與密碼手設功能 -->
                         <tr class="wxacg-lock-section">
                             <th scope="row">
-                                <label style="color:#c92a2a; font-weight:bold;">雲端 AI 伺服端點與密碼上鎖</label>
+                                <label style="color:#c92a2a; font-weight:bold;">雲端 AI 伺服端點</label>
                             </th>
                             <td>
                                 <div id="wxacg_lock_guard_area" class="lock-panel">
-                                    <p style="margin-top:0;"><strong>此欄位已啟用資安鎖，防止他人或小編因點按出錯竄改您珍貴的伺服網頁點址。</strong></p>
+                                    <p style="margin-top:0;"><strong>已啟用資安鎖，禁止隨意竄改雲端 AI 伺服端點位置</strong></p>
                                     <div>輸入解鎖密碼才能閱覽或修改：</div>
                                     <div style="margin-top:6px;">
                                         <input type="password" id="wxacg_unlock_input" class="regular-text" placeholder="解鎖通行口令">
