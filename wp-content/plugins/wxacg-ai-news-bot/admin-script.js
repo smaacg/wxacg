@@ -7,7 +7,7 @@ jQuery(document).ready(function($) {
     let currentTaskID = "";
     let terminalScreen = $("#wxacg_terminal_screen");
     let pollCount = 0;           // 本次任務已累積的輪詢次數
-    const MAX_POLL_COUNT = 120;  // 最多輪詢 120 次（約 4 分鐘），防止 Cloud Run 掛掉時無限空轉
+    const MAX_POLL_COUNT = 300;  // 最多輪詢 300 次（約 10 分鐘），足以涵蓋 API 冷卻重試與多階段備援的完整執行時間
 
     function getTerminalTime() {
         let d = new Date();

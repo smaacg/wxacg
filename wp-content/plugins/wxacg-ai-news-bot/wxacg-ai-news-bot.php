@@ -129,7 +129,7 @@ class WXACG_AI_News_Engine_Plugin {
                 <div class="wxacg-grid">
                     <div class="wxacg-col">
                         <label for="wxacg_target_url"><strong>新聞網址 (Target URL)</strong></label>
-                        <textarea id="wxacg_target_url" class="wxacg-textarea" rows="2" style="height: 54px; min-height: 54px; resize: none;" placeholder="請貼上海外報導原文網址..."></textarea>
+                        <textarea id="wxacg_target_url" class="wxacg-textarea" rows="3" style="height: 80px; min-height: 80px; resize: vertical;" placeholder="請貼上海外報導原文網址...&#10;多頁新聞可每行貼一個網址（第1頁↵第2頁）"></textarea>
                         <div class="wxacg-rec-sources" style="margin-top: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
                             <span style="font-weight: 700; color: #d63638; font-size: 13.5px;">💡 建議新聞來源：</span>
                             <a href="https://www.oricon.co.jp/category/anime/" target="_blank" rel="noopener" class="button" style="text-decoration: none; border-radius: 99px; font-weight: 600; font-size: 13px; padding: 2px 14px;">Oricon</a>
@@ -346,7 +346,12 @@ class WXACG_AI_News_Engine_Plugin {
             wp_send_json_error(['message' => '毫無足夠管理與主編級操作權益！']);
         }
 
-        $target_url = isset($_POST['target_url']) ? esc_url_raw($_POST['target_url']) : '';
+        # 支援多行 URL 輸入（方案A：每行一個網址），逐行以 esc_url_raw 清理後以換行合併
+        $raw_urls_input = isset($_POST['target_url']) ? sanitize_textarea_field(trim($_POST['target_url'])) : '';
+        $url_lines = array_filter(array_map(function($line) {
+            return esc_url_raw(trim($line));
+        }, explode("\n", $raw_urls_input)));
+        $target_url = implode("\n", $url_lines);
         if (empty($target_url)) {
             wp_send_json_error(['message' => '不可以留下海外原始 URL 網格為空值。']);
         }
