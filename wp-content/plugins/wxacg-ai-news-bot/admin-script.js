@@ -6,6 +6,8 @@ jQuery(document).ready(function($) {
     let pollingTimer = null;
     let currentTaskID = "";
     let terminalScreen = $("#wxacg_terminal_screen");
+    let pollCount = 0;           // 本次任務已累積的輪詢次數
+    const MAX_POLL_COUNT = 120;  // 最多輪詢 120 次（約 4 分鐘），防止 Cloud Run 掛掉時無限空轉
 
     function getTerminalTime() {
         let d = new Date();
@@ -97,6 +99,7 @@ jQuery(document).ready(function($) {
                     logToTerminal("遠端機房成功領件！ task_id : " + currentTaskID, "success");
                     logToTerminal("正展開 Live 監測，每 2 秒一次接收雲端實景運營工務日誌...");
                     
+                    pollCount = 0;  // 啟動新輪詢前重置計數器
                     pollingTimer = setInterval(pollTaskStatus, 2000);
                 } else {
                     logToTerminal("❌ 無法通報任務： " + res.data.message, "error");
@@ -113,6 +116,16 @@ jQuery(document).ready(function($) {
     // 4. 定期輪詢獲取遠端伺服工作狀況
     function pollTaskStatus() {
         if (!currentTaskID) return;
+
+        // 超過最大輪詢次數，自動放棄，防止 Cloud Run 掛掉或任務卡死時無限佔用資源
+        pollCount++;
+        if (pollCount >= MAX_POLL_COUNT) {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+            logToTerminal("⚠️ 輪詢已達上限（" + MAX_POLL_COUNT + " 次 / 約 4 分鐘），雲端任務可能仍在執行，請稍後至 WordPress 後台確認是否已發佈。", "error");
+            $("#wxacg_btn_generate").prop("disabled", false).text("開始生成報導");
+            return;
+        }
 
         $.ajax({
             url: wxacgAIParams.ajaxurl,
@@ -137,8 +150,8 @@ jQuery(document).ready(function($) {
                             } else if (line.indexOf("✔") !== -1 || line.indexOf("成功") !== -1 || line.indexOf("完成") !== -1) {
                                 type = "success";
                             }
-                            var timeStr = "<span class=\"term-time\">" + getTerminalTime() + "</span> ";
-                            var lineDiv = $("<div class=\"term-line term-line-" + (type === 'error' ? 'err' : (type === 'success' ? 'ok' : 'normal')) + "\">" + timeStr + "&gt; " + $("<div>").text(line).html() + "</div>");
+                            // 伺服器 log 本身已含時間戳（如 [05:12:44]），不額外加瀏覽器本機時間避免重複顯示
+                            var lineDiv = $("<div class=\"term-line term-line-" + (type === 'error' ? 'err' : (type === 'success' ? 'ok' : 'normal')) + "\">" + "&gt; " + $("<div>").text(line).html() + "</div>");
                             terminalScreen.append(lineDiv);
                         });
                         terminalScreen.scrollTop(terminalScreen[0].scrollHeight);

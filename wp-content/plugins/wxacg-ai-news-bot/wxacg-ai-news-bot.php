@@ -429,7 +429,7 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         $status_url = rtrim($cloud_url, '/') . "/api/status/" . urlencode($task_id);
-        $response = wp_remote_get($status_url, ['timeout' => 4]);
+        $response = wp_remote_get($status_url, ['timeout' => 6]);  // 6 秒容許 Cloud Run 冷啟動的回應延遲
 
         if (is_wp_error($response)) {
             wp_send_json_error(['message' => '本次拿取日誌跳掉一針，順待下一個時間發打。']);
