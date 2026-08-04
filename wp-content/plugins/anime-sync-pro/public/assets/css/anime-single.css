@@ -648,13 +648,35 @@ body.single-anime .entry-content>.asd-wrap {
 /* ================================================================
    4. Hero 右側評分欄
    單一定義（取代過去四份互相覆寫的版本）。
-   桌面（≥901px）顯示為毛玻璃卡片，並與左側海報等高
-   （見上方 .asd-hero-new 的 align-items: stretch）；
-   平板／手機隱藏。
+   手機／平板（<901px）：Hero 下方全寬毛玻璃卡片，
+     使用者仍可看到分數與評分表單。
+   桌面（≥901px）：改為右側欄，並與左側海報等高
+     （見上方 .asd-hero-new 的 align-items: stretch）。
    ================================================================ */
 
 .asd-wrap .asd-hero-new>.asd-hside-block {
-  display: none;
+  display: block;
+  grid-column: 1 / -1;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 4px 0 0;
+  padding: 16px;
+
+  color: var(--asd-text);
+
+  border: 1px solid var(--glass-border);
+  border-radius: var(--asd-radius-lg);
+  background: var(--glass-bg);
+
+  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .04);
+
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+
+  box-sizing: border-box;
+  word-break: break-word;
 }
 
 @media (min-width: 901px) {
@@ -662,6 +684,7 @@ body.single-anime .entry-content>.asd-wrap {
     display: flex;
     flex-direction: column;
     align-self: stretch;
+    grid-column: auto;
 
     width: var(--asd-hero-side-w);
     min-width: 0;
@@ -2472,7 +2495,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-wrap .asd-stream-disclaimer {
-  margin: 28px 0 0;
+  margin: 12px 0 0;
   color: var(--asd-text-muted);
   font-size: 12px;
   line-height: 1.7;
