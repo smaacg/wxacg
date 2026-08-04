@@ -55,6 +55,86 @@
     .wxacg-grid {
         grid-template-columns: 1fr;
     }
+
+    /* 1. 建議新聞來源：讓標題獨自盤踞一樓第一列，三方鏈接和善攜手平坐第二樓 */
+    .wxacg-rec-sources {
+        gap: 8px !important;
+    }
+
+    .wxacg-rec-sources > span {
+        flex-basis: 100% !important;
+        width: 100% !important;
+        margin-bottom: 6px !important;
+    }
+
+    /* 2. 開始生成報導按紐：雄坐正中最前席，狠打間隔杜絕下層風格貼背刺痛 */
+    .wxacg-action-row {
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .wxacg-btn-simple {
+        width: 80% !important;
+        max-width: 320px !important;
+        margin-bottom: 24px !important;
+    }
+
+    .wxacg-style-wrap {
+        margin-left: 0 !important;
+        width: 100% !important;
+        justify-content: center !important;
+    }
+
+    /* 3. 設定表格破局強放：徹底解決 22% 短欄壓毀字詞、腰斬爆直欄與揉擠災亂 */
+    .wxacg-table, .wxacg-table tbody, .wxacg-table tr, .wxacg-table th, .wxacg-table td {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .wxacg-table th {
+        padding-bottom: 4px !important;
+        padding-top: 18px !important;
+    }
+
+    .wxacg-table td {
+        padding-top: 4px !important;
+        padding-bottom: 14px !important;
+    }
+
+    /* 一樓二樓尊貴切分：主名舒張盤踞首層，藍色說明 [帳戶個體獨立保存] 化為勳章穩立次樓 */
+    .wxacg-table th label {
+        display: block !important;
+        line-height: 1.5 !important;
+    }
+
+    .wxacg-table th label small {
+        display: inline-block !important;
+        margin-top: 6px !important;
+        font-size: 12.5px !important;
+        background-color: #e3f2fd !important;
+        color: #0d47a1 !important;
+        padding: 3px 10px !important;
+        border-radius: 4px !important;
+        letter-spacing: 0.3px;
+    }
+
+    /* 4. 資安解鎖帶拉遠：拆出開闊 12px 透氣草園，拯救小鎖鍵不再狼狽緊蹭於鞋跟 */
+    .lock-panel input[type="password"] {
+        width: 100% !important;
+        margin-right: 0 !important;
+        margin-bottom: 12px !important;
+    }
+
+    #wxacg_btn_unlock {
+        margin-top: 2px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 22px !important;
+        height: 36px !important;
+    }
 }
 
 .wxacg-col {
