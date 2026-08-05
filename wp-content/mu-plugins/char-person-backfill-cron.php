@@ -30,7 +30,7 @@ function my_backfill_is_production(): bool {
 /* ===== 開關：一次只開一個 =====
  * 'characters' = 補角色；'persons' = 補聲優；'off' = 停止
  */
-define( 'MY_BACKFILL_MODE', 'characters' );
+define( 'MY_BACKFILL_MODE', 'persons' );
 define( 'MY_BACKFILL_BATCH', 60 );
 // 角色缺量降到這個值以下就自動切換去補聲優
 define( 'MY_CHAR_DONE_THRESHOLD', 210 );
