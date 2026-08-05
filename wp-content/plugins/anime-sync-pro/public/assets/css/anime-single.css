@@ -3604,3 +3604,471 @@ nav.asd-tabs a.asd-tab.is-active::after {
 /* =================================================================
    END — Anime Sync Pro anime-single.css v20.0 (optimized)
    ================================================================= */
+
+/* =====================================================
+   v20.1 手機版改成測試站排列
+   ===================================================== */
+@media (max-width:560px) {
+
+  /* Hero 保持緊湊 */
+  .asd-wrap .asd-hero-new {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px 0;
+  }
+
+  .asd-wrap .asd-hero-body {
+    display: grid;
+    gap: 11px;
+  }
+
+  /* 強制顯示作品標題 */
+  .asd-wrap .asd-hero-title {
+    display: block !important;
+    visibility: visible !important;
+    margin: 0 !important;
+    color: #fff !important;
+    font-size: 22px !important;
+    line-height: 1.3 !important;
+    font-weight: 800 !important;
+  }
+
+  .asd-wrap .asd-hero-native,
+  .asd-wrap .asd-hero-romaji {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  /* 標籤縮小 */
+  .asd-wrap .asd-hero-badges {
+    gap: 6px;
+  }
+
+  .asd-wrap .asd-hbadge {
+    min-height: 27px;
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  /* 分數膠囊 */
+  .asd-wrap .asd-hero-scores-new {
+    gap: 6px;
+  }
+
+  .asd-wrap .asd-score-pill {
+    gap: 5px;
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .asd-wrap .asd-sp-val {
+    font-size: 12px;
+  }
+
+  .asd-wrap .asd-sp-label {
+    font-size: 9px;
+  }
+
+  /* 操作按鈕：改回測試站一排兩個 */
+  .asd-wrap .asd-hero-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .asd-wrap .asd-hero-actions .asd-action-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* 手機評分區 */
+  .asd-wrap .asd-hero-new>.asd-hside-block {
+    grid-column: 1 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+  }
+}
+
+/* 超窄手機仍維持兩欄 */
+@media (max-width:380px) {
+  .asd-wrap .asd-hero-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .asd-wrap .asd-hero-actions .asd-action-btn {
+    padding: 6px 4px !important;
+    font-size: 10px !important;
+  }
+}
+
+/* =====================================================
+   手機版：串流平台 2 欄／線上看 3 欄
+   ===================================================== */
+@media (max-width:560px) {
+
+  /* 串流平台：一排兩個 */
+  .asd-wrap .asd-stream-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .asd-wrap .asd-stream-btn,
+  .asd-wrap .asd-stream-btn--icon-only {
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    padding: 8px !important;
+  }
+
+  .asd-wrap .asd-stream-label {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* 線上看：一排三個 */
+  .asd-wrap .asd-ow-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .asd-wrap .asd-ow-tab {
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 7px 4px !important;
+    font-size: 10px !important;
+  }
+
+  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* =====================================================
+   手機版串流平台／線上看美化版
+   ===================================================== */
+@media (max-width:560px) {
+
+  /* 區塊縮排 */
+  .asd-wrap .asd-stream-region {
+    margin-bottom: 10px !important;
+    padding: 12px !important;
+    border-radius: 11px !important;
+    background: rgba(255, 255, 255, .035) !important;
+  }
+
+  .asd-wrap .asd-stream-region-head {
+    margin-bottom: 10px !important;
+    font-size: 12px !important;
+  }
+
+  /* ── 串流平台：一排兩個 ── */
+  .asd-wrap .asd-stream-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .asd-wrap .asd-stream-btn,
+  .asd-wrap .asd-stream-btn--icon-only {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    gap: 7px !important;
+    padding: 8px 9px !important;
+    border-radius: 10px !important;
+    background: rgba(255, 255, 255, .055) !important;
+    box-shadow:
+      0 3px 9px rgba(0, 0, 0, .24),
+      inset 0 1px rgba(255, 255, 255, .04) !important;
+  }
+
+  .asd-wrap .asd-stream-btn:hover {
+    background: rgba(99, 168, 255, .13) !important;
+    transform: none !important;
+  }
+
+  /* 平台圖示統一大小 */
+  .asd-wrap .asd-stream-icon,
+  .asd-wrap .asd-stream-btn--icon-only .asd-stream-icon {
+    flex: 0 0 26px !important;
+    width: 26px !important;
+    height: 26px !important;
+    padding: 3px !important;
+    border-radius: 7px !important;
+  }
+
+  /* 平台名稱最多顯示兩行 */
+  .asd-wrap .asd-stream-label {
+    display: -webkit-box !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    color: rgba(225, 231, 240, .9) !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  /* ── 線上看：一排三個 ── */
+  .asd-wrap .asd-ow-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    padding: 2px 0 8px !important;
+    overflow: visible !important;
+  }
+
+  .asd-wrap .asd-ow-tab {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 36px !important;
+    gap: 4px !important;
+    padding: 6px 5px !important;
+    border-radius: 9px !important;
+    font-size: 10px !important;
+    box-shadow:
+      0 2px 7px rgba(0, 0, 0, .22),
+      inset 0 1px rgba(255, 255, 255, .035) !important;
+  }
+
+  .asd-wrap .asd-ow-tab.is-active {
+    color: #fff !important;
+    border-color: rgba(99, 168, 255, .55) !important;
+    background: linear-gradient(135deg,
+        rgba(64, 128, 208, .75),
+        rgba(99, 104, 238, .75)) !important;
+  }
+
+  .asd-wrap .asd-ow-tab .asd-pv-tab-icon {
+    flex: 0 0 auto !important;
+    font-size: 8px !important;
+  }
+
+  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* 380px 以下避免內容擠爆 */
+@media (max-width:380px) {
+
+  .asd-wrap .asd-stream-btn,
+  .asd-wrap .asd-stream-btn--icon-only {
+    gap: 5px !important;
+    padding: 7px !important;
+  }
+
+  .asd-wrap .asd-stream-label {
+    font-size: 9px !important;
+  }
+
+  .asd-wrap .asd-ow-tab {
+    min-height: 34px !important;
+    padding: 5px 3px !important;
+  }
+}
+
+/* =====================================================
+   STAFF 手機版完整整合
+   一排兩張／預設數量由 PHP 控制／職位姓名同一行
+   ===================================================== */
+@media (max-width:560px) {
+
+  /* STAFF 外層區塊 */
+  .asd-wrap .asd-section:has(.asd-staff-grid-v2) {
+    padding: 13px !important;
+    border-radius: 15px !important;
+  }
+
+  /* STAFF 標題 */
+  .asd-wrap .asd-section:has(.asd-staff-grid-v2) .asd-section-title {
+    margin: 0 0 10px !important;
+    padding: 0 0 10px !important;
+    font-size: 15px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* 一排固定兩張 */
+  .asd-wrap .asd-staff-grid-v2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  /* STAFF 卡片 */
+  .asd-wrap .asd-staff-card-v2 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 50px !important;
+    padding: 8px 10px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(255, 255, 255, .07) !important;
+    border-radius: 9px !important;
+    background: rgba(255, 255, 255, .105) !important;
+    box-shadow:
+      0 3px 8px rgba(0, 0, 0, .28),
+      inset 0 1px 0 rgba(255, 255, 255, .035) !important;
+    transform: none !important;
+  }
+
+  .asd-wrap .asd-staff-card-v2:hover {
+    border-color: rgba(99, 168, 255, .18) !important;
+    background: rgba(255, 255, 255, .13) !important;
+    box-shadow:
+      0 4px 10px rgba(0, 0, 0, .32),
+      inset 0 1px 0 rgba(255, 255, 255, .045) !important;
+    transform: none !important;
+  }
+
+  /* 保持 PHP 原本的隱藏功能 */
+  .asd-wrap .asd-staff-card-v2.asd-staff-hidden {
+    display: none !important;
+  }
+
+  /* 職位和姓名同一行 */
+  .asd-wrap .asd-staff-info {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 4px !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+  }
+
+  /* 職位 */
+  .asd-wrap .asd-staff-role {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    color: rgba(208, 215, 224, .38) !important;
+    font-size: 10px !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* 姓名 */
+  .asd-wrap .asd-staff-name {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    color: #e4e9ef !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1.4 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .asd-wrap .asd-staff-name a {
+    color: inherit !important;
+  }
+
+  /* 隱藏原文姓名，避免卡片變高 */
+  .asd-wrap .asd-staff-native {
+    display: none !important;
+  }
+
+  /* 顯示全部按鈕外層 */
+  .asd-wrap .asd-staff-grid-v2+.asd-toggle-wrap {
+    display: flex !important;
+    justify-content: center !important;
+    margin-top: 14px !important;
+  }
+
+  /* 顯示全部按鈕 */
+  .asd-wrap .asd-staff-toggle {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 120px !important;
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 6px 14px !important;
+    color: rgba(208, 215, 224, .55) !important;
+    border: 1px solid rgba(255, 255, 255, .09) !important;
+    border-radius: 999px !important;
+    background: rgba(255, 255, 255, .035) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .025) !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.3 !important;
+    transform: none !important;
+  }
+
+  .asd-wrap .asd-staff-toggle:hover {
+    color: #fff !important;
+    border-color: rgba(99, 168, 255, .3) !important;
+    background: rgba(99, 168, 255, .1) !important;
+    transform: none !important;
+  }
+}
+
+/* 超窄手機微調，仍維持一排兩張 */
+@media (max-width:380px) {
+
+  .asd-wrap .asd-staff-grid-v2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .asd-wrap .asd-staff-card-v2 {
+    min-height: 46px !important;
+    padding: 7px 6px !important;
+  }
+
+  .asd-wrap .asd-staff-info {
+    gap: 3px !important;
+  }
+
+  .asd-wrap .asd-staff-role {
+    font-size: 9px !important;
+  }
+
+  .asd-wrap .asd-staff-name {
+    font-size: 10px !important;
+  }
+}
+
+/* ===== STAFF 手機版完整整合 END ===== */
