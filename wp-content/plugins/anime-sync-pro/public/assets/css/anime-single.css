@@ -4368,3 +4368,144 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ===== Mobile Hero 最終整合版 END ===== */
+
+/* =====================================================
+   串流平台＋線上看：手機字體清晰放大版
+   ===================================================== */
+@media (max-width:560px) {
+
+  /* 區塊標題 */
+  .asd-wrap .asd-section-title {
+    color: #f4f7fb !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+    line-height: 1.35 !important;
+  }
+
+  /* 地區標題 */
+  .asd-wrap .asd-stream-region-head {
+    margin-bottom: 11px !important;
+    color: #e8edf4 !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    line-height: 1.4 !important;
+  }
+
+  /* 串流平台：一排兩個 */
+  .asd-wrap .asd-stream-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .asd-wrap .asd-stream-btn,
+  .asd-wrap .asd-stream-btn--icon-only {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+    border-color: rgba(140, 175, 220, .32) !important;
+    border-radius: 10px !important;
+    background: rgba(255, 255, 255, .075) !important;
+  }
+
+  /* 平台圖示 */
+  .asd-wrap .asd-stream-icon,
+  .asd-wrap .asd-stream-btn--icon-only .asd-stream-icon {
+    flex: 0 0 29px !important;
+    width: 29px !important;
+    height: 29px !important;
+    padding: 3px !important;
+    border-radius: 7px !important;
+  }
+
+  /* 平台名稱 */
+  .asd-wrap .asd-stream-label {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    color: #f0f4f8 !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1.3 !important;
+    letter-spacing: 0 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .32) !important;
+  }
+
+  /* 提示與警告文字 */
+  .asd-wrap .asd-stream-note,
+  .asd-wrap .asd-stream-notice,
+  .asd-wrap .asd-stream-warning {
+    color: #dce2e9 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 1.65 !important;
+  }
+
+  /* 線上看分頁：一排三個 */
+  .asd-wrap .asd-ow-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .asd-wrap .asd-ow-tab {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 39px !important;
+    padding: 7px 4px !important;
+    color: #cbd3dc !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, .05) !important;
+  }
+
+  .asd-wrap .asd-ow-tab.is-active {
+    color: #fff !important;
+    border-color: rgba(105, 154, 255, .75) !important;
+    background: linear-gradient(135deg,
+        rgba(62, 130, 210, .95),
+        rgba(91, 82, 205, .95)) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .3) !important;
+  }
+
+  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
+    overflow: hidden !important;
+    color: inherit !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* 全區文字渲染清晰 */
+  .asd-wrap .asd-stream-region,
+  .asd-wrap .asd-ow-tabs {
+    text-rendering: optimizeLegibility !important;
+    -webkit-font-smoothing: antialiased !important;
+  }
+}
+
+/* 超窄手機，避免一排三個擠壓 */
+@media (max-width:380px) {
+  .asd-wrap .asd-stream-label {
+    font-size: 11px !important;
+  }
+
+  .asd-wrap .asd-ow-tab,
+  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
+    font-size: 11px !important;
+  }
+}
