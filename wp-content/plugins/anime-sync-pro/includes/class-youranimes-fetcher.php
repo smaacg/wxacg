@@ -5,6 +5,9 @@
  * 從 YourAnimes 動畫頁抓取台灣串流平台連結，自動填入 ACF 欄位並勾選對應 checkbox。
  *
  * 變更紀錄：
+ * - [v1.6.0] write_to_acf() 尾端新增 maybe_fill_distributor()：同步抓到台灣自家平台
+ *            （木棉花/羚邦/曼迪/回歸線/車庫）時，若代理商欄位為空，自動推導並填入
+ *            anime_tw_distributor。僅在空白時填，不覆蓋人工已選的值。
  * - [v1.5.0] parse_streams() 中配區新增 YouTube 特判：改用連內文的 regex（PREG_SET_ORDER），
  *            YouTube 連結先抓 alt 文字，再用 youtube_alt_map 比對頻道關鍵字（如 Muse/木棉花、
  *            Ani-One），修正「木棉花 YouTube 國語配音連結在中配區被整個略過、抓不進來」的問題。
@@ -71,14 +74,11 @@ class Anime_Sync_YourAnimes_Fetcher {
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_scripts' ] );
 
         // [v1.4.0] 偵測 anime_youranimes_url 欄位一有變化就自動排程單篇同步。
-        //   用 updated_post_meta / added_post_meta 而非 acf/save_post，這樣不管是
-        //   後台手動填、還是以後有自動匯入腳本直接寫入這個 meta key，都會被抓到，
-        //   涵蓋範圍比只綁 ACF 儲存事件更廣。
         add_action( 'updated_post_meta', [ $this, 'maybe_auto_sync_on_meta_change' ], 10, 4 );
         add_action( 'added_post_meta',   [ $this, 'maybe_auto_sync_on_meta_change' ], 10, 4 );
         add_action( self::AUTO_SYNC_HOOK, [ $this, 'run_single_sync' ], 10, 1 );
 
-        // [v1.1.0] 每日 cron（保留作為安全網：處理熔斷期間漏掉的、或單筆排程失敗的補漏）
+        // [v1.1.0] 每日 cron（保留作為安全網）
         add_filter( 'cron_schedules', [ $this, 'add_daily_schedule' ] );
         add_action( 'init', [ $this, 'maybe_schedule_cron' ] );
         add_action( self::CRON_HOOK, [ $this, 'run_daily_sync' ] );
@@ -181,7 +181,7 @@ class Anime_Sync_YourAnimes_Fetcher {
             wp_send_json_error( [ 'message' => '網址格式錯誤，請使用 https://youranimes.tw/animes/XXXX 格式' ] );
         }
 
-        // 手動同步前，先確保欄位裡的網址已存檔（AJAX 送來的以表單值為準，寫回 meta 供 sync_post 讀取）
+        // 手動同步前，先確保欄位裡的網址已存檔
         update_post_meta( $post_id, 'anime_youranimes_url', $url );
 
         // Circuit breaker：熔斷中直接拒絕
@@ -191,8 +191,7 @@ class Anime_Sync_YourAnimes_Fetcher {
             ] );
         }
 
-        // [v1.3.0] 手動同步改為繞過快取：使用者明確點按鈕就是要拿最新資料，
-        // 不該被 7 天快取卡住（快取設計是給 cron 自動批次用，避免打太頻繁）。
+        // [v1.3.0] 手動同步改為繞過快取
         $result = $this->sync_post( $post_id, true );
 
         if ( is_wp_error( $result ) ) {
@@ -200,11 +199,10 @@ class Anime_Sync_YourAnimes_Fetcher {
         }
 
         if ( empty( $result ) ) {
-            // 抓到頁但無平台：提示手動填（此情況不計入失敗）
             wp_send_json_error( [ 'message' => '未找到任何串流平台，請手動填入（此頁可能為動態載入或舊資料）' ] );
         }
 
-        // [v1.4.0] 手動同步成功也記錄 last_synced_url，避免自動機制稍後又重跑一次
+        // [v1.4.0] 手動同步成功也記錄 last_synced_url
         update_post_meta( $post_id, '_anime_youranimes_last_synced_url', $this->normalize_url( $url ) );
 
         wp_send_json_success( [
@@ -217,19 +215,6 @@ class Anime_Sync_YourAnimes_Fetcher {
     // [v1.4.0] 填入網址即自動排程同步
     // -------------------------------------------------------------------------
 
-    /**
-     * 偵測 anime_youranimes_url 欄位變化，自動排程單篇同步。
-     *
-     * 只在「網址真的變了」才觸發（用 _anime_youranimes_last_synced_url 記錄
-     * 上次已成功同步的網址），避免同一篇文章每次儲存（就算沒改網址）都重抓一次。
-     * 用 wp_schedule_single_event 延遲執行，而非同步當下直接抓，避免拖慢後台
-     * 儲存文章的反應速度（fetch_page 內建 2-5 秒隨機延遲）。
-     *
-     * @param int    $meta_id
-     * @param int    $post_id
-     * @param string $meta_key
-     * @param mixed  $meta_value
-     */
     public function maybe_auto_sync_on_meta_change( $meta_id, $post_id, $meta_key, $meta_value ) {
         if ( $meta_key !== 'anime_youranimes_url' ) {
             return;
@@ -246,7 +231,7 @@ class Anime_Sync_YourAnimes_Fetcher {
         $normalized       = $this->normalize_url( $url );
         $last_synced_url  = get_post_meta( $post_id, '_anime_youranimes_last_synced_url', true );
         if ( $last_synced_url === $normalized ) {
-            return; // 這個網址已經同步過了，不用重跑
+            return;
         }
 
         if ( ! wp_next_scheduled( self::AUTO_SYNC_HOOK, [ $post_id ] ) ) {
@@ -254,9 +239,6 @@ class Anime_Sync_YourAnimes_Fetcher {
         }
     }
 
-    /**
-     * 單篇背景同步實際執行者（由 wp_schedule_single_event 觸發）。
-     */
     public function run_single_sync( $post_id ) {
         $post_id = (int) $post_id;
         $url     = get_post_meta( $post_id, 'anime_youranimes_url', true );
@@ -267,8 +249,6 @@ class Anime_Sync_YourAnimes_Fetcher {
         $result = $this->sync_post( $post_id, true );
 
         if ( ! is_wp_error( $result ) ) {
-            // 不管抓到平台與否（含空陣列），都記錄「這個網址已經處理過」，避免同一
-            // 個網址反覆觸發；之後若網址改了，last_synced_url 對不上，自然又會重新排程。
             update_post_meta( $post_id, '_anime_youranimes_last_synced_url', $this->normalize_url( $url ) );
 
             $post_title = get_the_title( $post_id ) ?: "ID {$post_id}";
@@ -278,24 +258,12 @@ class Anime_Sync_YourAnimes_Fetcher {
                 $this->log_warning( "自動同步〔{$post_title}〕：成功更新 " . implode( '、', $result ) );
             }
         }
-        // WP_Error（熔斷中 / 網路失敗）不記錄 last_synced_url，讓每日 cron 之後有機會撿回來重試。
     }
 
     // -------------------------------------------------------------------------
     // [v1.1.0] 共用核心：手動按鈕與 cron 共用
     // -------------------------------------------------------------------------
 
-    /**
-     * 核心同步邏輯
-     *
-     * 回傳：
-     *   - array     成功，回傳更新的平台 key 陣列（空陣列 = 抓到頁但尚無平台資料）
-     *   - WP_Error  網路／HTTP 失敗（計入 circuit breaker）或設定錯誤
-     *
-     * @param int  $post_id      文章 ID
-     * @param bool $bypass_cache 是否繞過 7 天快取（cron 用 true 強制重抓；手動按鈕現在也用 true）
-     * @return array|WP_Error
-     */
     public function sync_post( $post_id, $bypass_cache = false ) {
         $url = get_post_meta( $post_id, 'anime_youranimes_url', true );
 
@@ -303,21 +271,18 @@ class Anime_Sync_YourAnimes_Fetcher {
             return new WP_Error( 'invalid_url', '網址格式錯誤或未填入' );
         }
 
-        // 熔斷中不再累加失敗，直接回錯
         if ( get_transient( self::CIRCUIT_OPEN_KEY ) ) {
             return new WP_Error( 'circuit_open', 'YourAnimes 同步暫停中（連續失敗熔斷）' );
         }
 
         $url = $this->normalize_url( $url );
 
-        // cron 需繞過 7 天快取，否則永遠抓到同一份舊 HTML
         if ( $bypass_cache ) {
             delete_transient( self::TRANSIENT_PREFIX . md5( $url ) );
         }
 
         $html = $this->fetch_page( $url );
 
-        // 網路／HTTP 錯誤 → 真失敗，計入 circuit breaker
         if ( is_wp_error( $html ) ) {
             $this->record_failure();
             $this->log_warning( 'Fetch failed: ' . $html->get_error_message() . ' URL: ' . $url );
@@ -326,13 +291,11 @@ class Anime_Sync_YourAnimes_Fetcher {
 
         $streams = $this->parse_streams( $html );
 
-        // 抓到頁但沒平台 → 正常情況（新番還沒資料），重置失敗計數並回空陣列
         if ( empty( $streams ) ) {
             $this->reset_failures();
             return [];
         }
 
-        // 成功
         $this->reset_failures();
         return $this->write_to_acf( $post_id, $streams );
     }
@@ -353,27 +316,17 @@ class Anime_Sync_YourAnimes_Fetcher {
 
     public function maybe_schedule_cron() {
         if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
-            // 一小時後開始，避開 init 當下負載
             wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::CRON_HOOK );
         }
     }
 
-    /**
-     * 每日 cron 主邏輯：撈開播窗口內、有 YourAnimes 網址的新番，逐一同步
-     * 窗口：開播前 2 天 ~ 開播後 30 天
-     */
     public function run_daily_sync() {
-        // 熔斷中整批跳過
         if ( get_transient( self::CIRCUIT_OPEN_KEY ) ) {
             $this->log_warning( '[Cron] Circuit open，本次每日同步整批跳過' );
             return;
         }
 
-        // 用時間戳做日期加減再轉回 Ymd，避免直接對數字加減出錯（跨月跨年）
         $now = current_time( 'timestamp' );
-        // 窗口換算成 start_date 條件：
-        //   開播前 2 天開始  → start_date <= 今天 + 2 天
-        //   開播後 30 天結束 → start_date >= 今天 - 30 天
         $upper_ymd = (int) gmdate( 'Ymd', strtotime( '+' . self::WINDOW_BEFORE_DAYS . ' days', $now ) );
         $lower_ymd = (int) gmdate( 'Ymd', strtotime( '-' . self::WINDOW_AFTER_DAYS . ' days', $now ) );
 
@@ -408,20 +361,18 @@ class Anime_Sync_YourAnimes_Fetcher {
         $fail = 0;
 
         foreach ( $q->posts as $pid ) {
-            // 每筆前再檢查熔斷（可能中途被打開）
             if ( get_transient( self::CIRCUIT_OPEN_KEY ) ) {
                 break;
             }
 
-            $result = $this->sync_post( $pid, true ); // 繞過快取強制重抓
+            $result = $this->sync_post( $pid, true );
 
             if ( is_wp_error( $result ) ) {
                 $fail++;
             } elseif ( empty( $result ) ) {
-                $empty++; // 抓到頁但還沒平台資料，屬正常
+                $empty++;
             } else {
                 $ok++;
-                // [v1.4.0] cron 補成功的也記錄 last_synced_url，維持狀態一致
                 $url = get_post_meta( $pid, 'anime_youranimes_url', true );
                 if ( ! empty( $url ) ) {
                     update_post_meta( $pid, '_anime_youranimes_last_synced_url', $this->normalize_url( $url ) );
@@ -452,7 +403,6 @@ class Anime_Sync_YourAnimes_Fetcher {
                 self::CIRCUIT_OPEN_TTL / MINUTE_IN_SECONDS
             ) );
         } else {
-            // 失敗計數視窗 30 分鐘，超過自動重置
             set_transient( self::FAIL_COUNT_KEY, $count, 30 * MINUTE_IN_SECONDS );
         }
     }
@@ -490,7 +440,6 @@ class Anime_Sync_YourAnimes_Fetcher {
             return $cached;
         }
 
-        // 隨機延遲 2~5 秒
         $delay = wp_rand( self::RATE_LIMIT_MIN, self::RATE_LIMIT_MAX );
         sleep( $delay );
 
@@ -530,24 +479,12 @@ class Anime_Sync_YourAnimes_Fetcher {
         return $body;
     }
 
-    /**
-     * [v1.5.0] 解析串流連結
-     *
-     * 依「中文配音」關鍵字把頁面切成兩段：
-     *   - 原音區（關鍵字之前）：照舊寫入 $streams（各平台第一個連結）。
-     *   - 中配區（關鍵字之後）：抓「所有」符合平台的連結（不再只取一個代表連結），
-     *                            放進特殊 key $streams['__dub_mandarin_multi']（acf_key => url），
-     *                            交給 write_to_acf 組成多行 label|url 格式。
-     *                            [v1.5.0] 中配區新增 YouTube 特判，YouTube 連結靠 alt 文字比對
-     *                            youtube_alt_map（如 Muse/木棉花），修正木棉花 YT 連結被略過的問題。
-     */
     private function parse_streams( $html ) {
         $streams = [];
 
         $platform_map = $this->platform_map();
         $youtube_map  = $this->youtube_alt_map();
 
-        // ── 依「中文配音」關鍵字把頁面切成「原音區」與「中配區」──
         $dub_pos = false;
         foreach ( [ '中文配音', '國語配音', '中文版' ] as $kw ) {
             $p = mb_strpos( $html, $kw );
@@ -557,17 +494,16 @@ class Anime_Sync_YourAnimes_Fetcher {
         }
 
         if ( $dub_pos !== false ) {
-            $html_main = mb_substr( $html, 0, $dub_pos );  // 原音區
-            $html_dub  = mb_substr( $html, $dub_pos );     // 中配區
+            $html_main = mb_substr( $html, 0, $dub_pos );
+            $html_dub  = mb_substr( $html, $dub_pos );
         } else {
-            $html_main = $html;  // 沒有中配區塊
+            $html_main = $html;
             $html_dub  = '';
         }
 
         $ani_one_chinese = null;
         $ani_one_first   = null;
 
-        // ── 解析原音區（維持原本邏輯，寫入 $streams）──
         if ( preg_match_all( '#<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>#si', $html_main, $matches, PREG_SET_ORDER ) ) {
             foreach ( $matches as $match ) {
                 $href  = $match[1];
@@ -631,12 +567,7 @@ class Anime_Sync_YourAnimes_Fetcher {
             }
         }
 
-        // ── [v1.5.0] 解析中配區：抓「所有」符合平台的連結（不再只取一個代表連結）──
-        // 改用連內文的 regex（PREG_SET_ORDER），才能處理 YouTube：
-        //   - YouTube 連結：先抓 alt 文字，再用 $youtube_map 比對頻道關鍵字（如 Muse/木棉花、Ani-One）。
-        //   - 非 YouTube：照舊用 $platform_map 比對 host。
-        // 每個平台只存該平台在中配區出現的第一個連結。
-        $dub_items = []; // acf_key => url
+        $dub_items = [];
         if ( $html_dub !== '' && preg_match_all( '#<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>#si', $html_dub, $dmatches, PREG_SET_ORDER ) ) {
             foreach ( $dmatches as $dm ) {
                 $href  = $dm[1];
@@ -648,7 +579,6 @@ class Anime_Sync_YourAnimes_Fetcher {
                 }
                 $host = strtolower( preg_replace( '#^www\.#', '', $host ) );
 
-                // ── YouTube：中配區出現的多半是木棉花/Ani-One 等國語官方頻道，靠 alt 判斷歸屬 ──
                 if ( strpos( $host, 'youtube.com' ) !== false || strpos( $host, 'youtu.be' ) !== false ) {
                     $alt = '';
                     if ( preg_match( '#alt=["\']([^"\']+)["\']#i', $inner, $am ) ) {
@@ -674,11 +604,10 @@ class Anime_Sync_YourAnimes_Fetcher {
                     continue;
                 }
 
-                // ── 非 YouTube 一般平台：照舊比對 domain map ──
                 foreach ( $platform_map as $needle => $acf_key ) {
                     if ( strpos( $host, $needle ) !== false ) {
                         if ( ! isset( $dub_items[ $acf_key ] ) ) {
-                            $dub_items[ $acf_key ] = $href; // 每個平台只存第一個連結
+                            $dub_items[ $acf_key ] = $href;
                         }
                         break;
                     }
@@ -693,23 +622,15 @@ class Anime_Sync_YourAnimes_Fetcher {
         return $streams;
     }
 
-    /**
-     * [v1.3.0] 寫入 ACF
-     *
-     * 特殊 key __dub_mandarin_multi（acf_key => url 陣列）→ 組成多行
-     * 「平台名稱|網址」格式寫入 anime_dub_url_mandarin，並自動勾選「國語配音」。
-     * 其餘 key → 照舊寫入 anime_tw_streaming_url_{key} 並勾選對應平台。
-     */
     private function write_to_acf( $post_id, $streams ) {
         $updated = [];
 
-        // ── 先處理中配專用 key（不算一般串流平台）──
         if ( isset( $streams['__dub_mandarin_multi'] ) ) {
             $dub_items = $streams['__dub_mandarin_multi'];
             unset( $streams['__dub_mandarin_multi'] );
 
             $acf_choices = class_exists( 'Anime_Sync_Streaming_Registry' )
-                ? Anime_Sync_Streaming_Registry::get_acf_choices() // key => label
+                ? Anime_Sync_Streaming_Registry::get_acf_choices()
                 : [];
 
             $lines = [];
@@ -721,7 +642,6 @@ class Anime_Sync_YourAnimes_Fetcher {
             if ( ! empty( $lines ) ) {
                 update_post_meta( $post_id, 'anime_dub_url_mandarin', implode( "\n", $lines ) );
 
-                // 自動勾選「國語配音」
                 $dub_lang = get_post_meta( $post_id, 'anime_dub_language', true );
                 if ( ! is_array( $dub_lang ) ) {
                     $dub_lang = [];
@@ -752,6 +672,58 @@ class Anime_Sync_YourAnimes_Fetcher {
 
         update_post_meta( $post_id, 'anime_tw_streaming', $checked );
 
+        // ── [v1.6.0] 自動推導台灣代理商（僅在代理商空白時；不覆蓋人工已選）──
+        $this->maybe_fill_distributor( $post_id, $checked );
+
         return $updated;
+    }
+
+    /**
+     * [v1.6.0] 依台灣串流平台自動推導代理商。
+     * 只在 anime_tw_distributor 為空時才填，不覆蓋人工已選的值
+     * （例如 aniplus 這種推不出來、需人工填的個案不會被動到）。
+     *
+     * @param int   $post_id
+     * @param array $checked  anime_tw_streaming 已勾選的平台 key 陣列
+     */
+    private function maybe_fill_distributor( $post_id, $checked ): void {
+        if ( ! is_array( $checked ) || empty( $checked ) ) {
+            return;
+        }
+
+        // 已有代理商就不動（保護人工填的值）
+        $current = get_post_meta( $post_id, 'anime_tw_distributor', true );
+        if ( $current !== '' && $current !== null ) {
+            return;
+        }
+
+        // 平台 → 代理商 對應（優先序：由上到下，命中即停）
+        $map = [
+            'muse'         => 'muse',       // 木棉花
+            'ani_one'      => 'linbang',    // 羚邦
+            'mighty'       => 'medialink',  // 曼迪
+            'tropicsanime' => 'tropic',     // 回歸線
+            'anipass'      => 'garage',     // 車庫
+            'garageplay'   => 'garage',     // 車庫
+        ];
+
+        foreach ( $map as $platform => $distributor ) {
+            if ( in_array( $platform, $checked, true ) ) {
+                // 用 update_field 同時寫值與 ACF field key，後台下拉才會正確顯示選中
+                if ( function_exists( 'update_field' ) ) {
+                    update_field( 'field_anime_tw_distributor', $distributor, $post_id );
+                } else {
+                    update_post_meta( $post_id, 'anime_tw_distributor', $distributor );
+                }
+
+                $this->log_warning( sprintf(
+                    '自動代理商〔%s〕：偵測到平台 %s → 代理商 %s',
+                    get_the_title( $post_id ) ?: "ID {$post_id}",
+                    $platform,
+                    $distributor
+                ) );
+                break; // 命中一個就停
+            }
+        }
     }
 }
