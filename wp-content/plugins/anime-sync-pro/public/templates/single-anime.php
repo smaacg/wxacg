@@ -1068,21 +1068,25 @@ $staff_list = array_values(
 	 * 原作者資料
 	 *
 	 * 讀取優先順序：
-	 * 1. anime_original_author 獨立 Meta 欄位
-	 * 2. 從 anime_staff_json 自動尋找原作／作者職位
+	 * 1. anime_original_author 獨立 Meta 欄位（純文字備援）
+	 * 2. 從 anime_staff_json 自動尋找原作／作者職位（可帶站內連結 id）
 	 *
 	 * 自動排除：
 	 * 角色原案、角色設計、插畫、原畫及原作協力等職位，
 	 * 避免將非原作者誤判為原作者。
+	 *
+	 * $original_author       ：純文字（給 fallback / schema 用）
+	 * $original_author_links ：每筆 ['name' => ..., 'id' => ...]（給 Hero 連結用）
 	 */
-	$original_author = trim(
+	$original_author       = trim(
 		wp_strip_all_tags(
 			(string) $get_meta( 'anime_original_author' )
 		)
 	);
+	$original_author_links = [];
 
-	if ( $original_author === '' && ! empty( $staff_list ) ) {
-		$original_author_names = [];
+	if ( ! empty( $staff_list ) ) {
+		$author_seen = [];
 
 		foreach ( $staff_list as $staff_item ) {
 			if ( ! is_array( $staff_item ) ) {
@@ -1100,6 +1104,8 @@ $staff_list = array_values(
 					(string) ( $staff_item['role'] ?? '' )
 				)
 			);
+
+			$staff_id = (int) ( $staff_item['id'] ?? 0 );
 
 			if ( $staff_name === '' || $staff_role === '' ) {
 				continue;
@@ -1129,23 +1135,43 @@ $staff_list = array_values(
 				continue;
 			}
 
-			$original_author_names[] = $staff_name;
+			/*
+			 * 依姓名去重，最多顯示三位，
+			 * 避免 Hero 右側評分卡過度拉長。
+			 */
+			if ( isset( $author_seen[ $staff_name ] ) ) {
+				continue;
+			}
+
+			$author_seen[ $staff_name ] = true;
+
+			$original_author_links[] = [
+				'name' => $staff_name,
+				'id'   => $staff_id,
+			];
 		}
 
-		/*
-		 * 清除重複作者，最多顯示三位，
-		 * 避免 Hero 右側評分卡過度拉長。
-		 */
-		$original_author_names = array_values(
-			array_unique(
-				array_filter( $original_author_names )
-			)
+		$original_author_links = array_slice(
+			$original_author_links,
+			0,
+			3
 		);
 
-		$original_author = implode(
-			'、',
-			array_slice( $original_author_names, 0, 3 )
-		);
+		/*
+		 * 若沒有獨立 Meta 的原作者，
+		 * 用 STAFF 找到的名字組成純文字備援。
+		 */
+		if ( $original_author === '' && ! empty( $original_author_links ) ) {
+			$original_author = implode(
+				'、',
+				array_map(
+					static function ( $author ) {
+						return $author['name'];
+					},
+					$original_author_links
+				)
+			);
+		}
 	}
 
 	$relations_list = $decode_json(
@@ -2710,23 +2736,137 @@ $staff_list = array_values(
 				<div class="wacg-rating-divider"></div>
 
 				<?php
+				/*
+				 * 從 STAFF JSON 比對製作公司，取得站內人物 id。
+				 * 名稱需與 $studio 完全相符，且角色含「製作」相關字樣。
+				 */
+				$studio_link_id = 0;
+
+				if ( $studio !== '' && ! empty( $staff_list ) ) {
+					foreach ( $staff_list as $staff_item ) {
+						if ( ! is_array( $staff_item ) ) {
+							continue;
+						}
+
+						$staff_name = trim(
+							wp_strip_all_tags(
+								(string) ( $staff_item['name'] ?? '' )
+							)
+						);
+
+						$staff_role = trim(
+							wp_strip_all_tags(
+								(string) ( $staff_item['role'] ?? '' )
+							)
+						);
+
+						$staff_id = (int) ( $staff_item['id'] ?? 0 );
+
+						if ( $staff_name === '' || $staff_id <= 0 ) {
+							continue;
+						}
+
+						$is_studio_role =
+							( $strpos_safe( $staff_role, '製作' ) !== false )
+							|| ( $strpos_safe( $staff_role, '制作' ) !== false )
+							|| ( stripos( $staff_role, 'studio' ) !== false )
+							|| ( stripos( $staff_role, 'production' ) !== false );
+
+						if ( $is_studio_role && $staff_name === $studio ) {
+							$studio_link_id = $staff_id;
+							break;
+						}
+					}
+				}
+
+				/*
+				 * 產生「原作者」HTML，可能多位，各自帶站內連結。
+				 */
+				$author_html = '';
+
+				if ( ! empty( $original_author_links ) ) {
+					$author_parts = [];
+
+					foreach ( $original_author_links as $author ) {
+						$author_name = $author['name'];
+						$author_id   = (int) $author['id'];
+						$author_url  = $author_id > 0
+							? $entity_url( 'person', $author_id, $author_name )
+							: '';
+
+						$author_parts[] = $author_url !== ''
+							? '<a href="' . esc_url( $author_url ) . '">'
+								. esc_html( $author_name ) . '</a>'
+							: esc_html( $author_name );
+					}
+
+					$author_html = implode( '、', $author_parts );
+				} elseif ( $original_author !== '' ) {
+					$author_html = esc_html( $original_author );
+				}
+
+				/*
+				 * 產生「製作公司」HTML。
+				 */
+				$studio_html = '';
+
+				if ( $studio !== '' ) {
+					$studio_url = $studio_link_id > 0
+						? $entity_url( 'person', $studio_link_id, $studio )
+						: '';
+
+					$studio_html = $studio_url !== ''
+						? '<a href="' . esc_url( $studio_url ) . '">'
+							. esc_html( $studio ) . '</a>'
+						: esc_html( $studio );
+				}
+
+				/*
+				 * 統一欄位陣列：可自由調整順序、增減欄位。
+				 * html=true 者允許 <a> 連結（內容已各自 escape）。
+				 * 顯示順序：原作者 → 原作類型 → 製作公司 → 集數 → 時長
+				 */
 				$hero_meta_rows = [
-					'集數'     => $ep_str,
-					'時長'     => $duration > 0
-						? $duration . ' 分鐘'
-						: '',
-					'原作類型' => $source_label,
-					'原作者'   => $original_author,
-					'製作公司' => $studio,
+					[
+						'key'  => '原作者',
+						'val'  => $author_html,
+						'html' => true,
+					],
+					[
+						'key'  => '原作類型',
+						'val'  => $source_label,
+						'html' => false,
+					],
+					[
+						'key'  => '製作公司',
+						'val'  => $studio_html,
+						'html' => true,
+					],
+					[
+						'key'  => '集數',
+						'val'  => $ep_str,
+						'html' => false,
+					],
+					[
+						'key'  => '時長',
+						'val'  => $duration > 0 ? $duration . ' 分鐘' : '',
+						'html' => false,
+					],
 				];
 
+				$allowed_link_html = [
+					'a' => [
+						'href'  => [],
+						'title' => [],
+					],
+				];
 
 				$has_hero_meta = false;
 
-				foreach ( $hero_meta_rows as $meta_key => $meta_value ) :
-					$meta_value = trim( (string) $meta_value );
+				foreach ( $hero_meta_rows as $row ) :
+					$val = trim( (string) $row['val'] );
 
-					if ( $meta_value === '' ) {
+					if ( $val === '' ) {
 						continue;
 					}
 
@@ -2734,11 +2874,17 @@ $staff_list = array_values(
 					?>
 					<div class="asd-hside-info-row">
 						<span class="asd-hside-info-key">
-							<?php echo esc_html( $meta_key ); ?>
+							<?php echo esc_html( $row['key'] ); ?>
 						</span>
 
 						<span class="asd-hside-info-val">
-							<?php echo esc_html( $meta_value ); ?>
+							<?php
+							if ( ! empty( $row['html'] ) ) {
+								echo wp_kses( $val, $allowed_link_html );
+							} else {
+								echo esc_html( $val );
+							}
+							?>
 						</span>
 					</div>
 				<?php endforeach; ?>
@@ -2746,6 +2892,7 @@ $staff_list = array_values(
 				<?php if ( ! $has_hero_meta ) : ?>
 					<p class="asd-hside-empty">暫無資料</p>
 				<?php endif; ?>
+
 			</div><!-- /.asd-hside-block -->
 
 		</div><!-- /.asd-hero-new -->
