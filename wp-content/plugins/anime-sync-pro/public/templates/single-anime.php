@@ -1001,6 +1001,69 @@ while ( have_posts() ) :
 		$get_meta( 'anime_staff_json' )
 	);
 
+    /*
+ * STAFF 排序：主要導演固定顯示在最前面
+ * 其他 STAFF 保持原本資料順序。
+ */
+$staff_sorted = [];
+
+foreach ( $staff_list as $staff_index => $staff_item ) {
+	if ( ! is_array( $staff_item ) ) {
+		continue;
+	}
+
+	$staff_role = trim(
+		wp_strip_all_tags(
+			(string) ( $staff_item['role'] ?? '' )
+		)
+	);
+
+	/*
+	 * 排除不是主要導演的職位，
+	 * 避免作畫監督、美術監督、副導演等被排到最前面。
+	 */
+	$is_excluded_director = preg_match(
+		'/副導演|助理導演|助監督|副監督|監督補佐|作畫監督|作画監督|動畫導演|美術監督|攝影監督|音響監督|音樂監督|3D監督|CG監督|episode\s*director|assistant\s*director|animation\s*director|art\s*director|sound\s*director|photography\s*director/i',
+		$staff_role
+	);
+
+	/*
+	 * 支援中文、日文及英文主要導演職位。
+	 */
+	$is_main_director = ! $is_excluded_director
+		&& preg_match(
+			'/總導演|总导演|導演|导演|總監督|総監督|^監督$|^director$|series\s*director|chief\s*director/i',
+			$staff_role
+		);
+
+	$staff_sorted[] = [
+		'priority' => $is_main_director ? 0 : 1,
+		'index'    => (int) $staff_index,
+		'item'     => $staff_item,
+	];
+}
+
+/* 導演優先，其他項目維持原本順序 */
+usort(
+	$staff_sorted,
+	static function ( $staff_a, $staff_b ) {
+		if ( $staff_a['priority'] !== $staff_b['priority'] ) {
+			return $staff_a['priority'] <=> $staff_b['priority'];
+		}
+
+		return $staff_a['index'] <=> $staff_b['index'];
+	}
+);
+
+$staff_list = array_values(
+	array_map(
+		static function ( $staff_item ) {
+			return $staff_item['item'];
+		},
+		$staff_sorted
+	)
+);
+
 	/*
 	 * 原作者資料
 	 *
