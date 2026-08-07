@@ -65,11 +65,12 @@ function my_run_backfill_job() {
         $table    = $wpdb->prefix . 'anime_persons';
         $method   = 'backfill_persons';
         $skip_key = 'my_backfill_skip_persons';
-        // 聲優：只用 summary / infobox_json 判斷「補過沒」。
-        // height、birthday、name_original 屬選填欄位，BGM 常缺，
-        // 不納入判斷以免同一批查不到資料的人被反覆重撈、進度卡住。
-        $where_missing = "( summary IS NULL OR summary = ''
-                         OR infobox_json IS NULL OR infobox_json = '' )";
+        // 聲優：只用 infobox_json 判斷「補過沒」。
+        // summary、height、birthday、name_original 屬選填欄位，BGM 常缺
+        // (例如集體筆名「矢立肇」「東堂いづみ」或老一輩幕後人員無簡介)，
+        // 若納入判斷會導致這些人被反覆重撈、進度永遠卡住。
+        // infobox 是 BGM 收錄該人時最普遍具備的欄位，用它判斷最可靠。
+        $where_missing = "( infobox_json IS NULL OR infobox_json = '' )";
     } else {
         $table    = $wpdb->prefix . 'anime_characters';
         $method   = 'backfill_characters';
