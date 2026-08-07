@@ -23,7 +23,7 @@ function my_backfill_is_production(): bool {
 }
 
 /* ===== 開關：'characters' / 'persons' / 'off' ===== */
-define( 'MY_BACKFILL_MODE', 'persons' );
+define( 'MY_BACKFILL_MODE', 'off' );
 define( 'MY_BACKFILL_BATCH', 60 );
 
 add_filter( 'cron_schedules', function ( $s ) {
