@@ -65,11 +65,10 @@ function my_run_backfill_job() {
         $table    = $wpdb->prefix . 'anime_persons';
         $method   = 'backfill_persons';
         $skip_key = 'my_backfill_skip_persons';
-        // 聲優：這些欄位任一為空就撈來補
+        // 聲優：只用 summary / infobox_json 判斷「補過沒」。
+        // height、birthday、name_original 屬選填欄位，BGM 常缺，
+        // 不納入判斷以免同一批查不到資料的人被反覆重撈、進度卡住。
         $where_missing = "( summary IS NULL OR summary = ''
-                         OR name_original IS NULL OR name_original = ''
-                         OR birthday IS NULL OR birthday = ''
-                         OR height IS NULL OR height = ''
                          OR infobox_json IS NULL OR infobox_json = '' )";
     } else {
         $table    = $wpdb->prefix . 'anime_characters';
