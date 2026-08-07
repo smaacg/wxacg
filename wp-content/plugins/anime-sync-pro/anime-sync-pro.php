@@ -793,6 +793,11 @@ add_action( 'plugins_loaded', function (): void {
 			'anime_sync_migrate_entities',
 			function ( int $post_id ): void {
 
+				// [本地防護] 如果不是正式站的目錄，就直接中斷，不執行任何同步動作！
+				if ( strpos( __FILE__, '/home/u393305917/domains/weixiaoacg.com/public_html' ) === false ) {
+					return;
+				}
+
 				if ( ! class_exists( 'Anime_Sync_Entity_Migrator' ) ) {
 					return;
 				}
