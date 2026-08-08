@@ -2134,13 +2134,10 @@ private function register_manga_fields(): void {
                     if (res.success) {
                         if (res.data.action === 'synced') {
                             $btn.text('✅ 已儲存並同步完成！即將重整...');
-                            setTimeout(function() { location.reload(); }, 1500);
                         } else {
-                            $btn.text('✅ 捷徑已儲存！');
-                            setTimeout(function() { 
-                                $btn.text('💾 儲存捷徑變更').prop('disabled', false); 
-                            }, 2000);
+                            $btn.text('✅ 捷徑已儲存！即將重整...');
                         }
+                        setTimeout(function() { location.reload(); }, 1500);
                     } else {
                         alert('錯誤: ' + (res.data.message || res.data));
                         $btn.text('💾 儲存捷徑變更').prop('disabled', false);
