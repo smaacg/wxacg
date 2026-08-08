@@ -333,7 +333,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
         // ── [自動清理舊資料機制] ──
         $status = get_post_meta( $post_id, 'anime_status', true );
         $auto_closed = false;
-        if ( $status === '已完結' ) {
+        if ( $status === 'FINISHED' ) {
             $enabled = get_post_meta( $post_id, 'anime_yt_sync_enabled', true );
             if ( $enabled !== '0' ) {
                 update_post_meta( $post_id, 'anime_yt_sync_enabled', '0' );
