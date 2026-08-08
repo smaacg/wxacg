@@ -330,6 +330,22 @@ class Anime_Sync_YouTube_Playlist_Sync {
     public function sync_post( int $post_id, bool $force = false ): array {
         $result = [ 'added' => 0, 'skipped' => 0, 'msg' => '' ];
 
+        // ── [自動清理舊資料機制] ──
+        $status = get_post_meta( $post_id, 'anime_status', true );
+        $auto_closed = false;
+        if ( $status === '已完結' ) {
+            $enabled = get_post_meta( $post_id, 'anime_yt_sync_enabled', true );
+            if ( $enabled !== '0' ) {
+                update_post_meta( $post_id, 'anime_yt_sync_enabled', '0' );
+                $auto_closed = true;
+                if ( ! $force ) {
+                    $result['msg'] = '發現狀態為已完結，自動關閉排程，終止同步';
+                    $this->update_post_log( $post_id, $result['msg'] );
+                    return $result;
+                }
+            }
+        }
+
         // 總閘門:非手動強制時,開關關閉(=0)則完全不同步
         if ( ! $force ) {
             $enabled = get_post_meta( $post_id, 'anime_yt_sync_enabled', true );
@@ -423,6 +439,9 @@ class Anime_Sync_YouTube_Playlist_Sync {
         update_post_meta( $post_id, '_anime_yt_last_synced_url', $playlist_url );
 
         $result['msg'] = sprintf( '新增 %d 支,略過 %d 支(PV/預告/OP/ED/已存在)', $result['added'], $result['skipped'] );
+        if ( $auto_closed ) {
+            $result['msg'] .= ' [已完結:已為您自動關閉未來排程]';
+        }
 
         if ( $result['added'] > 0 ) {
             $this->write_log( $post_id, $result['msg'], 'info' );
