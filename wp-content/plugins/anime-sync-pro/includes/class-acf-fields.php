@@ -2092,6 +2092,12 @@ private function register_manga_fields(): void {
                 
                 // 將 Header 設為相對定位，並塞入按鈕
                 $header.css('position', 'relative').append($btnHTML);
+                
+                // 將「YouTube 預告片網址」的灰色範例標籤加到標題同一行
+                var $trailerLabel = $('.acf-field[data-name="shortcut_anime_trailer_url"] .acf-label label');
+                if ($trailerLabel.length && $trailerLabel.find('.asp-trailer-example').length === 0) {
+                    $trailerLabel.append(' <span class="asp-trailer-example" style="background-color: #f0f0f1; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; color: #3c434a; font-weight: normal; margin-left: 8px;">範例:https://youtu.be/abc12345678 | PV</span>');
+                }
             }
 
             // 針對傳統編輯器
@@ -2271,9 +2277,9 @@ private function register_manga_fields(): void {
                     'wrapper' => [ 'width' => '50' ],
                 ],
                 [
-                    'key'     => 'field_shortcut_anime_trailer_url',
-                    'label'   => 'YouTube 預告片網址 <code>範例:https://youtu.be/abc12345678 | PV</code>',
-                    'name'    => 'shortcut_anime_trailer_url',
+                    'key'          => 'field_shortcut_anime_trailer_url',
+                    'label'        => 'YouTube 預告片網址',
+                    'name'         => 'shortcut_anime_trailer_url',
                     'type'    => 'textarea',
                     'rows'    => 3,
                     'wrapper' => [ 'width' => '50' ],
