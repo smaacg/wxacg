@@ -2170,6 +2170,9 @@ private function register_manga_fields(): void {
         
         $old_ya_url = get_post_meta( $post_id, 'anime_youranimes_url', true );
         $new_ya_url = isset( $fields['shortcut_anime_youranimes_url'] ) ? $fields['shortcut_anime_youranimes_url'] : '';
+        
+        $old_yt_url = get_post_meta( $post_id, 'anime_yt_playlist_url', true );
+        $new_yt_url = isset( $fields['shortcut_anime_yt_playlist_url'] ) ? $fields['shortcut_anime_yt_playlist_url'] : '';
 
         // 儲存一般 Post Meta
         foreach ( $mapping as $shortcut => $real_key ) {
@@ -2195,21 +2198,35 @@ private function register_manga_fields(): void {
         }
         
         // 智慧判斷：YourAnimes 網址是否有改變？
-        $triggered_sync = false;
+        $triggered_ya_sync = false;
         if ( ! empty( $new_ya_url ) && $new_ya_url !== $old_ya_url ) {
             if ( class_exists( 'Anime_Sync_YourAnimes_Fetcher' ) ) {
                 $fetcher = new Anime_Sync_YourAnimes_Fetcher();
                 $res = $fetcher->sync_post( $post_id, true );
                 if ( is_wp_error( $res ) ) {
-                    wp_send_json_error( [ 'message' => '資料已儲存，但同步失敗：' . $res->get_error_message() ] );
+                    wp_send_json_error( [ 'message' => '資料已儲存，但 YourAnimes 同步失敗：' . $res->get_error_message() ] );
                 }
-                $triggered_sync = true;
+                $triggered_ya_sync = true;
+            }
+        }
+        
+        // 智慧判斷：YouTube 網址是否有改變？ (如果剛剛沒跑 YA 同步，但 YT 網址有變，就要單獨跑 YT 同步)
+        $triggered_yt_sync = false;
+        if ( ! $triggered_ya_sync && ! empty( $new_yt_url ) && $new_yt_url !== $old_yt_url ) {
+            if ( class_exists( 'Anime_Sync_YouTube_Playlist_Sync' ) ) {
+                $yt_sync = new Anime_Sync_YouTube_Playlist_Sync();
+                $res = $yt_sync->sync_post( $post_id );
+                // 注意：YouTube 同步回傳的是陣列 ['added' => x, 'skipped' => y, 'msg' => '...']
+                if ( is_array( $res ) && isset( $res['msg'] ) && mb_strpos( $res['msg'], '錯誤' ) !== false ) {
+                    wp_send_json_error( [ 'message' => '資料已儲存，但 YouTube 同步失敗：' . $res['msg'] ] );
+                }
+                $triggered_yt_sync = true;
             }
         }
         
         wp_send_json_success( [
             'message' => '儲存成功！',
-            'action'  => $triggered_sync ? 'synced' : 'saved'
+            'action'  => ( $triggered_ya_sync || $triggered_yt_sync ) ? 'synced' : 'saved'
         ] );
     }
 
