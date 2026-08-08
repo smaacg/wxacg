@@ -36,6 +36,54 @@ class Anime_Sync_ACF_Fields {
 
         // 新增:編輯畫面右下角「回到頂部」浮動按鈕
         add_action( 'admin_footer', [ $this, 'inject_back_to_top_button' ] );
+
+        // 捷徑方塊的 JavaScript 與 AJAX
+        add_action( 'admin_footer', [ $this, 'inject_shortcut_scripts' ] );
+        add_action( 'wp_ajax_asp_shortcut_save_and_sync', [ $this, 'ajax_shortcut_save_and_sync' ] );
+        $this->register_mirror_hooks();
+    }
+
+    private function register_mirror_hooks(): void {
+        $mirror_fields = [
+            'shortcut_anime_title_chinese'    => 'anime_title_chinese',
+            'shortcut_anime_title_simplified' => 'anime_title_simplified',
+            'shortcut_anime_youranimes_url'   => 'anime_youranimes_url',
+            'shortcut_anime_yt_playlist_url'  => 'anime_yt_playlist_url',
+            'shortcut_anime_online_watch'     => 'anime_online_watch',
+            'shortcut_anime_trailer_url'      => 'anime_trailer_url',
+        ];
+
+        foreach ( $mirror_fields as $shortcut => $real_key ) {
+            add_filter( "acf/load_value/name={$shortcut}", function( $value, $post_id, $field ) use ( $real_key ) {
+                return get_post_meta( $post_id, $real_key, true );
+            }, 10, 3 );
+            
+            add_filter( "acf/update_value/name={$shortcut}", function( $value, $post_id, $field ) use ( $real_key ) {
+                update_post_meta( $post_id, $real_key, $value );
+                return null;
+            }, 10, 3 );
+        }
+
+        // 處理 Taxonomy 鏡像 (純文字框版)
+        add_filter( 'acf/load_value/name=shortcut_anime_series_tax', function( $value, $post_id, $field ) {
+            $terms = wp_get_object_terms( $post_id, 'anime_series_tax', [ 'fields' => 'names' ] );
+            return is_wp_error( $terms ) || empty( $terms ) ? '' : implode( ',', $terms );
+        }, 10, 3 );
+
+        add_filter( 'acf/update_value/name=shortcut_anime_series_tax', function( $value, $post_id, $field ) {
+            $term_names = [];
+            if ( ! empty( $value ) && is_string( $value ) ) {
+                $parts = explode( ',', $value );
+                foreach ( $parts as $part ) {
+                    $part = trim( $part );
+                    if ( ! empty( $part ) ) {
+                        $term_names[] = $part;
+                    }
+                }
+            }
+            wp_set_object_terms( $post_id, $term_names, 'anime_series_tax', false );
+            return null;
+        }, 10, 3 );
     }
 
     /**
@@ -51,6 +99,7 @@ class Anime_Sync_ACF_Fields {
             return;
         }
 
+        $this->register_shortcuts();
         $this->register_basic_info();
         $this->register_ratings();
         $this->register_synopsis();
@@ -2005,6 +2054,240 @@ private function register_manga_fields(): void {
         })();
         </script>
         <?php
+    }
+
+    public function inject_shortcut_scripts(): void {
+        global $pagenow;
+        if ( ! in_array( $pagenow, [ 'post.php', 'post-new.php' ], true ) || get_post_type() !== 'anime' ) {
+            return;
+        }
+        ?>
+        <style>
+            /* 壓縮捷徑方塊的垂直空間，保留輸入框原本大小 */
+            #acf-group_anime_shortcuts .acf-field {
+                padding: 8px 12px !important;
+            }
+            #acf-group_anime_shortcuts .acf-label {
+                margin: 0 0 4px !important;
+            }
+            #acf-group_anime_shortcuts .acf-label label {
+                font-size: 13px !important;
+                color: #444;
+            }
+        </style>
+        <script>
+        jQuery(document).ready(function($) {
+            // 確保 ACF 已經載入完畢
+            function injectButton() {
+                if ($('#asp-btn-save-sync').length) return; // 避免重複加入
+                
+                // 設定絕對定位：左側 50% 往回拉 50% 寬度，達到完美置中
+                var $btnHTML = $('<button type="button" id="asp-btn-save-sync" class="button button-primary button-small" style="position: absolute; left: 50%; transform: translateX(-50%); top: 7px; font-size: 13px; z-index: 10;">💾 儲存捷徑變更</button>');
+                
+                // 尋找外框的 Header
+                var $header = $('#acf-group_anime_shortcuts .postbox-header');
+                if ($header.length === 0) {
+                    $header = $('#acf-group_anime_shortcuts .hndle'); // 傳統版
+                }
+                
+                // 將 Header 設為相對定位，並塞入按鈕
+                $header.css('position', 'relative').append($btnHTML);
+            }
+
+            // 針對傳統編輯器
+            injectButton();
+            
+            // 針對某些動態載入的情況（雙重保險）
+            if (typeof acf !== 'undefined') {
+                acf.addAction('ready', injectButton);
+            }
+
+            $(document).on('click', '#asp-btn-save-sync', function(e) {
+                e.preventDefault();
+                if (typeof acf === 'undefined') return;
+                
+                var $btn = $(this);
+                var postId = $('#post_ID').val();
+                var fields = {};
+                
+                // 使用 ACF JS API 抓取捷徑方塊內的所有欄位值
+                acf.getFields({parent: $('#acf-group_anime_shortcuts')}).forEach(function(field) {
+                    if (field.data.name) {
+                        fields[field.data.name] = field.val();
+                    }
+                });
+
+                $btn.text('⏳ 處理中...').prop('disabled', true);
+                
+                $.post(ajaxurl, {
+                    action: 'asp_shortcut_save_and_sync',
+                    nonce: '<?php echo wp_create_nonce("asp_shortcut_sync"); ?>',
+                    post_id: postId,
+                    fields: fields
+                }, function(res) {
+                    if (res.success) {
+                        if (res.data.action === 'synced') {
+                            $btn.text('✅ 已儲存並同步完成！即將重整...');
+                            setTimeout(function() { location.reload(); }, 1500);
+                        } else {
+                            $btn.text('✅ 捷徑已儲存！');
+                            setTimeout(function() { 
+                                $btn.text('💾 儲存捷徑變更').prop('disabled', false); 
+                            }, 2000);
+                        }
+                    } else {
+                        alert('錯誤: ' + (res.data.message || res.data));
+                        $btn.text('💾 儲存捷徑變更').prop('disabled', false);
+                    }
+                }).fail(function() {
+                    alert('發生網路錯誤，請重試！');
+                    $btn.text('💾 儲存捷徑變更').prop('disabled', false);
+                });
+            });
+        });
+        </script>
+        <?php
+    }
+
+    public function ajax_shortcut_save_and_sync(): void {
+        check_ajax_referer( 'asp_shortcut_sync', 'nonce' );
+        $post_id = isset( $_POST['post_id'] ) ? intval( $_POST['post_id'] ) : 0;
+        
+        if ( ! current_user_can( 'edit_post', $post_id ) ) {
+            wp_send_json_error( '權限不足' );
+        }
+        
+        $fields = isset( $_POST['fields'] ) && is_array( $_POST['fields'] ) ? $_POST['fields'] : [];
+        
+        $mapping = [
+            'shortcut_anime_title_chinese'    => 'anime_title_chinese',
+            'shortcut_anime_title_simplified' => 'anime_title_simplified',
+            'shortcut_anime_youranimes_url'   => 'anime_youranimes_url',
+            'shortcut_anime_yt_playlist_url'  => 'anime_yt_playlist_url',
+            'shortcut_anime_online_watch'     => 'anime_online_watch',
+            'shortcut_anime_trailer_url'      => 'anime_trailer_url',
+        ];
+        
+        $old_ya_url = get_post_meta( $post_id, 'anime_youranimes_url', true );
+        $new_ya_url = isset( $fields['shortcut_anime_youranimes_url'] ) ? $fields['shortcut_anime_youranimes_url'] : '';
+
+        // 儲存一般 Post Meta
+        foreach ( $mapping as $shortcut => $real_key ) {
+            if ( isset( $fields[$shortcut] ) ) {
+                update_post_meta( $post_id, $real_key, $fields[$shortcut] );
+            }
+        }
+        
+        // 儲存 Taxonomy (系列標籤) - 從純文字解析
+        if ( isset( $fields['shortcut_anime_series_tax'] ) ) {
+            $value = $fields['shortcut_anime_series_tax'];
+            $term_names = [];
+            if ( ! empty( $value ) && is_string( $value ) ) {
+                $parts = explode( ',', $value );
+                foreach ( $parts as $part ) {
+                    $part = trim( $part );
+                    if ( ! empty( $part ) ) {
+                        $term_names[] = $part;
+                    }
+                }
+            }
+            wp_set_object_terms( $post_id, $term_names, 'anime_series_tax', false );
+        }
+        
+        // 智慧判斷：YourAnimes 網址是否有改變？
+        $triggered_sync = false;
+        if ( ! empty( $new_ya_url ) && $new_ya_url !== $old_ya_url ) {
+            if ( class_exists( 'Anime_Sync_YourAnimes_Fetcher' ) ) {
+                $fetcher = new Anime_Sync_YourAnimes_Fetcher();
+                $res = $fetcher->sync_post( $post_id, true );
+                if ( is_wp_error( $res ) ) {
+                    wp_send_json_error( [ 'message' => '資料已儲存，但同步失敗：' . $res->get_error_message() ] );
+                }
+                $triggered_sync = true;
+            }
+        }
+        
+        wp_send_json_success( [
+            'message' => '儲存成功！',
+            'action'  => $triggered_sync ? 'synced' : 'saved'
+        ] );
+    }
+
+    private function register_shortcuts(): void {
+        acf_add_local_field_group( [
+            'key'                   => 'group_anime_shortcuts',
+            'title'                 => '🚀 編輯捷徑方塊',
+            'fields'                => [
+                [
+                    'key'     => 'field_shortcut_anime_title_chinese',
+                    'label'   => '中文標題 (台灣繁體)',
+                    'name'    => 'shortcut_anime_title_chinese',
+                    'type'    => 'text',
+                    'wrapper' => [ 'width' => '33' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_title_simplified',
+                    'label'   => '簡體標題',
+                    'name'    => 'shortcut_anime_title_simplified',
+                    'type'    => 'text',
+                    'wrapper' => [ 'width' => '33' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_series_tax',
+                    'label'   => '系列 (多個請用半形逗號 , 分隔)',
+                    'name'    => 'shortcut_anime_series_tax',
+                    'type'    => 'text',
+                    'wrapper' => [ 'width' => '34' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_youranimes_url',
+                    'label'   => 'YourAnimes 網址',
+                    'name'    => 'shortcut_anime_youranimes_url',
+                    'type'    => 'url',
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_yt_playlist_url',
+                    'label'   => 'YouTube 播放清單網址',
+                    'name'    => 'shortcut_anime_yt_playlist_url',
+                    'type'    => 'url',
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_trailer_url',
+                    'label'   => 'YouTube 預告片網址',
+                    'name'    => 'shortcut_anime_trailer_url',
+                    'type'    => 'textarea',
+                    'rows'    => 3,
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_online_watch',
+                    'label'   => '線上看（YouTube 嵌入）',
+                    'name'    => 'shortcut_anime_online_watch',
+                    'type'    => 'textarea',
+                    'rows'    => 3,
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+            ],
+            'location'              => [
+                [
+                    [
+                        'param'    => 'post_type',
+                        'operator' => '==',
+                        'value'    => 'anime',
+                    ],
+                ],
+            ],
+            'menu_order'            => 0,
+            'position'              => 'acf_after_title',
+            'style'                 => 'default',
+            'label_placement'       => 'top',
+            'instruction_placement' => 'label',
+            'hide_on_screen'        => '',
+            'active'                => true,
+            'description'           => '',
+        ] );
     }
 
     // =========================================================================
