@@ -761,8 +761,6 @@ $cast_prompt .= "- 是否誤動了 id / image / role / source?\n\n";
 $cast_prompt .= "最後單獨輸出完整 JSON,放程式碼框內供一鍵複製。框內只有 JSON,結構與我給的完全一致,所有 image 網址保持原樣。\n\n";
 
 $cast_prompt .= "以下是 JSON:\n";
-$cast_prompt .= "(貼上 CAST JSON)";
-
         $cast_ta_id = 'anime_cast_prompt_' . ( $pid > 0 ? $pid : 'new' );
 
         $cast_instructions  = '由 Bangumi CAST API 自動填入(多為日文原名/大陸譯名),匯入後人工整理。整理後請在「同步控制」勾選「鎖定 CAST 角色資料」,避免下次同步被覆蓋。<br><br>';
