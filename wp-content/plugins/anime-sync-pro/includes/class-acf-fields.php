@@ -2272,7 +2272,7 @@ private function register_manga_fields(): void {
                 ],
                 [
                     'key'     => 'field_shortcut_anime_trailer_url',
-                    'label'   => 'YouTube 預告片網址',
+                    'label'   => 'YouTube 預告片網址 <code>範例:https://youtu.be/abc12345678 | PV</code>',
                     'name'    => 'shortcut_anime_trailer_url',
                     'type'    => 'textarea',
                     'rows'    => 3,
