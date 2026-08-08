@@ -675,6 +675,43 @@ class Anime_Sync_YourAnimes_Fetcher {
         // ── [v1.6.0] 自動推導台灣代理商（僅在代理商空白時；不覆蓋人工已選）──
         $this->maybe_fill_distributor( $post_id, $checked );
 
+        // ── 自動提取 YouTube 清單網址並立即觸發同步 ──
+        $yt_playlist_url = '';
+        foreach ( $streams as $acf_key => $url ) {
+            if ( is_string( $url ) && ( strpos( $url, 'youtube.com' ) !== false || strpos( $url, 'youtu.be' ) !== false ) && strpos( $url, 'list=' ) !== false ) {
+                $yt_playlist_url = $url;
+                break;
+            }
+        }
+        if ( empty( $yt_playlist_url ) && isset( $dub_items ) && is_array( $dub_items ) ) {
+            foreach ( $dub_items as $acf_key => $url ) {
+                if ( is_string( $url ) && ( strpos( $url, 'youtube.com' ) !== false || strpos( $url, 'youtu.be' ) !== false ) && strpos( $url, 'list=' ) !== false ) {
+                    $yt_playlist_url = $url;
+                    break;
+                }
+            }
+        }
+
+        if ( ! empty( $yt_playlist_url ) ) {
+            $current_yt_url = get_post_meta( $post_id, 'anime_yt_playlist_url', true );
+            if ( $current_yt_url !== $yt_playlist_url ) {
+                if ( function_exists( 'update_field' ) ) {
+                    update_field( 'field_anime_yt_playlist_url', $yt_playlist_url, $post_id );
+                } else {
+                    update_post_meta( $post_id, 'anime_yt_playlist_url', $yt_playlist_url );
+                }
+            }
+            
+            // 立即觸發 YouTube 清單同步
+            if ( class_exists( 'Anime_Sync_YouTube_Playlist_Sync' ) ) {
+                $yt_sync = new Anime_Sync_YouTube_Playlist_Sync();
+                $yt_res = $yt_sync->sync_post( $post_id, true );
+                if ( ! is_wp_error( $yt_res ) && ! empty( $yt_res['msg'] ) ) {
+                    $updated[] = 'YouTube 自動同步 (' . $yt_res['msg'] . ')';
+                }
+            }
+        }
+
         return $updated;
     }
 
