@@ -40,6 +40,13 @@ class Anime_Sync_ACF_Fields {
         // 捷徑方塊的 JavaScript 與 AJAX
         add_action( 'admin_footer', [ $this, 'inject_shortcut_scripts' ] );
         add_action( 'wp_ajax_asp_shortcut_save_and_sync', [ $this, 'ajax_shortcut_save_and_sync' ] );
+        
+        // AI 輔助區塊的 JavaScript 與 AJAX
+        add_action( 'admin_footer', [ $this, 'inject_ai_shortcut_scripts' ] );
+        add_action( 'wp_ajax_asp_shortcut_ai_save_post', [ $this, 'ajax_shortcut_ai_save_post' ] );
+        add_action( 'wp_ajax_asp_shortcut_ai_save_user', [ $this, 'ajax_shortcut_ai_save_user' ] );
+        add_action( 'wp_ajax_asp_shortcut_ai_generate', [ $this, 'ajax_shortcut_ai_generate' ] );
+
         $this->register_mirror_hooks();
     }
 
@@ -51,7 +58,23 @@ class Anime_Sync_ACF_Fields {
             'shortcut_anime_yt_playlist_url'  => 'anime_yt_playlist_url',
             'shortcut_anime_online_watch'     => 'anime_online_watch',
             'shortcut_anime_trailer_url'      => 'anime_trailer_url',
+            // AI 輔助區塊鏡像
+            'shortcut_anime_synopsis_chinese' => 'anime_synopsis_chinese',
+            'shortcut_anime_faq_json'         => 'anime_faq_json',
+            'shortcut_anime_cast_json'        => 'anime_cast_json',
         ];
+
+        // AI 輔助生成開關 User Meta 載入機制 (使用者獨立偏好)
+        $ai_toggles = ['shortcut_ai_generate_synopsis', 'shortcut_ai_generate_faq', 'shortcut_ai_generate_cast'];
+        foreach ( $ai_toggles as $toggle ) {
+            add_filter( "acf/load_value/name={$toggle}", function( $value, $post_id, $field ) use ( $toggle ) {
+                $user_val = get_user_meta( get_current_user_id(), 'asp_ai_pref_' . $toggle, true );
+                if ( $user_val !== '' ) {
+                    return intval( $user_val );
+                }
+                return 1; // 預設開啟
+            }, 10, 3 );
+        }
 
         foreach ( $mirror_fields as $shortcut => $real_key ) {
             add_filter( "acf/load_value/name={$shortcut}", function( $value, $post_id, $field ) use ( $real_key ) {
@@ -100,6 +123,7 @@ class Anime_Sync_ACF_Fields {
         }
 
         $this->register_shortcuts();
+        $this->register_ai_shortcuts(); // 新增區塊 2：AI 輔助內容
         $this->register_basic_info();
         $this->register_ratings();
         $this->register_synopsis();
@@ -2080,7 +2104,7 @@ private function register_manga_fields(): void {
                 if ($('#asp-btn-save-sync').length) return; // 避免重複加入
                 
                 // 設定絕對定位：左側 50% 往回拉 50% 寬度，達到完美置中
-                var $btnHTML = $('<button type="button" id="asp-btn-save-sync" class="button button-primary button-small" style="position: absolute; left: 50%; transform: translateX(-50%); top: 7px; font-size: 13px; z-index: 10;">💾 儲存捷徑變更</button>');
+                var $btnHTML = $('<button type="button" id="asp-btn-save-sync" class="button button-primary" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">💾 儲存捷徑變更</button>');
                 
                 // 尋找外框的 Header
                 var $header = $('#acf-group_anime_shortcuts .postbox-header');
@@ -2308,6 +2332,101 @@ private function register_manga_fields(): void {
         ] );
     }
 
+    private function register_ai_shortcuts(): void {
+        acf_add_local_field_group( [
+            'key'                   => 'group_anime_shortcuts_ai',
+            'title'                 => '🤖 AI 輔助捷徑方塊',
+            'fields'                => [
+                [
+                    'key'     => 'field_shortcut_ai_top_ui',
+                    'label'   => '',
+                    'name'    => '',
+                    'type'    => 'message',
+                    'message' => '<div id="asp-ai-top-ui"></div><div id="asp-ai-console" style="display:none; margin-top:10px; padding:10px; background:#1e1e1e; color:#00ff00; font-family:monospace; font-size:13px; border-radius:4px; max-height:200px; overflow-y:auto; overflow-x:hidden; word-break:break-all;"></div>',
+                    'new_lines' => '',
+                    'esc_html' => 0,
+                ],
+                [
+                    'key'     => 'field_shortcut_ai_generate_synopsis',
+                    'label'   => '啟用 AI 生成簡介',
+                    'name'    => 'shortcut_ai_generate_synopsis',
+                    'type'    => 'true_false',
+                    'ui'      => 1,
+                    'default_value' => 1,
+                    'wrapper' => [ 'width' => '20' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_synopsis_chinese',
+                    'label'   => '中文簡介 (台灣繁體)',
+                    'name'    => 'shortcut_anime_synopsis_chinese',
+                    'type'    => 'textarea',
+                    'rows'    => 4,
+                    'wrapper' => [ 'width' => '80' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_ai_generate_faq',
+                    'label'   => '啟用 AI 生成 FAQ',
+                    'name'    => 'shortcut_ai_generate_faq',
+                    'type'    => 'true_false',
+                    'ui'      => 1,
+                    'default_value' => 1,
+                    'wrapper' => [ 'width' => '20' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_faq_json',
+                    'label'   => 'FAQ JSON',
+                    'name'    => 'shortcut_anime_faq_json',
+                    'type'    => 'textarea',
+                    'rows'    => 4,
+                    'wrapper' => [ 'width' => '80' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_ai_generate_cast',
+                    'label'   => '啟用 AI 生成 CAST',
+                    'name'    => 'shortcut_ai_generate_cast',
+                    'type'    => 'true_false',
+                    'ui'      => 1,
+                    'default_value' => 1,
+                    'wrapper' => [ 'width' => '20' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_cast_json',
+                    'label'   => 'CAST 角色資料 JSON',
+                    'name'    => 'shortcut_anime_cast_json',
+                    'type'    => 'textarea',
+                    'rows'    => 4,
+                    'wrapper' => [ 'width' => '80' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_ai_settings_ui',
+                    'label'   => '',
+                    'name'    => '',
+                    'type'    => 'message',
+                    'message' => '<div id="asp-ai-settings-container"></div>',
+                    'new_lines' => '',
+                    'esc_html' => 0,
+                ],
+            ],
+            'location'              => [
+                [
+                    [
+                        'param'    => 'post_type',
+                        'operator' => '==',
+                        'value'    => 'anime',
+                    ],
+                ],
+            ],
+            'menu_order'            => 1, // 緊黏在區塊 1 下方
+            'position'              => 'acf_after_title',
+            'style'                 => 'default',
+            'label_placement'       => 'top',
+            'instruction_placement' => 'label',
+            'hide_on_screen'        => '',
+            'active'                => true,
+            'description'           => '',
+        ] );
+    }
+
     // =========================================================================
     // Helper:台灣串流平台定義
     // =========================================================================
@@ -2341,4 +2460,485 @@ private function register_manga_fields(): void {
             'anime_themes'        => 'OP/ED 主題曲資料',
         ];
     }
+    // =========================================================================
+    // AI 輔助捷徑方塊功能
+    // =========================================================================
+
+    public function inject_ai_shortcut_scripts(): void {
+        $screen = get_current_screen();
+        if ( ! $screen || $screen->id !== 'anime' ) return;
+
+        $user_id = get_current_user_id();
+        $provider = get_user_meta($user_id, 'asp_ai_provider', true) ?: 'gemini';
+        $api_key = get_user_meta($user_id, 'asp_ai_api_key', true) ?: '';
+        $model = get_user_meta($user_id, 'asp_ai_model_name', true) ?: '';
+
+        ?>
+        <style>
+            #asp-ai-settings-accordion { margin-top: 20px; border: 1px solid #ccd0d4; background: #fff; }
+            .asp-ai-settings-content { display: flex; align-items: center; gap: 15px; padding: 10px 15px; flex-wrap: wrap; }
+            .asp-ai-settings-item { display: flex; align-items: center; gap: 8px; }
+            .asp-ai-settings-item label { font-weight: bold; margin: 0; white-space: nowrap; }
+            .asp-ai-settings-item input, .asp-ai-settings-item select { margin: 0 !important; max-width: 250px; }
+            
+            /* 壓縮版面留白 */
+            #acf-group_anime_shortcuts_ai .inside, #acf-group_anime_shortcuts_ai > .inside, #acf-group_anime_shortcuts_ai .acf-fields { padding: 0 !important; margin: 0 !important; border: none !important; }
+            #acf-group_anime_shortcuts_ai .acf-field { padding: 6px 12px !important; margin: 0 !important; }
+            #acf-group_anime_shortcuts_ai .acf-label { margin-bottom: 3px !important; }
+            
+
+            #asp-ai-settings-accordion { margin: 0 !important; padding: 0 !important; border-top: 1px solid #ddd; border-left: none; border-right: none; border-bottom: none; transform: translateY(-1px); }
+        </style>
+        <script>
+        jQuery(document).ready(function($) {
+            function initAIPanel() {
+                if ($('#asp-btn-ai-generate').length) return;
+
+                // 1. 注入頂部雙按鈕
+                var $header = $('#acf-group_anime_shortcuts_ai .postbox-header');
+                if ($header.length === 0) $header = $('#acf-group_anime_shortcuts_ai .hndle');
+                
+                var $btnGroup = $('<div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; display:flex; gap: 8px; align-items: center;">' +
+                    '<button type="button" id="asp-btn-ai-generate" class="button button-primary" style="height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">🤖 執行 AI 輔助生成</button>' +
+                    '<button type="button" id="asp-btn-ai-save" class="button button-secondary" style="height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">💾 儲存 AI 輔助區塊</button>' +
+                '</div>');
+                
+                $header.css('position', 'relative').append($btnGroup);
+
+                // 1.5 注入 Console 狀態監控面板 (放置在所有欄位最上方)
+                if ($('#asp-ai-console-box').length === 0) {
+                    var consoleHTML = '<div id="asp-ai-console-box" style="background:#1e1e1e; color:#0f0; padding:10px 15px; margin:0 !important; border-bottom:1px solid #444; border-top:none; height:100px; overflow-y:auto; font-family:monospace; line-height:1.4; width: 100%; box-sizing: border-box;">[系統就緒] AI 輔助生成模組已載入，等待指令...<br>請先在最底部「⚙️ AI 帳號設定面板」填入 API Key，再點擊上方按鈕開始生成！</div>';
+                    
+                    var $fieldsContainer = $('#acf-group_anime_shortcuts_ai .acf-fields');
+                    if ($fieldsContainer.length > 0) {
+                        $fieldsContainer.prepend(consoleHTML);
+                        // 強制消除 .acf-fields 自身的 padding（CSS 可能被 WP 預設蓋掉）
+                        $fieldsContainer[0].style.setProperty('padding', '0', 'important');
+                        $fieldsContainer[0].style.setProperty('margin', '0', 'important');
+                        $fieldsContainer[0].style.setProperty('border', 'none', 'important');
+                    } else {
+                        $('#acf-group_anime_shortcuts_ai .inside').prepend(consoleHTML);
+                    }
+                }
+
+                // 強制清除第一欄上方 / 最後一欄下方的 padding（用 setTimeout 等 ACF 完全渲染完）
+                setTimeout(function() {
+                    var $fields = $('#acf-group_anime_shortcuts_ai .acf-fields > .acf-field');
+                    if ($fields.length > 0) {
+                        // 針對最上方的兩個欄位 (Switch & Synopsis)
+                        $fields.filter('[data-name="shortcut_ai_generate_synopsis"], [data-name="shortcut_anime_synopsis_chinese"]').each(function() {
+                            this.style.setProperty('padding-top', '0', 'important');
+                            this.style.setProperty('margin-top', '0', 'important');
+                            $(this).find('.acf-label, .acf-input').each(function() {
+                                this.style.setProperty('margin-top', '0', 'important');
+                                this.style.setProperty('padding-top', '0', 'important');
+                            });
+                        });
+                        
+                        // 針對最下方的兩個欄位 (Switch & CAST JSON)
+                        $fields.filter('[data-name="shortcut_ai_generate_cast"], [data-name="shortcut_anime_cast_json"]').each(function() {
+                            this.style.setProperty('padding-bottom', '0', 'important');
+                            this.style.setProperty('margin-bottom', '0', 'important');
+                            this.style.setProperty('border-bottom', 'none', 'important');
+                            $(this).find('.acf-label, .acf-input, textarea').each(function() {
+                                this.style.setProperty('margin-bottom', '0', 'important');
+                                this.style.setProperty('padding-bottom', '0', 'important');
+                            });
+                        });
+                    }
+                }, 300);
+
+                // 2. 注入底部設定面板 (直接掛載到區塊內容的最下方)
+                if ($('#asp-ai-settings-accordion').length === 0) {
+                    var settingsHTML = `
+                    <div id="asp-ai-settings-accordion">
+                        <div style="padding: 10px 15px; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccd0d4;">⚙️ AI 帳號設定面板</div>
+                        <div class="asp-ai-settings-content">
+                            <button type="button" id="asp-btn-ai-settings-save" class="button button-secondary">💾 儲存 AI 設定</button>
+                            <span id="asp-ai-settings-msg" style="color:green; display:none; white-space:nowrap;">已儲存！</span>
+                            
+                            <div class="asp-ai-settings-item">
+                                <label>AI 供應商</label>
+                                <select id="asp_ai_provider">
+                                    <option value="gemini" ${'<?php echo $provider; ?>'==='gemini'?'selected':''}>Google Gemini</option>
+                                    <option value="openai" ${'<?php echo $provider; ?>'==='openai'?'selected':''}>OpenAI (ChatGPT)</option>
+                                    <option value="claude" ${'<?php echo $provider; ?>'==='claude'?'selected':''}>Anthropic Claude</option>
+                                </select>
+                            </div>
+                            
+                            <div class="asp-ai-settings-item">
+                                <label>API Key</label>
+                                <input type="password" id="asp_ai_api_key" value="<?php echo esc_attr($api_key); ?>" placeholder="輸入您的金鑰...">
+                            </div>
+                            
+                            <div class="asp-ai-settings-item">
+                                <label>模型名稱</label>
+                                <input type="text" id="asp_ai_model_name" value="<?php echo esc_attr($model); ?>" placeholder="gemini-3.6-flash">
+                            </div>
+                        </div>
+                    </div>`;
+                    $('#acf-group_anime_shortcuts_ai .inside').append(settingsHTML);
+                }
+
+                // 3. 鏡像複製 CAST 提示詞到左側
+                var $castSwitchField = $('#acf-group_anime_shortcuts_ai .acf-field[data-name="shortcut_ai_generate_cast"]');
+                if ($castSwitchField.length > 0 && $('#asp-mirrored-prompt').length === 0) {
+                    // 尋找包含提示詞的來源 textarea
+                    var $sourceTextarea = $('textarea').filter(function() {
+                        return $(this).val().indexOf('你是熟悉台灣 ACG') > -1;
+                    }).first();
+                    
+                    if ($sourceTextarea.length > 0) {
+                        var mirroredValue = $sourceTextarea.val();
+                        var $mirroredBox = $('<div id="asp-mirrored-prompt" style="margin-left: 10px; flex: 1; min-width: 0;">' + 
+                            '<div style="font-size:9px; font-weight:bold; color:#888; margin-bottom:1px; line-height:1;">📋 提示詞(點擊複製)</div>' +
+                            '<textarea readonly title="點擊全選複製" style="width:100%; height:80px; background:#f5f5f5; color:#444; font-size:11px; border:1px solid #ccc; resize:none; padding:2px 4px; box-sizing:border-box; line-height:1.2;" onclick="this.select();"></textarea>' + 
+                            '</div>');
+                        $mirroredBox.find('textarea').val(mirroredValue);
+                        
+                        var $inputWrap = $castSwitchField.find('.acf-input');
+                        $inputWrap.css({
+                            'display': 'flex',
+                            'align-items': 'flex-start'
+                        });
+                        $inputWrap.append($mirroredBox);
+                    }
+                }
+            }
+
+            if (typeof acf !== 'undefined') {
+                acf.addAction('ready', initAIPanel);
+            }
+            initAIPanel();
+
+            function logAI(msg, isError = false) {
+                var $console = $('#asp-ai-console-box');
+                var time = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+                var color = isError ? '#ff4d4d' : '#00ff00';
+                $console.append(`<div style="color:${color}">[${time}] ${msg}</div>`);
+                $console.scrollTop($console[0].scrollHeight);
+            }
+
+            // 儲存設定
+            $(document).on('click', '#asp-btn-ai-settings-save', function(e) {
+                e.preventDefault();
+                var btn = $(this);
+                btn.prop('disabled', true).text('儲存中...');
+                var f_synopsis = acf.getField($('.acf-field[data-name="shortcut_ai_generate_synopsis"]'));
+                var f_faq      = acf.getField($('.acf-field[data-name="shortcut_ai_generate_faq"]'));
+                var f_cast     = acf.getField($('.acf-field[data-name="shortcut_ai_generate_cast"]'));
+                
+                var pref_synopsis = f_synopsis ? f_synopsis.val() : 1;
+                var pref_faq      = f_faq ? f_faq.val() : 1;
+                var pref_cast     = f_cast ? f_cast.val() : 1;
+
+                $.post(ajaxurl, {
+                    action: 'asp_shortcut_ai_save_user',
+                    nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                    provider: $('#asp_ai_provider').val(),
+                    api_key: $('#asp_ai_api_key').val(),
+                    model: $('#asp_ai_model_name').val(),
+                    pref_synopsis: pref_synopsis,
+                    pref_faq: pref_faq,
+                    pref_cast: pref_cast
+                }, function(res) {
+                    btn.prop('disabled', false).text('💾 儲存 AI 設定');
+                    if(res.success) {
+                        $('#asp-ai-settings-msg').show().delay(2000).fadeOut();
+                    } else {
+                        alert('儲存失敗: ' + (res.data || ''));
+                    }
+                });
+            });
+
+            // 儲存文章區塊
+            $(document).on('click', '#asp-btn-ai-save', function(e) {
+                e.preventDefault();
+                var btn = $(this);
+                btn.prop('disabled', true).text('⏳ 儲存中...');
+                
+                var fields = {};
+                acf.getFields({parent: $('#acf-group_anime_shortcuts_ai')}).forEach(function(field) {
+                    if (field.data.name && field.data.name.startsWith('shortcut_anime_')) {
+                        fields[field.data.name] = field.val();
+                    }
+                });
+
+                $.post(ajaxurl, {
+                    action: 'asp_shortcut_ai_save_post',
+                    nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                    post_id: $('#post_ID').val(),
+                    fields: fields
+                }, function(res) {
+                    btn.prop('disabled', false).text('💾 儲存 AI 輔助區塊');
+                    if(res.success) {
+                        logAI('✅ AI 捷徑區塊已成功儲存至文章！網頁即將重整...');
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        logAI('❌ 儲存失敗: ' + (res.data || ''), true);
+                    }
+                });
+            });
+
+            // 執行生成
+            $(document).on('click', '#asp-btn-ai-generate', async function(e) {
+                e.preventDefault();
+                var btn = $(this);
+                if(!$('#asp_ai_api_key').val()) {
+                    alert('請先在底部設定您的 API Key！');
+                    return;
+                }
+                
+                // 檢查哪些開關被打開
+                var tasks = [];
+                var f_gen_synopsis = acf.getField($('.acf-field[data-name="shortcut_ai_generate_synopsis"]'));
+                var f_gen_faq      = acf.getField($('.acf-field[data-name="shortcut_ai_generate_faq"]'));
+                var f_gen_cast     = acf.getField($('.acf-field[data-name="shortcut_ai_generate_cast"]'));
+                
+                if (f_gen_synopsis && f_gen_synopsis.val()) tasks.push('synopsis');
+                if (f_gen_faq && f_gen_faq.val()) tasks.push('faq');
+                if (f_gen_cast && f_gen_cast.val()) tasks.push('cast');
+                
+                if(tasks.length === 0) {
+                    alert('請至少開啟一個要生成的項目！');
+                    return;
+                }
+
+                // [優化 2] 每次生成前自動清空 Log 面板
+                $('#asp-ai-console-box').empty();
+
+                btn.prop('disabled', true).text('⏳ 生成中...');
+                logAI('🚀 開始執行 AI 生成工作流...');
+                
+                for(var i=0; i<tasks.length; i++) {
+                    var task = tasks[i];
+                    var sysPrompt = '';
+                    var userPrompt = '';
+                    var targetField = '';
+                    var taskName = '';
+                    
+                    var f_title = acf.getField($('.acf-field[data-name="shortcut_anime_title_chinese"]'));
+                    var title = (f_title && f_title.val()) ? String(f_title.val()).trim() : $('#title').val();
+                    
+                    if (task === 'synopsis') {
+                        taskName = '中文簡介';
+                        targetField = 'shortcut_anime_synopsis_chinese';
+                        var $descTextarea = $('.acf-field[data-name="anime_synopsis_chinese"] .description textarea');
+                        sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_synopsis_chinese"] .description').text().trim();
+                        var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                        userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
+                        if (userPrompt === '') {
+                            userPrompt = '目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title;
+                        } else {
+                            userPrompt = "請將以下原文草稿翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                        }
+                    } else if (task === 'faq') {
+                        taskName = 'FAQ';
+                        targetField = 'shortcut_anime_faq_json';
+                        var $descTextarea = $('.acf-field[data-name="anime_faq_json"] .description textarea');
+                        sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_faq_json"] .description').text().trim();
+                        userPrompt = '作品名稱：' + title;
+                    } else if (task === 'cast') {
+                        taskName = 'CAST';
+                        targetField = 'shortcut_anime_cast_json';
+                        var $descTextarea = $('.acf-field[data-name="anime_cast_json"] .description textarea');
+                        sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_cast_json"] .description').text().trim();
+                        var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                        userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
+                        if (userPrompt === '') {
+                            logAI(`⚠️ [${taskName}] 捷徑框內沒有提供原始 JSON，已自動跳過，不消耗 AI 額度。`);
+                            continue;
+                        }
+                    }
+                    
+                    logAI(`▶️ 正在生成 [${taskName}]...`);
+                    
+                    try {
+                        var res = await $.post(ajaxurl, {
+                            action: 'asp_shortcut_ai_generate',
+                            nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                            system_prompt: sysPrompt,
+                            user_prompt: userPrompt
+                        });
+                        
+                        // [優化 3] 更嚴謹的空字串防呆判斷
+                        if (res.success && res.data && typeof res.data.result === 'string') {
+                            var text = res.data.result;
+                            
+                            // Regex 提取 JSON (更嚴謹地過濾 Markdown 與多餘文字)
+                            if (task === 'faq' || task === 'cast') {
+                                // 去除可能包覆的 markdown 語法
+                                text = text.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
+                                // 精準抓取最外層的陣列括號
+                                var firstBracket = text.indexOf('[');
+                                var lastBracket = text.lastIndexOf(']');
+                                if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+                                    text = text.substring(firstBracket, lastBracket + 1);
+                                }
+                            }
+                            var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                            if (f_target) {
+                                f_target.val(text);
+                                logAI(`✅ [${taskName}] 生成完畢！(獲得 ${text.length} 字元) 並成功填入捷徑框！`);
+                            } else {
+                                logAI(`⚠️ [${taskName}] 警告：找不到名稱為 ${targetField} 的欄位，無法填入！(獲得 ${text.length} 字元)`, true);
+                                // 嘗試使用舊方法
+                                if (acf.getField(targetField)) acf.getField(targetField).val(text);
+                            }
+                            
+                            // [優化 1] 即時同步更新底層原生欄位，避免 Race Condition
+                            var nativeField = targetField.replace('shortcut_', '');
+                            var f_native = acf.getField($('.acf-field[data-name="' + nativeField + '"]'));
+                            if (f_native) {
+                                f_native.val(text);
+                                logAI(`✅ [${taskName}] 已同步回填至底層原生欄位！`);
+                            }
+                        } else {
+                            logAI(`❌ [${taskName}] 發生錯誤: ` + (res.data || '未知錯誤'), true);
+                        }
+                    } catch(err) {
+                        // [優化 3] 捕捉並印出具體錯誤細節
+                        var errDetail = err.responseText ? err.responseText : (err.statusText || '未知錯誤');
+                        logAI(`❌ [${taskName}] 請求失敗，請檢查網路連線或 API Key 狀態。細節：${errDetail}`, true);
+                    }
+                }
+                
+                logAI('🎉 所有選定項目生成工作流已結束！確認無誤後記得按右邊的儲存喔！');
+                btn.prop('disabled', false).text('🤖 執行 AI 輔助生成');
+            });
+        });
+        </script>
+        <?php
+    }
+
+    public function ajax_shortcut_ai_save_user(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error('權限不足');
+        
+        $user_id = get_current_user_id();
+        update_user_meta( $user_id, 'asp_ai_provider', sanitize_text_field($_POST['provider']) );
+        update_user_meta( $user_id, 'asp_ai_api_key', sanitize_text_field($_POST['api_key']) );
+        update_user_meta( $user_id, 'asp_ai_model_name', sanitize_text_field($_POST['model']) );
+        
+        if ( isset($_POST['pref_synopsis']) ) update_user_meta( $user_id, 'asp_ai_pref_shortcut_ai_generate_synopsis', intval($_POST['pref_synopsis']) );
+        if ( isset($_POST['pref_faq']) ) update_user_meta( $user_id, 'asp_ai_pref_shortcut_ai_generate_faq', intval($_POST['pref_faq']) );
+        if ( isset($_POST['pref_cast']) ) update_user_meta( $user_id, 'asp_ai_pref_shortcut_ai_generate_cast', intval($_POST['pref_cast']) );
+        
+        wp_send_json_success();
+    }
+
+    public function ajax_shortcut_ai_save_post(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        $post_id = isset( $_POST['post_id'] ) ? intval( $_POST['post_id'] ) : 0;
+        if ( ! current_user_can( 'edit_post', $post_id ) ) wp_send_json_error( '權限不足' );
+
+        $fields = isset( $_POST['fields'] ) && is_array( $_POST['fields'] ) ? wp_unslash($_POST['fields']) : [];
+        $mapping = [
+            'shortcut_anime_synopsis_chinese' => 'anime_synopsis_chinese',
+            'shortcut_anime_faq_json'         => 'anime_faq_json',
+            'shortcut_anime_cast_json'        => 'anime_cast_json',
+        ];
+
+        foreach ( $mapping as $shortcut => $real_key ) {
+            if ( isset( $fields[$shortcut] ) ) {
+                update_post_meta( $post_id, $real_key, $fields[$shortcut] );
+            }
+        }
+        wp_send_json_success();
+    }
+
+    public function ajax_shortcut_ai_generate(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
+
+        $user_id = get_current_user_id();
+        $provider = get_user_meta( $user_id, 'asp_ai_provider', true ) ?: 'gemini';
+        $api_key  = get_user_meta( $user_id, 'asp_ai_api_key', true );
+        $model    = get_user_meta( $user_id, 'asp_ai_model_name', true );
+        
+        if ( empty( $api_key ) ) {
+            wp_send_json_error( '未設定 API Key' );
+        }
+
+        $system_prompt = isset( $_POST['system_prompt'] ) ? wp_unslash( $_POST['system_prompt'] ) : '';
+        $user_prompt   = isset( $_POST['user_prompt'] ) ? wp_unslash( $_POST['user_prompt'] ) : '';
+
+        $result_text = '';
+
+        if ( $provider === 'openai' ) {
+            if ( empty( $model ) ) $model = 'gpt-4o';
+            $response = wp_remote_post( 'https://api.openai.com/v1/chat/completions', [
+                'timeout' => 60,
+                'headers' => [
+                    'Content-Type'  => 'application/json',
+                    'Authorization' => 'Bearer ' . $api_key,
+                ],
+                'body' => wp_json_encode( [
+                    'model'    => $model,
+                    'messages' => [
+                        [ 'role' => 'system', 'content' => $system_prompt ],
+                        [ 'role' => 'user', 'content' => $user_prompt ],
+                    ],
+                ] ),
+            ] );
+            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
+            $result_text = $body['choices'][0]['message']['content'] ?? '';
+
+        } elseif ( $provider === 'claude' ) {
+            if ( empty( $model ) ) $model = 'claude-3-5-sonnet-20240620';
+            $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', [
+                'timeout' => 60,
+                'headers' => [
+                    'Content-Type'      => 'application/json',
+                    'x-api-key'         => $api_key,
+                    'anthropic-version' => '2023-06-01',
+                ],
+                'body' => wp_json_encode( [
+                    'model'      => $model,
+                    'max_tokens' => 4096,
+                    'system'     => $system_prompt,
+                    'messages'   => [
+                        [ 'role' => 'user', 'content' => $user_prompt ],
+                    ],
+                ] ),
+            ] );
+            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
+            $result_text = $body['content'][0]['text'] ?? '';
+
+        } else {
+            // 預設 Gemini
+            if ( empty( $model ) ) $model = 'gemini-3.6-flash';
+            // Gemini 1.5 支援 system_instruction
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}";
+            $payload = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [ [ 'text' => $user_prompt ] ]
+                    ]
+                ]
+            ];
+            if ( ! empty( $system_prompt ) ) {
+                $payload['system_instruction'] = [
+                    'parts' => [ [ 'text' => $system_prompt ] ]
+                ];
+            }
+            $response = wp_remote_post( $url, [
+                'timeout' => 60,
+                'headers' => [ 'Content-Type' => 'application/json' ],
+                'body'    => wp_json_encode( $payload ),
+            ] );
+            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
+            $result_text = $body['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        }
+
+        wp_send_json_success( [ 'result' => $result_text ] );
+    }
+
 }
