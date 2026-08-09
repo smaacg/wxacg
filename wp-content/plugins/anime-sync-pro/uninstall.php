@@ -83,6 +83,18 @@ $options = array(
     'anime_sync_last_daily_run',
     'anime_sync_last_weekly_cleanup',
     'anime_sync_last_themes_episodes_run',
+    // ✅ [v1.5.1] 角色/聲優回補（原 mu-plugin 併入 Cron Manager）
+    'anime_sync_entity_backfill_mode',
+    'anime_sync_entity_backfill_batch',
+    'anime_sync_backfill_skip_chars',
+    'anime_sync_backfill_skip_persons',
+    'anime_sync_last_entity_backfill',
+    'anime_sync_entity_backfill_migrated',
+    // 舊 mu-plugin 殘留（保險再清一次）
+    'my_backfill_skip_chars',
+    'my_backfill_skip_persons',
+    'my_backfill_last',
+    'my_backfill_persons_skip_reset_done',
     // taxonomy seed 標記
     'weixiaoacg_taxonomy_v5_done',
 );

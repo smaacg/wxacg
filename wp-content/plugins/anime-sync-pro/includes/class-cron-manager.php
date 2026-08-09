@@ -4,6 +4,27 @@
  * Cron Manager — 排程同步管理
  *
  * 修正紀錄：
+ * - [v1.5.1] [Entity Backfill 併入] 將原 mu-plugins/char-person-backfill-cron.php
+ *            （角色/聲優自動回補）整支併入本類別，成為「任務七」，該 mu-plugin
+ *            檔案可直接刪除：
+ *            (1) 新增每 5 分鐘排程 anime_sync_five_min 與 HOOK_ENTITY_BACKFILL，
+ *                activate()/deactivate() 一併管理排程生命週期。
+ *            (2) 開關由原本硬編碼 define('MY_BACKFILL_MODE') 改為 option
+ *                anime_sync_entity_backfill_mode（'characters'|'persons'|'off'，
+ *                預設 'off'），批次量 option anime_sync_entity_backfill_batch
+ *                （預設 60），切換不再需要改程式碼。
+ *            (3) 環境守門改用標準 wp_get_environment_type() === 'local' 判斷，
+ *                移除原本硬編碼的主機絕對路徑檢查（不可攜、換主機即失效）。
+ *            (4) 一次性遷移 maybe_migrate_legacy_backfill_options()：搬移舊
+ *                my_backfill_skip_chars / my_backfill_skip_persons 跳過名單至新
+ *                option key（保留已累積的「BGM 無資料」名單，避免重打 API），
+ *                清除舊 my_backfill_last / my_backfill_persons_skip_reset_done，
+ *                並 wp_clear_scheduled_hook('my_backfill_event') 移除 mu-plugin
+ *                刪檔後殘留的孤兒排程。
+ *            (5) 跳過邏輯不變：只有 BGM「整筆抓不到」(failed>0 且 updated=0)
+ *                的 bgm_id 才記入跳過名單；聲優只以 infobox_json 判斷缺漏
+ *                （summary/height/birthday 為 BGM 常缺選填欄位，納入判斷會
+ *                導致集體筆名等條目反覆重撈、進度卡死）。
  * - [v1.5.0] [Fix 未定檔期死結 + seasonYear 同步] 根治「動畫化確定但未定檔期」的作品
  *            開播日/播出年份永遠是舊資料的問題：
  *            背景：build_daily_queue() 的 NOT_YET_RELEASED 分支原本要求
@@ -196,6 +217,20 @@ class Anime_Sync_Cron_Manager {
     const SCORE_RETRY_COUNT_META            = 'anime_score_retry_count';
     const LAST_SCORE_BACKFILL_BUILD_OPTION  = 'anime_sync_last_score_backfill_build';
 
+    // ✅ [v1.5.1] 任務七：角色/聲優 BGM 資料回補（原 mu-plugin 併入）
+    const HOOK_ENTITY_BACKFILL              = 'anime_sync_entity_backfill';
+    const LOCK_TTL_ENTITY_BACKFILL          = 290; // 略短於 5 分鐘間隔，避免死鎖
+    // 開關：'characters' | 'persons' | 'off'（預設 off；用 update_option 或 WP-CLI 切換）
+    const ENTITY_BACKFILL_MODE_OPTION       = 'anime_sync_entity_backfill_mode';
+    const ENTITY_BACKFILL_BATCH_OPTION      = 'anime_sync_entity_backfill_batch';
+    const ENTITY_BACKFILL_BATCH_DEFAULT     = 60;
+    // 「BGM 整筆抓不到」的跳過名單（沿用原 mu-plugin 機制，換新 key）
+    const ENTITY_BACKFILL_SKIP_CHARS_OPTION   = 'anime_sync_backfill_skip_chars';
+    const ENTITY_BACKFILL_SKIP_PERSONS_OPTION = 'anime_sync_backfill_skip_persons';
+    const ENTITY_BACKFILL_LAST_OPTION       = 'anime_sync_last_entity_backfill';
+    // 一次性遷移旗標（搬移舊 my_backfill_* option、清除孤兒排程）
+    const ENTITY_BACKFILL_MIGRATED_OPTION   = 'anime_sync_entity_backfill_migrated';
+
     private Anime_Sync_Import_Manager $import_manager;
     private Anime_Sync_Error_Logger   $logger;
     private Anime_Sync_Rate_Limiter   $rate_limiter;
@@ -221,6 +256,9 @@ class Anime_Sync_Cron_Manager {
         add_action( self::HOOK_UPDATE_MAP,             [ $this, 'run_update_map' ] );
         add_action( self::HOOK_SEASON_IMPORT,          [ $this, 'run_season_auto_import' ], 10, 2 );
         add_action( self::HOOK_THEMES_EPISODES_UPDATE, [ $this, 'run_themes_episodes_update' ] );
+
+        // ✅ [v1.5.1] 任務七：角色/聲優 BGM 資料回補
+        add_action( self::HOOK_ENTITY_BACKFILL,        [ $this, 'run_entity_backfill' ] );
     }
 
     // =========================================================================
@@ -246,6 +284,11 @@ class Anime_Sync_Cron_Manager {
                 'interval' => 15 * MINUTE_IN_SECONDS,
                 'display'  => __( 'Anime Sync: 每15分鐘', 'anime-sync-pro' ),
             ],
+            // ✅ [v1.5.1] 新增 5 分鐘間隔，供角色/聲優回補使用（原 my_every5min）
+            'anime_sync_five_min' => [
+                'interval' => 5 * MINUTE_IN_SECONDS,
+                'display'  => __( 'Anime Sync: 每5分鐘', 'anime-sync-pro' ),
+            ],
         ];
     }
 
@@ -263,7 +306,8 @@ class Anime_Sync_Cron_Manager {
         $existing_schedules = wp_get_schedules();
         if ( ! array_key_exists( 'anime_sync_weekly', $existing_schedules ) ||
              ! array_key_exists( 'anime_sync_hourly', $existing_schedules ) ||
-             ! array_key_exists( 'anime_sync_quarter_hour', $existing_schedules ) ) {
+             ! array_key_exists( 'anime_sync_quarter_hour', $existing_schedules ) ||
+             ! array_key_exists( 'anime_sync_five_min', $existing_schedules ) ) {
 
             add_filter( 'cron_schedules', static function ( $schedules ) {
                 return array_merge( (array) $schedules, self::get_custom_schedules() );
@@ -294,6 +338,14 @@ class Anime_Sync_Cron_Manager {
                 self::HOOK_UPDATE_MAP
             );
         }
+
+        // ✅ [v1.5.1] 任務七：角色/聲優回補（每 5 分鐘；mode='off' 時觸發後立即返回，負擔可忽略）
+        if ( ! wp_next_scheduled( self::HOOK_ENTITY_BACKFILL ) ) {
+            wp_schedule_event( time() + 60, 'anime_sync_five_min', self::HOOK_ENTITY_BACKFILL );
+        }
+
+        // ✅ [v1.5.1] 遷移舊 mu-plugin 的 option / 孤兒排程
+        self::maybe_migrate_legacy_backfill_options();
     }
 
     public static function deactivate(): void {
@@ -303,6 +355,7 @@ class Anime_Sync_Cron_Manager {
             self::HOOK_SEASON_IMPORT,
             self::HOOK_UPDATE_MAP,
             self::HOOK_THEMES_EPISODES_UPDATE,
+            self::HOOK_ENTITY_BACKFILL, // ✅ [v1.5.1]
         ];
         foreach ( $hooks as $hook ) {
             $timestamp = wp_next_scheduled( $hook );
@@ -315,6 +368,41 @@ class Anime_Sync_Cron_Manager {
     public static function reschedule_all(): void {
         self::deactivate();
         self::activate();
+    }
+
+    /**
+     * ✅ [v1.5.1] 一次性遷移：由舊 mu-plugin (char-person-backfill-cron.php) 接手。
+     *   - 搬移舊跳過名單 my_backfill_skip_chars / my_backfill_skip_persons
+     *     至新 option key，保留已累積的「BGM 無資料」名單，避免重打 API。
+     *   - 清除舊狀態 option 與 mu-plugin 刪檔後殘留的孤兒排程 my_backfill_event。
+     *   - 冪等：跑過一次即記旗標，不重複執行。
+     */
+    private static function maybe_migrate_legacy_backfill_options(): void {
+        if ( get_option( self::ENTITY_BACKFILL_MIGRATED_OPTION ) ) {
+            return;
+        }
+
+        // 搬移跳過名單（新 key 已存在則不覆蓋）
+        $legacy_map = [
+            'my_backfill_skip_chars'   => self::ENTITY_BACKFILL_SKIP_CHARS_OPTION,
+            'my_backfill_skip_persons' => self::ENTITY_BACKFILL_SKIP_PERSONS_OPTION,
+        ];
+        foreach ( $legacy_map as $old_key => $new_key ) {
+            $old_val = get_option( $old_key, null );
+            if ( is_array( $old_val ) && ! empty( $old_val ) && get_option( $new_key, null ) === null ) {
+                add_option( $new_key, array_values( array_unique( array_map( 'intval', $old_val ) ) ), '', 'no' );
+            }
+            delete_option( $old_key );
+        }
+
+        // 清除舊狀態 option
+        delete_option( 'my_backfill_last' );
+        delete_option( 'my_backfill_persons_skip_reset_done' );
+
+        // 移除 mu-plugin 刪檔後殘留的孤兒排程（含所有引數組合）
+        wp_clear_scheduled_hook( 'my_backfill_event' );
+
+        update_option( self::ENTITY_BACKFILL_MIGRATED_OPTION, 1, false );
     }
 
     // =========================================================================
@@ -1054,6 +1142,143 @@ class Anime_Sync_Cron_Manager {
             $retry = (int) get_post_meta( $post_id, self::SCORE_RETRY_COUNT_META, true );
             update_post_meta( $post_id, self::SCORE_RETRY_COUNT_META, $retry + 1 );
         }
+    }
+
+    // =========================================================================
+    // ✅ [v1.5.1] 任務七：角色/聲優 BGM 資料回補（原 mu-plugin 併入）
+    //
+    // 原始出處：wp-content/mu-plugins/char-person-backfill-cron.php
+    // 每 5 分鐘補一批 wp_anime_characters / wp_anime_persons 中欄位缺漏的
+    // 資料，實際抓取委派給 Anime_Sync_Entity_Migrator::backfill_characters()
+    // / backfill_persons()。只有 BGM「整筆抓不到」(failed>0 且 updated=0)
+    // 的 bgm_id 才記入跳過名單，避免浪費 API 額度重打不存在的條目。
+    //
+    // 開關（不再需要改程式碼，直接改 option 即可）：
+    //   wp option update anime_sync_entity_backfill_mode characters
+    //   wp option update anime_sync_entity_backfill_mode persons
+    //   wp option update anime_sync_entity_backfill_mode off
+    // 批次量：
+    //   wp option update anime_sync_entity_backfill_batch 60
+    // =========================================================================
+
+    public function run_entity_backfill(): void {
+        // 環境守門：本機（LocalWP 等）一律靜默，只在正式站執行。
+        // 原 mu-plugin 另有硬編碼主機絕對路徑檢查，不可攜、換主機即失效，
+        // 已移除；請確保本機 wp-config.php 設定 WP_ENVIRONMENT_TYPE=local。
+        if ( function_exists( 'wp_get_environment_type' )
+             && wp_get_environment_type() === 'local' ) {
+            return;
+        }
+
+        $mode = (string) get_option( self::ENTITY_BACKFILL_MODE_OPTION, 'off' );
+        if ( ! in_array( $mode, [ 'characters', 'persons' ], true ) ) {
+            return; // 'off' 或無效值
+        }
+
+        if ( get_transient( 'anime_sync_lock_entity_backfill' ) ) {
+            return;
+        }
+        set_transient( 'anime_sync_lock_entity_backfill', 1, self::LOCK_TTL_ENTITY_BACKFILL );
+
+        try {
+            $this->_run_entity_backfill_inner( $mode );
+        } finally {
+            delete_transient( 'anime_sync_lock_entity_backfill' );
+        }
+    }
+
+    private function _run_entity_backfill_inner( string $mode ): void {
+        global $wpdb;
+
+        if ( ! class_exists( 'Anime_Sync_Entity_Migrator' ) ) {
+            $this->logger->log( 'error', '實體回補：Anime_Sync_Entity_Migrator 尚未載入' );
+            return;
+        }
+
+        $migrator = new Anime_Sync_Entity_Migrator( $this->rate_limiter );
+
+        $batch = (int) get_option( self::ENTITY_BACKFILL_BATCH_OPTION, self::ENTITY_BACKFILL_BATCH_DEFAULT );
+        if ( $batch <= 0 ) {
+            $batch = self::ENTITY_BACKFILL_BATCH_DEFAULT;
+        }
+
+        if ( $mode === 'persons' ) {
+            $table    = $wpdb->prefix . 'anime_persons';
+            $method   = 'backfill_persons';
+            $skip_key = self::ENTITY_BACKFILL_SKIP_PERSONS_OPTION;
+            // 聲優：只用 infobox_json 判斷「補過沒」。
+            // summary、height、birthday、name_original 屬選填欄位，BGM 常缺
+            // (例如集體筆名「矢立肇」「東堂いづみ」或老一輩幕後人員無簡介)，
+            // 若納入判斷會導致這些人被反覆重撈、進度永遠卡住。
+            // infobox 是 BGM 收錄該人時最普遍具備的欄位，用它判斷最可靠。
+            $where_missing = "( infobox_json IS NULL OR infobox_json = '' )";
+        } else {
+            $table    = $wpdb->prefix . 'anime_characters';
+            $method   = 'backfill_characters';
+            $skip_key = self::ENTITY_BACKFILL_SKIP_CHARS_OPTION;
+            // 角色：這些欄位任一為空就撈來補
+            $where_missing = "( summary IS NULL OR summary = ''
+                             OR name_cn IS NULL OR name_cn = ''
+                             OR infobox_json IS NULL OR infobox_json = '' )";
+        }
+
+        $skip = get_option( $skip_key, [] );
+        if ( ! is_array( $skip ) ) {
+            $skip = [];
+        }
+
+        $not_in = '';
+        if ( ! empty( $skip ) ) {
+            $skip_ints = array_map( 'intval', $skip );
+            $not_in    = ' AND bgm_id NOT IN (' . implode( ',', $skip_ints ) . ')';
+        }
+
+        // $table / $where_missing / $not_in 皆為內部組成（skip 已 intval），無外部輸入。
+        $ids = $wpdb->get_col(
+            "SELECT bgm_id FROM {$table}
+             WHERE bgm_id > 0 AND {$where_missing} {$not_in}
+             LIMIT {$batch}"
+        );
+
+        if ( empty( $ids ) ) {
+            self::update_cron_option(
+                self::ENTITY_BACKFILL_LAST_OPTION,
+                gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table . ' 沒有待補的了 (跳過名單 ' . count( $skip ) . ' 筆)'
+            );
+            return;
+        }
+
+        $updated = 0;
+        $no_data = 0;
+
+        foreach ( $ids as $id ) {
+            $id = (int) $id;
+            $r  = [ 'updated' => 0, 'failed' => 0 ];
+            try {
+                $r = $migrator->{$method}( [ 'bgm_id' => $id, 'force' => true ] );
+            } catch ( \Throwable $e ) {
+                $this->logger->log( 'error', '實體回補例外 bgm_id=' . $id . ' : ' . $e->getMessage() );
+            }
+            // 判斷：有補到任何資料就算成功；整筆 BGM 抓不到(failed>0 且 updated=0)才跳過
+            if ( ! empty( $r['updated'] ) && $r['updated'] > 0 ) {
+                $updated++;
+            } elseif ( ! empty( $r['failed'] ) && $r['failed'] > 0 ) {
+                $skip[] = $id;
+                $no_data++;
+            }
+            // 若 updated=0 且 failed=0（no_change，資料已齊），不跳過、下次不會再撈到(因欄位已滿)
+        }
+
+        $skip = array_values( array_unique( array_map( 'intval', $skip ) ) );
+        self::update_cron_option( $skip_key, $skip );
+
+        $summary = gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table
+            . ' 這批 ' . count( $ids ) . ' 筆，實補=' . $updated
+            . '，BGM無資料跳過=' . $no_data
+            . '，跳過名單累計=' . count( $skip );
+
+        self::update_cron_option( self::ENTITY_BACKFILL_LAST_OPTION, $summary );
+        $this->logger->log( 'info', '實體回補：' . $summary );
     }
 
     // =========================================================================
