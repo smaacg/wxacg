@@ -2768,7 +2768,7 @@ private function register_manga_fields(): void {
                         var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
                         userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
                         if (userPrompt === '') {
-                            userPrompt = '目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title + '\n\n⚠️ 重要規則：請直接輸出純簡介內容，絕對不要加上「以下是...的簡介」或任何開場白與對話詞彙。';
+                            userPrompt = '但目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title + '\n\n⚠️ 重要規則：請直接輸出純簡介內容，絕對不要加上「以下是...的簡介」或任何開場白與對話詞彙。';
                         } else {
                             userPrompt = "請將以下原文草稿翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
                         }
