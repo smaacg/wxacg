@@ -3001,7 +3001,13 @@ private function register_manga_fields(): void {
             ] );
             if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
-            if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
+            if ( isset( $body['error'] ) ) {
+                $err_msg = $body['error']['message'];
+                if ( strpos( $err_msg, 'currently experiencing high demand' ) !== false ) {
+                    $err_msg = '目前此 AI 模型正處於高負載狀態，這通常是暫時的，請稍後再試。';
+                }
+                wp_send_json_error( $err_msg );
+            }
             $result_text = $body['candidates'][0]['content']['parts'][0]['text'] ?? '';
         }
 
