@@ -582,9 +582,9 @@ class Anime_Sync_ACF_Fields {
 
         $instructions  = '優先使用 Bangumi summary（自動簡繁轉換）。若無資料，可用下方提示詞產生後貼回。<br>';
         $instructions .= '<strong>📋 作品名稱與補充辨識已自動帶入。點框內後按 Ctrl+A 再 Ctrl+C：</strong>';
-        $instructions .= '<div style="margin:8px 0;">';
+        $instructions .= '<span style="display:block; margin:8px 0;">';
         $instructions .= '<textarea id="' . esc_attr( $ta_id ) . '" readonly onclick="this.focus();this.select();" style="width:100%;height:140px;background:#f6f7f7;border:1px solid #ccd0d4;border-radius:4px;padding:10px;font-size:12px;line-height:1.6;">' . esc_textarea( $prompt ) . '</textarea>';
-        $instructions .= '</div>';
+        $instructions .= '</span>';
 
         acf_add_local_field_group( [
             'key'    => 'group_anime_synopsis',
@@ -791,9 +791,9 @@ $cast_prompt .= "以下是 JSON:\n";
 
         $cast_instructions  = '由 Bangumi CAST API 自動填入(多為日文原名/大陸譯名),匯入後人工整理。整理後請在「同步控制」勾選「鎖定 CAST 角色資料」,避免下次同步被覆蓋。<br><br>';
         $cast_instructions .= '<strong>📋 譯名在地化指令(點框內後按 Ctrl+A 再 Ctrl+C,務必先填【作品名稱】,連同 CAST JSON 一起貼給可上網的 AI):</strong>';
-        $cast_instructions .= '<div style="margin:8px 0;">';
+        $cast_instructions .= '<span style="display:block; margin:8px 0;">';
         $cast_instructions .= '<textarea id="' . esc_attr( $cast_ta_id ) . '" readonly onclick="this.focus();this.select();" style="width:100%;height:260px;background:#f6f7f7;border:1px solid #ccd0d4;border-radius:4px;padding:10px;font-size:12px;line-height:1.6;">' . esc_textarea( $cast_prompt ) . '</textarea>';
-        $cast_instructions .= '</div>';
+        $cast_instructions .= '</span>';
         $cast_instructions .= '<strong>⚠️ 必填【作品名稱】;核對清單若某筆「來源」沒附具體網址,代表 AI 沒真的查到,該筆譯名別採用;貼回前掃一眼程式碼框,確認 image 網址未被更動。</strong>';
 
         acf_add_local_field_group( [
@@ -1817,9 +1817,9 @@ private function register_manga_fields(): void {
         $instructions  = '完全人工輸入，留空則不顯示 FAQ 區塊與 Schema.org FAQPage。<br>';
         $instructions .= '<strong>格式範例：</strong> <code>[{"q":"問題一","a":"答案一"}]</code><br><br>';
         $instructions .= '<strong>📋 作品名稱與補充辨識已自動帶入。點框內後按 Ctrl+A 再 Ctrl+C：</strong>';
-        $instructions .= '<div style="margin:8px 0;">';
+        $instructions .= '<span style="display:block; margin:8px 0;">';
         $instructions .= '<textarea id="' . esc_attr( $ta_id ) . '" readonly onclick="this.focus();this.select();" style="width:100%;height:220px;background:#f6f7f7;border:1px solid #ccd0d4;border-radius:4px;padding:10px;font-size:12px;line-height:1.6;">' . esc_textarea( $prompt ) . '</textarea>';
-        $instructions .= '</div>';
+        $instructions .= '</span>';
         $instructions .= '<strong>⚠️ AI 回覆中，來源說明在上、JSON 程式碼框在下；用程式碼框右上角複製鈕取得 JSON，貼回前確認只有 q/a 兩個欄位。</strong>';
 
         acf_add_local_field_group( [
@@ -2777,7 +2777,7 @@ private function register_manga_fields(): void {
                         targetField = 'shortcut_anime_faq_json';
                         var $descTextarea = $('.acf-field[data-name="anime_faq_json"] .description textarea');
                         sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_faq_json"] .description').text().trim();
-                        userPrompt = '作品名稱：' + title;
+                        userPrompt = '請嚴格依照上述規則，直接輸出 JSON 陣列，不要包含任何開場白或解釋。';
                     } else if (task === 'cast') {
                         taskName = 'CAST';
                         targetField = 'shortcut_anime_cast_json';
