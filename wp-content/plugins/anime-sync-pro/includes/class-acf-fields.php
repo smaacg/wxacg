@@ -2810,14 +2810,29 @@ private function register_manga_fields(): void {
                             var failMsg = '';
 
                             if (task === 'faq' || task === 'cast') {
-                                if (text.indexOf('[') === -1 || text.indexOf(']') === -1) {
+                                // 去除可能包覆的 markdown 語法
+                                text = text.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
+                                var firstBracket = text.indexOf('[');
+                                var lastBracket = text.lastIndexOf(']');
+                                
+                                if (firstBracket === -1 || lastBracket === -1 || lastBracket <= firstBracket) {
                                     isFailed = true;
                                     failMsg = '未能產出有效的 JSON 格式';
                                 } else {
-                                    var inner = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1).replace(/\s/g, '');
-                                    if (inner === '[]' || inner === '') {
+                                    // 擷取陣列字串
+                                    text = text.substring(firstBracket, lastBracket + 1);
+                                    try {
+                                        var parsed = JSON.parse(text);
+                                        // 如果成功解析，則轉換為壓縮格式
+                                        text = JSON.stringify(parsed);
+                                        if (text === '[]') {
+                                            isFailed = true;
+                                            failMsg = 'AI 回傳了空陣列 (查無資料)';
+                                        }
+                                    } catch (e) {
+                                        // 解析失敗，可能是提取範圍包含了多餘文字 (如來源說明中包含了 ']')
                                         isFailed = true;
-                                        failMsg = 'AI 回傳了空陣列 (查無資料)';
+                                        failMsg = '未能產出有效的 JSON 格式 (夾雜無法解析的字串)';
                                     }
                                 }
                             } else if (task === 'synopsis') {
@@ -2828,20 +2843,8 @@ private function register_manga_fields(): void {
                             }
 
                             if (isFailed) {
-                                logAI(`⚠️ [${taskName}] ${failMsg}，已自動跳過寫入。(AI 原始回覆: ${text.replace(/\n/g, ' ').substring(0, 40)}...)`, true);
+                                logAI(`⚠️ [${taskName}] ${failMsg}，已自動跳過寫入。(AI 原始回覆: ${res.data.result.replace(/\n/g, ' ').substring(0, 40)}...)`, true);
                                 continue;
-                            }
-                            
-                            // Regex 提取 JSON (更嚴謹地過濾 Markdown 與多餘文字)
-                            if (task === 'faq' || task === 'cast') {
-                                // 去除可能包覆的 markdown 語法
-                                text = text.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
-                                // 精準抓取最外層的陣列括號
-                                var firstBracket = text.indexOf('[');
-                                var lastBracket = text.lastIndexOf(']');
-                                if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-                                    text = text.substring(firstBracket, lastBracket + 1);
-                                }
                             }
                             var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
                             if (f_target) {
