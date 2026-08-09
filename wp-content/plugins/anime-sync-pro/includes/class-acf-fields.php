@@ -55,6 +55,8 @@ class Anime_Sync_ACF_Fields {
             'shortcut_anime_title_chinese'    => 'anime_title_chinese',
             'shortcut_anime_title_simplified' => 'anime_title_simplified',
             'shortcut_anime_youranimes_url'   => 'anime_youranimes_url',
+            'shortcut_anime_tw_distributor'   => 'anime_tw_distributor',
+            'shortcut_anime_tw_distributor_custom' => 'anime_tw_distributor_custom',
             'shortcut_anime_yt_playlist_url'  => 'anime_yt_playlist_url',
             'shortcut_anime_online_watch'     => 'anime_online_watch',
             'shortcut_anime_trailer_url'      => 'anime_trailer_url',
@@ -2188,6 +2190,8 @@ private function register_manga_fields(): void {
             'shortcut_anime_title_chinese'    => 'anime_title_chinese',
             'shortcut_anime_title_simplified' => 'anime_title_simplified',
             'shortcut_anime_youranimes_url'   => 'anime_youranimes_url',
+            'shortcut_anime_tw_distributor'   => 'anime_tw_distributor',
+            'shortcut_anime_tw_distributor_custom' => 'anime_tw_distributor_custom',
             'shortcut_anime_yt_playlist_url'  => 'anime_yt_playlist_url',
             'shortcut_anime_online_watch'     => 'anime_online_watch',
             'shortcut_anime_trailer_url'      => 'anime_trailer_url',
@@ -2286,14 +2290,50 @@ private function register_manga_fields(): void {
                     'label'   => 'YourAnimes 網址',
                     'name'    => 'shortcut_anime_youranimes_url',
                     'type'    => 'url',
-                    'wrapper' => [ 'width' => '50' ],
+                    'wrapper' => [ 'width' => '38' ],
+                ],
+                [
+                    'key'           => 'field_shortcut_anime_tw_distributor',
+                    'label'         => '台灣代理商/發行商',
+                    'name'          => 'shortcut_anime_tw_distributor',
+                    'type'          => 'select',
+                    'choices'       => [
+                        ''            => '── 請選擇 ──',
+                        'muse'        => '木棉花',
+                        'medialink'   => '曼迪傳播',
+                        'linbang'     => '羚邦',
+                        'tropic'      => '回歸線娛樂',
+                        'proware'     => '普威爾',
+                        'kadokawa'    => '台灣角川',
+                        'gungho'      => '群英社',
+                        'tien'        => '提恩傳媒',
+                        'garage'      => '車庫娛樂',
+                        'carsun'      => '采昌國際',
+                        'jbf'         => '日本橋文化(JBF)',
+                        'righttime'   => '利得時代(Right Time)',
+                        'aniplus'     => 'ANIPLUS Asia',
+                        'tongli'      => '東立出版社',
+                        'remow'       => 'REMOW',
+                        'gaga'        => 'GaGa OOLala',
+                        'other'       => '其他(自訂)',
+                    ],
+                    'default_value' => '',
+                    'allow_null'    => 1,
+                    'wrapper'       => [ 'width' => '12' ],
+                ],
+                [
+                    'key'           => 'field_shortcut_anime_tw_distributor_custom',
+                    'label'         => '台灣代理商(自訂名稱)',
+                    'name'          => 'shortcut_anime_tw_distributor_custom',
+                    'type'          => 'text',
+                    'wrapper'       => [ 'width' => '12' ],
                 ],
                 [
                     'key'     => 'field_shortcut_anime_yt_playlist_url',
                     'label'   => 'YouTube 播放清單網址',
                     'name'    => 'shortcut_anime_yt_playlist_url',
                     'type'    => 'url',
-                    'wrapper' => [ 'width' => '50' ],
+                    'wrapper' => [ 'width' => '38' ],
                 ],
                 [
                     'key'          => 'field_shortcut_anime_trailer_url',
@@ -2728,7 +2768,7 @@ private function register_manga_fields(): void {
                         var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
                         userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
                         if (userPrompt === '') {
-                            userPrompt = '目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title;
+                            userPrompt = '目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title + '\n\n⚠️ 重要規則：請直接輸出純簡介內容，絕對不要加上「以下是...的簡介」或任何開場白與對話詞彙。';
                         } else {
                             userPrompt = "請將以下原文草稿翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
                         }
@@ -2764,6 +2804,33 @@ private function register_manga_fields(): void {
                         // [優化 3] 更嚴謹的空字串防呆判斷
                         if (res.success && res.data && typeof res.data.result === 'string') {
                             var text = res.data.result;
+                            
+                            // [優化 4] 智慧判斷 AI 是否找不到資料
+                            var isFailed = false;
+                            var failMsg = '';
+
+                            if (task === 'faq' || task === 'cast') {
+                                if (text.indexOf('[') === -1 || text.indexOf(']') === -1) {
+                                    isFailed = true;
+                                    failMsg = '未能產出有效的 JSON 格式';
+                                } else {
+                                    var inner = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1).replace(/\s/g, '');
+                                    if (inner === '[]' || inner === '') {
+                                        isFailed = true;
+                                        failMsg = 'AI 回傳了空陣列 (查無資料)';
+                                    }
+                                }
+                            } else if (task === 'synopsis') {
+                                if (text.length < 60 && (text.includes('抱歉') || text.includes('找不到') || text.includes('查無') || text.includes('無法') || text.includes('沒有'))) {
+                                    isFailed = true;
+                                    failMsg = 'AI 回報找不到相關資料';
+                                }
+                            }
+
+                            if (isFailed) {
+                                logAI(`⚠️ [${taskName}] ${failMsg}，已自動跳過寫入。(AI 原始回覆: ${text.replace(/\n/g, ' ').substring(0, 40)}...)`, true);
+                                continue;
+                            }
                             
                             // Regex 提取 JSON (更嚴謹地過濾 Markdown 與多餘文字)
                             if (task === 'faq' || task === 'cast') {
