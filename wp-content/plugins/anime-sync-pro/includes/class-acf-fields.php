@@ -2538,8 +2538,8 @@ private function register_manga_fields(): void {
                 var $header = $('#acf-group_anime_shortcuts_ai .postbox-header');
                 if ($header.length === 0) $header = $('#acf-group_anime_shortcuts_ai .hndle');
                 
-                var $btnGroup = $('<div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; display:flex; gap: 8px; align-items: center;">' +
-                    '<button type="button" id="asp-btn-ai-generate" class="button button-secondary" style="height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">🤖 執行 AI 輔助生成</button>' +
+                var $btnGroup = $('<div style="position: absolute; right: 215px; top: 50%; transform: translateY(-50%); z-index: 10; display:flex; gap: 8px; align-items: center;">' +
+                    '<button type="button" id="asp-btn-ai-generate" class="button button-secondary" style="height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">✨ 執行 AI 輔助生成</button>' +
                     '<button type="button" id="asp-btn-ai-save" class="button button-primary" style="height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">💾 儲存 AI 輔助區塊</button>' +
                 '</div>');
                 
