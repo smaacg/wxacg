@@ -2948,7 +2948,11 @@ private function register_manga_fields(): void {
                     ],
                 ] ),
             ] );
-            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            if ( is_wp_error( $response ) ) {
+                $err_msg = $response->get_error_message();
+                if ( strpos( $err_msg, 'cURL error 28' ) !== false ) $err_msg = '連線逾時 (超過 60 秒未收到 AI 回應，請稍後再試)。';
+                wp_send_json_error( $err_msg );
+            }
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
             $result_text = $body['choices'][0]['message']['content'] ?? '';
@@ -2971,7 +2975,11 @@ private function register_manga_fields(): void {
                     ],
                 ] ),
             ] );
-            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            if ( is_wp_error( $response ) ) {
+                $err_msg = $response->get_error_message();
+                if ( strpos( $err_msg, 'cURL error 28' ) !== false ) $err_msg = '連線逾時 (超過 60 秒未收到 AI 回應，請稍後再試)。';
+                wp_send_json_error( $err_msg );
+            }
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
             $result_text = $body['content'][0]['text'] ?? '';
@@ -2999,7 +3007,11 @@ private function register_manga_fields(): void {
                 'headers' => [ 'Content-Type' => 'application/json' ],
                 'body'    => wp_json_encode( $payload ),
             ] );
-            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            if ( is_wp_error( $response ) ) {
+                $err_msg = $response->get_error_message();
+                if ( strpos( $err_msg, 'cURL error 28' ) !== false ) $err_msg = '連線逾時 (超過 60 秒未收到 AI 回應，請稍後再試)。';
+                wp_send_json_error( $err_msg );
+            }
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( isset( $body['error'] ) ) {
                 $err_msg = $body['error']['message'];
