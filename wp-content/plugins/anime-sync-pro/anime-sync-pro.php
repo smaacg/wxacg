@@ -27,6 +27,12 @@
  *   - [向下相容] 100% 保留 v1.5.0 所有功能與 hook 順序；未安裝/未啟用
  *     entity-migrator 相關功能時（class_exists 檢查失敗）不影響
  *     既有匯入 / enrich 流程。
+ *   - [修正] plugins_loaded 核心實例化條件加入 WP-CLI 判斷，讓
+ *     Cron Manager 在 WP-CLI 環境也會被實例化（註冊 cron_schedules
+ *     自訂間隔並掛上 anime_sync_entity_backfill listener），修正 CLI
+ *     下 anime_sync_five_min 間隔不存在、do_action 空觸發的問題。
+ *   - [修正] anime_sync_migrate_entities 環境守門改用標準
+ *     wp_get_environment_type()，移除不可攜的硬編碼主機絕對路徑判斷。
  *
  * 1.5.0 — 角色/聲優獨立實體頁 /person/ /character/（2026-07-28）
  *   - [新增] plugins_loaded 初始化 Anime_Sync_Entity_Routing
@@ -650,7 +656,20 @@ add_action( 'plugins_loaded', function (): void {
 		Anime_Sync_Entity_Routing::init();
 	}
 
-	if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
+	// ------------------------------------------------------
+	// ★ [v1.5.1 修正] 核心（匯入 / Cron Manager 等）實例化條件加入
+	//   WP-CLI 判斷：
+	//   - 原本僅 is_admin() || DOING_CRON 時才實例化，WP-CLI 執行時
+	//     兩者皆 false，導致 Cron_Manager 建構子沒跑，其
+	//     add_filter('cron_schedules', ...) 與
+	//     add_action('anime_sync_entity_backfill', ...) 都不會掛上，
+	//     造成 CLI 下 anime_sync_five_min 間隔不存在、
+	//     do_action('anime_sync_entity_backfill') 空觸發。
+	//   - 加入 ( defined('WP_CLI') && WP_CLI ) 後，CLI 也會正確
+	//     實例化核心，wp eval / wp cron 皆可正常運作。
+	//   - 對正式站前台／後台／wp-cron 行為零影響（原條件完全保留）。
+	// ------------------------------------------------------
+	if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 
 		$rate_limiter = class_exists( 'Anime_Sync_Rate_Limiter' )
 			? Anime_Sync_Rate_Limiter::get_instance()
@@ -793,8 +812,12 @@ add_action( 'plugins_loaded', function (): void {
 			'anime_sync_migrate_entities',
 			function ( int $post_id ): void {
 
-				// [本地防護] 如果不是正式站的目錄，就直接中斷，不執行任何同步動作！
-				if ( strpos( __FILE__, '/home/u393305917/domains/weixiaoacg.com/public_html' ) === false ) {
+				// ★ [v1.5.1 修正] 環境守門改用標準 wp_get_environment_type()，
+				//   移除原本硬編碼主機絕對路徑判斷（不可攜、換主機即失效）。
+				//   本機（LocalWP 等）請於 wp-config.php 設定
+				//   WP_ENVIRONMENT_TYPE=local，即會自動略過同步。
+				if ( function_exists( 'wp_get_environment_type' )
+					&& wp_get_environment_type() === 'local' ) {
 					return;
 				}
 
