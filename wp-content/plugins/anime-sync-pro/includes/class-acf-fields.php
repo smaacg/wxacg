@@ -3493,7 +3493,13 @@ private function register_manga_fields(): void {
                 'char' => $new_data['char'] ?? []
             ];
         }
-        file_put_contents( $file, wp_json_encode( $data_to_save, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT ), LOCK_EX );
+        $json = wp_json_encode( $data_to_save, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT );
+        if ( $json === false ) {
+            error_log( 'asp_cast_cache.json encode failed: ' . json_last_error_msg() );
+            return;
+        }
+        file_put_contents( $file, $json, LOCK_EX );
+        error_log( 'asp_cast_cache.json updated. va: ' . count($data_to_save['va']) . ', char: ' . count($data_to_save['char']) );
     }
 
     public function ajax_cast_dict_load(): void {
@@ -3546,10 +3552,42 @@ private function register_manga_fields(): void {
             }
             $type = $item['type']; // 'va' or 'char'
             $key  = $item['key'];
+            $text = $item['text'];
+            
             if ( isset( $global_dict[$type][$key] ) && $global_dict[$type][$key] !== '' ) {
                 $known_mapping[$type][$key] = $global_dict[$type][$key];
             } else {
-                $unknown_items[] = $item;
+                // 檢查是否「已經是中文譯名」？
+                // 如果目前傳進來的 $text 已經存在於字典的「譯名(Value)」當中
+                // 我們可以直接認定它已經翻譯過了，快取命中，譯名就是它自己。
+                $is_already_translated = false;
+                
+                if ( $type === 'char' ) {
+                    // 角色限制在同一個 namespace 下尋找
+                    $parts = explode('|||', $key);
+                    if ( count($parts) === 2 ) {
+                        $namespace = $parts[0];
+                        foreach ( $global_dict['char'] as $dict_key => $dict_val ) {
+                            if ( str_starts_with( $dict_key, $namespace . '|||' ) ) {
+                                if ( $dict_val === $text ) {
+                                    $is_already_translated = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // 聲優直接在所有聲優的譯名中尋找
+                    if ( in_array( $text, $global_dict['va'], true ) ) {
+                        $is_already_translated = true;
+                    }
+                }
+
+                if ( $is_already_translated ) {
+                    $known_mapping[$type][$key] = $text; // 譯名就是自己
+                } else {
+                    $unknown_items[] = $item;
+                }
             }
         }
 
