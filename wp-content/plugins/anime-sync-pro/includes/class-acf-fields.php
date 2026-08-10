@@ -2774,17 +2774,11 @@ private function register_manga_fields(): void {
 
             $(document).on('click', '#asp-dict-clear-aa', function(e) {
                 e.preventDefault();
-                if (!confirm('警告：此功能會刪除字典中「原文」與「譯名」完全相同的紀錄。\n\n⚠️ 注意：這「也會」刪除那些原本中日文漢字就相同的正確紀錄（例如聲優『杉田智和』）。清除後，下次遇到這些名字時會重新消耗 AI 額度進行翻譯。\n\n您確定要繼續清除嗎？')) {
+                if (!confirm('警告：此功能會刪除字典中「原文」與「譯名」完全相同的角色紀錄。\n（此功能僅對「角色」有效，聲優紀錄不會受到影響）。\n\n您確定要繼續清除嗎？')) {
                     return;
                 }
                 
                 var clearCount = 0;
-                $.each(fullDictData.va, function(k, v) {
-                    if (k === v) {
-                        delete fullDictData.va[k];
-                        clearCount++;
-                    }
-                });
                 $.each(fullDictData.char, function(k, v) {
                     var oriName = k.indexOf('|||') !== -1 ? k.split('|||')[1] : k;
                     if (oriName === v) {
@@ -2980,7 +2974,7 @@ private function register_manga_fields(): void {
                 charKeys.forEach(k => allItems.push({ type: 'char', key: k, text: uniqueChar[k] }));
                 vaKeys.forEach(k => allItems.push({ type: 'va', key: k, text: uniqueVa[k] }));
                 
-                var batchSize = 200;
+                var batchSize = 150;
                 var globalMapping = { va: {}, char: {} };
                 
                 var f_ori_name = acf.getField($('.acf-field[data-name="anime_title_native"]'));
