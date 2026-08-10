@@ -2721,6 +2721,7 @@ private function register_manga_fields(): void {
                             </div>
                             <div style="padding:15px 20px; border-bottom:1px solid #e2e4e7; background:#fff; display:flex; gap:10px;">
                                 <input type="text" id="asp-dict-search" placeholder="🔍 搜尋日文原文或中文譯名..." style="flex:1; padding:5px 10px;">
+                                <button type="button" id="asp-dict-clear-aa" class="button" title="清除原文與譯名完全相同的無效記錄">🧹 清除 A=A</button>
                                 <button type="button" id="asp-dict-save" class="button button-primary">💾 儲存修改</button>
                             </div>
                             <div id="asp-dict-list" style="flex:1; overflow-y:auto; padding:15px 20px; background:#f0f0f1; display:flex; flex-direction:column; gap:10px;">
@@ -2770,6 +2771,31 @@ private function register_manga_fields(): void {
                     $list.append(html);
                 });
             }
+
+            $(document).on('click', '#asp-dict-clear-aa', function(e) {
+                e.preventDefault();
+                if (!confirm('警告：此功能會刪除字典中「原文」與「譯名」完全相同的紀錄。\n\n⚠️ 注意：這「也會」刪除那些原本中日文漢字就相同的正確紀錄（例如聲優『杉田智和』）。清除後，下次遇到這些名字時會重新消耗 AI 額度進行翻譯。\n\n您確定要繼續清除嗎？')) {
+                    return;
+                }
+                
+                var clearCount = 0;
+                $.each(fullDictData.va, function(k, v) {
+                    if (k === v) {
+                        delete fullDictData.va[k];
+                        clearCount++;
+                    }
+                });
+                $.each(fullDictData.char, function(k, v) {
+                    var oriName = k.indexOf('|||') !== -1 ? k.split('|||')[1] : k;
+                    if (oriName === v) {
+                        delete fullDictData.char[k];
+                        clearCount++;
+                    }
+                });
+                
+                alert('已清除 ' + clearCount + ' 筆 A=A 的紀錄！\n請記得點擊右方的「💾 儲存修改」才會正式寫入檔案。');
+                renderDictList($('#asp-dict-search').val());
+            });
 
             $(document).on('click', '#asp-btn-manage-dict', function(e) {
                 e.preventDefault();
