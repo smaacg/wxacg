@@ -381,7 +381,7 @@ $cron_rows = array(
                 <?php esc_html_e( '角色/聲優資料回補（BGM）', 'anime-sync-pro' ); ?>
             </h2>
             <p class="description asc-card-desc">
-                <?php esc_html_e( '每 5 分鐘補一批欄位缺漏的角色 / 聲優資料（來源 Bangumi）。一次只能跑一種模式；建議先補角色，補完再切聲優，都補完後切回關閉。BGM 完全無資料的條目會自動記入跳過名單，不再重試。', 'anime-sync-pro' ); ?>
+            <?php esc_html_e( '每 5 分鐘補一批欄位缺漏的角色 / 聲優資料（來源 Bangumi）。一次只跑一種模式，系統會自動接力：聲優（persons）補完後自動切換為角色（characters），角色補完後自動切回關閉（off），過程無需人工介入。若想調整順序或手動指定，仍可在下方切換。BGM 完全無資料的條目會自動記入跳過名單，不再重試；此類條目全站僅剩它們時，系統會維持原模式不誤切。', 'anime-sync-pro' ); ?>
             </p>
             <table class="form-table asc-form-table">
                 <tr>
@@ -405,6 +405,8 @@ $cron_rows = array(
                                 '<strong>' . esc_html( number_format_i18n( $backfill_pending_chars ) ) . '</strong>',
                                 '<strong>' . esc_html( number_format_i18n( $backfill_pending_persons ) ) . '</strong>'
                             ); ?>
+                            <br>
+                            <span style="color:#0073aa;">💡 <?php esc_html_e( '此模式會自動接力：補完會自己切到下一階段，最終自動關閉，通常不需手動更改。', 'anime-sync-pro' ); ?></span>
                         </p>
                     </td>
                 </tr>

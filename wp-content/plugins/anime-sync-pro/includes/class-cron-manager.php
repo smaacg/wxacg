@@ -4,6 +4,15 @@
  * Cron Manager — 排程同步管理
  *
  * 修正紀錄：
+ * - [v1.5.2] [Entity Backfill 全自動接力] _run_entity_backfill_inner() 於「目前模式
+ *            已無真正待補項目」時，自動切換到下一階段，免去人工 WP-CLI / 後台切換：
+ *            persons(聲優) 補完 → 自動切 characters(角色)；
+ *            characters(角色) 補完 → 自動切 off(關閉，停止空轉)。
+ *            穩健判斷（避免「假空」誤切）：只有在「扣掉跳過名單後 LIMIT 查詢為 0」
+ *            且「繞過跳過名單、全站該類欄位缺漏數也為 0」兩條件同時成立時，才視為
+ *            真正補完並切換模式；若只是這批剛好全落在跳過名單內（全站仍有缺漏），
+ *            則維持原模式不切換，等清空跳過名單或 BGM 補資料後再繼續。
+ *            不新增任何跨執行的狀態 option，判斷為單次即時查詢，無誤切風險。
  * - [v1.5.1] [Entity Backfill 併入] 將原 mu-plugins/char-person-backfill-cron.php
  *            （角色/聲優自動回補）整支併入本類別，成為「任務七」，該 mu-plugin
  *            檔案可直接刪除：
@@ -26,133 +35,18 @@
  *                （summary/height/birthday 為 BGM 常缺選填欄位，納入判斷會
  *                導致集體筆名等條目反覆重撈、進度卡死）。
  * - [v1.5.0] [Fix 未定檔期死結 + seasonYear 同步] 根治「動畫化確定但未定檔期」的作品
- *            開播日/播出年份永遠是舊資料的問題：
- *            背景：build_daily_queue() 的 NOT_YET_RELEASED 分支原本要求
- *            start_date 落在「未來 30 天 ~ 過去 30 天」窗口內才納入佇列。但未定
- *            檔期的作品 anime_start_date 為 0 / 空，永遠不符合窗口，導致它們
- *            從來不會被每小時 cron 碰到。等 AniList 之後公布了日期，cron 也
- *            掃不到、開播日與 seasonYear 永遠補不上，形成「要有日期才進佇列、
- *            要進佇列才能補日期」的死結。
- *            修正：
- *            (1) build_daily_queue() NOT_YET_RELEASED 分支新增：start_date <= 0
- *                （未定檔期）也一律納入監控，sort 設 0（同級最後）。有開播日者
- *                維持原本 30 天窗口邏輯不變。
- *            (2) fetch_anilist_dynamic() 的 GraphQL query 加入 season / seasonYear。
- *            (3) sync_dynamic_for_post() 新增 seasonYear / season 回寫區塊：
- *                AniList 提供非 0 年份 / 非空季度且未鎖定時自動寫入
- *                anime_season_year / anime_season，前台即可正常顯示。
- *            提醒：如需從後台鎖定播出年份 / 季度不被 cron 覆蓋，
- *            register_sync_control() 的 choices 需加入 anime_season_year /
- *            anime_season 兩個 key（本檔已支援 $is_locked 判斷）。
- * - [v1.4.9] [Fix 缺失方法] 補上遺失的 sync_episodes_for_post()：run_themes_episodes_update()
- *            的 _run_themes_episodes_inner() 每 15 分鐘會呼叫 $this->sync_episodes_for_post(
- *            $post_id )，但此方法先前未被定義，導致每次執行到第一部作品就
- *            Fatal Error（Call to undefined method），使當批（最多 20 部）主題曲＋
- *            集數同步全部中斷，佇列也無法正常往下推進。
- *            新增 sync_episodes_for_post()：
- *            (1) 讀取 anime_bangumi_id（相容 legacy bangumi_id），透過
- *                import_manager->fetch_episodes_only() 取得 Bangumi 集數列表。
- *            (2) 冷卻期沿用既有常數 COOLDOWN_EPISODES_RELEASING（放映中 6 小時）／
- *                COOLDOWN_EPISODES_FINISHED（完結 3 天），寫入新的
- *                anime_episodes_synced_at 追蹤時間。
- *            (3) 整欄鎖定：anime_locked_fields 含 anime_episodes_json 時完全不動
- *                （與 sync_themes_for_post()／enrich_anime_data() 一致）。
- *            (4) 單集鎖定：沿用 class-api-handler.php merge_episodes_respecting_locks()
- *                同一把 anime_episodes_locked_ids，鎖定的單集不覆蓋任何欄位。
- *            (5) 「只增不改／補空」：已存在的集數（以 Bangumi episode id 為唯一鍵）
- *                只補空欄位（name / name_cn / airdate），不覆蓋人工已填值；
- *                comment（吐槽數）與 ep 編號無人工編輯疑慮，直接同步更新；新集數
- *                直接加入，最後依 ep 排序寫回。
- * - [v1.4.8] [Score Backfill] 新增「完結作品評分回補」佇列機制，解決舊番/OVA/
- *            劇場版評分永久卡在 0 的問題：
- *            背景：build_daily_queue() 排除 MOVIE/OVA/SPECIAL 格式，且完結作品
- *            只納入「完結日 30 天內」的窗口，代表舊作品/特典 OVA/劇場版永遠不會
- *            被每小時 cron 碰到，一旦匯入當下 Jikan/Bangumi 剛好連不上（如 Jikan
- *            服務不穩定期），評分就永久卡 0，無人工介入不會恢復。
- *            新增：
- *            (1) build_score_backfill_queue()：每 30 天建立一次佇列，掃描「全部」
- *                已完結作品（不分格式、不限完結多久）中 anime_score_mal 或
- *                anime_score_bangumi 仍為 0 的項目。
- *            (2) run_score_backfill_batch()：搭現有每小時排程（HOOK_DAILY_SCORE_UPDATE）
- *                便車，不新增排程間隔。每次只吃一小批（預設 15 篇，可用選項
- *                anime_sync_score_backfill_batch_size 調整），避免對 Jikan/Bangumi
- *                造成負擔，也避免單次執行時間過長。
- *            (3) 重試上限（SCORE_BACKFILL_MAX_RETRY，預設 6 次＝約 6 個月）：
- *                超過上限的作品视为「該來源本身就沒有評分資料」，不再自動重試，
- *                避免每月白跑浪費 API 額度；成功補到分數後重試計數會重置。
- *            (4) 佇列會隨作品增加自然變大，處理速度由批次量與觸發頻率（每小時）
- *                共同決定，可隨著作品規模成長調高批次量因應。
- * - [v1.4.7] [BGM Score Retry] 新增 Bangumi 評分持續重試機制，根治新番
- *            Bangumi 評分永遠卡在 0 的問題（與 v1.4.5 MAL 評分重試對稱）：
- *            sync_dynamic_for_post() 新增區塊：只要目前 anime_score_bangumi
- *            仍為 0 且已有 anime_bangumi_id（相容 legacy bangumi_id），
- *            每小時 cron 就會呼叫 fetch_bgm_data_public() 重新抓 subject，
- *            從 rating.score 換算後寫入，直到 Bangumi 累積足夠票數、
- *            回傳非 0 分數為止。
- *            背景：anime_score_bangumi 原本只在匯入（get_core_anime_data /
- *            get_full_anime_data）或手動 AJAX resync 時寫入；enrich_anime_data()
- *            根本不碰 BGM 評分。新番匯入當下 Bangumi 尚未開放評分（score=0）時，
- *            之後沒有任何自動排程回頭補抓，前台因此永遠不顯示 BGM 評分。
- *            注意：get_bangumi_data() 有 12 小時 transient 快取
- *            （anime_sync_bgm_subject_{id}），重試會受快取影響，最壞情況
- *            延遲一個快取週期才補上，對每小時 cron 可接受。
- * - [v1.4.5] [MAL Score Retry] 新增 MAL 評分持續重試機制，根治新番 MAL 評分
- *            永遠卡在 0 的問題：
- *            (1) 新增 private Anime_Sync_API_Handler $api_handler 屬性，
- *                並在 constructor 實例化（沿用同一個 rate_limiter 實例）。
- *            (2) sync_dynamic_for_post() 新增區塊：只要目前 anime_score_mal
- *                仍為 0 且已有 anime_mal_id，每小時 cron 就會呼叫
- *                fetch_mal_score_public() 重新嘗試抓取，直到 MAL 累積足夠
- *                票數、Jikan 回傳非 0 分數為止才停止重試。
- *            背景：原本 MAL 評分只在「匯入後第一次背景 enrich」以及
- *            v1.4.4「idMal 從 0 補上時觸發的單次 enrich」這兩個時機點有機會
- *            寫入；若那兩次 Jikan 回傳的 score 剛好是 null（新番票數不足常見
- *            情況），就永遠不會再重試，前台因此不顯示 MAL 評分。
- * - [v1.4.4] [Fix MAL ID 補完] 新番匯入當下 AniList 常還沒串上 idMal，導致
- *            anime_mal_id 永遠卡在 0，MAL 評分也就永遠抓不到。新增：
- *            (1) fetch_anilist_dynamic() 的 GraphQL query 加入 idMal。
- *            (2) sync_dynamic_for_post() 每小時檢查一次：若目前沒有 mal_id，
- *                但 AniList 這次回傳了 idMal，就補上並觸發一次背景 enrich，
- *                讓 MAL 分數等資料自動補齊，不需要人工介入。
- * - [v1.4.3] [Start Date Auto-Fix] 新增「開播日自動回寫」機制，根治提早匯入導致的
- *            開播日不準問題：
- *            (1) fetch_anilist_dynamic() 的 GraphQL query 加入 startDate { year month day }。
- *            (2) sync_dynamic_for_post() 新增開播日回寫區塊，「僅在 AniList 提供完整
- *                年月日時」才更新 anime_start_date，避免 AniList 尚未定檔（只有年份）時
- *                被補成 YYYY0101 污染。提早匯入的作品，待 AniList 定檔後由每小時 cron
- *                自動補正為正確開播日，無需手動修改。
- * - [v1.4.2] [Fix 403] anilist_request() 補上 User-Agent 標頭，修復 cron 端
- *            （每日動態 sync / 季度匯入）AniList 請求因缺 UA 被 Cloudflare
- *            判定為機器人而回傳 HTTP 403 的問題。優先引用
- *            Anime_Sync_API_Handler::USER_AGENT 常數以維持單一真相來源；
- *            若該常數在 cron 情境未載入則退回固定瀏覽器風格 UA，避免 fatal。
- * - [v1.4.1] [Date Format Unify] 完結日統一為純數字 Ymd 格式：
- *            (1) sync_dynamic_for_post() 寫入 anime_end_date 由 'Y-m-d' 改回 'Ymd'
- *                純數字，與匯入原生格式及 anime_start_date 一致，消除格式污染源。
- *            (2) build_daily_queue() / build_themes_episodes_queue() 的完結日比較
- *                改用純數字（int）比對，與 start_date 判斷邏輯統一，避免帶橫線 vs
- *                純數字混比導致的字串比較地雷。
- * - [v1.4.0] [Themes Speedup] 集數同步排程間隔由「每小時」改為「每15分鐘」
- *            （新增 anime_sync_quarter_hour 排程），並將 THEMES_BATCH_SIZE 由 10 提到 20。
- *            140 部一輪由約 14 小時縮短至約 1.75 小時。daily 排程維持每小時不變。
- * - [v1.3.9] [New Anime Priority] build_daily_queue() 與 build_themes_episodes_queue()
- *            佇列改為「新番優先」排序：即將/剛開播(NOT_YET_RELEASED) > 放映中(RELEASING)
- *            > 剛完結(FINISHED)，同級再按開播日/完結日由新到舊。
- * - [v1.3.8] [Queue SQL Fix] 兩個佇列改用「簡單 IN 撈狀態 + PHP 過濾」，避開多層
- *            巢狀 meta_query 生成錯誤 SQL 回空的地雷。
- * - [v1.3.7] [New Anime Fix] 集數佇列新增 NOT_YET_RELEASED 分支並移除當季硬限制；
- *            daily 迴圈加入「開播日已到則本地兜底翻 RELEASING」。
- * - [v1.3.6] [Popularity Throttle] sync_dynamic_for_post() 人氣改為 24 小時低頻更新。
- * - [v1.3.5] [Smart NYR Queue] build_daily_queue() 即將開播番改用「開播日 30 天內」。
- * - [v1.3.4] 狀態篩選新增 NOT_YET_RELEASED（後由 v1.3.5 收斂）。
- * - [v1.3.2] 完結緩衝 30 天；排除 MOVIE / OVA / SPECIAL。
- * - [v1.3.1] activate() 加入排程間隔保護。
- * - [v1.3.0] 主題曲與集數同步加入冷卻期機制。
- * - [v1.2.9] 全面 Cron 優化（分批佇列、autoload=false option、佇列快取）。
- * - [v1.2.8] 任務一改每小時分批（DAILY_BATCH_SIZE=20）。
- * - [v1.2.5] 集數同步由「只增不改」改為「增＋補空／更新」。
- * - [v1.2.3] 新增 purge_post_cache()。
- * - [v1.2.0] 任務一改用 sync_dynamic_for_post()。
+ *            開播日/播出年份永遠是舊資料的問題（詳見原檔說明）。
+ * - [v1.4.9] [Fix 缺失方法] 補上遺失的 sync_episodes_for_post()（詳見原檔說明）。
+ * - [v1.4.8] [Score Backfill] 新增「完結作品評分回補」佇列機制（詳見原檔說明）。
+ * - [v1.4.7] [BGM Score Retry] 新增 Bangumi 評分持續重試機制（詳見原檔說明）。
+ * - [v1.4.5] [MAL Score Retry] 新增 MAL 評分持續重試機制（詳見原檔說明）。
+ * - [v1.4.4] [Fix MAL ID 補完]（詳見原檔說明）。
+ * - [v1.4.3] [Start Date Auto-Fix]（詳見原檔說明）。
+ * - [v1.4.2] [Fix 403] anilist_request() 補 User-Agent（詳見原檔說明）。
+ * - [v1.4.1] [Date Format Unify] 完結日統一 Ymd（詳見原檔說明）。
+ * - [v1.4.0] [Themes Speedup] 集數同步改 15 分鐘、批次 20（詳見原檔說明）。
+ * - [v1.3.9] [New Anime Priority] 佇列新番優先（詳見原檔說明）。
+ * - 其餘 v1.3.x / v1.2.x 修正紀錄請參閱先前版本。
  *
  * @package Anime_Sync_Pro
  */
@@ -178,75 +72,55 @@ class Anime_Sync_Cron_Manager {
     const DAILY_BATCH_SIZE   = 20;
 
     const THEMES_QUEUE_OPTION = 'anime_sync_themes_episodes_queue';
-    // ✅ [v1.4.0] 集數批次由 10 提到 20
     const THEMES_BATCH_SIZE   = 20;
 
     const DAILY_QUEUE_CACHE_KEY = 'anime_sync_daily_queue_build';
     const DAILY_QUEUE_CACHE_TTL = 300;
 
-    // ✅ [v1.3.5] 即將開播番納入監控的提前天數（每日動態佇列）
     const UPCOMING_WINDOW_DAYS = 30;
 
-    // ✅ [v1.3.7] 主題曲＋集數同步的即將/剛開播窗口（開播日前後天數）
     const THEMES_UPCOMING_WINDOW_DAYS = 7;
 
-    // ✅ [v1.3.6] 人氣低頻更新間隔
     const POPULARITY_SYNC_INTERVAL = DAY_IN_SECONDS;
 
-    // ✅ [v1.3.0] 冷卻期常數（秒）
     const COOLDOWN_THEMES_RELEASING   = 3 * DAY_IN_SECONDS;
     const COOLDOWN_THEMES_FINISHED    = 7 * DAY_IN_SECONDS;
     const COOLDOWN_EPISODES_RELEASING = 6 * HOUR_IN_SECONDS;
     const COOLDOWN_EPISODES_FINISHED  = 3 * DAY_IN_SECONDS;
 
-    // ✅ [v1.3.9] 佇列排序優先級（數字越小越優先）
-    const PRIO_UPCOMING  = 0; // 即將/剛開播（NOT_YET_RELEASED）
-    const PRIO_RELEASING = 1; // 放映中
-    const PRIO_FINISHED  = 2; // 剛完結
+    const PRIO_UPCOMING  = 0;
+    const PRIO_RELEASING = 1;
+    const PRIO_FINISHED  = 2;
 
-    // ✅ [v1.4.2] cron 端 AniList 請求的退回 UA（當 API Handler 常數未載入時使用）
     const FALLBACK_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-    // ✅ [v1.4.8] 完結作品評分回補佇列
     const SCORE_BACKFILL_QUEUE_OPTION       = 'anime_sync_score_backfill_queue';
     const SCORE_BACKFILL_BATCH_SIZE_DEFAULT = 15;
-    // 佇列每 30 天重新建立一次（掃描全站，範圍會隨作品增加自然變大）
     const SCORE_BACKFILL_REBUILD_INTERVAL   = 30 * DAY_IN_SECONDS;
-    // 累積失敗達此次數（約等於試了這麼多個月），視為該來源本身無評分資料，不再自動重試
     const SCORE_BACKFILL_MAX_RETRY          = 6;
     const SCORE_RETRY_COUNT_META            = 'anime_score_retry_count';
     const LAST_SCORE_BACKFILL_BUILD_OPTION  = 'anime_sync_last_score_backfill_build';
 
     // ✅ [v1.5.1] 任務七：角色/聲優 BGM 資料回補（原 mu-plugin 併入）
     const HOOK_ENTITY_BACKFILL              = 'anime_sync_entity_backfill';
-    const LOCK_TTL_ENTITY_BACKFILL          = 290; // 略短於 5 分鐘間隔，避免死鎖
-    // 開關：'characters' | 'persons' | 'off'（預設 off；用 update_option 或 WP-CLI 切換）
+    const LOCK_TTL_ENTITY_BACKFILL          = 290;
     const ENTITY_BACKFILL_MODE_OPTION       = 'anime_sync_entity_backfill_mode';
     const ENTITY_BACKFILL_BATCH_OPTION      = 'anime_sync_entity_backfill_batch';
     const ENTITY_BACKFILL_BATCH_DEFAULT     = 60;
-    // 「BGM 整筆抓不到」的跳過名單（沿用原 mu-plugin 機制，換新 key）
     const ENTITY_BACKFILL_SKIP_CHARS_OPTION   = 'anime_sync_backfill_skip_chars';
     const ENTITY_BACKFILL_SKIP_PERSONS_OPTION = 'anime_sync_backfill_skip_persons';
     const ENTITY_BACKFILL_LAST_OPTION       = 'anime_sync_last_entity_backfill';
-    // 一次性遷移旗標（搬移舊 my_backfill_* option、清除孤兒排程）
     const ENTITY_BACKFILL_MIGRATED_OPTION   = 'anime_sync_entity_backfill_migrated';
 
     private Anime_Sync_Import_Manager $import_manager;
     private Anime_Sync_Error_Logger   $logger;
     private Anime_Sync_Rate_Limiter   $rate_limiter;
-
-    // ✅ [v1.4.5] 新增：持有 API Handler 實例，供 MAL 評分重試呼叫
-    //   fetch_mal_score_public()。沿用同一個 rate_limiter 實例，
-    //   確保 Jikan 速率限制統計與其他呼叫共用同一份計數。
-    //   ✅ [v1.4.7] 同一實例亦供 BGM 評分重試呼叫 fetch_bgm_data_public()。
     private Anime_Sync_API_Handler $api_handler;
 
     public function __construct( Anime_Sync_Import_Manager $import_manager ) {
         $this->import_manager = $import_manager;
         $this->logger         = new Anime_Sync_Error_Logger();
         $this->rate_limiter   = Anime_Sync_Rate_Limiter::get_instance();
-
-        // ✅ [v1.4.5] 沿用同一個 rate_limiter 實例建立 API Handler
         $this->api_handler    = new Anime_Sync_API_Handler( $this->rate_limiter );
 
         add_filter( 'cron_schedules', [ $this, 'add_custom_schedules' ] );
@@ -256,8 +130,6 @@ class Anime_Sync_Cron_Manager {
         add_action( self::HOOK_UPDATE_MAP,             [ $this, 'run_update_map' ] );
         add_action( self::HOOK_SEASON_IMPORT,          [ $this, 'run_season_auto_import' ], 10, 2 );
         add_action( self::HOOK_THEMES_EPISODES_UPDATE, [ $this, 'run_themes_episodes_update' ] );
-
-        // ✅ [v1.5.1] 任務七：角色/聲優 BGM 資料回補
         add_action( self::HOOK_ENTITY_BACKFILL,        [ $this, 'run_entity_backfill' ] );
     }
 
@@ -279,12 +151,10 @@ class Anime_Sync_Cron_Manager {
                 'interval' => HOUR_IN_SECONDS,
                 'display'  => __( 'Anime Sync: 每小時', 'anime-sync-pro' ),
             ],
-            // ✅ [v1.4.0] 新增 15 分鐘間隔，供集數同步加速使用
             'anime_sync_quarter_hour' => [
                 'interval' => 15 * MINUTE_IN_SECONDS,
                 'display'  => __( 'Anime Sync: 每15分鐘', 'anime-sync-pro' ),
             ],
-            // ✅ [v1.5.1] 新增 5 分鐘間隔，供角色/聲優回補使用（原 my_every5min）
             'anime_sync_five_min' => [
                 'interval' => 5 * MINUTE_IN_SECONDS,
                 'display'  => __( 'Anime Sync: 每5分鐘', 'anime-sync-pro' ),
@@ -302,7 +172,6 @@ class Anime_Sync_Cron_Manager {
 
     public static function activate(): void {
 
-        // ✅ [v1.3.1] 確保自訂排程間隔已被 WordPress 認識
         $existing_schedules = wp_get_schedules();
         if ( ! array_key_exists( 'anime_sync_weekly', $existing_schedules ) ||
              ! array_key_exists( 'anime_sync_hourly', $existing_schedules ) ||
@@ -319,7 +188,6 @@ class Anime_Sync_Cron_Manager {
         }
 
         if ( ! wp_next_scheduled( self::HOOK_THEMES_EPISODES_UPDATE ) ) {
-            // ✅ [v1.4.0] 集數同步改用 15 分鐘間隔
             wp_schedule_event( time() + 600, 'anime_sync_quarter_hour', self::HOOK_THEMES_EPISODES_UPDATE );
         }
 
@@ -339,12 +207,10 @@ class Anime_Sync_Cron_Manager {
             );
         }
 
-        // ✅ [v1.5.1] 任務七：角色/聲優回補（每 5 分鐘；mode='off' 時觸發後立即返回，負擔可忽略）
         if ( ! wp_next_scheduled( self::HOOK_ENTITY_BACKFILL ) ) {
             wp_schedule_event( time() + 60, 'anime_sync_five_min', self::HOOK_ENTITY_BACKFILL );
         }
 
-        // ✅ [v1.5.1] 遷移舊 mu-plugin 的 option / 孤兒排程
         self::maybe_migrate_legacy_backfill_options();
     }
 
@@ -355,7 +221,7 @@ class Anime_Sync_Cron_Manager {
             self::HOOK_SEASON_IMPORT,
             self::HOOK_UPDATE_MAP,
             self::HOOK_THEMES_EPISODES_UPDATE,
-            self::HOOK_ENTITY_BACKFILL, // ✅ [v1.5.1]
+            self::HOOK_ENTITY_BACKFILL,
         ];
         foreach ( $hooks as $hook ) {
             $timestamp = wp_next_scheduled( $hook );
@@ -370,19 +236,11 @@ class Anime_Sync_Cron_Manager {
         self::activate();
     }
 
-    /**
-     * ✅ [v1.5.1] 一次性遷移：由舊 mu-plugin (char-person-backfill-cron.php) 接手。
-     *   - 搬移舊跳過名單 my_backfill_skip_chars / my_backfill_skip_persons
-     *     至新 option key，保留已累積的「BGM 無資料」名單，避免重打 API。
-     *   - 清除舊狀態 option 與 mu-plugin 刪檔後殘留的孤兒排程 my_backfill_event。
-     *   - 冪等：跑過一次即記旗標，不重複執行。
-     */
     private static function maybe_migrate_legacy_backfill_options(): void {
         if ( get_option( self::ENTITY_BACKFILL_MIGRATED_OPTION ) ) {
             return;
         }
 
-        // 搬移跳過名單（新 key 已存在則不覆蓋）
         $legacy_map = [
             'my_backfill_skip_chars'   => self::ENTITY_BACKFILL_SKIP_CHARS_OPTION,
             'my_backfill_skip_persons' => self::ENTITY_BACKFILL_SKIP_PERSONS_OPTION,
@@ -395,11 +253,9 @@ class Anime_Sync_Cron_Manager {
             delete_option( $old_key );
         }
 
-        // 清除舊狀態 option
         delete_option( 'my_backfill_last' );
         delete_option( 'my_backfill_persons_skip_reset_done' );
 
-        // 移除 mu-plugin 刪檔後殘留的孤兒排程（含所有引數組合）
         wp_clear_scheduled_hook( 'my_backfill_event' );
 
         update_option( self::ENTITY_BACKFILL_MIGRATED_OPTION, 1, false );
@@ -441,10 +297,6 @@ class Anime_Sync_Cron_Manager {
         return array_map( 'intval', array_column( $items, 'id' ) );
     }
 
-    // =========================================================================
-    // ✅ [v1.4.2] 共用 helper：取得 AniList 請求用的 User-Agent
-    //   優先使用 API Handler 的常數（單一真相來源）；未載入時退回固定 UA，避免 fatal。
-    // =========================================================================
     private static function get_anilist_user_agent(): string {
         if ( class_exists( 'Anime_Sync_API_Handler' )
              && defined( 'Anime_Sync_API_Handler::USER_AGENT' ) ) {
@@ -494,7 +346,6 @@ class Anime_Sync_Cron_Manager {
 
         try {
             $this->_run_daily_score_update_inner();
-            // ✅ [v1.4.8] 搭同一個每小時排程便車，處理完結作品評分回補佇列
             $this->run_score_backfill_batch();
         } finally {
             delete_transient( 'anime_sync_lock_daily' );
@@ -558,7 +409,6 @@ class Anime_Sync_Cron_Manager {
             $result = $this->sync_dynamic_for_post( $post_id, $anilist_id );
 
             if ( $result === 'failed' ) {
-                // ✅ [v1.3.7] 兜底：API 失敗時，若開播日已到但狀態仍為 NOT_YET_RELEASED，本地強制翻 RELEASING
                 $cur_status = (string) get_post_meta( $post_id, 'anime_status', true );
                 $start_raw  = (string) get_post_meta( $post_id, 'anime_start_date', true );
                 if ( $cur_status === 'NOT_YET_RELEASED'
@@ -610,26 +460,12 @@ class Anime_Sync_Cron_Manager {
         }
     }
 
-    /**
-     * 建立每日待處理佇列。
-     * ✅ [v1.5.0] NOT_YET_RELEASED 且尚無開播日（start_date=0）者也納入監控,
-     *   修正「未定檔期作品永遠進不了佇列 → seasonYear/開播日永遠補不上」的死結。
-     * ✅ [v1.4.1] 完結日比較改用純數字（int），與 start_date 判斷統一。
-     * ✅ [v1.3.9] 新番優先排序（即將開播 > 放映中 > 剛完結，同級按日期由新到舊）。
-     * ✅ [v1.3.8] 簡單 IN 撈狀態 + PHP 過濾，避免多層巢狀 meta_query 生成錯誤 SQL。
-     *   - 排除 MOVIE / OVA / SPECIAL 格式（僅限已完結）。
-     *   - RELEASING：全納入。
-     *   - NOT_YET_RELEASED：開播日在未來 30 天內，或尚未定檔（start_date=0）。
-     *   - FINISHED：完結日在 30 天內。
-     * ✅ [v1.2.9] 5 分鐘短效快取，防止重複觸發時的多餘 DB full scan。
-     */
     private function build_daily_queue(): array {
         $cached = get_transient( self::DAILY_QUEUE_CACHE_KEY );
         if ( is_array( $cached ) ) {
             return $cached;
         }
 
-        // ✅ [v1.4.1] 完結日 cutoff 改用純數字 Ymd
         $cutoff_ymd = (int) gmdate( 'Ymd', strtotime( '-30 days' ) );
         $today_ymd  = (int) gmdate( 'Ymd' );
         $window_ymd = (int) gmdate( 'Ymd', strtotime( '+' . self::UPCOMING_WINDOW_DAYS . ' days' ) );
@@ -660,9 +496,6 @@ class Anime_Sync_Cron_Manager {
 
             $status = (string) get_post_meta( $id, 'anime_status', true );
 
-            // ✅ 只排除「已完結」的 MOVIE / OVA / SPECIAL（狀態不會再變）；
-            //    尚未播出 / 放映中的特別篇、劇場版、OVA 仍需納入，才能讓
-            //    開播即完結的單集作品狀態被 cron 自動翻正。
             $format = (string) get_post_meta( $id, 'anime_format', true );
             if ( $status === 'FINISHED'
                  && in_array( $format, $excluded_formats, true ) ) {
@@ -674,17 +507,12 @@ class Anime_Sync_Cron_Manager {
                 $items[] = [ 'id' => $id, 'prio' => self::PRIO_RELEASING, 'sort' => $start ];
             } elseif ( $status === 'NOT_YET_RELEASED' ) {
                 $start = (int) get_post_meta( $id, 'anime_start_date', true );
-                // ✅ [v1.5.0] 未定檔期（start_date 為 0 或空）也一律納入監控，
-                //    否則 AniList 之後定檔了 cron 也永遠掃不到、開播日/seasonYear
-                //    永遠補不上（死結）。sort 設 0，排在同級（PRIO_UPCOMING）最後。
-                //    有開播日者維持原本 30 天窗口邏輯不變。
                 if ( $start <= 0 ) {
                     $items[] = [ 'id' => $id, 'prio' => self::PRIO_UPCOMING, 'sort' => 0 ];
                 } elseif ( $start <= $window_ymd && $start >= $cutoff_ymd ) {
                     $items[] = [ 'id' => $id, 'prio' => self::PRIO_UPCOMING, 'sort' => $start ];
                 }
             } elseif ( $status === 'FINISHED' ) {
-                // ✅ [v1.4.1] 純數字比較
                 $end = (int) get_post_meta( $id, 'anime_end_date', true );
                 if ( $end > 0 && $end >= $cutoff_ymd ) {
                     $items[] = [ 'id' => $id, 'prio' => self::PRIO_FINISHED, 'sort' => $end ];
@@ -699,9 +527,6 @@ class Anime_Sync_Cron_Manager {
         return $result;
     }
 
-    /**
-     * @return string 'updated' | 'skipped' | 'failed'
-     */
     private function sync_dynamic_for_post( int $post_id, int $anilist_id ): string {
 
         $media = $this->fetch_anilist_dynamic( $anilist_id );
@@ -721,7 +546,6 @@ class Anime_Sync_Cron_Manager {
 
         $diff = [];
 
-        // 狀態
         if ( ! $is_locked( 'anime_status' ) && isset( $media['status'] ) && $media['status'] !== '' ) {
             $old_val = (string) get_post_meta( $post_id, 'anime_status', true );
             $new_val = (string) $media['status'];
@@ -731,11 +555,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // ✅ [v1.4.4] MAL ID 補完：新番匯入當下 AniList 常還沒串上 idMal，導致
-        //   anime_mal_id 永遠卡在 0，MAL 評分也就永遠抓不到。這裡每小時
-        //   檢查一次：若目前沒有 mal_id，但 AniList 這次回傳了 idMal，就補上
-        //   並觸發一次背景 enrich，讓 MAL 分數等資料自動補齊，不需要
-        //   人工介入。
         if ( ! $is_locked( 'anime_mal_id' ) ) {
             $current_mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
             $new_mal_id     = isset( $media['idMal'] ) && $media['idMal'] !== null ? (int) $media['idMal'] : 0;
@@ -744,7 +563,6 @@ class Anime_Sync_Cron_Manager {
                 update_post_meta( $post_id, 'anime_mal_id', $new_mal_id );
                 $diff[] = 'MAL ID 補上 ' . $new_mal_id;
 
-                // 觸發一次背景 enrich，讓 MAL 分數 / AnimeThemes 主題曲趁機一起補上
                 delete_post_meta( $post_id, '_enriched_at' );
                 if ( ! wp_next_scheduled( 'anime_sync_enrich_post', [ $post_id ] ) ) {
                     wp_schedule_single_event( time() + 60, 'anime_sync_enrich_post', [ $post_id ] );
@@ -752,12 +570,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // ✅ [v1.4.5] MAL 評分持續重試：只要目前仍是 0 分且已有 mal_id，
-        //   每小時 cron 就會再嘗試抓一次，直到 Jikan 回傳非 0 分數為止。
-        //   解決新番剛匯入時 MAL 票數不足、fetch_mal_score() 回傳 0 導致
-        //   enrich 階段沒寫入、之後又沒有任何排程重試的問題。
-        //   （放映中/即將播出的作品專用；完結作品的長期重試改由
-        //   v1.4.8 的 run_score_backfill_batch() 負責，兩者不衝突。）
         if ( ! $is_locked( 'anime_score_mal' ) ) {
             $mal_id_for_score = (int) get_post_meta( $post_id, 'anime_mal_id', true );
             $current_mal_score = (int) get_post_meta( $post_id, 'anime_score_mal', true );
@@ -773,18 +585,9 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // ✅ [v1.4.7] Bangumi 評分持續重試：只要目前仍是 0 分且已有 bangumi_id，
-        //   每小時 cron 就會再抓一次 subject，從 rating.score 換算後寫入，直到
-        //   Bangumi 累積足夠票數、回傳非 0 分數為止。（與 v1.4.5 MAL 評分重試對稱。）
-        //   解決新番匯入時 Bangumi 尚未開放評分（score=0），之後又沒有任何排程
-        //   回頭補抓（enrich_anime_data() 不碰 BGM 評分），導致前台永遠不顯示
-        //   BGM 評分的問題。
-        //   注意：get_bangumi_data() 有 12 小時 transient 快取，重試會受快取影響，
-        //   最壞情況延遲一個快取週期才補上，對每小時 cron 可接受。
         if ( ! $is_locked( 'anime_score_bangumi' ) ) {
             $bgm_id_for_score = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
             if ( $bgm_id_for_score <= 0 ) {
-                // 相容 legacy key
                 $bgm_id_for_score = (int) get_post_meta( $post_id, 'bangumi_id', true );
             }
             $current_bgm_score = (int) get_post_meta( $post_id, 'anime_score_bangumi', true );
@@ -806,7 +609,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // 已播集數
         if ( ! $is_locked( 'anime_episodes_aired' ) ) {
             $aired = null;
             if ( isset( $media['nextAiringEpisode']['episode'] ) ) {
@@ -823,7 +625,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // 下次播出時間
         if ( ! $is_locked( 'anime_next_airing' ) ) {
             if ( isset( $media['nextAiringEpisode']['airingAt'] ) ) {
                 update_post_meta( $post_id, 'anime_next_airing', (int) $media['nextAiringEpisode']['airingAt'] );
@@ -832,7 +633,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // 評分（維持每小時同步 — 核心欄位）
         if ( ! $is_locked( 'anime_score_anilist' ) && isset( $media['averageScore'] ) && $media['averageScore'] !== null ) {
             $old_val = (int) get_post_meta( $post_id, 'anime_score_anilist', true );
             $new_val = (int) $media['averageScore'];
@@ -842,7 +642,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // ✅ [v1.3.6] 人氣：低頻更新（每 24 小時最多一次）
         if ( ! $is_locked( 'anime_popularity' ) && isset( $media['popularity'] ) && $media['popularity'] !== null ) {
             $pop_last_sync = (string) get_post_meta( $post_id, 'anime_popularity_synced_at', true );
             $pop_due       = ( $pop_last_sync === '' )
@@ -859,9 +658,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // ✅ [v1.5.0] 播出年份 seasonYear：AniList 之後補上年份時自動回寫。
-        //   前台 single-anime.php 對 0 視為「尚未公布」，補上後即正常顯示。
-        //   僅在 AniList 回傳非 0 年份且未鎖定時才寫入，避免把已有年份覆蓋成 0。
         if ( ! $is_locked( 'anime_season_year' )
              && isset( $media['seasonYear'] )
              && $media['seasonYear'] !== null ) {
@@ -873,7 +669,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // ✅ [v1.5.0] 季度 season（WINTER / SPRING / SUMMER / FALL）
         if ( ! $is_locked( 'anime_season' )
              && isset( $media['season'] )
              && $media['season'] !== null
@@ -886,8 +681,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // ✅ [v1.4.3] 開播日：僅在 AniList 提供完整年月日時才回寫，避免尚未定檔（只有年份）
-        //   時被補成 YYYY0101 污染。提早匯入的作品待 AniList 定檔後由每小時 cron 自動補正。
         if ( ! $is_locked( 'anime_start_date' )
              && ! empty( $media['startDate']['year'] )
              && ! empty( $media['startDate']['month'] )
@@ -905,8 +698,6 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        // 完結日
-        // ✅ [v1.4.1] 寫入純數字 Ymd 格式（與匯入原生格式及 start_date 一致），不再污染成帶橫線
         if ( ! $is_locked( 'anime_end_date' ) && ! empty( $media['endDate']['year'] ) ) {
             $end_date = sprintf(
                 '%04d%02d%02d',
@@ -930,7 +721,6 @@ class Anime_Sync_Cron_Manager {
     }
 
     private function fetch_anilist_dynamic( int $anilist_id ): ?array {
-        // ✅ [v1.5.0] 加入 season / seasonYear，供未定檔期作品定檔後自動回寫播出年份/季度。
         $query = <<<'GQL'
         query ($id: Int) {
             Media(id: $id, type: ANIME) {
@@ -959,26 +749,13 @@ class Anime_Sync_Cron_Manager {
 
     // =========================================================================
     // ✅ [v1.4.8] 任務六：完結作品評分回補（AniList/MAL/Bangumi）
-    //
-    // 動機：build_daily_queue() 只納入「完結日 30 天內」且非 MOVIE/OVA/SPECIAL
-    // 的作品，代表大量舊番、特典 OVA、劇場版永遠不會被每小時 cron 碰到。若匯入
-    // 當下 Jikan/Bangumi 剛好連不上（服務不穩定期），評分會永久卡 0，無人工介入
-    // 不會恢復。這裡新增一個獨立的長週期佇列，範圍涵蓋「全部」已完結作品，不分
-    // 格式、不限完結多久，但頻率壓低（30天建一次佇列、每小時只吃一小批），
-    // 兼顧「久久同步一次」與「規模擴大後仍可控」兩個目標。
     // =========================================================================
 
-    /**
-     * 搭現有每小時排程（run_daily_score_update）便車執行，不新增排程間隔。
-     * 每次只處理一小批，批次大小可用選項 anime_sync_score_backfill_batch_size
-     * 調整（預設 15），作品規模變大時只需調高此選項，無需改程式碼或排程頻率。
-     */
     private function run_score_backfill_batch(): void {
         $queue      = get_option( self::SCORE_BACKFILL_QUEUE_OPTION, null );
         $last_build = (int) get_option( self::LAST_SCORE_BACKFILL_BUILD_OPTION, 0 );
         $build_due  = ( time() - $last_build ) >= self::SCORE_BACKFILL_REBUILD_INTERVAL;
 
-        // 佇列不存在，或已清空且到了重建週期 → 重新掃描全站建立新一輪佇列
         if ( ! is_array( $queue ) || ( empty( $queue ) && $build_due ) ) {
             $queue = $this->build_score_backfill_queue();
             self::update_cron_option( self::LAST_SCORE_BACKFILL_BUILD_OPTION, time() );
@@ -995,7 +772,6 @@ class Anime_Sync_Cron_Manager {
             ) );
         }
 
-        // 佇列已空但尚未到重建週期 → 這次無事可做，安靜結束
         if ( empty( $queue ) ) {
             return;
         }
@@ -1028,12 +804,6 @@ class Anime_Sync_Cron_Manager {
         }
     }
 
-    /**
-     * 掃描全站「已完結」作品中，MAL 或 Bangumi 評分仍為 0 的項目。
-     * 不受格式（MOVIE/OVA/SPECIAL）限制、不受完結多久限制。
-     * 累積重試已達上限（SCORE_BACKFILL_MAX_RETRY）的項目會被跳過，
-     * 視為該來源本身沒有評分資料，不再浪費 API 額度。
-     */
     private function build_score_backfill_queue(): array {
         $candidate_ids = get_posts( [
             'post_type'      => 'anime',
@@ -1088,10 +858,6 @@ class Anime_Sync_Cron_Manager {
         return $items;
     }
 
-    /**
-     * 針對單篇文章嘗試補上 MAL / Bangumi 評分。
-     * 成功補到任一分數即重置重試計數；全部失敗則重試計數 +1。
-     */
     private function backfill_score_for_post( int $post_id ): void {
         $locked = get_post_meta( $post_id, 'anime_locked_fields', true );
         if ( ! is_array( $locked ) ) {
@@ -1146,14 +912,9 @@ class Anime_Sync_Cron_Manager {
 
     // =========================================================================
     // ✅ [v1.5.1] 任務七：角色/聲優 BGM 資料回補（原 mu-plugin 併入）
+    // ✅ [v1.5.2] 新增全自動接力：persons → characters → off
     //
-    // 原始出處：wp-content/mu-plugins/char-person-backfill-cron.php
-    // 每 5 分鐘補一批 wp_anime_characters / wp_anime_persons 中欄位缺漏的
-    // 資料，實際抓取委派給 Anime_Sync_Entity_Migrator::backfill_characters()
-    // / backfill_persons()。只有 BGM「整筆抓不到」(failed>0 且 updated=0)
-    // 的 bgm_id 才記入跳過名單，避免浪費 API 額度重打不存在的條目。
-    //
-    // 開關（不再需要改程式碼，直接改 option 即可）：
+    // 開關（一般不需手動；系統會自己接力。仍可用 option / 後台強制切換）：
     //   wp option update anime_sync_entity_backfill_mode characters
     //   wp option update anime_sync_entity_backfill_mode persons
     //   wp option update anime_sync_entity_backfill_mode off
@@ -1162,9 +923,6 @@ class Anime_Sync_Cron_Manager {
     // =========================================================================
 
     public function run_entity_backfill(): void {
-        // 環境守門：本機（LocalWP 等）一律靜默，只在正式站執行。
-        // 原 mu-plugin 另有硬編碼主機絕對路徑檢查，不可攜、換主機即失效，
-        // 已移除；請確保本機 wp-config.php 設定 WP_ENVIRONMENT_TYPE=local。
         if ( function_exists( 'wp_get_environment_type' )
              && wp_get_environment_type() === 'local' ) {
             return;
@@ -1206,17 +964,11 @@ class Anime_Sync_Cron_Manager {
             $table    = $wpdb->prefix . 'anime_persons';
             $method   = 'backfill_persons';
             $skip_key = self::ENTITY_BACKFILL_SKIP_PERSONS_OPTION;
-            // 聲優：只用 infobox_json 判斷「補過沒」。
-            // summary、height、birthday、name_original 屬選填欄位，BGM 常缺
-            // (例如集體筆名「矢立肇」「東堂いづみ」或老一輩幕後人員無簡介)，
-            // 若納入判斷會導致這些人被反覆重撈、進度永遠卡住。
-            // infobox 是 BGM 收錄該人時最普遍具備的欄位，用它判斷最可靠。
             $where_missing = "( infobox_json IS NULL OR infobox_json = '' )";
         } else {
             $table    = $wpdb->prefix . 'anime_characters';
             $method   = 'backfill_characters';
             $skip_key = self::ENTITY_BACKFILL_SKIP_CHARS_OPTION;
-            // 角色：這些欄位任一為空就撈來補
             $where_missing = "( summary IS NULL OR summary = ''
                              OR name_cn IS NULL OR name_cn = ''
                              OR infobox_json IS NULL OR infobox_json = '' )";
@@ -1240,11 +992,47 @@ class Anime_Sync_Cron_Manager {
              LIMIT {$batch}"
         );
 
+        // =====================================================================
+        // ✅ [v1.5.2] 目前模式（扣掉跳過名單後）已無待補項目
+        //   → 需判斷是「真的補完」還是「這批剛好全在跳過名單裡（假空）」，
+        //     只有真的補完才自動切換到下一階段。
+        // =====================================================================
         if ( empty( $ids ) ) {
+
+            // 繞過跳過名單，查全站該類仍有多少缺漏（真實剩餘量）。
+            $true_remaining = (int) $wpdb->get_var(
+                "SELECT COUNT(*) FROM {$table}
+                 WHERE bgm_id > 0 AND {$where_missing}"
+            );
+
+            if ( $true_remaining > 0 ) {
+                // 「假空」：仍有缺漏，只是全落在跳過名單內（BGM 整筆無資料）。
+                // 維持原模式不切換，避免把還沒補完的階段誤判為完成。
+                self::update_cron_option(
+                    self::ENTITY_BACKFILL_LAST_OPTION,
+                    gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table
+                        . ' 剩餘 ' . $true_remaining . ' 筆全在跳過名單內（BGM 無資料），維持 '
+                        . $mode . ' 模式，不切換 (跳過名單 ' . count( $skip ) . ' 筆)'
+                );
+                return;
+            }
+
+            // 「真空」：全站該類已無任何缺漏 → 自動接力到下一階段。
+            //   persons(聲優) 補完 → characters(角色)
+            //   characters(角色) 補完 → off（停止空轉）
+            $next_mode = ( $mode === 'persons' ) ? 'characters' : 'off';
+            update_option( self::ENTITY_BACKFILL_MODE_OPTION, $next_mode );
+
+            $note = ( $next_mode === 'off' )
+                ? '角色與聲優皆已補完，自動關閉回補'
+                : '聲優已補完，自動切換為角色（characters）模式';
+
             self::update_cron_option(
                 self::ENTITY_BACKFILL_LAST_OPTION,
-                gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table . ' 沒有待補的了 (跳過名單 ' . count( $skip ) . ' 筆)'
+                gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table
+                    . ' 已無待補（跳過名單 ' . count( $skip ) . ' 筆）→ ' . $note
             );
+            $this->logger->log( 'info', '實體回補：' . $note );
             return;
         }
 
@@ -1259,14 +1047,12 @@ class Anime_Sync_Cron_Manager {
             } catch ( \Throwable $e ) {
                 $this->logger->log( 'error', '實體回補例外 bgm_id=' . $id . ' : ' . $e->getMessage() );
             }
-            // 判斷：有補到任何資料就算成功；整筆 BGM 抓不到(failed>0 且 updated=0)才跳過
             if ( ! empty( $r['updated'] ) && $r['updated'] > 0 ) {
                 $updated++;
             } elseif ( ! empty( $r['failed'] ) && $r['failed'] > 0 ) {
                 $skip[] = $id;
                 $no_data++;
             }
-            // 若 updated=0 且 failed=0（no_change，資料已齊），不跳過、下次不會再撈到(因欄位已滿)
         }
 
         $skip = array_values( array_unique( array_map( 'intval', $skip ) ) );
@@ -1525,19 +1311,9 @@ class Anime_Sync_Cron_Manager {
         }
     }
 
-    /**
-     * 建立主題曲＋集數待處理佇列。
-     * ✅ [v1.4.1] 完結日比較改用純數字（int），與 start_date 判斷統一。
-     * ✅ [v1.3.9] 新番優先排序（即將開播 > 放映中 > 剛完結，同級按日期由新到舊）。
-     * ✅ [v1.3.8] 簡單 IN 撈狀態 + PHP 過濾，避免多層巢狀 meta_query 生成錯誤 SQL。
-     *   - RELEASING：全納入。
-     *   - NOT_YET_RELEASED：開播日在 ±7 天窗口內。
-     *   - FINISHED：完結日在 30 天內。
-     */
     private function build_themes_episodes_queue(): array {
         $window_start = (int) gmdate( 'Ymd', strtotime( '-' . self::THEMES_UPCOMING_WINDOW_DAYS . ' days' ) );
         $window_end   = (int) gmdate( 'Ymd', strtotime( '+' . self::THEMES_UPCOMING_WINDOW_DAYS . ' days' ) );
-        // ✅ [v1.4.1] 完結日 cutoff 改用純數字 Ymd
         $cutoff_ymd   = (int) gmdate( 'Ymd', strtotime( '-30 days' ) );
 
         $candidate_ids = get_posts( [
@@ -1571,7 +1347,6 @@ class Anime_Sync_Cron_Manager {
                     $items[] = [ 'id' => $id, 'prio' => self::PRIO_UPCOMING, 'sort' => $start ];
                 }
             } elseif ( $status === 'FINISHED' ) {
-                // ✅ [v1.4.1] 純數字比較
                 $end = (int) get_post_meta( $id, 'anime_end_date', true );
                 if ( $end > 0 && $end >= $cutoff_ymd ) {
                     $items[] = [ 'id' => $id, 'prio' => self::PRIO_FINISHED, 'sort' => $end ];
@@ -1582,26 +1357,14 @@ class Anime_Sync_Cron_Manager {
         return self::sort_queue_new_first( $items );
     }
 
-      /**
-     * ✅ [v1.3.0] 同步單篇主題曲（只增不改）。冷卻期：完結 7 天 / 放映中 3 天。
-     * ✅ [v1.4.6] slug 優先、mal_id 備援：
-     *   - 舊行為只認 anime_mal_id，mal_id 為 0（新番常見）時直接 return，
-     *     使用者手填的 AnimeThemes slug 永遠用不到。
-     *   - 新行為改讀 anime_mal_id + anime_animethemes_slug（與 api-handler
-     *     的 get_animethemes_meta() 同一 key）；兩者至少有一個就繼續，
-     *     並把 slug 傳給 fetch_themes_only( $mal_id, $slug )。
-     */
     private function sync_themes_for_post( int $post_id ): int {
         $mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
 
-        // ✅ [v1.4.6] 讀取手填的 AnimeThemes slug（與 api-handler get_animethemes_meta 一致）
         $at_slug = trim( (string) get_post_meta( $post_id, 'anime_animethemes_slug', true ) );
         if ( $at_slug === '' ) {
-            // 舊資料相容：legacy 欄位
             $at_slug = trim( (string) get_post_meta( $post_id, 'animethemes_slug', true ) );
         }
 
-        // ✅ [v1.4.6] mal_id 與 slug 兩者皆空才放棄；有其中一個就繼續。
         if ( $mal_id <= 0 && $at_slug === '' ) {
             return 0;
         }
@@ -1618,7 +1381,6 @@ class Anime_Sync_Cron_Manager {
 
         $this->rate_limiter->wait_if_needed( 'animethemes' );
 
-        // ✅ [v1.4.6] 傳入 slug：fetch_themes_only() 內部 slug 優先、mal_id 備援。
         $api_result = $this->import_manager->fetch_themes_only( $mal_id, $at_slug );
 
         if ( empty( $api_result['themes'] ) || ! is_array( $api_result['themes'] ) ) {
@@ -1626,9 +1388,6 @@ class Anime_Sync_Cron_Manager {
             return 0;
         }
 
-        // ✅ [v1.4.6] 若這次是靠 slug 抓到、且回傳帶了 AnimeThemes 數字 id，
-        //   順手補寫 anime_animethemes_id，之後就能走更穩的 by-id 路徑（若你有實作）。
-        //   同時把 API 回傳的正規 slug 回寫，修正使用者可能手打的小差異。
         if ( ! empty( $api_result['slug'] ) ) {
             $canonical_slug = trim( (string) $api_result['slug'] );
             if ( $canonical_slug !== '' && $canonical_slug !== $at_slug ) {
@@ -1650,44 +1409,43 @@ class Anime_Sync_Cron_Manager {
 
         $make_key = static fn( $t ): string => ( $t['type'] ?? '' ) . ':' . ( $t['sequence'] ?? '' );
 
-$old_index = [];
-foreach ( $old_themes as $t ) {
-    $old_index[ $make_key( $t ) ] = true;
-}
-
-$added = 0;
-foreach ( $api_result['themes'] as $new_theme ) {
-    $key = $make_key( $new_theme );
-    if ( isset( $locked_index[ $key ] ) ) continue;
-
-    if ( isset( $old_index[ $key ] ) ) {
-        // ✅ 已存在的曲目：只補「音檔/影片連結」，不動歌名/歌手（避免蓋掉人工修改）
-        foreach ( $old_themes as &$existing ) {
-            if ( $make_key( $existing ) !== $key ) continue;
-
-            $existing_audio = trim( $existing['audio_url'] ?? '' );
-            $existing_video = trim( $existing['video_url'] ?? '' );
-            $new_audio      = trim( $new_theme['audio_url'] ?? '' );
-            $new_video      = trim( $new_theme['video_url'] ?? '' );
-
-            if ( $existing_audio === '' && $new_audio !== '' ) {
-                $existing['audio_url'] = $new_audio;
-                $added++;
-            }
-            if ( $existing_video === '' && $new_video !== '' ) {
-                $existing['video_url'] = $new_video;
-                $added++;
-            }
-            break;
+        $old_index = [];
+        foreach ( $old_themes as $t ) {
+            $old_index[ $make_key( $t ) ] = true;
         }
-        unset( $existing );
-        continue;
-    }
 
-    $old_themes[]      = $new_theme;
-    $old_index[ $key ] = true;
-    $added++;
-}
+        $added = 0;
+        foreach ( $api_result['themes'] as $new_theme ) {
+            $key = $make_key( $new_theme );
+            if ( isset( $locked_index[ $key ] ) ) continue;
+
+            if ( isset( $old_index[ $key ] ) ) {
+                foreach ( $old_themes as &$existing ) {
+                    if ( $make_key( $existing ) !== $key ) continue;
+
+                    $existing_audio = trim( $existing['audio_url'] ?? '' );
+                    $existing_video = trim( $existing['video_url'] ?? '' );
+                    $new_audio      = trim( $new_theme['audio_url'] ?? '' );
+                    $new_video      = trim( $new_theme['video_url'] ?? '' );
+
+                    if ( $existing_audio === '' && $new_audio !== '' ) {
+                        $existing['audio_url'] = $new_audio;
+                        $added++;
+                    }
+                    if ( $existing_video === '' && $new_video !== '' ) {
+                        $existing['video_url'] = $new_video;
+                        $added++;
+                    }
+                    break;
+                }
+                unset( $existing );
+                continue;
+            }
+
+            $old_themes[]      = $new_theme;
+            $old_index[ $key ] = true;
+            $added++;
+        }
 
         update_post_meta( $post_id, 'anime_themes_synced_at', current_time( 'mysql' ) );
 
@@ -1711,36 +1469,9 @@ foreach ( $api_result['themes'] as $new_theme ) {
         return $added;
     }
 
-    /**
-     * ✅ [v1.4.9] 同步單篇集數列表（只增不改／補空）。
-     *
-     * 補上先前遺失的方法：_run_themes_episodes_inner() 每 15 分鐘會呼叫
-     * $this->sync_episodes_for_post( $post_id )，但此方法先前未被定義，
-     * 導致每次執行到批次中第一部需要更新的作品就 Fatal Error（Call to
-     * undefined method），使整批（最多 20 部）主題曲＋集數同步全部中斷、
-     * 佇列無法正常往下推進。
-     *
-     * 行為對齊 class-api-handler.php 的 merge_episodes_respecting_locks()
-     * 與 sync_themes_for_post() 的既有慣例：
-     *   - 冷卻期：完結 COOLDOWN_EPISODES_FINISHED（3 天）／
-     *     放映中 COOLDOWN_EPISODES_RELEASING（6 小時），寫入
-     *     anime_episodes_synced_at 追蹤時間（無論本次有無抓到新資料都會
-     *     更新，避免 API 暫時性失敗時每次 cron 都重打 Bangumi）。
-     *   - 整欄鎖定：anime_locked_fields 含 anime_episodes_json 時完全不動。
-     *   - 單集鎖定：anime_episodes_locked_ids（與 API Handler 合併集數時
-     *     使用的同一把鎖）內的集數 id 完全跳過，不覆蓋任何欄位。
-     *   - 只增不改／補空：已存在的集數（以 Bangumi 集數 id 為唯一鍵）只補
-     *     空欄位（name / name_cn / airdate），不覆蓋人工已填值；comment
-     *     （吐槽數）與 ep 編號無人工編輯疑慮，直接同步更新；新集數直接
-     *     加入，最後依 ep 排序寫回，避免 Bangumi 回傳順序跳動導致前台
-     *     顯示錯亂。
-     *
-     * @return int 本次新增或補上的欄位／集數數量（0 = 無變動）
-     */
     private function sync_episodes_for_post( int $post_id ): int {
         $bgm_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
         if ( $bgm_id <= 0 ) {
-            // 相容 legacy key
             $bgm_id = (int) get_post_meta( $post_id, 'bangumi_id', true );
         }
         if ( $bgm_id <= 0 ) {
@@ -1752,7 +1483,7 @@ foreach ( $api_result['themes'] as $new_theme ) {
             $locked = [];
         }
         if ( in_array( 'anime_episodes_json', $locked, true ) ) {
-            return 0; // 整欄「鎖定集數列表」，完全不動
+            return 0;
         }
 
         $status    = (string) get_post_meta( $post_id, 'anime_status', true );
@@ -1768,8 +1499,6 @@ foreach ( $api_result['themes'] as $new_theme ) {
         $this->rate_limiter->wait_if_needed( 'bangumi' );
         $new_episodes = $this->import_manager->fetch_episodes_only( $bgm_id );
 
-        // 無論本次有沒有抓到新資料，都先蓋掉同步時間，讓冷卻期照常生效，
-        // 避免 API 暫時性失敗時每次 cron 都重打 Bangumi。
         update_post_meta( $post_id, 'anime_episodes_synced_at', current_time( 'mysql' ) );
 
         if ( empty( $new_episodes ) || ! is_array( $new_episodes ) ) {
@@ -1805,13 +1534,12 @@ foreach ( $api_result['themes'] as $new_theme ) {
 
             if ( isset( $old_index[ $ep_id ] ) ) {
                 if ( isset( $locked_index[ $ep_id ] ) ) {
-                    continue; // 此集被人工鎖定，完全跳過
+                    continue;
                 }
 
                 $idx      = $old_index[ $ep_id ];
                 $existing = $old_episodes[ $idx ];
 
-                // 只補空欄位，不覆蓋人工已填的值
                 foreach ( [ 'name', 'name_cn', 'airdate' ] as $field ) {
                     $existing_val = trim( (string) ( $existing[ $field ] ?? '' ) );
                     $new_val      = trim( (string) ( $new_ep[ $field ]  ?? '' ) );
@@ -1821,7 +1549,6 @@ foreach ( $api_result['themes'] as $new_theme ) {
                     }
                 }
 
-                // comment（吐槽數）與 ep 編號沒有人工編輯疑慮，直接同步更新
                 $new_comment = (int) ( $new_ep['comment'] ?? 0 );
                 if ( (int) ( $existing['comment'] ?? 0 ) !== $new_comment ) {
                     $existing['comment'] = $new_comment;
@@ -1832,7 +1559,6 @@ foreach ( $api_result['themes'] as $new_theme ) {
 
                 $old_episodes[ $idx ] = $existing;
             } else {
-                // 新集數，直接加入
                 $old_episodes[]       = $new_ep;
                 $old_index[ $ep_id ]  = count( $old_episodes ) - 1;
                 $changed++;
@@ -1843,7 +1569,6 @@ foreach ( $api_result['themes'] as $new_theme ) {
             return 0;
         }
 
-        // 依集數編號排序，避免 Bangumi 回傳順序跳動導致前台顯示錯亂
         usort( $old_episodes, static function ( $a, $b ) {
             return ( $a['ep'] ?? 0 ) <=> ( $b['ep'] ?? 0 );
         } );
@@ -1924,16 +1649,12 @@ foreach ( $api_result['themes'] as $new_theme ) {
         return $all;
     }
 
-    /**
-     * ✅ [v1.4.2] 補上 User-Agent 標頭，修復缺 UA 被 Cloudflare 判定機器人回 403 的問題。
-     */
     private function anilist_request( string $query, array $variables = [] ): ?array {
         $response = wp_remote_post( 'https://graphql.anilist.co', [
             'timeout' => 30,
             'headers' => [
                 'Content-Type' => 'application/json',
                 'Accept'       => 'application/json',
-                // ✅ [v1.4.2] 缺此標頭會被 AniList 前端的 Cloudflare 攔截回 403
                 'User-Agent'   => self::get_anilist_user_agent(),
             ],
             'body' => wp_json_encode( [
