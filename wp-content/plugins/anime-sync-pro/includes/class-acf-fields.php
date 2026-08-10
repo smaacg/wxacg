@@ -2137,6 +2137,23 @@ private function register_manga_fields(): void {
                 if ($yaLabel.length && $yaLabel.find('.asp-ya-example').length === 0) {
                     $yaLabel.append(' <span class="asp-ya-example" style="background-color: #f0f0f1; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; color: #3c434a; font-weight: normal; margin-left: 8px;">範例: https://youranimes.tw/animes/xxxx/onair</span>');
                 }
+
+                // 將「Wikipedia」旁邊加上開啟連結按鈕
+                var $wikiLabel = $('.acf-field[data-name="shortcut_anime_wikipedia_url"] .acf-label label');
+                if ($wikiLabel.length && $wikiLabel.find('.asp-wiki-link-btn').length === 0) {
+                    var $wikiBtn = $('<a href="#" class="asp-wiki-link-btn" target="_blank" style="margin-left: 10px; font-size: 12px; text-decoration: none; color: #2271b1; background-color: #f0f0f1; padding: 2px 8px; border-radius: 3px; font-weight: normal;">🔗 點擊維基連結</a>');
+                    $wikiLabel.append($wikiBtn);
+
+                    $wikiBtn.on('click', function(e) {
+                        var currentUrl = $('.acf-field[data-name="shortcut_anime_wikipedia_url"] input[type="url"]').val();
+                        if (!currentUrl) {
+                            e.preventDefault();
+                            alert('請先在下方輸入 Wikipedia 網址');
+                        } else {
+                            $(this).attr('href', currentUrl);
+                        }
+                    });
+                }
             }
 
             // 針對傳統編輯器
