@@ -3040,6 +3040,12 @@ private function register_manga_fields(): void {
                                 } else {
                                     if (missing > 0) logAI(`⚠️ [CAST] 批次 ${batchNum} 經重試仍有 ${missing} 筆遺漏，將保留原文。`, true);
                                     success = true;
+                                    
+                                    // 若這批有實際交由 AI 翻譯，且不是最後一批，強制等待 5 秒以避免觸發 429 頻率限制
+                                    if (res.data.stats && res.data.stats.api > 0 && batchNum < totalBatches) {
+                                        logAI(`⏳ [CAST] 為保護 API 額度並避免頻率過高，自動冷卻等待 5 秒...`);
+                                        await new Promise(r => setTimeout(r, 5000));
+                                    }
                                 }
                             } else {
                                 var errMsg = res.data || '未知錯誤';
