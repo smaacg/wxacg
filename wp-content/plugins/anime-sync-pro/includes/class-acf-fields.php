@@ -2122,6 +2122,12 @@ private function register_manga_fields(): void {
                 if ($trailerLabel.length && $trailerLabel.find('.asp-trailer-example').length === 0) {
                     $trailerLabel.append(' <span class="asp-trailer-example" style="background-color: #f0f0f1; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; color: #3c434a; font-weight: normal; margin-left: 8px;">範例:https://youtu.be/abc12345678 | PV</span>');
                 }
+
+                // 將「YourAnimes 網址」的灰色範例標籤加到標題同一行
+                var $yaLabel = $('.acf-field[data-name="shortcut_anime_youranimes_url"] .acf-label label');
+                if ($yaLabel.length && $yaLabel.find('.asp-ya-example').length === 0) {
+                    $yaLabel.append(' <span class="asp-ya-example" style="background-color: #f0f0f1; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; color: #3c434a; font-weight: normal; margin-left: 8px;">範例: https://youranimes.tw/animes/xxxx/onair</span>');
+                }
             }
 
             // 針對傳統編輯器
@@ -2864,11 +2870,18 @@ private function register_manga_fields(): void {
                                 logAI(`✅ [${taskName}] 已同步回填至底層原生欄位！`);
                             }
                         } else {
-                            logAI(`❌ [${taskName}] 發生錯誤: ` + (res.data || '未知錯誤'), true);
+                            var errorMsg = res.data || '未知錯誤';
+                            if (typeof errorMsg === 'string' && errorMsg.toLowerCase().includes('quota')) {
+                                errorMsg += ' (💡 提示：這通常代表您的 AI 模型免費額度已耗盡，或請求過於頻繁。請稍後再試，或前往 Google AI Studio 檢查/更換 API Key 方案。)';
+                            }
+                            logAI(`❌ [${taskName}] 發生錯誤: ` + errorMsg, true);
                         }
                     } catch(err) {
                         // [優化 3] 捕捉並印出具體錯誤細節
                         var errDetail = err.responseText ? err.responseText : (err.statusText || '未知錯誤');
+                        if (typeof errDetail === 'string' && errDetail.toLowerCase().includes('quota')) {
+                            errDetail += ' (💡 提示：這通常代表您的 AI 模型免費額度已耗盡，或請求過於頻繁。請稍後再試，或前往 Google AI Studio 檢查/更換 API Key 方案。)';
+                        }
                         logAI(`❌ [${taskName}] 請求失敗，請檢查網路連線或 API Key 狀態。細節：${errDetail}`, true);
                     }
                 }
