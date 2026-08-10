@@ -2954,7 +2954,7 @@ private function register_manga_fields(): void {
                 charKeys.forEach(k => allItems.push({ type: 'char', key: k, text: uniqueChar[k] }));
                 vaKeys.forEach(k => allItems.push({ type: 'va', key: k, text: uniqueVa[k] }));
                 
-                var batchSize = 100;
+                var batchSize = 200;
                 var globalMapping = { va: {}, char: {} };
                 
                 var f_ori_name = acf.getField($('.acf-field[data-name="anime_title_native"]'));
