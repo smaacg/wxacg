@@ -2094,11 +2094,14 @@ private function register_manga_fields(): void {
         ?>
         <style>
             /* 壓縮捷徑方塊的垂直空間，保留輸入框原本大小 */
+            #acf-group_anime_shortcuts .inside, #acf-group_anime_shortcuts > .inside, #acf-group_anime_shortcuts .acf-fields {
+                padding: 0 !important; margin: 0 !important;
+            }
             #acf-group_anime_shortcuts .acf-field {
-                padding: 8px 12px !important;
+                padding: 6px 12px !important; margin: 0 !important;
             }
             #acf-group_anime_shortcuts .acf-label {
-                margin: 0 0 4px !important;
+                margin: 0 0 3px !important;
             }
             #acf-group_anime_shortcuts .acf-label label {
                 font-size: 13px !important;
