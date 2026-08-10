@@ -46,6 +46,11 @@ class Anime_Sync_ACF_Fields {
         add_action( 'wp_ajax_asp_shortcut_ai_save_post', [ $this, 'ajax_shortcut_ai_save_post' ] );
         add_action( 'wp_ajax_asp_shortcut_ai_save_user', [ $this, 'ajax_shortcut_ai_save_user' ] );
         add_action( 'wp_ajax_asp_shortcut_ai_generate', [ $this, 'ajax_shortcut_ai_generate' ] );
+        
+        // CAST 字典管理與翻譯 AJAX
+        add_action( 'wp_ajax_asp_shortcut_ai_cast_translate', [ $this, 'ajax_shortcut_ai_cast_translate' ] );
+        add_action( 'wp_ajax_asp_cast_dict_load', [ $this, 'ajax_cast_dict_load' ] );
+        add_action( 'wp_ajax_asp_cast_dict_save', [ $this, 'ajax_cast_dict_save' ] );
 
         $this->register_mirror_hooks();
     }
@@ -2146,12 +2151,17 @@ private function register_manga_fields(): void {
                 var postId = $('#post_ID').val();
                 var fields = {};
                 
-                // 使用 ACF JS API 抓取捷徑方塊內的所有欄位值
-                acf.getFields({parent: $('#acf-group_anime_shortcuts')}).forEach(function(field) {
-                    if (field.data.name) {
-                        fields[field.data.name] = field.val();
-                    }
-                });
+                try {
+                    // 使用 ACF JS API 抓取捷徑方塊內的所有欄位值
+                    acf.getFields({parent: $('#acf-group_anime_shortcuts')}).forEach(function(field) {
+                        if (field.data.name) {
+                            fields[field.data.name] = field.val();
+                        }
+                    });
+                } catch(e) {
+                    alert('讀取欄位值時發生錯誤，請重新整理頁面後再試。');
+                    return;
+                }
 
                 $btn.text('⏳ 處理中...').prop('disabled', true);
                 
@@ -2190,7 +2200,7 @@ private function register_manga_fields(): void {
             wp_send_json_error( '權限不足' );
         }
         
-        $fields = isset( $_POST['fields'] ) && is_array( $_POST['fields'] ) ? $_POST['fields'] : [];
+        $fields = isset( $_POST['fields'] ) && is_array( $_POST['fields'] ) ? wp_unslash( $_POST['fields'] ) : [];
         
         $mapping = [
             'shortcut_anime_title_chinese'    => 'anime_title_chinese',
@@ -2547,13 +2557,17 @@ private function register_manga_fields(): void {
                 var $btnGroup = $('<div style="position: absolute; right: 215px; top: 50%; transform: translateY(-50%); z-index: 10; display:flex; gap: 8px; align-items: center;">' +
                     '<button type="button" id="asp-btn-ai-generate" class="button button-secondary" style="height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">✨ 執行 AI 輔助生成</button>' +
                     '<button type="button" id="asp-btn-ai-save" class="button button-primary" style="height: 28px; border-radius: 4px; font-size: 13px; padding: 0 16px; display: flex; align-items: center; box-sizing: border-box;">💾 儲存 AI 輔助區塊</button>' +
-                '</div>');
+                '</div>');;
                 
                 $header.css('position', 'relative').append($btnGroup);
 
                 // 1.5 注入 Console 狀態監控面板 (放置在所有欄位最上方)
                 if ($('#asp-ai-console-box').length === 0) {
-                    var consoleHTML = '<div id="asp-ai-console-box" style="background:#1e1e1e; color:#0f0; padding:10px 15px; margin:0 !important; border-bottom:1px solid #444; border-top:none; height:100px; overflow-y:auto; font-family:monospace; line-height:1.4; width: 100%; box-sizing: border-box;">[系統就緒] AI 輔助生成模組已載入，等待指令...<br>請先在最底部「⚙️ AI 帳號設定面板」填入 API Key，再點擊上方按鈕開始生成！</div>';
+                    var consoleHTML = '<div id="asp-ai-console-box" style="background:#1e1e1e; color:#0f0; padding:10px 15px; margin:0 !important; border-bottom:1px solid #444; border-top:none; height:100px; overflow-y:auto; font-family:monospace; line-height:1.4; width: 100%; box-sizing: border-box;">[系統就緒] AI 輔助生成模組已載入，等待指令...<br>請先在最底部「⚙️ AI 帳號設定面板」填入 API Key，再點擊上方按鈕開始生成！</div>' +
+                        '<div style="background:#111; padding:4px 15px; border-bottom:1px solid #333; display:flex; align-items:center; gap:8px;">' +
+                        '<label style="color:#888; font-size:11px; font-family:monospace; cursor:pointer; display:flex; align-items:center; gap:5px;" title="開啟後，每批次送出前會在 Console 印出完整的 System Prompt 與 User Prompt，方便確認 AI 確實收到正確指令">' +
+                        '<input type="checkbox" id="asp-ai-debug-mode" style="margin:0;"> 🔍 Debug 模式（印出完整 AI 指令）' +
+                        '</label></div>';
                     
                     var $fieldsContainer = $('#acf-group_anime_shortcuts_ai .acf-fields');
                     if ($fieldsContainer.length > 0) {
@@ -2584,7 +2598,10 @@ private function register_manga_fields(): void {
                         var $synopsisSwitchInput = $fields.filter('[data-name="shortcut_ai_generate_synopsis"]').find('.acf-input');
                         if ($synopsisSwitchInput.length > 0 && $('#asp-force-ai-translate').length === 0) {
                             $synopsisSwitchInput.css({ 'display': 'flex', 'align-items': 'center', 'gap': '10px' });
-                            $synopsisSwitchInput.append('<label style="font-size:12px; display:flex; align-items:center; cursor:pointer;"><input type="checkbox" id="asp-force-ai-translate" style="margin:0 5px 0 0;">強制給AI翻譯</label>');
+                            var $forceLabel = $('<label style="font-size:12px; display:flex; align-items:center; cursor:pointer; margin-left:15px;"><input type="checkbox" id="asp-force-ai-translate" style="margin:0 5px 0 0;">強制給AI翻譯</label>');
+                            $forceLabel.on('click', function(e) { e.stopPropagation(); });
+                            $forceLabel.find('#asp-force-ai-translate').on('click', function(e) { e.stopPropagation(); });
+                            $synopsisSwitchInput.find('.acf-switch').after($forceLabel);
                         }
                         
                         // 針對最下方的兩個欄位 (Switch & CAST JSON)
@@ -2654,7 +2671,35 @@ private function register_manga_fields(): void {
                             'align-items': 'flex-start'
                         });
                         $inputWrap.append($mirroredBox);
+                        
+                        // 注入字典管理按鈕 (在開關正下方)
+                        var $switch = $inputWrap.find('.acf-true-false').first();
+                        if ($switch.length > 0) {
+                            $switch.wrap('<div style="display:flex; flex-direction:column; gap:5px;"></div>');
+                            $switch.after('<button type="button" id="asp-btn-manage-dict" class="button button-small" style="font-size:11px; padding:2px 8px; line-height:1.2; text-align:center;">📚 字典管理</button>');
+                        }
                     }
+                }
+                
+                // 4. 注入字典管理 Modal HTML
+                if ($('#asp-dict-modal').length === 0) {
+                    var modalHTML = `
+                    <div id="asp-dict-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99999; justify-content:center; align-items:center;">
+                        <div style="background:#fff; width:600px; max-width:90%; height:500px; max-height:90vh; display:flex; flex-direction:column; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                            <div style="padding:15px 20px; border-bottom:1px solid #e2e4e7; display:flex; justify-content:space-between; align-items:center; background:#f8f9fa; border-radius:8px 8px 0 0;">
+                                <h3 style="margin:0; font-size:16px;">📚 CAST 翻譯字典管理</h3>
+                                <button type="button" class="asp-dict-close" style="background:none; border:none; font-size:20px; cursor:pointer; padding:0; color:#666;">&times;</button>
+                            </div>
+                            <div style="padding:15px 20px; border-bottom:1px solid #e2e4e7; background:#fff; display:flex; gap:10px;">
+                                <input type="text" id="asp-dict-search" placeholder="🔍 搜尋日文原文或中文譯名..." style="flex:1; padding:5px 10px;">
+                                <button type="button" id="asp-dict-save" class="button button-primary">💾 儲存修改</button>
+                            </div>
+                            <div id="asp-dict-list" style="flex:1; overflow-y:auto; padding:15px 20px; background:#f0f0f1; display:flex; flex-direction:column; gap:10px;">
+                                <div style="text-align:center; padding:20px; color:#888;">正在載入字典...</div>
+                            </div>
+                        </div>
+                    </div>`;
+                    $('body').append(modalHTML);
                 }
             }
 
@@ -2662,6 +2707,97 @@ private function register_manga_fields(): void {
                 acf.addAction('ready', initAIPanel);
             }
             initAIPanel();
+            
+            // 字典管理事件綁定
+            var fullDictData = { va: {}, char: {} };
+            
+            function renderDictList(filter = '') {
+                var $list = $('#asp-dict-list');
+                $list.empty();
+                
+                var items = [];
+                $.each(fullDictData.va, function(k, v) { items.push({ type: 'va', key: k, val: v, label: '聲優' }); });
+                $.each(fullDictData.char, function(k, v) { items.push({ type: 'char', key: k, val: v, label: '角色' }); });
+                
+                if (filter) {
+                    var lowerFilter = filter.toLowerCase();
+                    items = items.filter(i => i.key.toLowerCase().includes(lowerFilter) || i.val.toLowerCase().includes(lowerFilter));
+                }
+                
+                if (items.length === 0) {
+                    $list.append('<div style="text-align:center; padding:20px; color:#888;">' + (filter ? '找不到符合的結果' : '字典目前是空的') + '</div>');
+                    return;
+                }
+                
+                $.each(items, function(i, item) {
+                    var displayKey = item.type === 'char' ? item.key.replace('|||', ' - ') : item.key;
+                    var html = `
+                    <div style="display:flex; align-items:center; background:#fff; padding:8px 12px; border-radius:4px; border:1px solid #ddd; gap:10px;">
+                        <span style="font-size:11px; padding:2px 4px; background:#e0e0e0; border-radius:3px;">${item.label}</span>
+                        <div style="flex:1; font-weight:bold; font-size:13px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${displayKey}">${displayKey}</div>
+                        <span style="color:#888;">➔</span>
+                        <input type="text" class="asp-dict-input" data-type="${item.type}" data-key="${item.key}" value="${item.val}" style="flex:1; padding:3px 8px; font-size:13px;">
+                    </div>`;
+                    $list.append(html);
+                });
+            }
+
+            $(document).on('click', '#asp-btn-manage-dict', function(e) {
+                e.preventDefault();
+                $('#asp-dict-modal').css('display', 'flex');
+                $('#asp-dict-list').html('<div style="text-align:center; padding:20px; color:#888;">正在載入字典...</div>');
+                $('#asp-dict-search').val('');
+                
+                $.post(ajaxurl, {
+                    action: 'asp_cast_dict_load',
+                    nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>'
+                }, function(res) {
+                    if (res.success) {
+                        fullDictData = res.data || { va: {}, char: {} };
+                        renderDictList();
+                    } else {
+                        $('#asp-dict-list').html('<div style="color:red; text-align:center; padding:20px;">載入失敗：' + res.data + '</div>');
+                    }
+                });
+            });
+
+            $(document).on('click', '.asp-dict-close', function(e) {
+                e.preventDefault();
+                $('#asp-dict-modal').hide();
+            });
+
+            $(document).on('input', '#asp-dict-search', function(e) {
+                renderDictList($(this).val());
+            });
+
+            $(document).on('click', '#asp-dict-save', function(e) {
+                e.preventDefault();
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('儲存中...');
+                
+                // 收集畫面上被修改的值
+                $('.asp-dict-input').each(function() {
+                    var type = $(this).data('type');
+                    var key = String($(this).data('key'));
+                    var val = $(this).val().trim();
+                    if (fullDictData[type] && fullDictData[type][key] !== undefined) {
+                        fullDictData[type][key] = val;
+                    }
+                });
+                
+                $.post(ajaxurl, {
+                    action: 'asp_cast_dict_save',
+                    nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                    dict_data: JSON.stringify(fullDictData)
+                }, function(res) {
+                    $btn.prop('disabled', false).text('💾 儲存修改');
+                    if (res.success) {
+                        alert('字典已成功儲存！');
+                    } else {
+                        alert('儲存失敗：' + res.data);
+                    }
+                });
+            });
 
             function logAI(msg, isError = false) {
                 var $console = $('#asp-ai-console-box');
@@ -2732,6 +2868,201 @@ private function register_manga_fields(): void {
                 });
             });
 
+            async function processCastTranslation(jsonStr, animeTitle, targetField) {
+                var taskName = 'CAST';
+                try {
+                    var parsed = JSON.parse(jsonStr);
+                    if (!Array.isArray(parsed)) throw new Error('Root is not array');
+                } catch(e) {
+                    logAI(`⚠️ [CAST] 捷徑框內的 JSON 格式無效，無法解析。`, true);
+                    return;
+                }
+                
+                // 1. 萃取唯一名單 (雙軌)
+                var uniqueVa = {};
+                var uniqueChar = {};
+                
+                // 嘗試獲取系列名稱作為 namespace，讓同系列作品(如劇場版)可共用角色字典
+                var f_series = acf.getField($('.acf-field[data-name="shortcut_anime_series_tax"]'));
+                var seriesName = f_series && f_series.val() ? String(f_series.val()).trim() : '';
+                
+                // 如果 ACF 欄位沒抓到 (可能是在原生 metabox 剛輸入還沒存檔)，則直接抓取原生 taxonomy 隱藏欄位
+                if (!seriesName) {
+                    var $nativeTax = $('#tax-input-anime_series_tax');
+                    if ($nativeTax.length) {
+                        seriesName = $nativeTax.val().trim();
+                    }
+                }
+                
+                var namespace = seriesName ? seriesName.split(',')[0].trim() : animeTitle;
+                
+                parsed.forEach(item => {
+                    var charName = item.name ? String(item.name).trim() : '';
+                    if (charName) {
+                        var charKey = namespace + '|||' + charName;
+                        uniqueChar[charKey] = charName;
+                    }
+                    if (item.voice_actors && Array.isArray(item.voice_actors)) {
+                        item.voice_actors.forEach(va => {
+                            var vaName = va.name ? va.name.trim() : '';
+                            if (vaName) uniqueVa[vaName] = vaName;
+                        });
+                    }
+                });
+                
+                var charKeys = Object.keys(uniqueChar);
+                var vaKeys = Object.keys(uniqueVa);
+                var totalNames = charKeys.length + vaKeys.length;
+                
+                logAI(`▶️ [CAST] 解析完成。共發現 ${charKeys.length} 個角色，${vaKeys.length} 位聲優 (總計去重後 ${totalNames} 筆)。`);
+                if (totalNames === 0) {
+                    logAI(`✅ [CAST] 無需翻譯的名稱。`);
+                    return;
+                }
+                
+                // 2. 準備分批
+                var allItems = [];
+                charKeys.forEach(k => allItems.push({ type: 'char', key: k, text: uniqueChar[k] }));
+                vaKeys.forEach(k => allItems.push({ type: 'va', key: k, text: uniqueVa[k] }));
+                
+                var batchSize = 100;
+                var globalMapping = { va: {}, char: {} };
+                
+                var f_ori_name = acf.getField($('.acf-field[data-name="anime_title_native"]'));
+                var oriName = f_ori_name ? String(f_ori_name.val()) : '';
+                
+                var f_source = acf.getField($('.acf-field[data-name="anime_source"]'));
+                var sourceVal = f_source && f_source.val() ? f_source.val() : '';
+                var source = (typeof sourceVal === 'object' && sourceVal !== null && sourceVal.label) ? sourceVal.label : String(sourceVal);
+                
+                var f_format = acf.getField($('.acf-field[data-name="anime_format"]'));
+                var formatVal = f_format && f_format.val() ? f_format.val() : '';
+                var format = (typeof formatVal === 'object' && formatVal !== null && formatVal.label) ? formatVal.label : String(formatVal);
+                
+                var f_season = acf.getField($('.acf-field[data-name="anime_season"]'));
+                var seasonVal = f_season && f_season.val() ? f_season.val() : '';
+                var season = (typeof seasonVal === 'object' && seasonVal !== null && seasonVal.label) ? seasonVal.label : String(seasonVal);
+                
+                var f_year = acf.getField($('.acf-field[data-name="anime_season_year"]'));
+                var year = f_year ? String(f_year.val()) : '';
+                
+                var extraContext = `日文原名：${oriName}／原作來源：${source}／作品類型：${format}／播出季度：${season}／播出年份：${year}`;
+                
+                logAI(`▶️ [CAST] 擷取的背景特徵：【作品名稱】${animeTitle} 【補充】${extraContext}`);
+                logAI(`▶️ [CAST] 開始分批查證 (每批 ${batchSize} 筆)...`);
+                
+                for (var i = 0; i < allItems.length; i += batchSize) {
+                    var batch = allItems.slice(i, i + batchSize);
+                    var batchNum = Math.floor(i / batchSize) + 1;
+                    var totalBatches = Math.ceil(allItems.length / batchSize);
+                    
+                    logAI(`▶️ [CAST] 正在處理第 ${batchNum}/${totalBatches} 批 (${batch.length} 筆)...`);
+                    
+                    var success = false;
+                    var retries = 0;
+                    var isDebug = $('#asp-ai-debug-mode').is(':checked');
+                    
+                    while (!success && retries <= 2) {
+                        try {
+                            // Debug 模式：印出本批次即將送出的完整名單
+                            if (isDebug && retries === 0) {
+                                var debugList = batch.map((item, idx) => {
+                                    var label = item.type === 'va' ? '【聲優】' : '【角色】';
+                                    return (idx + 1) + '. ' + label + ' ' + item.text;
+                                }).join('\n');
+                                logAI(`🔍 [DEBUG] 批次 ${batchNum} System Prompt:\n----\n你是熟悉台灣 ACG 圈譯名的翻譯校對員...(已儲存在後端，請查看 debug_prompts)\n----`);
+                                logAI(`🔍 [DEBUG] 批次 ${batchNum} User Prompt:\n----\n【作品名稱】${animeTitle}\n【補充辨識】${extraContext}\n\n請查證以下名單：\n${debugList}\n----`);
+                            }
+                            
+                            var res = await $.post(ajaxurl, {
+                                action: 'asp_shortcut_ai_cast_translate',
+                                nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                                title: animeTitle,
+                                context: extraContext,
+                                items: JSON.stringify(batch),
+                                debug: isDebug ? 1 : 0
+                            });
+                            
+                            if (res.success && res.data && res.data.mapping) {
+                                if (res.data.stats) {
+                                    logAI(`▶️ [CAST] 批次 ${batchNum} 完成：快取命中 ${res.data.stats.cached} 筆，實際交由 AI 翻譯 ${res.data.stats.api} 筆。`);
+                                }
+                                // Debug 模式：印出後端確認收到的完整 prompt（Server Side 視角）
+                                if (isDebug && res.data.debug_prompts) {
+                                    logAI(`🔍 [DEBUG][後端確認] System Prompt 全文：\n====\n${res.data.debug_prompts.system}\n====`);
+                                    logAI(`🔍 [DEBUG][後端確認] User Prompt 全文：\n====\n${res.data.debug_prompts.user}\n====`);
+                                }
+                                
+                                Object.assign(globalMapping.va, res.data.mapping.va || {});
+                                Object.assign(globalMapping.char, res.data.mapping.char || {});
+                                
+                                var missing = 0;
+                                batch.forEach(item => {
+                                    if (!res.data.mapping[item.type] || !res.data.mapping[item.type][item.key]) {
+                                        missing++;
+                                    }
+                                });
+                                
+                                if (missing > 0 && retries < 2) {
+                                    logAI(`⚠️ [CAST] 批次 ${batchNum} 發現 ${missing} 筆遺漏，發起第 ${retries + 1} 次重試...`, true);
+                                    batch = batch.filter(item => !res.data.mapping[item.type] || !res.data.mapping[item.type][item.key]);
+                                    retries++;
+                                    continue;
+                                } else {
+                                    if (missing > 0) logAI(`⚠️ [CAST] 批次 ${batchNum} 經重試仍有 ${missing} 筆遺漏，將保留原文。`, true);
+                                    success = true;
+                                }
+                            } else {
+                                var errMsg = res.data || '未知錯誤';
+                                if (errMsg.includes('quota') || errMsg.includes('429')) {
+                                    logAI(`❌ [CAST] API 額度耗盡或頻率過高。進度已保存在快取中，請稍候重新點擊生成接續！`, true);
+                                    return;
+                                }
+                                throw new Error(errMsg);
+                            }
+                        } catch (err) {
+                            if (retries < 2) {
+                                retries++;
+                                logAI(`⚠️ [CAST] 批次 ${batchNum} 錯誤 (${err.message})，3秒後重試 (${retries}/2)...`, true);
+                                await new Promise(r => setTimeout(r, 3000));
+                            } else {
+                                logAI(`❌ [CAST] 批次 ${batchNum} 多次重試失敗，終止。`, true);
+                                return;
+                            }
+                        }
+                    }
+                }
+                
+                logAI(`▶️ [CAST] 所有批次完成，正在替換原始 JSON...`);
+                
+                parsed.forEach(item => {
+                    var charName = item.name ? String(item.name).trim() : '';
+                    if (charName) {
+                        var charKey = namespace + '|||' + charName;
+                        if (globalMapping.char && globalMapping.char[charKey]) {
+                            item.name = globalMapping.char[charKey];
+                        }
+                    }
+                    if (item.voice_actors && Array.isArray(item.voice_actors)) {
+                        item.voice_actors.forEach(va => {
+                            var vaName = va.name ? va.name.trim() : '';
+                            if (vaName && globalMapping.va && globalMapping.va[vaName]) {
+                                va.name = globalMapping.va[vaName];
+                            }
+                        });
+                    }
+                });
+                
+                var finalJson = JSON.stringify(parsed);
+                var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                if (f_target) f_target.val(finalJson);
+                var nativeField = targetField.replace('shortcut_', '');
+                var f_native = acf.getField($('.acf-field[data-name="' + nativeField + '"]'));
+                if (f_native) f_native.val(finalJson);
+                
+                logAI(`✅ [CAST] 替換完成並已寫回欄位！`);
+            }
+
             // 執行生成
             $(document).on('click', '#asp-btn-ai-generate', async function(e) {
                 e.preventDefault();
@@ -2762,157 +3093,179 @@ private function register_manga_fields(): void {
                 btn.prop('disabled', true).text('⏳ 生成中...');
                 logAI('🚀 開始執行 AI 生成工作流...');
                 
-                for(var i=0; i<tasks.length; i++) {
-                    var task = tasks[i];
-                    var sysPrompt = '';
-                    var userPrompt = '';
-                    var targetField = '';
-                    var taskName = '';
-                    
-                    var f_title = acf.getField($('.acf-field[data-name="shortcut_anime_title_chinese"]'));
-                    var title = (f_title && f_title.val()) ? String(f_title.val()).trim() : $('#title').val();
-                    
-                    if (task === 'synopsis') {
-                        taskName = '中文簡介';
-                        targetField = 'shortcut_anime_synopsis_chinese';
-                        var $descTextarea = $('.acf-field[data-name="anime_synopsis_chinese"] .description textarea');
-                        sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_synopsis_chinese"] .description').text().trim();
-                        var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
-                        userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
-                        var forceTranslate = $('#asp-force-ai-translate').is(':checked');
+                try {
+                    for(var i=0; i<tasks.length; i++) {
+                        var task = tasks[i];
+                        var sysPrompt = '';
+                        var userPrompt = '';
+                        var targetField = '';
+                        var taskName = '';
+                        
+                        var f_title = acf.getField($('.acf-field[data-name="shortcut_anime_title_chinese"]'));
+                        var title = (f_title && f_title.val()) ? String(f_title.val()).trim() : $('#title').val();
+                        
+                        if (task === 'synopsis') {
+                            taskName = '中文簡介';
+                            targetField = 'shortcut_anime_synopsis_chinese';
+                            var $descTextarea = $('.acf-field[data-name="anime_synopsis_chinese"] .description textarea');
+                            sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_synopsis_chinese"] .description').text().trim();
+                            var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                            userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
+                            var forceTranslate = $('#asp-force-ai-translate').is(':checked');
 
-                        if (userPrompt === '') {
-                            userPrompt = '但目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title + '\n\n⚠️ 重要規則：請直接輸出純簡介內容，絕對不要加上「以下是...的簡介」或任何開場白與對話詞彙。';
-                        } else {
-                            var isJP = /[\u3040-\u30ff]/.test(userPrompt);
-                            var isSC = /[个们这会发说样么进觉动视频观听剧弹网络传统战击异龙剑门飞机关爱与为从来给让设计创办产认写读记买卖国军队员宝梦灵处总极难尽仅虽迟远贫穷华丽]/.test(userPrompt);
-                            var englishCharCount = (userPrompt.match(/[a-zA-Z]/g) || []).length;
-                            var isEN = englishCharCount > (userPrompt.length * 0.4);
-                            
-                            var mainlandTerms = /(視頻|軟件|網絡|質量|激活|屏幕|鼠標|程序|服務器|硬盤|默認|賬號|鏈接|彈幕|B站|UP主|番劇|追番|補番|製作組|製作方|譯製|二創|三創|鬼畜|小夥伴|手辦|病嬌|網盤|高清)/;
-                            var hasMainlandTerms = mainlandTerms.test(userPrompt);
-
-                            if (forceTranslate) {
-                                userPrompt = "請將以下原文翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
-                            } else if (isJP || isSC || isEN) {
-                                userPrompt = "請將以下原文翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
-                            } else if (hasMainlandTerms) {
-                                userPrompt = "以下是一篇繁體中文簡介，但包含大陸用語。請將其轉換並潤飾為「台灣 ACG 圈慣用語」的台灣繁體中文。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                            if (userPrompt === '') {
+                                userPrompt = '但目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title + '\n\n⚠️ 重要規則：請直接輸出純簡介內容，絕對不要加上「以下是...的簡介」或任何開場白與對話詞彙。';
                             } else {
-                                logAI(`✅ [${taskName}] 偵測到純繁體中文且無大陸用語，已自動跳過，不消耗 AI 額度。`);
+                                var isJP = /[\u3040-\u30ff]/.test(userPrompt);
+                                var isSC = /[个们这会发说样么进觉动视频观听剧弹网络传统战击异龙剑门飞机关爱与为从来给让设计创办产认写读记买卖国军队员宝梦灵处总极难尽仅虽迟远贫穷华丽]/.test(userPrompt);
+                                var englishCharCount = (userPrompt.match(/[a-zA-Z]/g) || []).length;
+                                var isEN = englishCharCount > (userPrompt.length * 0.4);
+                                
+                                var mainlandTerms = /(視頻|軟件|網絡|質量|激活|屏幕|鼠標|程序|服務器|硬盤|默認|賬號|鏈接|彈幕|B站|UP主|番劇|追番|補番|製作組|製作方|譯製|二創|三創|鬼畜|小夥伴|手辦|病嬌|網盤|高清)/;
+                                var hasMainlandTerms = mainlandTerms.test(userPrompt);
+
+                                if (forceTranslate) {
+                                    userPrompt = "請將以下原文翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                                } else if (isJP || isSC || isEN) {
+                                    userPrompt = "請將以下原文翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                                } else if (hasMainlandTerms) {
+                                    userPrompt = "以下是一篇繁體中文簡介，但包含大陸用語。請將其轉換並潤飾為「台灣 ACG 圈慣用語」的台灣繁體中文。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                                } else {
+                                    logAI(`✅ [${taskName}] 偵測到純繁體中文且無大陸用語，已自動跳過，不消耗 AI 額度。`);
+                                    continue;
+                                }
+                            }
+                        } else if (task === 'faq') {
+                            taskName = 'FAQ';
+                            targetField = 'shortcut_anime_faq_json';
+                            var $descTextarea = $('.acf-field[data-name="anime_faq_json"] .description textarea');
+                            sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_faq_json"] .description').text().trim();
+                            userPrompt = '請嚴格依照上述規則，直接輸出 JSON 陣列，不要包含任何開場白或解釋。';
+                        } else if (task === 'cast') {
+                            taskName = 'CAST';
+                            targetField = 'shortcut_anime_cast_json';
+                            var $descTextarea = $('.acf-field[data-name="anime_cast_json"] .description textarea');
+                            sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_cast_json"] .description').text().trim();
+                            var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                            userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
+                            if (userPrompt === '') {
+                                logAI(`⚠️ [${taskName}] 捷徑框內沒有提供原始 JSON，已自動跳過，不消耗 AI 額度。`);
                                 continue;
                             }
                         }
-                    } else if (task === 'faq') {
-                        taskName = 'FAQ';
-                        targetField = 'shortcut_anime_faq_json';
-                        var $descTextarea = $('.acf-field[data-name="anime_faq_json"] .description textarea');
-                        sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_faq_json"] .description').text().trim();
-                        userPrompt = '請嚴格依照上述規則，直接輸出 JSON 陣列，不要包含任何開場白或解釋。';
-                    } else if (task === 'cast') {
-                        taskName = 'CAST';
-                        targetField = 'shortcut_anime_cast_json';
-                        var $descTextarea = $('.acf-field[data-name="anime_cast_json"] .description textarea');
-                        sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_cast_json"] .description').text().trim();
-                        var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
-                        userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
-                        if (userPrompt === '') {
-                            logAI(`⚠️ [${taskName}] 捷徑框內沒有提供原始 JSON，已自動跳過，不消耗 AI 額度。`);
-                            continue;
-                        }
-                    }
-                    
-                    logAI(`▶️ 正在生成 [${taskName}]...`);
-                    
-                    try {
-                        var res = await $.post(ajaxurl, {
-                            action: 'asp_shortcut_ai_generate',
-                            nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
-                            system_prompt: sysPrompt,
-                            user_prompt: userPrompt
-                        });
                         
-                        // [優化 3] 更嚴謹的空字串防呆判斷
-                        if (res.success && res.data && typeof res.data.result === 'string') {
-                            var text = res.data.result;
-                            
-                            // [優化 4] 智慧判斷 AI 是否找不到資料
-                            var isFailed = false;
-                            var failMsg = '';
+                        logAI(`▶️ 正在生成 [${taskName}]...`);
+                        
+                        try {
+                            if (task === 'cast') {
+                                await processCastTranslation(userPrompt, title, targetField);
+                                continue;
+                            }
 
-                            if (task === 'faq' || task === 'cast') {
-                                // 去除可能包覆的 markdown 語法
-                                text = text.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
-                                var firstBracket = text.indexOf('[');
-                                var lastBracket = text.lastIndexOf(']');
+                            // Debug 模式：送出前在 Console 印出完整指令
+                            var isDebug = $('#asp-ai-debug-mode').is(':checked');
+                            if (isDebug) {
+                                logAI(`🔍 [DEBUG][${taskName}] System Prompt:\n====\n${sysPrompt}\n====`);
+                                logAI(`🔍 [DEBUG][${taskName}] User Prompt:\n====\n${userPrompt}\n====`);
+                            }
+                            
+                            var res = await $.post(ajaxurl, {
+                                action: 'asp_shortcut_ai_generate',
+                                nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                                system_prompt: sysPrompt,
+                                user_prompt: userPrompt,
+                                debug: isDebug ? 1 : 0
+                            });
+                            
+                            // [優化 3] 更嚴謹的空字串防呆判斷
+                            if (res.success && res.data && typeof res.data.result === 'string') {
+                                var text = res.data.result;
+                                // Debug 模式：印出後端確認收到的完整 prompt
+                                if (isDebug && res.data.debug_prompts) {
+                                    logAI(`🔍 [DEBUG][${taskName}][後端確認] System Prompt：\n====\n${res.data.debug_prompts.system}\n====`);
+                                    logAI(`🔍 [DEBUG][${taskName}][後端確認] User Prompt：\n====\n${res.data.debug_prompts.user}\n====`);
+                                }
                                 
-                                if (firstBracket === -1 || lastBracket === -1 || lastBracket <= firstBracket) {
-                                    isFailed = true;
-                                    failMsg = '未能產出有效的 JSON 格式';
-                                } else {
-                                    // 擷取陣列字串
-                                    text = text.substring(firstBracket, lastBracket + 1);
-                                    try {
-                                        var parsed = JSON.parse(text);
-                                        // 如果成功解析，則轉換為壓縮格式
-                                        text = JSON.stringify(parsed);
-                                        if (text === '[]') {
-                                            isFailed = true;
-                                            failMsg = 'AI 回傳了空陣列 (查無資料)';
-                                        }
-                                    } catch (e) {
-                                        // 解析失敗，可能是提取範圍包含了多餘文字 (如來源說明中包含了 ']')
+                                // [優化 4] 智慧判斷 AI 是否找不到資料
+                                var isFailed = false;
+                                var failMsg = '';
+
+                                if (task === 'faq') {
+                                    // 去除可能包覆的 markdown 語法
+                                    text = text.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
+                                    var firstBracket = text.indexOf('[');
+                                    var lastBracket = text.lastIndexOf(']');
+                                    
+                                    if (firstBracket === -1 || lastBracket === -1 || lastBracket <= firstBracket) {
                                         isFailed = true;
-                                        failMsg = '未能產出有效的 JSON 格式 (夾雜無法解析的字串)';
+                                        failMsg = '未能產出有效的 JSON 格式';
+                                    } else {
+                                        // 擷取陣列字串
+                                        text = text.substring(firstBracket, lastBracket + 1);
+                                        try {
+                                            var parsed = JSON.parse(text);
+                                            // 如果成功解析，則轉換為壓縮格式
+                                            text = JSON.stringify(parsed);
+                                            if (text === '[]') {
+                                                isFailed = true;
+                                                failMsg = 'AI 回傳了空陣列 (查無資料)';
+                                            }
+                                        } catch (e) {
+                                            // 解析失敗，可能是提取範圍包含了多餘文字 (如來源說明中包含了 ']')
+                                            isFailed = true;
+                                            failMsg = '未能產出有效的 JSON 格式 (夾雜無法解析的字串)';
+                                        }
+                                    }
+                                } else if (task === 'synopsis') {
+                                    if (text.length < 60 && (text.includes('抱歉') || text.includes('找不到') || text.includes('查無') || text.includes('無法') || text.includes('沒有'))) {
+                                        isFailed = true;
+                                        failMsg = 'AI 回報找不到相關資料';
                                     }
                                 }
-                            } else if (task === 'synopsis') {
-                                if (text.length < 60 && (text.includes('抱歉') || text.includes('找不到') || text.includes('查無') || text.includes('無法') || text.includes('沒有'))) {
-                                    isFailed = true;
-                                    failMsg = 'AI 回報找不到相關資料';
-                                }
-                            }
 
-                            if (isFailed) {
-                                logAI(`⚠️ [${taskName}] ${failMsg}，已自動跳過寫入。(AI 原始回覆: ${res.data.result.replace(/\n/g, ' ').substring(0, 40)}...)`, true);
-                                continue;
-                            }
-                            var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
-                            if (f_target) {
-                                f_target.val(text);
-                                logAI(`✅ [${taskName}] 生成完畢！(獲得 ${text.length} 字元) 並成功填入捷徑框！`);
+                                if (isFailed) {
+                                    logAI(`⚠️ [${taskName}] ${failMsg}，已自動跳過寫入。(AI 原始回覆: ${res.data.result.replace(/\n/g, ' ').substring(0, 40)}...)`, true);
+                                    continue;
+                                }
+                                var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                                if (f_target) {
+                                    f_target.val(text);
+                                    logAI(`✅ [${taskName}] 生成完畢！(獲得 ${text.length} 字元) 並成功填入捷徑框！`);
+                                } else {
+                                    logAI(`⚠️ [${taskName}] 警告：找不到名稱為 ${targetField} 的欄位，無法填入！(獲得 ${text.length} 字元)`, true);
+                                    // 嘗試使用舊方法
+                                    if (acf.getField(targetField)) acf.getField(targetField).val(text);
+                                }
+                                
+                                // [優化 1] 即時同步更新底層原生欄位，避免 Race Condition
+                                var nativeField = targetField.replace('shortcut_', '');
+                                var f_native = acf.getField($('.acf-field[data-name="' + nativeField + '"]'));
+                                if (f_native) {
+                                    f_native.val(text);
+                                    logAI(`✅ [${taskName}] 已同步回填至底層原生欄位！`);
+                                }
                             } else {
-                                logAI(`⚠️ [${taskName}] 警告：找不到名稱為 ${targetField} 的欄位，無法填入！(獲得 ${text.length} 字元)`, true);
-                                // 嘗試使用舊方法
-                                if (acf.getField(targetField)) acf.getField(targetField).val(text);
+                                var errorMsg = res.data || '未知錯誤';
+                                if (typeof errorMsg === 'string' && errorMsg.toLowerCase().includes('quota')) {
+                                    errorMsg += ' (💡 提示：這通常代表您的 AI 模型免費額度已耗盡，或請求過於頻繁。請稍後再試，或前往 Google AI Studio 檢查/更換 API Key 方案。)';
+                                }
+                                logAI(`❌ [${taskName}] 發生錯誤: ` + errorMsg, true);
                             }
-                            
-                            // [優化 1] 即時同步更新底層原生欄位，避免 Race Condition
-                            var nativeField = targetField.replace('shortcut_', '');
-                            var f_native = acf.getField($('.acf-field[data-name="' + nativeField + '"]'));
-                            if (f_native) {
-                                f_native.val(text);
-                                logAI(`✅ [${taskName}] 已同步回填至底層原生欄位！`);
+                        } catch(err) {
+                            // [優化 3] 捕捉並印出具體錯誤細節
+                            var errDetail = err.responseText ? err.responseText : (err.statusText || '未知錯誤');
+                            if (typeof errDetail === 'string' && errDetail.toLowerCase().includes('quota')) {
+                                errDetail += ' (💡 提示：這通常代表您的 AI 模型免費額度已耗盡，或請求過於頻繁。請稍後再試，或前往 Google AI Studio 檢查/更換 API Key 方案。)';
                             }
-                        } else {
-                            var errorMsg = res.data || '未知錯誤';
-                            if (typeof errorMsg === 'string' && errorMsg.toLowerCase().includes('quota')) {
-                                errorMsg += ' (💡 提示：這通常代表您的 AI 模型免費額度已耗盡，或請求過於頻繁。請稍後再試，或前往 Google AI Studio 檢查/更換 API Key 方案。)';
-                            }
-                            logAI(`❌ [${taskName}] 發生錯誤: ` + errorMsg, true);
+                            logAI(`❌ [${taskName}] 請求失敗，請檢查網路連線或 API Key 狀態。細節：${errDetail}`, true);
                         }
-                    } catch(err) {
-                        // [優化 3] 捕捉並印出具體錯誤細節
-                        var errDetail = err.responseText ? err.responseText : (err.statusText || '未知錯誤');
-                        if (typeof errDetail === 'string' && errDetail.toLowerCase().includes('quota')) {
-                            errDetail += ' (💡 提示：這通常代表您的 AI 模型免費額度已耗盡，或請求過於頻繁。請稍後再試，或前往 Google AI Studio 檢查/更換 API Key 方案。)';
-                        }
-                        logAI(`❌ [${taskName}] 請求失敗，請檢查網路連線或 API Key 狀態。細節：${errDetail}`, true);
                     }
+                    
+                    logAI('🎉 所有選定項目生成工作流已結束！確認無誤後記得按右邊的儲存喔！');
+                } finally {
+                    // 不論任何情況（正常完成、提早 return、未預期例外）都確保按鈕被解鎖
+                    btn.prop('disabled', false).text('🤖 執行 AI 輔助生成');
                 }
-                
-                logAI('🎉 所有選定項目生成工作流已結束！確認無誤後記得按右邊的儲存喔！');
-                btn.prop('disabled', false).text('🤖 執行 AI 輔助生成');
             });
         });
         </script>
@@ -2968,6 +3321,8 @@ private function register_manga_fields(): void {
             wp_send_json_error( '未設定 API Key' );
         }
 
+        $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
+        
         $system_prompt = isset( $_POST['system_prompt'] ) ? wp_unslash( $_POST['system_prompt'] ) : '';
         $user_prompt   = isset( $_POST['user_prompt'] ) ? wp_unslash( $_POST['user_prompt'] ) : '';
 
@@ -3009,7 +3364,7 @@ private function register_manga_fields(): void {
                 ],
                 'body' => wp_json_encode( [
                     'model'      => $model,
-                    'max_tokens' => 4096,
+                    'max_tokens' => 8192,
                     'system'     => $system_prompt,
                     'messages'   => [
                         [ 'role' => 'user', 'content' => $user_prompt ],
@@ -3064,7 +3419,272 @@ private function register_manga_fields(): void {
             $result_text = $body['candidates'][0]['content']['parts'][0]['text'] ?? '';
         }
 
-        wp_send_json_success( [ 'result' => $result_text ] );
+        $response_data = [ 'result' => $result_text ];
+        if ( $debug ) {
+            $response_data['debug_prompts'] = [
+                'system' => $system_prompt,
+                'user'   => $user_prompt
+            ];
+        }
+        wp_send_json_success( $response_data );
+    }
+
+    // =========================================================================
+    // CAST 字典管理與翻譯 Backend
+    // =========================================================================
+
+    private function get_cast_dict_path(): string {
+        $upload_dir = wp_upload_dir();
+        return $upload_dir['basedir'] . '/asp_cast_cache.json';
+    }
+
+    private function get_cast_dict(): array {
+        $file = $this->get_cast_dict_path();
+        if ( ! file_exists( $file ) ) {
+            return [ 'va' => [], 'char' => [] ];
+        }
+        $json = file_get_contents( $file );
+        $data = json_decode( $json, true );
+        if ( ! is_array( $data ) ) {
+            return [ 'va' => [], 'char' => [] ];
+        }
+        return $data;
+    }
+
+    private function update_cast_dict( array $new_data, bool $merge = true ): void {
+        $file = $this->get_cast_dict_path();
+        if ( $merge ) {
+            $existing = $this->get_cast_dict();
+            $existing['va']   = array_merge( $existing['va'] ?? [], $new_data['va'] ?? [] );
+            $existing['char'] = array_merge( $existing['char'] ?? [], $new_data['char'] ?? [] );
+            $data_to_save = $existing;
+        } else {
+            $data_to_save = [
+                'va'   => $new_data['va'] ?? [],
+                'char' => $new_data['char'] ?? []
+            ];
+        }
+        file_put_contents( $file, wp_json_encode( $data_to_save, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT ), LOCK_EX );
+    }
+
+    public function ajax_cast_dict_load(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
+        wp_send_json_success( $this->get_cast_dict() );
+    }
+
+    public function ajax_cast_dict_save(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
+        
+        $json = isset( $_POST['dict_data'] ) ? wp_unslash( $_POST['dict_data'] ) : '';
+        $data = json_decode( $json, true );
+        if ( ! is_array( $data ) ) wp_send_json_error( '格式錯誤' );
+        
+        $this->update_cast_dict( $data, false ); // 完全覆蓋
+        wp_send_json_success();
+    }
+
+    public function ajax_shortcut_ai_cast_translate(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
+
+        $user_id = get_current_user_id();
+        $provider = get_user_meta( $user_id, 'asp_ai_provider', true ) ?: 'gemini';
+        $api_key  = get_user_meta( $user_id, 'asp_ai_api_key', true );
+        $model    = get_user_meta( $user_id, 'asp_ai_model_name', true );
+        
+        if ( empty( $api_key ) ) wp_send_json_error( '未設定 API Key' );
+
+        $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
+
+        $title   = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $context = isset( $_POST['context'] ) ? sanitize_text_field( wp_unslash( $_POST['context'] ) ) : '';
+        $items_json = isset( $_POST['items'] ) ? wp_unslash( $_POST['items'] ) : '[]';
+        $items = json_decode( $items_json, true );
+
+        if ( empty( $items ) || ! is_array( $items ) ) wp_send_json_error( '無效的查證清單' );
+
+        // 1. 雙軌快取過濾：先檢查快取中是否已經有答案
+        $global_dict = $this->get_cast_dict();
+        $unknown_items = [];
+        $known_mapping = [ 'va' => [], 'char' => [] ];
+
+        foreach ( $items as $item ) {
+            // 防禦性驗證：確保必要欄位都存在且型別正確
+            if ( empty( $item['type'] ) || empty( $item['key'] ) || ! isset( $item['text'] ) ) {
+                continue;
+            }
+            $type = $item['type']; // 'va' or 'char'
+            $key  = $item['key'];
+            if ( isset( $global_dict[$type][$key] ) && $global_dict[$type][$key] !== '' ) {
+                $known_mapping[$type][$key] = $global_dict[$type][$key];
+            } else {
+                $unknown_items[] = $item;
+            }
+        }
+
+        // 如果全部都在快取裡了，直接回傳
+        if ( empty( $unknown_items ) ) {
+            $response_data = [ 
+                'mapping' => $known_mapping,
+                'stats'   => [
+                    'total'  => count($items),
+                    'cached' => count($items),
+                    'api'    => 0
+                ]
+            ];
+            if ( $debug ) {
+                $response_data['debug_prompts'] = [
+                    'system' => '(全部快取命中，本批次未送出 AI 請求)',
+                    'user'   => '(全部快取命中，本批次未送出 AI 請求)'
+                ];
+            }
+            wp_send_json_success( $response_data );
+            return;
+        }
+
+        // 2. 組裝要餵給 AI 的資料
+        $prompt_list = [];
+        foreach ( $unknown_items as $idx => $item ) {
+            $label = $item['type'] === 'va' ? '【聲優】' : '【角色】';
+            $text = $item['text']; // 原文
+            $prompt_list[] = ($idx + 1) . ". {$label} {$text}";
+        }
+        $prompt_text = implode( "\n", $prompt_list );
+
+        $system_prompt = "你是熟悉台灣 ACG 圈譯名的翻譯校對員。請把名單的「角色名」與「聲優名」改成台灣慣用中文譯名。\n\n"
+                       . "【最重要的前提】\n"
+                       . "你必須「實際上網開啟網頁查證」，不可僅憑記憶或推測。新番你的記憶很可能沒有或過時。\n"
+                       . "【查證來源優先順序】\n"
+                       . "① 台灣代理商/平台官方(木棉花 Muse、曼迪、羚邦、Netflix、巴哈姆特動畫瘋)的官網或官方社群(FB/IG/X)——有台灣官方代理版本時,以其角色譯名為最高依據\n"
+                       . "② 中文維基百科台灣版(zh-hant)\n"
+                       . "③ 日文官網、日文維基(確認原文對應,避免張冠李戴)\n"
+                       . "④ 萌娘百科/百度(僅輔助確認角色存在與原文對應,為大陸譯名,不可直接採用)\n\n"
+                       . "若查無台灣代理官方譯名(常見於老作品、冷門番、未代理作品)：依②③來源查證後，採用台灣 ACG 圈普遍使用之慣用譯名(而非直接照搬大陸慣用譯名)。\n"
+                       . "若同一角色/聲優查到多個不同譯名版本：以來源優先順序最高者為準，直接採用，不需列出其他版本。\n"
+                       . "若查證後確定無對應中文譯名，請原樣保留或略過該筆。\n\n"
+                       . "請嚴格以 JSON 陣列格式回傳，格式範例：\n"
+                       . "[\n"
+                       . "  {\"type\": \"char\", \"text\": \"原文角色名\", \"translated\": \"繁體中文譯名\"},\n"
+                       . "  {\"type\": \"va\", \"text\": \"原文聲優名\", \"translated\": \"繁體漢字寫法\"}\n"
+                       . "]\n"
+                       . "注意：因為系統採用全自動 API 批次映射，請【絕對不要】包含任何額外的解釋文字、核對清單或 markdown 標籤，只能輸出純 JSON 陣列。";
+
+        $user_prompt = "【作品名稱】{$title}\n【補充辨識】{$context}\n\n請查證以下名單：\n" . $prompt_text;
+
+        // 3. 發送 API 請求
+        $result_text = '';
+
+        if ( $provider === 'openai' ) {
+            if ( empty( $model ) ) $model = 'gpt-4o';
+            $response = wp_remote_post( 'https://api.openai.com/v1/chat/completions', [
+                'timeout' => 60,
+                'headers' => [ 'Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $api_key ],
+                'body' => wp_json_encode( [
+                    'model' => $model,
+                    'response_format' => [ 'type' => 'json_object' ],
+                    'messages' => [
+                        [ 'role' => 'system', 'content' => $system_prompt . "\n(由於 OpenAI JSON 模式限制，請將陣列包裝在 {\"result\": [...]} 中)" ],
+                        [ 'role' => 'user', 'content' => $user_prompt ],
+                    ],
+                ] ),
+            ] );
+            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
+            $result_text = $body['choices'][0]['message']['content'] ?? '';
+            
+            $parsed = json_decode( $result_text, true );
+            if ( isset($parsed['result']) ) {
+                $result_text = wp_json_encode( $parsed['result'], JSON_UNESCAPED_UNICODE );
+            }
+
+        } elseif ( $provider === 'claude' ) {
+            if ( empty( $model ) ) $model = 'claude-3-5-sonnet-20240620';
+            $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', [
+                'timeout' => 60,
+                'headers' => [ 'Content-Type' => 'application/json', 'x-api-key' => $api_key, 'anthropic-version' => '2023-06-01' ],
+                'body' => wp_json_encode( [
+                    'model' => $model,
+                    'max_tokens' => 8192,
+                    'system' => $system_prompt,
+                    'messages' => [ [ 'role' => 'user', 'content' => $user_prompt ] ],
+                ] ),
+            ] );
+            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
+            $result_text = $body['content'][0]['text'] ?? '';
+
+        } else {
+            if ( empty( $model ) ) $model = 'gemini-3.6-flash';
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}";
+            $payload = [
+                'contents' => [ [ 'role' => 'user', 'parts' => [ [ 'text' => $user_prompt ] ] ] ],
+                'system_instruction' => [ 'parts' => [ [ 'text' => $system_prompt ] ] ]
+            ];
+            $response = wp_remote_post( $url, [
+                'timeout' => 60,
+                'headers' => [ 'Content-Type' => 'application/json' ],
+                'body'    => wp_json_encode( $payload ),
+            ] );
+            if ( is_wp_error( $response ) ) wp_send_json_error( $response->get_error_message() );
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( isset( $body['error'] ) ) wp_send_json_error( $body['error']['message'] );
+            $result_text = $body['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        }
+
+        // 4. 解析 AI 回傳的 JSON
+        $result_text = trim( preg_replace('/```json|```/i', '', $result_text) );
+        $ai_parsed = json_decode( $result_text, true );
+
+        if ( ! is_array( $ai_parsed ) ) {
+            wp_send_json_error( 'AI 未能回傳有效的 JSON 陣列' );
+        }
+
+        // 5. 組合新字典並寫入快取
+        $new_dict = [ 'va' => [], 'char' => [] ];
+        
+        $text_to_item = [];
+        foreach ( $unknown_items as $uitem ) {
+            $text_to_item[ $uitem['type'] . '_' . $uitem['text'] ] = $uitem['key'];
+        }
+
+        foreach ( $ai_parsed as $res_item ) {
+            if ( isset( $res_item['type'], $res_item['text'], $res_item['translated'] ) ) {
+                $type  = $res_item['type'];
+                $text  = $res_item['text'];
+                $trans = trim( $res_item['translated'] );
+                
+                $lookup_key = $type . '_' . $text;
+                if ( isset( $text_to_item[ $lookup_key ] ) && $trans !== '' ) {
+                    $original_key = $text_to_item[ $lookup_key ];
+                    $new_dict[$type][$original_key] = $trans;
+                    $known_mapping[$type][$original_key] = $trans;
+                }
+            }
+        }
+
+        if ( ! empty( $new_dict['va'] ) || ! empty( $new_dict['char'] ) ) {
+            $this->update_cast_dict( $new_dict, true ); // Merge
+        }
+
+        $response_data = [ 
+            'mapping' => $known_mapping,
+            'stats'   => [
+                'total'  => count($items),
+                'cached' => count($items) - count($unknown_items),
+                'api'    => count($unknown_items)
+            ]
+        ];
+        if ( $debug ) {
+            $response_data['debug_prompts'] = [
+                'system' => $system_prompt,
+                'user'   => $user_prompt
+            ];
+        }
+        wp_send_json_success( $response_data );
     }
 
 }
