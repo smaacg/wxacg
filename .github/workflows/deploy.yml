@@ -18,7 +18,7 @@ jobs:
     - name: 檢查 PHP 語法
       run: |
         if git rev-parse HEAD~1 >/dev/null 2>&1; then
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '\.php$' || true)
+          CHANGED_FILES=$(git diff --name-only --diff-filter=d HEAD~1 HEAD | grep '\.php$' || true)
         else
           CHANGED_FILES=$(find . -name "*.php")
         fi
@@ -32,7 +32,7 @@ jobs:
     - name: 檢查 JSON 格式
       run: |
         if git rev-parse HEAD~1 >/dev/null 2>&1; then
-          CHANGED_JSON=$(git diff --name-only HEAD~1 HEAD | grep '\.json$' || true)
+          CHANGED_JSON=$(git diff --name-only --diff-filter=d HEAD~1 HEAD | grep '\.json$' || true)
         else
           CHANGED_JSON=$(find . -name "*.json")
         fi
