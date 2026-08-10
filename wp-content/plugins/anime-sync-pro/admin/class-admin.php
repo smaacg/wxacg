@@ -4,9 +4,14 @@
  * Plugin Admin Class - 管理員後台邏輯（AJAX + 資產載入）
  *
  * @package Anime_Sync_Pro
- * @version 1.9.1
+ * @version 1.9.2
  *
  * Changelog:
+ *  - 1.9.2 (2026-08-10):
+ *      • [Entity Backfill] 新增 handle_ajax_clear_backfill_skip() — 清空角色/
+ *        聲優回補跳過名單（搭配 settings.php v5.4.0 回補設定卡片與
+ *        class-cron-manager.php v1.5.1 任務七）。
+ *      • 註冊新 AJAX action: anime_sync_clear_backfill_skip。
  *  - 1.9.1 (2026-07-05):
  *      • [Fix 403] handle_ajax_query_season() 與 handle_ajax_query_announced()
  *        兩處 wp_remote_post 直打 AniList 時補上 User-Agent，修正缺 UA 遭
@@ -86,6 +91,7 @@ class Anime_Sync_Admin {
         add_action( 'wp_ajax_anime_resync_bangumi',          [ $this, 'handle_ajax_resync_bangumi'     ] );
         add_action( 'wp_ajax_anime_sync_scan_series_gaps',   [ $this, 'handle_ajax_scan_series_gaps'   ] );
         add_action( 'wp_ajax_anime_sync_reschedule_cron',    [ $this, 'handle_ajax_reschedule_cron'    ] );
+        add_action( 'wp_ajax_anime_sync_clear_backfill_skip', [ $this, 'handle_ajax_clear_backfill_skip' ] );
         add_action( 'wp_ajax_anime_sync_query_announced',    [ $this, 'handle_ajax_query_announced'    ] );
         // ★ [1.9.0] 新增：重新同步 AniList 圖片
         add_action( 'wp_ajax_anime_resync_anilist_images',   [ $this, 'handle_ajax_resync_anilist_images' ] );
@@ -1105,6 +1111,32 @@ class Anime_Sync_Admin {
                 $fmt( wp_next_scheduled( 'anime_sync_weekly_cleanup' ) ),
                 $fmt( wp_next_scheduled( 'anime_sync_update_anime_map' ) )
             ),
+        ] );
+    }
+
+    // =========================================================================
+    // AJAX: ✅ [1.9.2] 清空角色/聲優回補跳過名單
+    // =========================================================================
+
+    public function handle_ajax_clear_backfill_skip(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
+
+        $chars   = get_option( 'anime_sync_backfill_skip_chars', [] );
+        $persons = get_option( 'anime_sync_backfill_skip_persons', [] );
+        $chars_n   = is_array( $chars )   ? count( $chars )   : 0;
+        $persons_n = is_array( $persons ) ? count( $persons ) : 0;
+
+        delete_option( 'anime_sync_backfill_skip_chars' );
+        delete_option( 'anime_sync_backfill_skip_persons' );
+
+        $this->log_error( '手動清空實體回補跳過名單', [
+            'skip_chars'   => $chars_n,
+            'skip_persons' => $persons_n,
+        ] );
+
+        wp_send_json_success( [
+            'message' => sprintf( '已清空：角色 %d 筆 / 聲優 %d 筆', $chars_n, $persons_n ),
         ] );
     }
 

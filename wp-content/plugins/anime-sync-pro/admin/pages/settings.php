@@ -6,6 +6,15 @@
  * @version 5.3.0
  *
  * Changelog:
+ *  - 5.4.0 (2026-08-10):
+ *      • [Entity Backfill] 新增「角色/聲優資料回補」設定卡片（搭配
+ *        class-cron-manager.php v1.5.1 任務七）：
+ *        - 回補模式下拉（關閉 / 角色 / 聲優）寫入 option
+ *          anime_sync_entity_backfill_mode，不再需要 WP-CLI。
+ *        - 批次量（anime_sync_entity_backfill_batch，10–200）。
+ *        - 顯示上次執行摘要（anime_sync_last_entity_backfill）與
+ *          兩份跳過名單筆數，附清空跳過名單按鈕（AJAX）。
+ *        - 排程狀態列表新增「角色/聲優回補」列。
  *  - 5.3.0 (2026-06-27):
  *      • 手機板響應式全面優化。
  *      • Settings Card 在手機板移除 max-width 限制，全寬顯示。
@@ -110,6 +119,15 @@ if (
 
     $new_batch_size    = isset( $_POST['anime_sync_batch_size'] )
         ? max( 5, min( 100, (int) $_POST['anime_sync_batch_size'] ) ) : 15;
+
+    // ✅ [5.4.0] 角色/聲優回補設定
+    $new_backfill_mode = isset( $_POST['anime_sync_entity_backfill_mode'] )
+        ? sanitize_key( wp_unslash( $_POST['anime_sync_entity_backfill_mode'] ) ) : 'off';
+    if ( ! in_array( $new_backfill_mode, array( 'off', 'characters', 'persons' ), true ) ) {
+        $new_backfill_mode = 'off';
+    }
+    $new_backfill_batch = isset( $_POST['anime_sync_entity_backfill_batch'] )
+        ? max( 10, min( 200, (int) $_POST['anime_sync_entity_backfill_batch'] ) ) : 60;
     $new_log_retention = isset( $_POST['anime_sync_log_retention_days'] )
         ? max( 1, min( 365, (int) $_POST['anime_sync_log_retention_days'] ) ) : 30;
     $new_debug_mode    = isset( $_POST['anime_sync_debug_mode'] ) ? 1 : 0;
@@ -120,6 +138,10 @@ if (
     update_option( 'anime_sync_batch_size',         $new_batch_size );
     update_option( 'anime_sync_log_retention_days', $new_log_retention );
     update_option( 'anime_sync_debug_mode',         $new_debug_mode );
+
+    // ✅ [5.4.0] 角色/聲優回補（autoload 不影響前台，量小直接 update_option 即可）
+    update_option( 'anime_sync_entity_backfill_mode',  $new_backfill_mode );
+    update_option( 'anime_sync_entity_backfill_batch', $new_backfill_batch );
 
     if ( $new_daily_hour_utc !== $old_daily_hour_utc ) {
         $daily_hook  = 'anime_sync_daily_score_update';
@@ -149,6 +171,35 @@ $daily_hour_local = $utc_to_local_hour( $daily_hour_utc );
 $batch_size       = (int) get_option( 'anime_sync_batch_size',        15 );
 $log_retention    = (int) get_option( 'anime_sync_log_retention_days', 30 );
 $debug_mode       = (int) get_option( 'anime_sync_debug_mode',          0 );
+
+// ✅ [5.4.0] 角色/聲優回補目前狀態
+$backfill_mode  = (string) get_option( 'anime_sync_entity_backfill_mode', 'off' );
+if ( ! in_array( $backfill_mode, array( 'off', 'characters', 'persons' ), true ) ) {
+    $backfill_mode = 'off';
+}
+$backfill_batch = (int) get_option( 'anime_sync_entity_backfill_batch', 60 );
+if ( $backfill_batch <= 0 ) {
+    $backfill_batch = 60;
+}
+$backfill_last  = (string) get_option( 'anime_sync_last_entity_backfill', '' );
+
+$backfill_skip_chars   = get_option( 'anime_sync_backfill_skip_chars', array() );
+$backfill_skip_persons = get_option( 'anime_sync_backfill_skip_persons', array() );
+$skip_chars_count   = is_array( $backfill_skip_chars )   ? count( $backfill_skip_chars )   : 0;
+$skip_persons_count = is_array( $backfill_skip_persons ) ? count( $backfill_skip_persons ) : 0;
+
+// 待補數量統計（與 Cron Manager 任務七的 where 條件一致）
+global $wpdb;
+$backfill_pending_chars = (int) $wpdb->get_var(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}anime_characters
+     WHERE bgm_id > 0 AND ( summary IS NULL OR summary = ''
+        OR name_cn IS NULL OR name_cn = ''
+        OR infobox_json IS NULL OR infobox_json = '' )"
+);
+$backfill_pending_persons = (int) $wpdb->get_var(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}anime_persons
+     WHERE bgm_id > 0 AND ( infobox_json IS NULL OR infobox_json = '' )"
+);
 
 $plugin_version = defined( 'ANIME_SYNC_PRO_VERSION' )
     ? ANIME_SYNC_PRO_VERSION
@@ -204,6 +255,7 @@ $next_daily      = wp_next_scheduled( 'anime_sync_daily_score_update' );
 $next_themes_eps = wp_next_scheduled( 'anime_sync_themes_episodes_update' );
 $next_weekly     = wp_next_scheduled( 'anime_sync_weekly_cleanup' );
 $next_update_map = wp_next_scheduled( 'anime_sync_update_anime_map' );
+$next_backfill   = wp_next_scheduled( 'anime_sync_entity_backfill' ); // ✅ [5.4.0]
 $last_daily_run  = get_option( 'anime_sync_last_daily_run', '' );
 $last_weekly_run = get_option( 'anime_sync_last_weekly_cleanup', '' );
 $last_themes_run = get_option( 'anime_sync_last_themes_episodes_run', '' );
@@ -215,6 +267,7 @@ $cron_rows = array(
     array( '主題曲＋集數同步', $next_themes_eps, $last_themes_run ),
     array( '每週清理',         $next_weekly,     $last_weekly_run ),
     array( 'ID 對照表更新',    $next_update_map, ''               ),
+    array( '角色/聲優回補',    $next_backfill,   ''               ), // ✅ [5.4.0]
 );
 ?>
 
@@ -316,6 +369,87 @@ $cron_rows = array(
                                value="<?php echo esc_attr( $batch_size ); ?>" min="5" max="100"
                                class="small-text" />
                         <p class="description"><?php esc_html_e( '建議 15–30。每批次處理完後釋放記憶體。', 'anime-sync-pro' ); ?></p>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- ───────────────── 角色/聲優資料回補 ───────────────── -->
+        <div class="asc-card">
+            <h2 class="asc-card-title">
+                <span class="dashicons dashicons-groups"></span>
+                <?php esc_html_e( '角色/聲優資料回補（BGM）', 'anime-sync-pro' ); ?>
+            </h2>
+            <p class="description asc-card-desc">
+                <?php esc_html_e( '每 5 分鐘補一批欄位缺漏的角色 / 聲優資料（來源 Bangumi）。一次只能跑一種模式；建議先補角色，補完再切聲優，都補完後切回關閉。BGM 完全無資料的條目會自動記入跳過名單，不再重試。', 'anime-sync-pro' ); ?>
+            </p>
+            <table class="form-table asc-form-table">
+                <tr>
+                    <th scope="row">
+                        <label for="anime_sync_entity_backfill_mode"><?php esc_html_e( '回補模式', 'anime-sync-pro' ); ?></label>
+                    </th>
+                    <td>
+                        <select id="anime_sync_entity_backfill_mode" name="anime_sync_entity_backfill_mode" class="asc-select">
+                            <option value="off"        <?php selected( $backfill_mode, 'off' ); ?>><?php esc_html_e( '關閉', 'anime-sync-pro' ); ?></option>
+                            <option value="characters" <?php selected( $backfill_mode, 'characters' ); ?>><?php esc_html_e( '角色（characters）', 'anime-sync-pro' ); ?></option>
+                            <option value="persons"    <?php selected( $backfill_mode, 'persons' ); ?>><?php esc_html_e( '聲優/人物（persons）', 'anime-sync-pro' ); ?></option>
+                        </select>
+                        <?php if ( $backfill_mode !== 'off' ) : ?>
+                            <span class="asc-text-ok" style="margin-left:6px;">● <?php esc_html_e( '執行中', 'anime-sync-pro' ); ?></span>
+                        <?php else : ?>
+                            <span style="color:#999;margin-left:6px;">○ <?php esc_html_e( '已關閉', 'anime-sync-pro' ); ?></span>
+                        <?php endif; ?>
+                        <p class="description">
+                            <?php printf(
+                                esc_html__( '待補：角色 %1$s 筆 / 聲優 %2$s 筆（未扣除跳過名單）', 'anime-sync-pro' ),
+                                '<strong>' . esc_html( number_format_i18n( $backfill_pending_chars ) ) . '</strong>',
+                                '<strong>' . esc_html( number_format_i18n( $backfill_pending_persons ) ) . '</strong>'
+                            ); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="anime_sync_entity_backfill_batch"><?php esc_html_e( '每批筆數', 'anime-sync-pro' ); ?></label>
+                    </th>
+                    <td>
+                        <input type="number" id="anime_sync_entity_backfill_batch"
+                               name="anime_sync_entity_backfill_batch"
+                               value="<?php echo esc_attr( $backfill_batch ); ?>"
+                               min="10" max="200" class="small-text" />
+                        <p class="description"><?php esc_html_e( '預設 60。每 5 分鐘執行一批，調高可加快進度但增加 Bangumi API 負擔。', 'anime-sync-pro' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e( '上次執行', 'anime-sync-pro' ); ?></th>
+                    <td>
+                        <?php if ( $backfill_last !== '' ) : ?>
+                            <code style="font-size:12px;word-break:break-all;"><?php echo esc_html( $backfill_last ); ?></code>
+                        <?php else : ?>
+                            <span style="color:#999;">—</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e( '跳過名單', 'anime-sync-pro' ); ?></th>
+                    <td>
+                        <div class="asc-db-log-info">
+                            <?php printf(
+                                esc_html__( '角色 %1$s 筆 / 聲優 %2$s 筆（BGM 整筆無資料，不再重試）', 'anime-sync-pro' ),
+                                esc_html( number_format_i18n( $skip_chars_count ) ),
+                                esc_html( number_format_i18n( $skip_persons_count ) )
+                            ); ?>
+                        </div>
+                        <div class="asc-action-row">
+                            <button type="button" id="btn-clear-backfill-skip" class="button button-secondary"
+                                    <?php disabled( $skip_chars_count + $skip_persons_count, 0 ); ?>>
+                                <?php esc_html_e( '清空跳過名單（重新重試）', 'anime-sync-pro' ); ?>
+                            </button>
+                            <span id="clear-backfill-skip-result" class="asc-action-result"></span>
+                        </div>
+                        <p class="description" style="margin-top:8px;">
+                            <?php esc_html_e( '若 BGM 之後補上了某些條目資料，清空名單後會重新嘗試抓取。', 'anime-sync-pro' ); ?>
+                        </p>
                     </td>
                 </tr>
             </table>
@@ -682,6 +816,29 @@ $cron_rows = array(
                 setTimeout( function () { location.reload(); }, 1000 );
             } else {
                 showToast( ( resp && resp.data ) || '刪除失敗', true );
+            }
+        } ).fail( function () {
+            $btn.prop( 'disabled', false ).text( orig );
+            showToast( '網路錯誤', true );
+        } );
+    } );
+
+    /* ── 清空回補跳過名單 ── */
+    $( '#btn-clear-backfill-skip' ).on( 'click', function () {
+        if ( ! confirm( '確定清空角色與聲優的跳過名單嗎？\n清空後這些條目會重新打 Bangumi API 嘗試抓取。' ) ) return;
+        var $btn    = $( this );
+        var $result = $( '#clear-backfill-skip-result' );
+        var orig    = $btn.text();
+        $btn.prop( 'disabled', true ).text( '清空中…' );
+        $.post( ajaxurl, { action: 'anime_sync_clear_backfill_skip', nonce: nonce }, function ( resp ) {
+            $btn.prop( 'disabled', false ).text( orig );
+            if ( resp && resp.success ) {
+                $result.text( ( resp.data && resp.data.message ) || '已清空' ).css( 'color', '#46b450' );
+                showToast( '跳過名單已清空' );
+                setTimeout( function () { location.reload(); }, 1000 );
+            } else {
+                $result.text( '失敗' ).css( 'color', '#dc3232' );
+                showToast( ( resp && resp.data ) || '清空失敗', true );
             }
         } ).fail( function () {
             $btn.prop( 'disabled', false ).text( orig );
