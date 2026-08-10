@@ -2581,6 +2581,12 @@ private function register_manga_fields(): void {
                             });
                         });
                         
+                        var $synopsisSwitchInput = $fields.filter('[data-name="shortcut_ai_generate_synopsis"]').find('.acf-input');
+                        if ($synopsisSwitchInput.length > 0 && $('#asp-force-ai-translate').length === 0) {
+                            $synopsisSwitchInput.css({ 'display': 'flex', 'align-items': 'center', 'gap': '10px' });
+                            $synopsisSwitchInput.append('<label style="font-size:12px; display:flex; align-items:center; cursor:pointer;"><input type="checkbox" id="asp-force-ai-translate" style="margin:0 5px 0 0;">強制給AI翻譯</label>');
+                        }
+                        
                         // 針對最下方的兩個欄位 (Switch & CAST JSON)
                         $fields.filter('[data-name="shortcut_ai_generate_cast"], [data-name="shortcut_anime_cast_json"]').each(function() {
                             this.style.setProperty('padding-bottom', '0', 'important');
@@ -2773,10 +2779,29 @@ private function register_manga_fields(): void {
                         sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_synopsis_chinese"] .description').text().trim();
                         var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
                         userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
+                        var forceTranslate = $('#asp-force-ai-translate').is(':checked');
+
                         if (userPrompt === '') {
                             userPrompt = '但目前沒有提供原文草稿。請直接上網搜尋該部作品的簡介，並撰寫一份繁體中文版本的簡介。作品名稱：' + title + '\n\n⚠️ 重要規則：請直接輸出純簡介內容，絕對不要加上「以下是...的簡介」或任何開場白與對話詞彙。';
                         } else {
-                            userPrompt = "請將以下原文草稿翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                            var isJP = /[\u3040-\u30ff]/.test(userPrompt);
+                            var isSC = /[个们这会发说样么进觉动视频观听剧弹网络传统战击异龙剑门飞机关爱与为从来给让设计创办产认写读记买卖国军队员宝梦灵处总极难尽仅虽迟远贫穷华丽]/.test(userPrompt);
+                            var englishCharCount = (userPrompt.match(/[a-zA-Z]/g) || []).length;
+                            var isEN = englishCharCount > (userPrompt.length * 0.4);
+                            
+                            var mainlandTerms = /(視頻|軟件|網絡|質量|激活|屏幕|鼠標|程序|服務器|硬盤|默認|賬號|鏈接|彈幕|B站|UP主|番劇|追番|補番|製作組|製作方|譯製|二創|三創|鬼畜|小夥伴|手辦|病嬌|網盤|高清)/;
+                            var hasMainlandTerms = mainlandTerms.test(userPrompt);
+
+                            if (forceTranslate) {
+                                userPrompt = "請將以下原文翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                            } else if (isJP || isSC || isEN) {
+                                userPrompt = "請將以下原文翻譯並潤飾成「台灣繁體中文」，用語需符合台灣 ACG 圈習慣。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                            } else if (hasMainlandTerms) {
+                                userPrompt = "以下是一篇繁體中文簡介，但包含大陸用語。請將其轉換並潤飾為「台灣 ACG 圈慣用語」的台灣繁體中文。請直接輸出結果，不要加上任何額外的對話詞彙或解釋。\n\n原文草稿：\n" + userPrompt;
+                            } else {
+                                logAI(`✅ [${taskName}] 偵測到純繁體中文且無大陸用語，已自動跳過，不消耗 AI 額度。`);
+                                continue;
+                            }
                         }
                     } else if (task === 'faq') {
                         taskName = 'FAQ';
