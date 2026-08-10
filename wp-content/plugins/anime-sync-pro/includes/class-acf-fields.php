@@ -2517,7 +2517,7 @@ private function register_manga_fields(): void {
         $user_id = get_current_user_id();
         $provider = get_user_meta($user_id, 'asp_ai_provider', true) ?: 'gemini';
         $api_key = get_user_meta($user_id, 'asp_ai_api_key', true) ?: '';
-        $model = get_user_meta($user_id, 'asp_ai_model_name', true) ?: '';
+        $model = get_user_meta($user_id, 'asp_ai_model_name', true) ?: 'gemini-3.6-flash';
 
         ?>
         <style>
