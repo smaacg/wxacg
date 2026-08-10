@@ -65,6 +65,7 @@ class Anime_Sync_ACF_Fields {
             'shortcut_anime_yt_playlist_url'  => 'anime_yt_playlist_url',
             'shortcut_anime_online_watch'     => 'anime_online_watch',
             'shortcut_anime_trailer_url'      => 'anime_trailer_url',
+            'shortcut_anime_wikipedia_url'    => 'anime_wikipedia_url',
             // AI 輔助區塊鏡像
             'shortcut_anime_synopsis_chinese' => 'anime_synopsis_chinese',
             'shortcut_anime_faq_json'         => 'anime_faq_json',
@@ -1804,7 +1805,7 @@ private function register_manga_fields(): void {
         $prompt .= "5. 題數規則：資料充足產出 3~5 題；資料有限則產出 1~2 題；若完全查無可靠資料，輸出空陣列 []。\n";
         $prompt .= "6. 問題須聚焦「劇情設定、世界觀、角色背景、故事主軸」等內容面向，而非製作或播出時程。答案須簡明扼要，嚴格不涉及關鍵轉折、結局或重大伏筆（不劇透）。\n";
         $prompt .= "7. 【SEO】每題問題開頭須包含完整作品名稱。例如：「動畫《{$title_for_prompt}》的故事背景與核心主軸是什麼？」\n";
-        $prompt .= "8. 每題答案以繁體中文撰寫，長度約 50~120 字，簡潔不冗長。\n";
+        $prompt .= "8. 每題答案以繁體中文撰寫，長度約 50 字左右，簡潔不冗長。\n";
         $prompt .= "9. 來源請「另外用純文字」告訴我方便核對，不要寫進 JSON 的答案內容裡。\n\n";
         $prompt .= "輸出格式（嚴格遵守）：\n";
         $prompt .= "- 只輸出一個 JSON 陣列，放在程式碼框內供一鍵複製。\n";
@@ -2211,6 +2212,7 @@ private function register_manga_fields(): void {
             'shortcut_anime_yt_playlist_url'  => 'anime_yt_playlist_url',
             'shortcut_anime_online_watch'     => 'anime_online_watch',
             'shortcut_anime_trailer_url'      => 'anime_trailer_url',
+            'shortcut_anime_wikipedia_url'    => 'anime_wikipedia_url',
         ];
         
         $old_ya_url = get_post_meta( $post_id, 'anime_youranimes_url', true );
@@ -2306,7 +2308,37 @@ private function register_manga_fields(): void {
                     'label'   => 'YourAnimes 網址',
                     'name'    => 'shortcut_anime_youranimes_url',
                     'type'    => 'url',
-                    'wrapper' => [ 'width' => '38' ],
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_yt_playlist_url',
+                    'label'   => 'YouTube 播放清單網址',
+                    'name'    => 'shortcut_anime_yt_playlist_url',
+                    'type'    => 'url',
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+                [
+                    'key'          => 'field_shortcut_anime_trailer_url',
+                    'label'        => 'YouTube 預告片網址',
+                    'name'         => 'shortcut_anime_trailer_url',
+                    'type'    => 'textarea',
+                    'rows'    => 3,
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_online_watch',
+                    'label'   => '線上看（YouTube 嵌入）',
+                    'name'    => 'shortcut_anime_online_watch',
+                    'type'    => 'textarea',
+                    'rows'    => 3,
+                    'wrapper' => [ 'width' => '50' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_wikipedia_url',
+                    'label'   => '外部連結-Wikipedia 頁面',
+                    'name'    => 'shortcut_anime_wikipedia_url',
+                    'type'    => 'url',
+                    'wrapper' => [ 'width' => '50' ],
                 ],
                 [
                     'key'           => 'field_shortcut_anime_tw_distributor',
@@ -2335,37 +2367,14 @@ private function register_manga_fields(): void {
                     ],
                     'default_value' => '',
                     'allow_null'    => 1,
-                    'wrapper'       => [ 'width' => '12' ],
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
                     'key'           => 'field_shortcut_anime_tw_distributor_custom',
                     'label'         => '台灣代理商(自訂名稱)',
                     'name'          => 'shortcut_anime_tw_distributor_custom',
                     'type'          => 'text',
-                    'wrapper'       => [ 'width' => '12' ],
-                ],
-                [
-                    'key'     => 'field_shortcut_anime_yt_playlist_url',
-                    'label'   => 'YouTube 播放清單網址',
-                    'name'    => 'shortcut_anime_yt_playlist_url',
-                    'type'    => 'url',
-                    'wrapper' => [ 'width' => '38' ],
-                ],
-                [
-                    'key'          => 'field_shortcut_anime_trailer_url',
-                    'label'        => 'YouTube 預告片網址',
-                    'name'         => 'shortcut_anime_trailer_url',
-                    'type'    => 'textarea',
-                    'rows'    => 3,
-                    'wrapper' => [ 'width' => '50' ],
-                ],
-                [
-                    'key'     => 'field_shortcut_anime_online_watch',
-                    'label'   => '線上看（YouTube 嵌入）',
-                    'name'    => 'shortcut_anime_online_watch',
-                    'type'    => 'textarea',
-                    'rows'    => 3,
-                    'wrapper' => [ 'width' => '50' ],
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
             ],
             'location'              => [
