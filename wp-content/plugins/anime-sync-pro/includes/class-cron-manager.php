@@ -4,6 +4,13 @@
  * Cron Manager — 排程同步管理
  *
  * 修正紀錄：
+ * - [v1.5.3] [Log 時間顯示對齊] _run_entity_backfill_inner() 內寫入
+ *            anime_sync_last_entity_backfill 訊息字串的 3 處時間戳，由 gmdate()
+ *            改為 current_time()，讓「訊息內文時間」與錯誤日誌列表右側 created_at
+ *            欄位（站台本地時區）一致，不再相差時區偏移量。
+ *            ※ 僅改「給人看的字串」；其餘 gmdate('Ymd'/'n'/'Y') 為日期比對邏輯
+ *              （對齊資料庫以 UTC 存的 anime_start_date / anime_end_date），
+ *              一律維持 UTC 不動，避免佇列篩選與季度判斷偏移。
  * - [v1.5.2] [Entity Backfill 全自動接力] _run_entity_backfill_inner() 於「目前模式
  *            已無真正待補項目」時，自動切換到下一階段，免去人工 WP-CLI / 後台切換：
  *            persons(聲優) 補完 → 自動切 characters(角色)；
@@ -913,6 +920,7 @@ class Anime_Sync_Cron_Manager {
     // =========================================================================
     // ✅ [v1.5.1] 任務七：角色/聲優 BGM 資料回補（原 mu-plugin 併入）
     // ✅ [v1.5.2] 新增全自動接力：persons → characters → off
+    // ✅ [v1.5.3] log 內文時間改用 current_time()（僅顯示字串，邏輯不變）
     //
     // 開關（一般不需手動；系統會自己接力。仍可用 option / 後台強制切換）：
     //   wp option update anime_sync_entity_backfill_mode characters
@@ -1010,7 +1018,7 @@ class Anime_Sync_Cron_Manager {
                 // 維持原模式不切換，避免把還沒補完的階段誤判為完成。
                 self::update_cron_option(
                     self::ENTITY_BACKFILL_LAST_OPTION,
-                    gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table
+                    current_time( 'Y-m-d H:i:s' ) . ' | ' . $table
                         . ' 剩餘 ' . $true_remaining . ' 筆全在跳過名單內（BGM 無資料），維持 '
                         . $mode . ' 模式，不切換 (跳過名單 ' . count( $skip ) . ' 筆)'
                 );
@@ -1029,7 +1037,7 @@ class Anime_Sync_Cron_Manager {
 
             self::update_cron_option(
                 self::ENTITY_BACKFILL_LAST_OPTION,
-                gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table
+                current_time( 'Y-m-d H:i:s' ) . ' | ' . $table
                     . ' 已無待補（跳過名單 ' . count( $skip ) . ' 筆）→ ' . $note
             );
             $this->logger->log( 'info', '實體回補：' . $note );
@@ -1058,7 +1066,7 @@ class Anime_Sync_Cron_Manager {
         $skip = array_values( array_unique( array_map( 'intval', $skip ) ) );
         self::update_cron_option( $skip_key, $skip );
 
-        $summary = gmdate( 'Y-m-d H:i:s' ) . ' | ' . $table
+        $summary = current_time( 'Y-m-d H:i:s' ) . ' | ' . $table
             . ' 這批 ' . count( $ids ) . ' 筆，實補=' . $updated
             . '，BGM無資料跳過=' . $no_data
             . '，跳過名單累計=' . count( $skip );
