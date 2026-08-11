@@ -532,8 +532,15 @@ class Anime_Sync_YouTube_Playlist_Sync {
         return '';
     }
 
+    private function normalize_fullwidth_numbers( string $str ): string {
+        $full = ['０','１','２','３','４','５','６','７','８','９'];
+        $half = ['0','1','2','3','4','5','6','7','8','9'];
+        return str_replace( $full, $half, $str );
+    }
+
     private function extract_episode_number( string $title ): ?int {
         $t = trim( $title );
+        $t = $this->normalize_fullwidth_numbers( $t );
 
         if ( preg_match( '/第\s*0*(\d{1,4})\s*[話话集回幕]/u', $t, $m ) ) {
             return (int) $m[1];
@@ -549,6 +556,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
 
     private function extract_episode_range( string $title ): ?array {
         $t = trim( $title );
+        $t = $this->normalize_fullwidth_numbers( $t );
 
         if ( preg_match( '/第\s*0*(\d{1,4})\s*[-~〜～]\s*0*(\d{1,4})\s*[話话集回幕]/u', $t, $m ) ) {
             $lo = (int) $m[1];
