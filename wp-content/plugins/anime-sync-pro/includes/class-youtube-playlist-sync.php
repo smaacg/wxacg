@@ -387,7 +387,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
             }
         }
         if ( $channel_name !== '' ) {
-            $this->maybe_fill_distributor( $post_id, $channel_name );
+            $this->maybe_fill_distributor_and_streaming( $post_id, $channel_name, $playlist_url );
         }
 
         $current_raw = (string) get_post_meta( $post_id, 'anime_online_watch', true );
@@ -701,14 +701,9 @@ class Anime_Sync_YouTube_Playlist_Sync {
     }
 
     /**
-     * 自動依據 YouTube 頻道名稱推導台灣代理商 (僅在空白時填寫)
+     * 自動依據 YouTube 頻道名稱推導台灣代理商與串流平台 (僅在空白時填寫)
      */
-    private function maybe_fill_distributor( int $post_id, string $channel_name ): void {
-        $current = get_post_meta( $post_id, 'anime_tw_distributor', true );
-        if ( $current !== '' && $current !== null ) {
-            return;
-        }
-
+    private function maybe_fill_distributor_and_streaming( int $post_id, string $channel_name, string $playlist_url ): void {
         $youtube_map = [];
         if ( class_exists( 'Anime_Sync_Streaming_Registry' ) ) {
             $youtube_map = Anime_Sync_Streaming_Registry::get_youtube_keyword_map();
@@ -724,27 +719,59 @@ class Anime_Sync_YouTube_Playlist_Sync {
             }
         }
 
-        if ( ! $matched_platform ) {
-            return;
+        // 如果找不到對應代理商平台，預設降級為一般的 youtube 平台
+        $target_platform = $matched_platform ? $matched_platform : 'youtube';
+
+        // 1. 自動推導代理商 (只有比對到特定平台才做)
+        if ( $matched_platform ) {
+            $current_distributor = get_post_meta( $post_id, 'anime_tw_distributor', true );
+            if ( $current_distributor === '' || $current_distributor === null ) {
+                $map = [
+                    'muse'         => 'muse',
+                    'ani_one'      => 'linbang',
+                    'mighty'       => 'medialink',
+                    'tropicsanime' => 'tropic',
+                    'anipass'      => 'garage',
+                    'garageplay'   => 'garage',
+                ];
+                if ( isset( $map[ $matched_platform ] ) ) {
+                    $distributor = $map[ $matched_platform ];
+                    if ( function_exists( 'update_field' ) ) {
+                        update_field( 'field_anime_tw_distributor', $distributor, $post_id );
+                    } else {
+                        update_post_meta( $post_id, 'anime_tw_distributor', $distributor );
+                    }
+                    $this->write_log( $post_id, "自動代理商：偵測到 YouTube 頻道 {$channel_name} → 對應代理商 {$distributor}", 'info' );
+                }
+            }
         }
 
-        $map = [
-            'muse'         => 'muse',
-            'ani_one'      => 'linbang',
-            'mighty'       => 'medialink',
-            'tropicsanime' => 'tropic',
-            'anipass'      => 'garage',
-            'garageplay'   => 'garage',
-        ];
-
-        if ( isset( $map[ $matched_platform ] ) ) {
-            $distributor = $map[ $matched_platform ];
+        // 2. 自動打勾對應串流平台 (防呆：沒勾才勾)
+        $checked_streams = get_post_meta( $post_id, 'anime_tw_streaming', true );
+        if ( ! is_array( $checked_streams ) ) {
+            $checked_streams = [];
+        }
+        if ( ! in_array( $target_platform, $checked_streams, true ) ) {
+            $checked_streams[] = $target_platform;
             if ( function_exists( 'update_field' ) ) {
-                update_field( 'field_anime_tw_distributor', $distributor, $post_id );
+                update_field( 'field_anime_tw_streaming', $checked_streams, $post_id );
             } else {
-                update_post_meta( $post_id, 'anime_tw_distributor', $distributor );
+                update_post_meta( $post_id, 'anime_tw_streaming', $checked_streams );
             }
-            $this->write_log( $post_id, "自動代理商：偵測到 YouTube 頻道 {$channel_name} → 對應代理商 {$distributor}", 'info' );
+            $this->write_log( $post_id, "自動串流：打勾 {$target_platform}", 'info' );
+        }
+
+        // 3. 自動填入網址 (防呆：格子空白才填)
+        $stream_url_meta = 'anime_tw_streaming_' . $target_platform;
+        $stream_url_field = 'field_anime_tw_streaming_' . $target_platform;
+        $current_stream_url = get_post_meta( $post_id, $stream_url_meta, true );
+        if ( $current_stream_url === '' || $current_stream_url === null ) {
+            if ( function_exists( 'update_field' ) ) {
+                update_field( $stream_url_field, $playlist_url, $post_id );
+            } else {
+                update_post_meta( $post_id, $stream_url_meta, $playlist_url );
+            }
+            $this->write_log( $post_id, "自動串流：填入 {$target_platform} 網址", 'info' );
         }
     }
 }
