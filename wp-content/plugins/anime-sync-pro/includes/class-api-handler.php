@@ -2,9 +2,17 @@
 /**
  * 檔案名稱: includes/class-api-handler.php
  *
- * @version 1.3.1
+ * @version 1.4.0
  *
  * Changelog:
+ *   1.4.0 (2026-08-11)
+ *     — [Fix MAL 節流標籤] fetch_mal_score() 與 fetch_jikan_theme_natives() 的
+ *         wait_if_needed() 由 'jikan' 改為 'mal'（需搭配 class-rate-limiter.php
+ *         v1.3.0 新增的 'mal' 節流 key，1 req/s）；record_stat 統計標籤維持 'jikan' 不變。
+ *     — [Fix _enriched_at 誤鎖] enrich_anime_data() 若「有 MAL ID 但當次未抓到分」，
+ *         不再無條件寫入 _enriched_at / 刪除 _needs_enrich，改寫 _enriched_partial_at
+ *         保留待補狀態，讓後續 enrich 或每日排程可再次抓分，根治「當次 MAL API
+ *         暫時性失敗導致分數永久卡 0」的歷史問題來源。
  *   1.3.1 (2026-07-18)
  *     — [Fix MAL 分數抓取失敗無重試] fetch_mal_score() 加入最多 3 次重試：
  *         cURL 錯誤與 429/5xx 暫時性錯誤才重試（4xx 如 404 直接放棄不重試），
@@ -345,9 +353,16 @@ class Anime_Sync_API_Handler {
             }
         }
 
+        $mal_score_pending = false;
         if ( $mal_id > 0 ) {
             $score_mal = $this->fetch_mal_score( $mal_id );
-            if ( $score_mal > 0 ) $enriched['anime_score_mal'] = $score_mal;
+            if ( $score_mal > 0 ) {
+                $enriched['anime_score_mal'] = $score_mal;
+            } else {
+                // 有 MAL ID 卻沒抓到分：可能是暫時性失敗（逾時/限流），也可能 MAL 尚未開分。
+                // 這裡不當作「已完成」，改由方法尾端決定是否保留重試機會，避免被 _enriched_at 永久鎖死。
+                $mal_score_pending = true;
+            }
         }
 
         $wiki_url = $this->fetch_wikipedia_url( $title_chinese, $title_native, $title_romaji, $title_english );
@@ -394,8 +409,16 @@ class Anime_Sync_API_Handler {
                 update_post_meta( $post_id, $key, $value );
             }
         }
-        delete_post_meta( $post_id, '_needs_enrich' );
-        update_post_meta( $post_id, '_enriched_at', current_time( 'mysql' ) );
+        // ★ MAL 分尚未抓到時，不刪除 _needs_enrich、不寫 _enriched_at，
+        //   保留「待補」狀態，讓後續 enrich 或每日排程能再次嘗試抓 MAL 分，
+        //   避免當次 API 暫時性失敗造成分數永久卡 0（根治 481 篇歷史問題的來源）。
+        //   MAL 是否「尚未開分」由每日排程 backfill 端負責確認並標記，這裡只負責不誤鎖。
+        if ( $mal_score_pending ) {
+            update_post_meta( $post_id, '_enriched_partial_at', current_time( 'mysql' ) );
+        } else {
+            delete_post_meta( $post_id, '_needs_enrich' );
+            update_post_meta( $post_id, '_enriched_at', current_time( 'mysql' ) );
+        }
 
         return $enriched;
     }
@@ -1510,7 +1533,7 @@ class Anime_Sync_API_Handler {
         while ( $attempt < $max_attempts ) {
             $attempt++;
 
-            $this->rate_limiter->wait_if_needed( 'jikan' );
+            $this->rate_limiter->wait_if_needed( 'mal' );
 
             // ✅ [v1.4.8] 官方 API v2：?fields=mean 只取平均分，回傳最精簡
             $url = 'https://api.myanimelist.net/v2/anime/' . $mal_id . '?fields=mean';
@@ -2111,7 +2134,7 @@ class Anime_Sync_API_Handler {
             return [];
         }
 
-        $this->rate_limiter->wait_if_needed( 'jikan' );
+        $this->rate_limiter->wait_if_needed( 'mal' );
         $response = wp_remote_get(
             'https://api.myanimelist.net/v2/anime/' . $mal_id . '?fields=opening_themes,ending_themes',
             [

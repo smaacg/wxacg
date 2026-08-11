@@ -4,6 +4,13 @@
  * Cron Manager — 排程同步管理
  *
  * 修正紀錄：
+ * - [v1.5.4] [Fix 評分回補誤殺未開分作品] backfill_score_for_post() 抓不到 MAL 分時，
+ *            先以 confirm_mal_has_no_score() 直查官方 API 確認是否「尚未開分」；確認
+ *            未開分者打 anime_mal_no_score=1 標記，不再累加 retry_count（避免達上限
+ *            SCORE_BACKFILL_MAX_RETRY 後被永久排除）。build_score_backfill_queue() 亦
+ *            排除已標記 anime_mal_no_score=1 的作品。MAL 節流由 wait_if_needed('jikan')
+ *            改為 wait_if_needed('mal')（需搭配 class-rate-limiter.php v1.3.0 新增的
+ *            'mal' 節流 key）。
  * - [v1.5.3] [Log 時間顯示對齊] _run_entity_backfill_inner() 內寫入
  *            anime_sync_last_entity_backfill 訊息字串的 3 處時間戳，由 gmdate()
  *            改為 current_time()，讓「訊息內文時間」與錯誤日誌列表右側 created_at
@@ -849,7 +856,10 @@ class Anime_Sync_Cron_Manager {
                 $bgm_id = (int) get_post_meta( $id, 'bangumi_id', true );
             }
 
+            $mal_no_score = (int) get_post_meta( $id, 'anime_mal_no_score', true ) === 1;
+
             $needs_mal = $mal_id > 0
+                && ! $mal_no_score
                 && ! in_array( 'anime_score_mal', $locked, true )
                 && (int) get_post_meta( $id, 'anime_score_mal', true ) <= 0;
 
@@ -876,12 +886,28 @@ class Anime_Sync_Cron_Manager {
         $mal_id      = (int) get_post_meta( $post_id, 'anime_mal_id', true );
         $current_mal = (int) get_post_meta( $post_id, 'anime_score_mal', true );
 
-        if ( $mal_id > 0 && $current_mal <= 0 && ! in_array( 'anime_score_mal', $locked, true ) ) {
-            $this->rate_limiter->wait_if_needed( 'jikan' );
+        $mal_no_score_flag = (int) get_post_meta( $post_id, 'anime_mal_no_score', true ) === 1;
+
+        if ( $mal_id > 0 && $current_mal <= 0 && ! $mal_no_score_flag && ! in_array( 'anime_score_mal', $locked, true ) ) {
+            $this->rate_limiter->wait_if_needed( 'mal' );
             $score = $this->api_handler->fetch_mal_score_public( $mal_id );
             if ( $score > 0 ) {
                 update_post_meta( $post_id, 'anime_score_mal', $score );
                 $got_something = true;
+            } else {
+                // 抓到 0：需區分「MAL 尚未開分」與「暫時性抓取失敗」。
+                // 直接查 MAL 官方 API v2，看回應是否含 mean 欄位。
+                $mal_confirmed_no_score = $this->confirm_mal_has_no_score( $mal_id );
+                if ( $mal_confirmed_no_score === true ) {
+                    // MAL 官方確認尚未開分：打標記，之後佇列會跳過，不再浪費請求，也不累加 retry。
+                    update_post_meta( $post_id, 'anime_mal_no_score', 1 );
+                    $this->logger->log( 'info', '評分回補：MAL 尚未開分，標記略過', [
+                        'post_id' => $post_id,
+                        'mal_id'  => $mal_id,
+                    ] );
+                }
+                // $mal_confirmed_no_score === false（MAL 有分卻沒抓到）或 null（確認請求也失敗）：
+                // 維持原行為，讓後面的 retry 計數處理（屬暫時性失敗，之後會重試）。
             }
         }
 
@@ -915,6 +941,59 @@ class Anime_Sync_Cron_Manager {
             $retry = (int) get_post_meta( $post_id, self::SCORE_RETRY_COUNT_META, true );
             update_post_meta( $post_id, self::SCORE_RETRY_COUNT_META, $retry + 1 );
         }
+    }
+
+    /**
+     * ★ 確認某個 MAL ID 在官方 API 是否「尚未開分」。
+     *
+     * 回傳：
+     *   true  = MAL 官方回 200 但無 mean 欄位（確認尚未開分）→ 呼叫端可打標記略過。
+     *   false = MAL 官方回 200 且有 mean（有分只是這次沒抓到）→ 屬暫時性失敗，應重試。
+     *   null  = 確認請求本身失敗（cURL 錯誤 / 非 200 / Client ID 缺失）→ 無法判定，視為暫時性失敗。
+     *
+     * @param int $mal_id
+     * @return bool|null
+     */
+    private function confirm_mal_has_no_score( int $mal_id ): ?bool {
+        if ( $mal_id <= 0 ) {
+            return null;
+        }
+
+        $client_id = defined( 'MAL_CLIENT_ID' ) ? MAL_CLIENT_ID : '';
+        if ( $client_id === '' ) {
+            return null; // 無 Client ID，無法確認
+        }
+
+        $this->rate_limiter->wait_if_needed( 'mal' );
+
+        $response = wp_remote_get(
+            'https://api.myanimelist.net/v2/anime/' . $mal_id . '?fields=mean',
+            [
+                'timeout' => 15,
+                'headers' => [
+                    'User-Agent'      => self::get_anilist_user_agent(),
+                    'X-MAL-CLIENT-ID' => $client_id,
+                ],
+            ]
+        );
+
+        if ( is_wp_error( $response ) ) {
+            return null;
+        }
+        if ( (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            return null;
+        }
+
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $data ) ) {
+            return null;
+        }
+
+        // 有 mean 且 > 0 → 有分（false=不是沒開分）；否則 → 確認尚未開分（true）。
+        if ( isset( $data['mean'] ) && (float) $data['mean'] > 0 ) {
+            return false;
+        }
+        return true;
     }
 
     // =========================================================================

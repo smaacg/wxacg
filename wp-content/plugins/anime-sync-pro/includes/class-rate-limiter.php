@@ -2,9 +2,18 @@
 /**
  * 檔案名稱: includes/class-rate-limiter.php
  *
- * @version 1.2.0
+ * @version 1.3.0
  *
  * Changelog:
+ *   1.3.0 — [Fix MAL 官方 API 無節流] $limits 新增 'mal' => 1000。
+ *           原本 MAL 官方 API v2（api.myanimelist.net）在 api-handler
+ *           裡是以 wait_if_needed('jikan') 節流，但 'jikan' 與 'mal'
+ *           語意混用；且若呼叫端傳入未登記的 api_name，wait_if_needed()
+ *           會直接 return（無任何等待）造成密集請求被 MAL 短暫限流。
+ *           新增獨立 'mal' key（1 req/s，符合 MAL 官方建議），供
+ *           api-handler 的 fetch_mal_score() / fetch_jikan_theme_natives()
+ *           改用 wait_if_needed('mal')。保留 'jikan' key 以相容舊呼叫。
+ *
  *   1.2.0 — [Optimize] Cron 精度補強
  *           - [新增] 靜態屬性 $last_request_ms：在同一次 cron 執行內以
  *             PHP 記憶體記錄最後請求時間，優先於 Transient 使用。
@@ -44,6 +53,7 @@ class Anime_Sync_Rate_Limiter {
     private array $limits = [
         'anilist'     => 2000,
         'jikan'       => 1200,
+        'mal'         => 1000,  // ✅ [v1.3.0] MAL 官方 API v2：1 req/s（官方建議）
         'bangumi'     => 1000,
         'animethemes' => 700,
     ];
