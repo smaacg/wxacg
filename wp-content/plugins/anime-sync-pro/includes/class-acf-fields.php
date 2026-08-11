@@ -3199,7 +3199,11 @@ private function register_manga_fields(): void {
 
                             var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
                             var currentFaqVal = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
-                            if (currentFaqVal !== '' && currentFaqVal !== '[]') {
+                            
+                            // 去除字串內的空白與換行，避免遇到 [ \n ] 被誤判為「已有資料」
+                            var compactFaq = currentFaqVal.replace(/\s/g, '');
+                            
+                            if (currentFaqVal !== '' && compactFaq !== '[]') {
                                 logAI(`✅ [${taskName}] 偵測到已有 FAQ 資料，已自動跳過，不消耗 AI 額度。`);
                                 continue;
                             }
