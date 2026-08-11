@@ -773,7 +773,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
         $stream_url_meta = 'anime_tw_streaming_' . $target_platform;
         $stream_url_field = 'field_anime_tw_streaming_' . $target_platform;
         $current_stream_url = get_post_meta( $post_id, $stream_url_meta, true );
-        if ( $current_stream_url === '' || $current_stream_url === null ) {
+        if ( empty( $current_stream_url ) ) {
             if ( function_exists( 'update_field' ) ) {
                 update_field( $stream_url_field, $playlist_url, $post_id );
             } else {
