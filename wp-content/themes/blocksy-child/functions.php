@@ -1,8 +1,15 @@
 <?php
 /**
  * 微笑動漫 Child Theme — functions.php
- * @version 2.24.1 (2026-06-28)
+ * @version 2.27.0 (2026-08-12)
  * Changelog：
+ *   2.27.0 (2026-08-12) 動畫百科 Thin Content 判斷 + noindex + Sitemap 排除
+ *      - 新增 wxacg_is_thin_anime_page()：判斷單一 anime 文章是否
+ *        缺乏簡介／評分／留言／關聯原創文章
+ *      - 掛 rank_math/frontend/robots：thin 頁面輸出 noindex, follow
+ *      - 掛 rank_math/sitemap/exclude_posts：thin 頁面排除於 XML Sitemap
+ *      - 12 小時聚合快取（wxacg_thin_anime_ids），留言／動畫更新／
+ *        關聯文章異動時清除快取
  *   2.24.1 (2026-06-28) 底部導航「會員」未登入時觸發 login modal，不跳 wp-login
  *   2.23.0 (2026-06-11) Email 驗證獎勵搬遷：
  *      - 移除 smacg_email_verified action 內的發獎邏輯
@@ -27,7 +34,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 
-define( 'weixiaoacg_VERSION',   '2.25.0' );
+define( 'weixiaoacg_VERSION',   '2.27.0' );
 define( 'weixiaoacg_THEME_URL', get_stylesheet_directory_uri() );
 define( 'weixiaoacg_THEME_DIR', get_stylesheet_directory() );
 
@@ -1531,3 +1538,139 @@ add_action( 'save_post_anime', function() {
     delete_transient( 'wxacg_ai_glossary_raw_v2' );
 } );
 
+/* ============================================================
+ * v2.27.0：動畫百科 Thin Content 判斷 + noindex + Sitemap 排除
+ * ------------------------------------------------------------
+ * 目的：AdSense「缺乏價值的內容」複查——先讓 Google 只看到
+ * 「有簡介 / 有評分 / 有留言 / 有掛原創文章」的動畫頁面。
+ *
+ * 判斷條件（全部符合才算 thin）：
+ *   - 無簡介文字（anime_synopsis_chinese → anime_synopsis）
+ *   - 站內評分人數為 0（anime_score_site_count → smacg_site_score_count）
+ *   - 留言數為 0
+ *   - 無關聯無雷前導文章（smacg_get_anime_articles_count 'feature'）
+ *   - 無關聯有雷影評文章（smacg_get_anime_articles_count 'review'）
+ * ============================================================ */
+
+/**
+ * 判斷單一 anime 文章是否屬於「內容尚不足」頁面。
+ */
+function wxacg_is_thin_anime_page( int $post_id ): bool {
+
+    if ( $post_id <= 0 || get_post_type( $post_id ) !== 'anime' ) {
+        return false;
+    }
+
+    $synopsis = (string) get_post_meta( $post_id, 'anime_synopsis_chinese', true );
+    if ( trim( $synopsis ) === '' ) {
+        $synopsis = (string) get_post_meta( $post_id, 'anime_synopsis', true );
+    }
+    $synopsis = trim( wp_strip_all_tags( $synopsis ) );
+
+    $site_score_count = (int) get_post_meta( $post_id, 'anime_score_site_count', true );
+    if ( $site_score_count <= 0 ) {
+        $site_score_count = (int) get_post_meta( $post_id, 'smacg_site_score_count', true );
+    }
+
+    $comment_count = (int) get_comments_number( $post_id );
+
+    $feature_count = function_exists( 'smacg_get_anime_articles_count' )
+        ? smacg_get_anime_articles_count( $post_id, 'feature' )
+        : 0;
+
+    $review_count = function_exists( 'smacg_get_anime_articles_count' )
+        ? smacg_get_anime_articles_count( $post_id, 'review' )
+        : 0;
+
+    return (
+        $synopsis === ''
+        && $site_score_count <= 0
+        && $comment_count <= 0
+        && $feature_count <= 0
+        && $review_count <= 0
+    );
+}
+
+/**
+ * 1. Rank Math robots filter：thin 頁面輸出 noindex, follow
+ */
+add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+
+    if ( ! is_singular( 'anime' ) ) {
+        return $robots;
+    }
+
+    $post_id = get_queried_object_id();
+
+    if ( $post_id && wxacg_is_thin_anime_page( (int) $post_id ) ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+    }
+
+    return $robots;
+} );
+
+/**
+ * 2. 取得目前所有 thin 的 anime 文章 ID（12 小時聚合快取）
+ *
+ * [優化 v2.27.1]
+ *   - 新增 comment_count => 0：有留言的動畫直接在 SQL 層面排除，
+ *     大幅減少後續迴圈需要檢查的筆數。
+ *   - 新增 _prime_post_caches()：批次將所有待查 ID 的 Post Object
+ *     與 Post Meta 一次性載入 WordPress 物件快取，避免 N+1 查詢。
+ */
+function wxacg_get_thin_anime_ids(): array {
+
+    $cached = get_transient( 'wxacg_thin_anime_ids' );
+    if ( is_array( $cached ) ) {
+        return $cached;
+    }
+
+    // [優化 1] 只撈留言數為 0 的動畫，有留言代表不可能是 thin content，直接從 SQL 層過濾
+    $anime_ids = get_posts( [
+        'post_type'        => 'anime',
+        'post_status'      => 'publish',
+        'posts_per_page'   => -1,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+        'comment_count'    => 0,
+    ] );
+
+    $thin_ids = [];
+
+    if ( ! empty( $anime_ids ) ) {
+        // [優化 2] 批次預載 Post Object + Post Meta，避免迴圈內每次 get_post_meta() 各自打 SQL
+        _prime_post_caches( $anime_ids, false, true );
+
+        foreach ( $anime_ids as $anime_id ) {
+            if ( wxacg_is_thin_anime_page( (int) $anime_id ) ) {
+                $thin_ids[] = (int) $anime_id;
+            }
+        }
+    }
+
+    set_transient( 'wxacg_thin_anime_ids', $thin_ids, 12 * HOUR_IN_SECONDS );
+
+    return $thin_ids;
+}
+
+/**
+ * 3. 從 Rank Math XML Sitemap 排除同一批 ID
+ */
+add_filter( 'rank_math/sitemap/exclude_posts', function ( $exclude_ids ) {
+    $thin_ids = wxacg_get_thin_anime_ids();
+    return array_values( array_unique( array_merge( (array) $exclude_ids, $thin_ids ) ) );
+} );
+
+/**
+ * 4. 快取失效時機：留言、動畫文章更新、原創文章掛/取消掛關聯時
+ *    （save_post_post 已在上面的 v2.19.0 區塊處理過 article count 快取，
+ *     這裡額外清 thin_anime_ids 聚合快取，確保 sitemap 名單同步更新）
+ */
+function wxacg_clear_thin_anime_cache() {
+    delete_transient( 'wxacg_thin_anime_ids' );
+}
+add_action( 'wp_insert_comment',  'wxacg_clear_thin_anime_cache' );
+add_action( 'save_post_anime',    'wxacg_clear_thin_anime_cache' );
+add_action( 'save_post_post',     'wxacg_clear_thin_anime_cache' ); // 影評/前導文章掛關聯時
