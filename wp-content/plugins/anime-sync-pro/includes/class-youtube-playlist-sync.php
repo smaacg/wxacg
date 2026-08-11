@@ -733,7 +733,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
         // 1. 自動推導代理商 (只有比對到特定平台才做)
         if ( $matched_platform ) {
             $current_distributor = get_post_meta( $post_id, 'anime_tw_distributor', true );
-            if ( $current_distributor === '' || $current_distributor === null ) {
+            if ( empty( $current_distributor ) ) {
                 $map = [
                     'muse'         => 'muse',
                     'ani_one'      => 'linbang',

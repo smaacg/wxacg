@@ -730,7 +730,7 @@ class Anime_Sync_YourAnimes_Fetcher {
 
         // 已有代理商就不動（保護人工填的值）
         $current = get_post_meta( $post_id, 'anime_tw_distributor', true );
-        if ( $current !== '' && $current !== null ) {
+        if ( ! empty( $current ) ) {
             return;
         }
 
