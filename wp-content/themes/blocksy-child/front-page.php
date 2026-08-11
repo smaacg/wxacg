@@ -357,7 +357,7 @@ $random_anime_url = add_query_arg(
 
             <h1 class="hero-title">
                 繁體中文動漫資料庫<br>
-                <span class="line-gradient">查詢新番、角色與聲優</span><br>
+                <span class="line-gradient">查詢新番角色與聲優</span><br>
                 <span class="line-accent">掌握動畫播出資訊</span>
             </h1>
 
@@ -385,12 +385,11 @@ $random_anime_url = add_query_arg(
                 </a>
 
                 <a
-                    href="<?php echo esc_url( $random_anime_url ); ?>"
+                    href="#news-section"
                     class="btn btn-secondary"
-                    rel="nofollow"
                 >
-                    <i class="fa-solid fa-dice"></i>
-                    抽一部動漫
+                    <i class="fa-solid fa-newspaper"></i>
+                    最新新聞
                 </a>
             </div>
         </div>
