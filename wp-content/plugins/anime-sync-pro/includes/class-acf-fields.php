@@ -3214,6 +3214,12 @@ private function register_manga_fields(): void {
                         try {
                             if (task === 'cast') {
                                 await processCastTranslation(userPrompt, title, targetField);
+                                
+                                // 若 CAST 後還有其他任務，也要經過冷卻，以免觸發 429
+                                if (i < tasks.length - 1) {
+                                    logAI(`⏳ 避免請求過密，等待冷卻 2.5 秒後繼續下一個任務...`);
+                                    await new Promise(resolve => setTimeout(resolve, 2500));
+                                }
                                 continue;
                             }
 
@@ -3280,24 +3286,24 @@ private function register_manga_fields(): void {
 
                                 if (isFailed) {
                                     logAI(`⚠️ [${taskName}] ${failMsg}，已自動跳過寫入。(AI 原始回覆: ${res.data.result.replace(/\n/g, ' ').substring(0, 40)}...)`, true);
-                                    continue;
-                                }
-                                var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
-                                if (f_target) {
-                                    f_target.val(text);
-                                    logAI(`✅ [${taskName}] 生成完畢！(獲得 ${text.length} 字元) 並成功填入捷徑框！`);
                                 } else {
-                                    logAI(`⚠️ [${taskName}] 警告：找不到名稱為 ${targetField} 的欄位，無法填入！(獲得 ${text.length} 字元)`, true);
-                                    // 嘗試使用舊方法
-                                    if (acf.getField(targetField)) acf.getField(targetField).val(text);
-                                }
-                                
-                                // [優化 1] 即時同步更新底層原生欄位，避免 Race Condition
-                                var nativeField = targetField.replace('shortcut_', '');
-                                var f_native = acf.getField($('.acf-field[data-name="' + nativeField + '"]'));
-                                if (f_native) {
-                                    f_native.val(text);
-                                    logAI(`✅ [${taskName}] 已同步回填至底層原生欄位！`);
+                                    var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                                    if (f_target) {
+                                        f_target.val(text);
+                                        logAI(`✅ [${taskName}] 生成完畢！(獲得 ${text.length} 字元) 並成功填入捷徑框！`);
+                                    } else {
+                                        logAI(`⚠️ [${taskName}] 警告：找不到名稱為 ${targetField} 的欄位，無法填入！(獲得 ${text.length} 字元)`, true);
+                                        // 嘗試使用舊方法
+                                        if (acf.getField(targetField)) acf.getField(targetField).val(text);
+                                    }
+                                    
+                                    // [優化 1] 即時同步更新底層原生欄位，避免 Race Condition
+                                    var nativeField = targetField.replace('shortcut_', '');
+                                    var f_native = acf.getField($('.acf-field[data-name="' + nativeField + '"]'));
+                                    if (f_native) {
+                                        f_native.val(text);
+                                        logAI(`✅ [${taskName}] 已同步回填至底層原生欄位！`);
+                                    }
                                 }
                             } else {
                                 var errorMsg = res.data || '未知錯誤';
