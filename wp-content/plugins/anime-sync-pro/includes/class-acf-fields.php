@@ -3196,6 +3196,13 @@ private function register_manga_fields(): void {
                             var $descTextarea = $('.acf-field[data-name="anime_faq_json"] .description textarea');
                             sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_faq_json"] .description').text().trim();
                             userPrompt = '請嚴格依照上述規則，直接輸出 JSON 陣列，不要包含任何開場白或解釋。';
+
+                            var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
+                            var currentFaqVal = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
+                            if (currentFaqVal !== '' && currentFaqVal !== '[]') {
+                                logAI(`✅ [${taskName}] 偵測到已有 FAQ 資料，已自動跳過，不消耗 AI 額度。`);
+                                continue;
+                            }
                         } else if (task === 'cast') {
                             taskName = 'CAST';
                             targetField = 'shortcut_anime_cast_json';
