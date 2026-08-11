@@ -2285,20 +2285,28 @@ private function register_manga_fields(): void {
         
         // 智慧判斷：YourAnimes 網址是否有改變？
         $triggered_ya_sync = false;
+        $ya_triggered_yt_sync = false;
         if ( ! empty( $new_ya_url ) && $new_ya_url !== $old_ya_url ) {
             if ( class_exists( 'Anime_Sync_YourAnimes_Fetcher' ) ) {
                 $fetcher = new Anime_Sync_YourAnimes_Fetcher();
                 $res = $fetcher->sync_post( $post_id, true );
                 if ( is_wp_error( $res ) ) {
                     wp_send_json_error( [ 'message' => '資料已儲存，但 YourAnimes 同步失敗：' . $res->get_error_message() ] );
+                } else if ( is_array( $res ) ) {
+                    foreach ( $res as $msg ) {
+                        if ( mb_strpos( $msg, 'YouTube 自動同步' ) !== false ) {
+                            $ya_triggered_yt_sync = true;
+                            break;
+                        }
+                    }
                 }
                 $triggered_ya_sync = true;
             }
         }
         
-        // 智慧判斷：YouTube 網址是否有改變？ (如果剛剛沒跑 YA 同步，但 YT 網址有變，就要單獨跑 YT 同步)
+        // 智慧判斷：YouTube 網址是否有改變？ (如果剛剛 YA 同步沒有連帶執行 YT 同步，但 YT 網址有變，就要單獨跑 YT 同步)
         $triggered_yt_sync = false;
-        if ( ! $triggered_ya_sync && ! empty( $new_yt_url ) && $new_yt_url !== $old_yt_url ) {
+        if ( ! $ya_triggered_yt_sync && ! empty( $new_yt_url ) && $new_yt_url !== $old_yt_url ) {
             if ( class_exists( 'Anime_Sync_YouTube_Playlist_Sync' ) ) {
                 $yt_sync = new Anime_Sync_YouTube_Playlist_Sync();
                 $res = $yt_sync->sync_post( $post_id, true );
