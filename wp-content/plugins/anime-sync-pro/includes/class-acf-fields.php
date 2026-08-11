@@ -2155,6 +2155,23 @@ private function register_manga_fields(): void {
                         }
                     });
                 }
+
+                // 將「YouTube 播放清單」旁邊加上開啟連結按鈕
+                var $ytLabel = $('.acf-field[data-name="shortcut_anime_yt_playlist_url"] .acf-label label');
+                if ($ytLabel.length && $ytLabel.find('.asp-yt-link-btn').length === 0) {
+                    var $ytBtn = $('<a href="#" class="asp-yt-link-btn" target="_blank" style="margin-left: 10px; font-size: 12px; text-decoration: none; color: #2271b1; background-color: #f0f0f1; padding: 2px 8px; border-radius: 3px; font-weight: normal;">🔗 點擊YT連結</a>');
+                    $ytLabel.append($ytBtn);
+
+                    $ytBtn.on('click', function(e) {
+                        var currentUrl = $('.acf-field[data-name="shortcut_anime_yt_playlist_url"] input[type="url"]').val();
+                        if (!currentUrl) {
+                            e.preventDefault();
+                            alert('請先在下方輸入 YouTube 播放清單網址');
+                        } else {
+                            $(this).attr('href', currentUrl);
+                        }
+                    });
+                }
             }
 
             // 針對傳統編輯器
