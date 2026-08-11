@@ -3314,6 +3314,12 @@ private function register_manga_fields(): void {
                             }
                             logAI(`❌ [${taskName}] 請求失敗，請檢查網路連線或 API Key 狀態。細節：${errDetail}`, true);
                         }
+
+                        // [新增] 冷卻時間機制：如果不是最後一項任務，則等待 2 秒避免觸發 Google API Rate Limit
+                        if (i < tasks.length - 1) {
+                            logAI(`⏳ 避免請求過密，等待冷卻 2 秒後繼續下一個任務...`);
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                        }
                     }
                     
                     logAI('🎉 所有選定項目生成工作流已結束！確認無誤後記得按右邊的儲存喔！');
