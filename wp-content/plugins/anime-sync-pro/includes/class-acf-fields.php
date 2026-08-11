@@ -3061,10 +3061,10 @@ private function register_manga_fields(): void {
                                     if (missing > 0) logAI(`⚠️ [CAST] 批次 ${batchNum} 經重試仍有 ${missing} 筆遺漏，將保留原文。`, true);
                                     success = true;
                                     
-                                    // 若這批有實際交由 AI 翻譯，且不是最後一批，強制等待 5 秒以避免觸發 429 頻率限制
+                                    // 若這批有實際交由 AI 翻譯，且不是最後一批，強制等待 3.5 秒以避免觸發 429 頻率限制
                                     if (res.data.stats && res.data.stats.api > 0 && batchNum < totalBatches) {
-                                        logAI(`⏳ [CAST] 為保護 API 額度並避免頻率過高，自動冷卻等待 5 秒...`);
-                                        await new Promise(r => setTimeout(r, 5000));
+                                        logAI(`⏳ [CAST] 為保護 API 額度並避免頻率過高，自動冷卻等待 3.5 秒...`);
+                                        await new Promise(r => setTimeout(r, 3500));
                                     }
                                 }
                             } else {
@@ -3315,10 +3315,10 @@ private function register_manga_fields(): void {
                             logAI(`❌ [${taskName}] 請求失敗，請檢查網路連線或 API Key 狀態。細節：${errDetail}`, true);
                         }
 
-                        // [新增] 冷卻時間機制：如果不是最後一項任務，則等待 2 秒避免觸發 Google API Rate Limit
+                        // [新增] 冷卻時間機制：如果不是最後一項任務，則等待 2.5 秒避免觸發 Google API Rate Limit
                         if (i < tasks.length - 1) {
-                            logAI(`⏳ 避免請求過密，等待冷卻 2 秒後繼續下一個任務...`);
-                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            logAI(`⏳ 避免請求過密，等待冷卻 2.5 秒後繼續下一個任務...`);
+                            await new Promise(resolve => setTimeout(resolve, 2500));
                         }
                     }
                     
