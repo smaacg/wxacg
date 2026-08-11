@@ -378,6 +378,18 @@ class Anime_Sync_YouTube_Playlist_Sync {
             return $result;
         }
 
+        // ── [新增] 自動依據 YouTube 頻道名稱推導台灣代理商 ──
+        $channel_name = '';
+        foreach ( $videos as $v ) {
+            if ( ! empty( $v['channel'] ) ) {
+                $channel_name = $v['channel'];
+                break;
+            }
+        }
+        if ( $channel_name !== '' ) {
+            $this->maybe_fill_distributor( $post_id, $channel_name );
+        }
+
         $current_raw = (string) get_post_meta( $post_id, 'anime_online_watch', true );
         $lines       = ( $current_raw !== '' ) ? preg_split( '/\r\n|\r|\n/', $current_raw ) : [];
 
@@ -495,7 +507,9 @@ class Anime_Sync_YouTube_Playlist_Sync {
                 if ( $video_id === '' || $title === 'Private video' || $title === 'Deleted video' ) {
                     continue;
                 }
-                $items[] = [ 'video_id' => $video_id, 'title' => $title ];
+                
+                $channel = $snippet['videoOwnerChannelTitle'] ?? $snippet['channelTitle'] ?? '';
+                $items[] = [ 'video_id' => $video_id, 'title' => $title, 'channel' => $channel ];
             }
 
             $page_tok = $body['nextPageToken'] ?? '';
@@ -684,5 +698,53 @@ class Anime_Sync_YouTube_Playlist_Sync {
         // 手動按鈕 → 強制執行($force=true),無視同步開關
         $res = $this->sync_post( $post_id, true );
         wp_send_json_success( $res );
+    }
+
+    /**
+     * 自動依據 YouTube 頻道名稱推導台灣代理商 (僅在空白時填寫)
+     */
+    private function maybe_fill_distributor( int $post_id, string $channel_name ): void {
+        $current = get_post_meta( $post_id, 'anime_tw_distributor', true );
+        if ( $current !== '' && $current !== null ) {
+            return;
+        }
+
+        $youtube_map = [];
+        if ( class_exists( 'Anime_Sync_Streaming_Registry' ) ) {
+            $youtube_map = Anime_Sync_Streaming_Registry::get_youtube_keyword_map();
+        }
+        
+        $matched_platform = '';
+        foreach ( $youtube_map as $acf_key => $keywords ) {
+            foreach ( $keywords as $kw ) {
+                if ( mb_stripos( $channel_name, $kw ) !== false ) {
+                    $matched_platform = $acf_key;
+                    break 2;
+                }
+            }
+        }
+
+        if ( ! $matched_platform ) {
+            return;
+        }
+
+        $map = [
+            'muse'         => 'muse',
+            'ani_one'      => 'linbang',
+            'mighty'       => 'medialink',
+            'tropicsanime' => 'tropic',
+            'anipass'      => 'garage',
+            'garageplay'   => 'garage',
+        ];
+
+        if ( isset( $map[ $matched_platform ] ) ) {
+            $distributor = $map[ $matched_platform ];
+            if ( function_exists( 'update_field' ) ) {
+                update_field( 'field_anime_tw_distributor', $distributor, $post_id );
+            } else {
+                update_post_meta( $post_id, 'anime_tw_distributor', $distributor );
+            }
+            $this->write_log( $post_id, "自動代理商：偵測到 YouTube 頻道 {$channel_name} → 對應代理商 {$distributor}", 'info' );
+        }
     }
 }
