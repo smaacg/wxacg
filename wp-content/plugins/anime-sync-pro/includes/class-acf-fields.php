@@ -2301,7 +2301,7 @@ private function register_manga_fields(): void {
         if ( ! $triggered_ya_sync && ! empty( $new_yt_url ) && $new_yt_url !== $old_yt_url ) {
             if ( class_exists( 'Anime_Sync_YouTube_Playlist_Sync' ) ) {
                 $yt_sync = new Anime_Sync_YouTube_Playlist_Sync();
-                $res = $yt_sync->sync_post( $post_id );
+                $res = $yt_sync->sync_post( $post_id, true );
                 // 注意：YouTube 同步回傳的是陣列 ['added' => x, 'skipped' => y, 'msg' => '...']
                 if ( is_array( $res ) && isset( $res['msg'] ) && mb_strpos( $res['msg'], '錯誤' ) !== false ) {
                     wp_send_json_error( [ 'message' => '資料已儲存，但 YouTube 同步失敗：' . $res['msg'] ] );
