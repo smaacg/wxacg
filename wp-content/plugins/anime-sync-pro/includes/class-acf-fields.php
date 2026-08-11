@@ -59,6 +59,7 @@ class Anime_Sync_ACF_Fields {
         $mirror_fields = [
             'shortcut_anime_title_chinese'    => 'anime_title_chinese',
             'shortcut_anime_title_simplified' => 'anime_title_simplified',
+            'shortcut_anime_title_native'     => 'anime_title_native',
             'shortcut_anime_youranimes_url'   => 'anime_youranimes_url',
             'shortcut_anime_tw_distributor'   => 'anime_tw_distributor',
             'shortcut_anime_tw_distributor_custom' => 'anime_tw_distributor_custom',
