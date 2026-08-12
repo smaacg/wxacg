@@ -21,6 +21,15 @@ get_header();
 $search_query = get_search_query();
 $total        = $GLOBALS['wp_query']->found_posts;
 $cur_stype    = isset( $_GET['stype'] ) ? sanitize_key( $_GET['stype'] ) : '';
+
+// ── [Thin Content 防護] 搜尋頁強制 noindex ──
+// 避免惡意爬蟲或不相干關鍵字產生無限網址，導致被視為垃圾農場
+add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+    $robots['index']  = 'noindex';
+    $robots['follow'] = 'follow';
+    unset( $robots['noarchive'], $robots['nosnippet'] );
+    return $robots;
+} );
 ?>
 
 <main class="search-page">

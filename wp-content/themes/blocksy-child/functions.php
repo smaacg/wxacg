@@ -1700,3 +1700,33 @@ function wxacg_clear_thin_anime_cache() {
 add_action( 'wp_insert_comment',  'wxacg_clear_thin_anime_cache' );
 add_action( 'save_post_anime',    'wxacg_clear_thin_anime_cache' );
 add_action( 'save_post_post',     'wxacg_clear_thin_anime_cache' ); // 影評/前導文章掛關聯時
+/* ============================================================
+ * v2.28.0：全域 SEO 防護網 (Global SEO Shield) - AdSense Thin Content 對策
+ * ============================================================ */
+add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+    // 1. 全域分頁 (第2頁以後) 一律 noindex, follow
+    if ( is_paged() ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+        return $robots;
+    }
+
+    // 2. 所有 Taxonomy (包含 genre, studio, staff_role 等) 若文章數過少 (<3) 且無描述
+    if ( is_tax() || is_category() || is_tag() ) {
+        $term = get_queried_object();
+        if ( $term instanceof WP_Term ) {
+            $count = (int) $term->count;
+            $desc  = trim( (string) $term->description );
+            if ( $count < 3 && $desc === '' ) {
+                $robots['index']  = 'noindex';
+                $robots['follow'] = 'follow';
+                unset( $robots['noarchive'], $robots['nosnippet'] );
+                return $robots;
+            }
+        }
+    }
+
+    return $robots;
+}, 20 );
+
