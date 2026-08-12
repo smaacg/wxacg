@@ -11,6 +11,20 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+/* ── [v1.0.1] Thin Content 防護：公告內文字數 < 200 字時 noindex，避免短公告被判定為空洞內容 ── */
+if ( have_posts() ) {
+    global $post;
+    $ann_word_count = mb_strlen( wp_strip_all_tags( $post->post_content ?? '' ), 'UTF-8' );
+    if ( $ann_word_count < 200 ) {
+        add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+            $robots['index']  = 'noindex';
+            $robots['follow'] = 'follow';
+            unset( $robots['noarchive'], $robots['nosnippet'] );
+            return $robots;
+        } );
+    }
+}
+
 get_header();
 
 while ( have_posts() ) : the_post();

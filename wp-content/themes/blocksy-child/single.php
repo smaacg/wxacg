@@ -70,6 +70,25 @@ if ( $smacg_bail ) {
     return;
 }
 
+/* ============================================================
+   [v3.1] Thin Content 防護：短文判斷 + noindex
+   必須在 get_header() 之前執行，才能趕上 wp_head()。
+   当前訬者已設定必須是 is_singular('post')，所以直接擷內文。
+   ============================================================ */
+if ( have_posts() ) {
+    global $post;
+    $smacg_content_raw = apply_filters( 'the_content', $post->post_content ?? '' );
+    $smacg_word_count  = mb_strlen( wp_strip_all_tags( $smacg_content_raw ), 'UTF-8' );
+    if ( $smacg_word_count < 200 ) {
+        add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+            $robots['index']  = 'noindex';
+            $robots['follow'] = 'follow';
+            unset( $robots['noarchive'], $robots['nosnippet'] );
+            return $robots;
+        } );
+    }
+}
+
 get_header();
 
 /* ── 取得目前文章的 category + channel ─────────────────── */

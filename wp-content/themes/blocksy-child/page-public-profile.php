@@ -108,6 +108,14 @@ if ( ! in_array( $active_tab, $valid_tabs, true ) ) {
     $active_tab = 'overview';
 }
 
+// ── [v1.1] 會員公開頁一律 noindex，避免空白新會員頁面被搜尋引擎建立索引 ──
+add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+    $robots['index']  = 'noindex';
+    $robots['follow'] = 'follow';
+    unset( $robots['noarchive'], $robots['nosnippet'] );
+    return $robots;
+} );
+
 get_header(); ?>
 
 <div class="pp-wrap" data-uid="<?php echo $uid; ?>" data-owner="<?php echo $is_owner ? '1' : '0'; ?>">
