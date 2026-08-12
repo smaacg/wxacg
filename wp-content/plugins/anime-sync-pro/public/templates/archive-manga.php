@@ -2,21 +2,18 @@
 /**
  * Archive Manga Template — Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/archive-manga.php
- * Version: 1.1.0 (2026-07-17)
+ * Version: 1.2.0 (2026-08-12)
  *
- * 參考 archive-anime.php 改寫，適配漫畫欄位：
- *   - 沒有季度/格式 taxonomy 篩選，只有「類型」(genre，由匯入時直接寫入)
- *   - 卡片顯示話數/卷數而非集數
- *   - Schema 用 ComicSeries 而非 TVSeries
+ * v1.2.0 (2026-08-12) Thin Content 防護:
+ *   - genre Taxonomy 頁文章數 < 3 且無描述時 noindex,follow。
+ *   - 漫畫搜尋結果頁 (is_search) 強制 noindex。
+ *   - get_header() 往後移到 filter 掛上之後。
  *
- * v1.1.0 (2026-07-17) — [Fix] 卡片補顯示日文原名（anime_title_native）。
- *          之前只讀了 anime_title_romaji（羅馬拼音）沒讀 anime_title_native，
- *          導致日文標題完全沒顯示。對應 CSS 需搭配 .aaa-card-native。
+ * v1.1.0 (2026-07-17) — [Fix] 卡片補顯示日文原名
  *
- * ⚠️ 需要搭配 class-frontend.php 的路由修改才會生效，見檔案最後說明。
+ * ⚠️ 需要搜配 class-frontend.php 的路由修改才會生效，見檔案最後說明。
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
-get_header();
 
 $is_search = is_search() && get_query_var( 'post_type' ) === 'manga';
 $is_genre  = is_tax( 'genre' ) && get_post_type() === 'manga';
@@ -46,6 +43,29 @@ $genre_terms = get_terms( [
 $canonical_url = ( $is_genre && $current_term )
     ? get_term_link( $current_term )
     : get_post_type_archive_link( 'manga' );
+
+/* ── [v1.2.0] Thin Content 防護：noindex 判斷（在 get_header 之前）── */
+add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
+    $is_search, $current_term, $total_posts, $archive_desc
+) {
+    if ( $is_search ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+        return $robots;
+    }
+    if ( $current_term instanceof WP_Term ) {
+        $desc = trim( strip_tags( (string) $archive_desc ) );
+        if ( $total_posts < 3 && $desc === '' ) {
+            $robots['index']  = 'noindex';
+            $robots['follow'] = 'follow';
+            unset( $robots['noarchive'], $robots['nosnippet'] );
+        }
+    }
+    return $robots;
+} );
+
+get_header();
 
 /* ── GEO 導言句 ── */
 $geo_intro = '';

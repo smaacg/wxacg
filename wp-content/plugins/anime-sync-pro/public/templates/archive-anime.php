@@ -1,10 +1,14 @@
 <?php
 /**
  * Archive Anime Template — Anime Sync Pro
+ * v2.6 (2026-08-12) Thin Content 防護
+ *   - is_genre / is_season / is_format 的 Taxonomy 頁文章數 < 3 且無描述時，
+ *     透過 rank_math/frontend/robots filter 動態加上 noindex,follow。
+ *   - 動畫搜尋結果頁 (is_search) 強制 noindex，避免無限搜尋網址被索引。
+ *   - get_header() 往後移到 noindex filter 掛上之後，確保能在 wp_head() 執行前生效。
  * v2.5 (2026-06-02) 精簡 + 查詢優化 + 版面壓縮
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
-get_header();
 
 /* ── /upcoming-anime/ 專用 ── */
 $is_upcoming = (bool) get_query_var('anime_upcoming');
@@ -40,6 +44,31 @@ $show_banner  = $is_archive && ! $current_term && ! $is_search && $current_page 
 $active_genre  = $is_genre  ? $current_term->slug : '';
 $active_season = $is_season ? $current_term->slug : '';
 $active_format = $is_format ? $current_term->slug : '';
+
+/* ── [v2.6] Thin Content 防護：noindex 判斷（在 get_header 之前）── */
+add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
+    $is_search, $current_term, $total_posts, $archive_desc
+) {
+    // 動畫搜尋結果頁強制 noindex（同 search.php 同樣邏輯）
+    if ( $is_search ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+        return $robots;
+    }
+    // Taxonomy 頁（genre/season/format）文章數過少且無描述 → noindex
+    if ( $current_term instanceof WP_Term ) {
+        $desc = trim( strip_tags( (string) $archive_desc ) );
+        if ( $total_posts < 3 && $desc === '' ) {
+            $robots['index']  = 'noindex';
+            $robots['follow'] = 'follow';
+            unset( $robots['noarchive'], $robots['nosnippet'] );
+        }
+    }
+    return $robots;
+} );
+
+get_header();
 
 /* ── 季度 ── */
 $all_seasons = get_terms( [
