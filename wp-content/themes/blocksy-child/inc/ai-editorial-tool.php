@@ -52,30 +52,52 @@ function wxacg_ai_generate_batch_handler(): void {
 	$batch_size = min( (int) ( $_POST['batch_size'] ?? 10 ), 20 );
 	$offset     = max( 0, (int) ( $_POST['offset'] ?? 0 ) );
 	$overwrite  = ! empty( $_POST['overwrite'] );
+	$sort       = sanitize_key( $_POST['sort'] ?? 'new' ); // new | popular | default
 
 	global $wpdb;
+
+	/*
+	 * 排序子句
+	 * new:     新番優先（anime_season_year DESC，同年依 comment_count 排）
+	 * popular: 熱門優先（comment_count DESC，再依 AniList 分數）
+	 * default: 依 ID ASC（原始匯入順序）
+	 */
+	if ( 'new' === $sort ) {
+		// JOIN anime_season_year 欄位，年份倒序
+		$join_year  = "LEFT JOIN {$wpdb->postmeta} pm_yr ON pm_yr.post_id = p.ID AND pm_yr.meta_key = 'anime_season_year'";
+		$order_by   = 'ORDER BY CAST( NULLIF( pm_yr.meta_value, \'\'  ) AS UNSIGNED ) DESC, p.comment_count DESC, p.ID DESC';
+	} elseif ( 'popular' === $sort ) {
+		// 直接用 posts 表的 comment_count，再 JOIN AniList 分數
+		$join_year  = "LEFT JOIN {$wpdb->postmeta} pm_al ON pm_al.post_id = p.ID AND pm_al.meta_key = 'anime_score_anilist'";
+		$order_by   = 'ORDER BY p.comment_count DESC, CAST( NULLIF( pm_al.meta_value, \'\'  ) AS DECIMAL(5,2) ) DESC, p.ID ASC';
+	} else {
+		$join_year = '';
+		$order_by  = 'ORDER BY p.ID ASC';
+	}
 
 	// 取得待處理文章
 	if ( $overwrite ) {
 		$posts = $wpdb->get_results( $wpdb->prepare(
-			"SELECT p.ID, p.post_title
+			"SELECT DISTINCT p.ID, p.post_title
 			 FROM {$wpdb->posts} p
+			 {$join_year}
 			 WHERE p.post_type = 'anime' AND p.post_status = 'publish'
-			 ORDER BY p.ID ASC
+			 {$order_by}
 			 LIMIT %d OFFSET %d",
 			$batch_size,
 			$offset
 		) );
 	} else {
 		$posts = $wpdb->get_results( $wpdb->prepare(
-			"SELECT p.ID, p.post_title
+			"SELECT DISTINCT p.ID, p.post_title
 			 FROM {$wpdb->posts} p
 			 LEFT JOIN {$wpdb->postmeta} pm
 			         ON pm.post_id = p.ID AND pm.meta_key = 'anime_editorial_note'
+			 {$join_year}
 			 WHERE p.post_type = 'anime'
 			   AND p.post_status = 'publish'
 			   AND ( pm.meta_value IS NULL OR TRIM( pm.meta_value ) = '' )
-			 ORDER BY p.ID ASC
+			 {$order_by}
 			 LIMIT %d OFFSET %d",
 			$batch_size,
 			$offset
@@ -436,6 +458,16 @@ function wxacg_ai_editorial_page(): void {
 				</td>
 			</tr>
 			<tr>
+				<th>產生順序</th>
+				<td>
+					<select id="wxacg-sort-order">
+						<option value="new" selected>📅 新番優先（依播出年份倒序）</option>
+						<option value="popular">🔥 熱門優先（依留言數 + AniList 評分）</option>
+						<option value="default">🔢 預設順序（依 ID，即匯入先後）</option>
+					</select>
+				</td>
+			</tr>
+			<tr>
 				<th>覆蓋模式</th>
 				<td>
 					<label>
@@ -518,7 +550,8 @@ function wxacg_ai_editorial_page(): void {
 			if ( ! running ) return;
 
 			var batchSize = document.getElementById('wxacg-batch-size').value;
-			var overwrite = document.getElementById('wxacg-overwrite').checked ? '1' : '0';
+			var overwrite  = document.getElementById('wxacg-overwrite').checked ? '1' : '0';
+			var sortOrder  = document.getElementById('wxacg-sort-order').value;
 
 			var fd = new FormData();
 			fd.append('action',     'wxacg_ai_generate_batch');
@@ -526,6 +559,7 @@ function wxacg_ai_editorial_page(): void {
 			fd.append('batch_size', batchSize);
 			fd.append('offset',     offset);
 			fd.append('overwrite',  overwrite);
+			fd.append('sort',       sortOrder);
 
 			fetch(ajaxUrl, {
 				method: 'POST',
