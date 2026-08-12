@@ -4,8 +4,12 @@
  *
  * Path: wp-content/themes/blocksy-child/inc/ai-editorial-tool.php
  *
- * @version 1.1.0 (2026-08-12)
+ * @version 1.2.0 (2026-08-12)
  *
+ * v1.2.0: gemini-2.5-flash 已被 Google 擋掉新用戶／新專案呼叫（正式下線日 2026-10-16，
+ *         但已提前限制），改用目前 GA 的 gemini-3.6-flash；同時把已棄用的
+ *         temperature/topP/topK 換成新版 thinkingConfig（thinkingLevel: minimal，
+ *         短評這種輕量文字生成不需要額外推理，可省成本與延遲）
  * v1.1.0: 移除 PHP 7.4 arrow function 與 union return type，相容 PHP 7.2+
  *         加入 try-catch，AJAX 錯誤改以 JSON 回傳，不再顯示 HTML 錯誤頁
  */
@@ -256,7 +260,7 @@ function wxacg_call_gemini_editorial( $api_key, $data ) {
 	$prompt = wxacg_build_editorial_prompt( $data );
 
 	$response = wp_remote_post(
-		'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . rawurlencode( $api_key ),
+		'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . rawurlencode( $api_key ),
 		array(
 			'timeout' => 45,
 			'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
@@ -265,10 +269,10 @@ function wxacg_call_gemini_editorial( $api_key, $data ) {
 					array( 'parts' => array( array( 'text' => $prompt ) ) ),
 				),
 				'generationConfig' => array(
-					'temperature'     => 0.88,
 					'maxOutputTokens' => 320,
-					'topP'            => 0.95,
-					'topK'            => 40,
+					'thinkingConfig'  => array(
+						'thinkingLevel' => 'minimal',
+					),
 				),
 				'safetySettings'   => array(
 					array( 'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE' ),
