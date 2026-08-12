@@ -2,6 +2,14 @@
 /**
  * 微笑動漫 Child Theme — footer.php
  *
+ * v1.8.0 (2026-08-12)
+ *  - 新增頁尾連結安全網：若連結指向的「靜態頁面」被刪除／改為草稿／移到回收桶，
+ *    自動不輸出該連結，避免全站每一頁都連到 404。
+ *    （僅對可用 url_to_postid() 解析出來的一般頁面／文章有效；
+ *      分類、頻道、自訂文章類型封存頁等無法可靠判斷是否為空，不在此檢查範圍內，
+ *      這類「還沒做完/暫時是空的」欄目，請直接從下方陣列註解掉或移除，不要等內容做完再放回來——
+ *      在那之前放著，等於每一頁都在邀請 Google 去逛你還沒做完的地方。）
+ *
  * v1.7.0 (2026-07-19)
  *  - 隨機動漫骰子浮動按鈕改版：紅色漸層、外圈圓弧「抽動漫」旋轉字、進頁即顯示（免捲動）
  *  - 手機版隱藏浮動骰子（底部導覽列已有抽動漫入口）
@@ -39,6 +47,36 @@ $site_name = get_bloginfo( 'name' ) ?: '微笑動漫';
 $site_desc = get_bloginfo( 'description' )
     ?: __( '高質感 ACG 情報中心，動漫・音樂・COSPLAY・百科，讓你不錯過任何精彩。', 'blocksy-child' );
 
+/* ── 頁尾連結安全網 ──────────────────────────────────────────
+ * 只對 url_to_postid() 能解析出實際 post/page 的連結做檢查
+ * （一般靜態頁面、文章都適用）。
+ *
+ * 分類 / 頻道 / 自訂文章類型封存頁（如 /news/、/anime/）通常會
+ * 回傳 0，這裡不主動判斷「有沒有內容」，因為那需要真正下 query
+ * 才能確定，而且封存頁本身不會因為被刪除而變成無效連結
+ * （分類本身還在，只是文章數可能是 0）——那類「稀薄封存頁」的
+ * noindex 處理，已經在 category.php / tag.php 裡做掉了。
+ * 這裡只負責擋掉「頁面本身被刪除/下架」這種情況。
+ */
+function smacg_footer_link_is_valid( $url ) {
+    static $cache = [];
+    if ( isset( $cache[ $url ] ) ) {
+        return $cache[ $url ];
+    }
+
+    $post_id = url_to_postid( $url );
+
+    if ( $post_id > 0 ) {
+        $result = ( 'publish' === get_post_status( $post_id ) );
+    } else {
+        // 無法解析成實際 post/page（多半是分類、CPT 封存頁等），不主動判斷，視為有效。
+        $result = true;
+    }
+
+    $cache[ $url ] = $result;
+    return $result;
+}
+
 /* ── 社群連結（可由 filter 擴充；僅供頁尾圖示顯示用）──
  *   注意：sameAs 結構化資料已改由 Rank Math 統一輸出，
  *   此陣列只負責頁尾的視覺社群圖示，不再產生 JSON-LD。
@@ -61,7 +99,11 @@ $social = apply_filters( 'smacg_footer_social', [
     'rss'            => [ get_bloginfo( 'rss2_url' ),                                                                                       'fa-solid fa-rss',        'RSS 訂閱'      ],
 ] );
 
-/* ── Footer 欄目（可由 filter 擴充）── */
+/* ── Footer 欄目（可由 filter 擴充）──
+ *
+ * ★ 如果某個項目目前頁面還是空的／施工中，請直接把該行註解掉或刪除，
+ *   等內容做好了再放回來 —— 不要放著等做完，這種連結會出現在全站每一頁。
+ */
 $footer_columns = apply_filters( 'smacg_footer_columns', [
     'site' => [
         'title' => __( '站內欄目', 'blocksy-child' ),
@@ -166,10 +208,17 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
       </div>
 
       <!-- ── 動態欄目 ── -->
-      <?php foreach ( $footer_columns as $col_key => $col ) : ?>
+      <?php foreach ( $footer_columns as $col_key => $col ) :
+        // 過濾掉指向已刪除/未發佈頁面的連結
+        $valid_links = array_filter(
+            $col['links'],
+            static function ( $url ) { return smacg_footer_link_is_valid( $url ); }
+        );
+        if ( empty( $valid_links ) ) continue;
+      ?>
         <nav class="footer-nav-group" aria-label="<?php echo esc_attr( $col['title'] ); ?>">
           <h5><?php echo esc_html( $col['title'] ); ?></h5>
-          <?php foreach ( $col['links'] as $label => $url ) : ?>
+          <?php foreach ( $valid_links as $label => $url ) : ?>
             <a href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $label ); ?></a>
           <?php endforeach; ?>
         </nav>
