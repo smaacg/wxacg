@@ -1,12 +1,21 @@
 <?php
 /**
- * Single Post Template  v3.0  2026-06-05
+ * Single Post Template  v3.1  2026-08-12
+ *
+ * 變更（v3.1 — E-E-A-T / AdSense 品質優化）：
+ * - [E-E-A-T] 作者姓名改為可點擊連結，導向作者頁（原本無法點擊）。
+ * - [E-E-A-T] 新增「作者資訊卡」：頭像、簡介（若有填寫才顯示）、發文數、
+ *             作者所有文章連結，並加上 Person schema（itemprop / JSON-LD）。
+ * - [E-E-A-T] 標題區同時顯示「發布日期」與「最後更新日期」（若不同才顯示更新日期），
+ *             讓 Google 與讀者都能判斷內容新鮮度。
+ * - [SEO]     新增 Article JSON-LD（含 author、datePublished、dateModified），
+ *             沿用既有「偵測 Rank Math 已輸出則略過」的防重複邏輯。
  *
  * 變更（v3.0）：
  * - [SEO/AEO] 發布/更新時間改用語意化 <time datetime>。
  * - [SEO]     麵包屑補 BreadcrumbList JSON-LD（偵測 Rank Math 已輸出則略過，避免重複）。
  * - [GEO/AEO] article 使用語意標籤、正確 h1/h2 層級，利於 AI 與精選摘要擷取。
- * - [UX]      順序調整為：內文 → 上下篇 → 留言 → 延伸閱讀。
+ * - [UX]      順序調整為：內文 → 作者資訊卡 → 上下篇 → 留言 → 延伸閱讀。
  * - 沿用 v2.5 職責分離版型與安全退場機制。
  *
  * Path: wp-content/themes/blocksy-child/single.php
@@ -93,6 +102,20 @@ $content_text = wp_strip_all_tags( get_post_field( 'post_content', $post_id ) );
 $word_count   = mb_strlen( $content_text, 'UTF-8' );
 $read_minutes = max( 1, (int) ceil( $word_count / 400 ) );
 
+/* ── 作者資料（E-E-A-T：頭像 / 簡介 / 發文數 / 作者頁連結） ─── */
+$author_id       = (int) get_the_author_meta( 'ID' );
+$author_name     = get_the_author();
+$author_bio      = trim( (string) get_the_author_meta( 'description' ) );
+$author_archive  = get_author_posts_url( $author_id );
+$author_avatar   = get_avatar_url( $author_id, [ 'size' => 96 ] );
+$author_website  = get_the_author_meta( 'user_url' );
+$author_post_cnt = (int) count_user_posts( $author_id, 'post', true );
+
+/* ── 發布 / 最後更新時間（兩者不同才顯示「更新」） ───────── */
+$published_gmt = get_the_date( 'c' );
+$modified_gmt  = get_the_modified_date( 'c' );
+$is_updated    = ( get_the_date( 'Y-m-d H:i' ) !== get_the_modified_date( 'Y-m-d H:i' ) );
+
 /* ── 同分類熱門文章（側欄） ──────────────────────────── */
 $sidebar_tax_query = [];
 if ( $primary_cat ) {
@@ -176,8 +199,10 @@ $share_links = [
     'threads'  => [ 'name' => 'Threads',  'icon' => 'fa-brands fa-threads',    'color' => '#101010', 'url' => "https://www.threads.net/intent/post?text={$share_enc_t}%20{$share_enc_u}" ],
 ];
 
-/* ── BreadcrumbList JSON-LD（Rank Math 已輸出則略過，避免重複） ── */
-$smacg_output_breadcrumb_schema = ! ( defined( 'RANK_MATH_VERSION' ) || class_exists( 'RankMath' ) );
+/* ── Rank Math 是否已接管 schema 輸出（避免重複） ───────── */
+$smacg_rankmath_active           = ( defined( 'RANK_MATH_VERSION' ) || class_exists( 'RankMath' ) );
+$smacg_output_breadcrumb_schema  = ! $smacg_rankmath_active;
+$smacg_output_article_schema     = ! $smacg_rankmath_active;
 ?>
 
 <main class="container single-wrap">
@@ -212,6 +237,31 @@ $smacg_output_breadcrumb_schema = ! ( defined( 'RANK_MATH_VERSION' ) || class_ex
   <script type="application/ld+json"><?php echo wp_json_encode( $bc_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
   <?php endif; ?>
 
+  <?php if ( $smacg_output_article_schema ) :
+      $article_schema = [
+          '@context'         => 'https://schema.org',
+          '@type'            => 'Article',
+          'headline'         => get_the_title(),
+          'mainEntityOfPage' => [ '@type' => 'WebPage', '@id' => get_permalink() ],
+          'datePublished'    => $published_gmt,
+          'dateModified'     => $modified_gmt,
+          'author'           => [
+              '@type' => 'Person',
+              'name'  => $author_name,
+              'url'   => $author_archive,
+          ],
+          'publisher'        => [
+              '@type' => 'Organization',
+              'name'  => get_bloginfo( 'name' ),
+          ],
+      ];
+      if ( has_post_thumbnail() ) {
+          $article_schema['image'] = [ get_the_post_thumbnail_url( $post_id, 'full' ) ];
+      }
+  ?>
+  <script type="application/ld+json"><?php echo wp_json_encode( $article_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
+  <?php endif; ?>
+
   <article id="post-<?php the_ID(); ?>" <?php post_class( 'single-article' ); ?>>
 
     <!-- ── 標題區 ── -->
@@ -228,11 +278,23 @@ $smacg_output_breadcrumb_schema = ! ( defined( 'RANK_MATH_VERSION' ) || class_ex
       <h1 class="single-title"><?php the_title(); ?></h1>
 
       <div class="single-meta">
-        <span><i class="fa-regular fa-user" aria-hidden="true"></i> <?php the_author(); ?></span>
+        <span>
+          <i class="fa-regular fa-user" aria-hidden="true"></i>
+          <a href="<?php echo esc_url( $author_archive ); ?>" class="single-meta-author-link" rel="author">
+            <?php echo esc_html( $author_name ); ?>
+          </a>
+        </span>
         <span>
           <i class="fa-regular fa-clock" aria-hidden="true"></i>
-          <time datetime="<?php echo esc_attr( get_the_date( 'c' ) ); ?>"><?php echo esc_html( get_the_date( 'Y-m-d' ) ); ?></time>
+          <time datetime="<?php echo esc_attr( $published_gmt ); ?>"><?php echo esc_html( get_the_date( 'Y-m-d' ) ); ?></time>
         </span>
+        <?php if ( $is_updated ) : ?>
+        <span class="single-meta-updated">
+          <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+          更新於
+          <time datetime="<?php echo esc_attr( $modified_gmt ); ?>"><?php echo esc_html( get_the_modified_date( 'Y-m-d' ) ); ?></time>
+        </span>
+        <?php endif; ?>
         <span><i class="fa-regular fa-eye" aria-hidden="true"></i> 約 <?php echo (int) $read_minutes; ?> 分鐘閱讀</span>
         <?php if ( comments_open() || get_comments_number() ) : ?>
         <span><i class="fa-regular fa-comment" aria-hidden="true"></i> <?php comments_number( '0 留言', '1 留言', '% 留言' ); ?></span>
@@ -262,6 +324,55 @@ $smacg_output_breadcrumb_schema = ! ( defined( 'RANK_MATH_VERSION' ) || class_ex
       <?php endforeach; ?>
     </div>
     <?php endif; ?>
+
+    <!-- ── 作者資訊卡（E-E-A-T） ──
+         有無填寫「個人簡介」都能正常顯示：
+         簡介只在非空時才輸出，避免出現空白區塊。 -->
+    <aside class="single-author-box glass-light" itemscope itemtype="https://schema.org/Person" aria-label="作者資訊">
+      <a href="<?php echo esc_url( $author_archive ); ?>" class="author-avatar-link" aria-hidden="true" tabindex="-1">
+        <img
+          src="<?php echo esc_url( $author_avatar ); ?>"
+          alt="<?php echo esc_attr( $author_name ); ?>"
+          class="author-avatar"
+          itemprop="image"
+          width="64" height="64"
+          loading="lazy"
+          decoding="async"
+        />
+      </a>
+
+      <div class="author-info">
+        <div class="author-name-row">
+          <span class="author-eyebrow">本文作者</span>
+          <a href="<?php echo esc_url( $author_archive ); ?>" class="author-name" itemprop="name" rel="author">
+            <?php echo esc_html( $author_name ); ?>
+          </a>
+        </div>
+
+        <?php if ( $author_bio !== '' ) : ?>
+        <p class="author-bio" itemprop="description"><?php echo esc_html( $author_bio ); ?></p>
+        <?php endif; ?>
+
+        <div class="author-meta-row">
+          <span class="author-post-count">
+            <i class="fa-solid fa-pen-nib" aria-hidden="true"></i>
+            已發表 <?php echo esc_html( number_format_i18n( $author_post_cnt ) ); ?> 篇文章
+          </span>
+
+          <a href="<?php echo esc_url( $author_archive ); ?>" class="author-link" itemprop="url">
+            查看 <?php echo esc_html( $author_name ); ?> 的所有文章
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </a>
+
+          <?php if ( $author_website ) : ?>
+          <a href="<?php echo esc_url( $author_website ); ?>" class="author-link" target="_blank" rel="noopener noreferrer nofollow">
+            個人網站
+            <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+          </a>
+          <?php endif; ?>
+        </div>
+      </div>
+    </aside>
 
     <!-- ── 社群分享列 ── -->
     <?php if ( ! $smacg_skip_share_related ) : ?>
@@ -390,6 +501,52 @@ $smacg_output_breadcrumb_schema = ! ( defined( 'RANK_MATH_VERSION' ) || class_ex
 
   </div><!-- /.single-grid -->
 </main>
+
+<!-- ── 作者資訊卡樣式（E-E-A-T） ── -->
+<style>
+.single-author-box{
+  display:flex; gap:16px; align-items:flex-start;
+  margin:28px 0; padding:20px 22px; border-radius:16px;
+}
+.single-author-box .author-avatar{
+  width:64px; height:64px; border-radius:50%; object-fit:cover; flex:0 0 auto;
+  border:2px solid var(--glass-border, rgba(255,255,255,.12));
+}
+.single-author-box .author-info{ min-width:0; flex:1 1 auto; }
+.single-author-box .author-name-row{
+  display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:6px;
+}
+.single-author-box .author-eyebrow{
+  font-size:12px; font-weight:700; letter-spacing:.5px;
+  color: var(--text-muted, #9aa4b2); text-transform:uppercase;
+}
+.single-author-box .author-name{
+  font-size:16px; font-weight:800; color: var(--text-primary, #fff);
+  text-decoration:none;
+}
+.single-author-box .author-name:hover,
+.single-author-box .author-name:focus{ text-decoration:underline; }
+.single-author-box .author-bio{
+  margin:0 0 10px; font-size:13.5px; line-height:1.75;
+  color: var(--text-muted, #9aa4b2);
+}
+.single-author-box .author-meta-row{
+  display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center;
+  font-size:12.5px; color: var(--text-muted, #9aa4b2);
+}
+.single-author-box .author-link{
+  color: var(--accent-blue, #60a5fa); text-decoration:none; font-weight:700;
+}
+.single-author-box .author-link:hover,
+.single-author-box .author-link:focus{ text-decoration:underline; }
+.single-meta-author-link{ color:inherit; text-decoration:none; }
+.single-meta-author-link:hover,
+.single-meta-author-link:focus{ text-decoration:underline; }
+.single-meta-updated{ opacity:.85; }
+@media (max-width:600px){
+  .single-author-box{ flex-direction:column; align-items:flex-start; }
+}
+</style>
 
 <!-- ── 複製連結互動 ── -->
 <script>

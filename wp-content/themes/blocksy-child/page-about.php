@@ -4,7 +4,12 @@
  * Template Post Type: page
  *
  * @package weixiaoacg
- * @version 2.2.0
+ * @version 2.3.0
+ *
+ * 變更（v2.3.0 — E-E-A-T / AdSense 品質優化）：
+ * - 新增「編輯與內容團隊」區塊：動態列出已發文的作者（頭像／簡介／發文數／
+ *   作者頁連結），讓 Google 與讀者能看到內容背後的真人與其專業領域。
+ *   若作者未填寫個人簡介，只顯示頭像、姓名、發文數與連結，不會出現空白區塊。
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -18,6 +23,14 @@ if ( post_type_exists( 'anime' ) ) {
 		$anime_total = (int) $anime_counts->publish;
 	}
 }
+
+/* ── 編輯與內容團隊：抓取已發表過至少一篇文章的作者 ───────── */
+$wx_team_members = get_users( [
+	'has_published_posts' => [ 'post' ],
+	'orderby'              => 'post_count',
+	'order'                => 'DESC',
+	'number'               => 12,
+] );
 
 get_header();
 ?>
@@ -520,6 +533,94 @@ get_header();
 	justify-content: center;
 }
 
+/* ── 編輯與內容團隊（新增） ───────────────────────── */
+.wx-about-team-card {
+	display: flex;
+	gap: 16px;
+	align-items: flex-start;
+	height: 100%;
+	padding: 24px 22px;
+	border: 1px solid var(--glass-border);
+	border-radius: 20px;
+	background: var(--glass-bg);
+	transition:
+		transform 0.2s ease,
+		border-color 0.2s ease,
+		box-shadow 0.2s ease;
+}
+
+.wx-about-team-card:hover {
+	transform: translateY(-3px);
+	border-color: rgba(139, 92, 246, 0.35);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+.wx-about-team-avatar {
+	flex: 0 0 auto;
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	object-fit: cover;
+	border: 2px solid var(--glass-border);
+}
+
+.wx-about-team-body {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.wx-about-team-name {
+	display: block;
+	margin-bottom: 4px;
+	color: var(--text-primary);
+	font-size: 15px;
+	font-weight: 800;
+	text-decoration: none;
+}
+
+.wx-about-team-name:hover,
+.wx-about-team-name:focus {
+	text-decoration: underline;
+}
+
+.wx-about-team-role {
+	display: inline-block;
+	margin-bottom: 8px;
+	padding: 2px 9px;
+	border-radius: 999px;
+	background: rgba(59, 130, 246, 0.12);
+	color: var(--wx-blue);
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.5px;
+}
+
+.wx-about-team-bio {
+	margin: 0 0 10px;
+	color: var(--text-muted);
+	font-size: 13px;
+	line-height: 1.75;
+}
+
+.wx-about-team-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.wx-about-team-meta a {
+	color: var(--wx-blue);
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.wx-about-team-meta a:hover,
+.wx-about-team-meta a:focus {
+	text-decoration: underline;
+}
+
 @media (max-width: 900px) {
 	.wx-about-grid-3 {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -628,6 +729,11 @@ get_header();
 	.wx-about-cta {
 		padding: 34px 20px;
 		border-radius: 20px;
+	}
+
+	.wx-about-team-card {
+		flex-direction: column;
+		align-items: flex-start;
 	}
 }
 
@@ -909,6 +1015,84 @@ get_header();
 
 			</div>
 		</section>
+
+		<!-- 編輯與內容團隊（新增：E-E-A-T） -->
+		<?php if ( ! empty( $wx_team_members ) ) : ?>
+		<section class="wx-about-section">
+
+			<h2 class="wx-about-heading wx-about-heading-center">
+				編輯與內容團隊
+			</h2>
+
+			<p class="wx-about-lead wx-about-center">
+				本站的新聞、評論、專欄與資料整理由下列作者撰寫或編修。
+				點擊姓名可查看該作者發表過的所有文章。
+			</p>
+
+			<div class="wx-about-grid-3" style="margin-top:32px;">
+
+				<?php foreach ( $wx_team_members as $member ) :
+					$m_id       = (int) $member->ID;
+					$m_name     = $member->display_name ?: $member->user_login;
+					$m_bio      = trim( (string) get_user_meta( $m_id, 'description', true ) );
+					$m_url      = get_author_posts_url( $m_id );
+					$m_avatar   = get_avatar_url( $m_id, [ 'size' => 112 ] );
+					$m_posts    = (int) count_user_posts( $m_id, 'post', true );
+					$m_role     = ( $m_posts >= 20 ) ? '主編輯' : '內容作者';
+					if ( $m_posts < 1 ) continue;
+				?>
+					<div class="wx-about-team-card">
+
+						<a href="<?php echo esc_url( $m_url ); ?>" tabindex="-1" aria-hidden="true">
+							<img
+								src="<?php echo esc_url( $m_avatar ); ?>"
+								alt="<?php echo esc_attr( $m_name ); ?>"
+								class="wx-about-team-avatar"
+								width="56" height="56"
+								loading="lazy"
+								decoding="async"
+							>
+						</a>
+
+						<div class="wx-about-team-body">
+
+							<span class="wx-about-team-role"><?php echo esc_html( $m_role ); ?></span>
+
+							<a href="<?php echo esc_url( $m_url ); ?>" class="wx-about-team-name" rel="author">
+								<?php echo esc_html( $m_name ); ?>
+							</a>
+
+							<?php if ( $m_bio !== '' ) : ?>
+							<p class="wx-about-team-bio"><?php echo esc_html( $m_bio ); ?></p>
+							<?php endif; ?>
+
+							<div class="wx-about-team-meta">
+								<i class="fa-solid fa-pen-nib" aria-hidden="true"></i>
+								已發表 <?php echo esc_html( number_format_i18n( $m_posts ) ); ?> 篇文章
+								·
+								<a href="<?php echo esc_url( $m_url ); ?>">查看文章</a>
+							</div>
+
+						</div>
+					</div>
+				<?php endforeach; ?>
+
+			</div>
+
+			<div class="wx-about-notice">
+				<span class="wx-about-notice-icon" aria-hidden="true">📝</span>
+				<span>
+					新聞內容於發布前會盡可能查核來源；評論與專欄可能包含作者個人觀點，
+					不代表全體編輯團隊或本站的統一立場。
+					如需回報特定文章的錯誤或提出更正，
+					歡迎透過文章下方的作者連結或
+					<a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>" style="color:var(--wx-blue);font-weight:700;">聯絡頁面</a>
+					與我們聯繫。
+				</span>
+			</div>
+
+		</section>
+		<?php endif; ?>
 
 		<!-- 新聞評論專欄 -->
 		<section class="wx-about-section">
