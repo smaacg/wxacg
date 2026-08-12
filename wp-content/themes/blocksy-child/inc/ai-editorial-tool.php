@@ -4,8 +4,17 @@
  *
  * Path: wp-content/themes/blocksy-child/inc/ai-editorial-tool.php
  *
- * @version 1.3.0 (2026-08-12)
+ * @version 1.4.0 (2026-08-13)
  *
+ * v1.4.0: 支援多把 Gemini API Key 輪替 —
+ *         1) API Key 改為陣列儲存（一行一把），後台可貼多把
+ *         2) 批次處理時依項目序號輪流分配 key（round-robin）
+ *         3) 單把 key 遇到 429，立刻換下一把 key 重試，不再 sleep 等待；
+ *            只有「這一輪所有 key 都 429」時才短暫 sleep 再跑第二輪
+ *         4) 兩輪（所有 key 都試過兩次）仍全部配額用盡，才回傳 rate_limited，
+ *            交由前端用較長冷卻時間再重新呼叫
+ *         5) 前端新增 key_cursor 於批次間傳遞，確保下一批從正確的 key 索引接續輪替
+ *         6) 批次大小上限依 key 數量動態調整（每把 key 約可負擔 5 部/批）
  * v1.3.0: 修正 Gemini 免費方案 5 RPM 配額問題 —
  *         1) 呼叫端加入 429 自動重試（依錯誤訊息解析建議等待秒數，指數退避）
  *         2) 偵測到配額錯誤時，批次立即中止（不再繼續燒剩餘項目），並回傳
@@ -37,6 +46,30 @@ add_action( 'admin_menu', function () {
 } );
 
 /* ============================================================
+ * 共用：取得已設定的 API Key 陣列
+ * ============================================================ */
+
+function wxacg_get_gemini_api_keys() {
+	$keys = get_option( 'wxacg_gemini_api_keys', array() );
+
+	// 相容舊版單一 key 選項：若舊選項存在且新選項是空的，自動搬過來用一次
+	if ( empty( $keys ) ) {
+		$legacy = get_option( 'wxacg_gemini_api_key', '' );
+		if ( ! empty( $legacy ) ) {
+			$keys = array( $legacy );
+		}
+	}
+
+	if ( ! is_array( $keys ) ) {
+		$keys = array();
+	}
+
+	$keys = array_values( array_filter( array_map( 'trim', $keys ) ) );
+
+	return $keys;
+}
+
+/* ============================================================
  * AJAX：批次產生
  * ============================================================ */
 
@@ -51,15 +84,22 @@ function wxacg_ai_generate_batch_handler() {
 			wp_send_json_error( array( 'message' => '權限不足' ) );
 		}
 
-		$api_key = get_option( 'wxacg_gemini_api_key', '' );
-		if ( empty( $api_key ) ) {
-			wp_send_json_error( array( 'message' => '請先設定 Gemini API Key' ) );
+		$api_keys = wxacg_get_gemini_api_keys();
+		if ( empty( $api_keys ) ) {
+			wp_send_json_error( array( 'message' => '請先設定至少一把 Gemini API Key' ) );
 		}
+		$key_count = count( $api_keys );
 
-		$batch_size = min( (int) ( isset( $_POST['batch_size'] ) ? $_POST['batch_size'] : 10 ), 20 );
+		$batch_size = min( (int) ( isset( $_POST['batch_size'] ) ? $_POST['batch_size'] : 10 ), 60 );
 		$offset     = max( 0, (int) ( isset( $_POST['offset'] ) ? $_POST['offset'] : 0 ) );
 		$overwrite  = ! empty( $_POST['overwrite'] );
 		$sort       = sanitize_key( isset( $_POST['sort'] ) ? $_POST['sort'] : 'new' );
+
+		// 這一批從哪個 key 索引開始輪替（由前端在批次間接續傳遞，讓輪替不中斷）
+		$key_cursor = ( (int) ( isset( $_POST['key_cursor'] ) ? $_POST['key_cursor'] : 0 ) ) % $key_count;
+		if ( $key_cursor < 0 ) {
+			$key_cursor += $key_count;
+		}
 
 		global $wpdb;
 
@@ -119,11 +159,15 @@ function wxacg_ai_generate_batch_handler() {
 
 		$results      = array();
 		$rate_limited = false;
+		$i            = 0;
 
 		foreach ( $posts as $post ) {
 			$post_id = (int) $post->ID;
 			$data    = wxacg_gather_anime_data_for_editorial( $post_id );
-			$result  = wxacg_call_gemini_editorial( $api_key, $data );
+
+			// 這個項目從哪把 key 開始嘗試（round-robin）
+			$start_idx = ( $key_cursor + $i ) % $key_count;
+			$result    = wxacg_call_gemini_editorial_multi( $api_keys, $start_idx, $data );
 
 			if ( is_wp_error( $result ) ) {
 				$results[] = array(
@@ -133,10 +177,11 @@ function wxacg_ai_generate_batch_handler() {
 					'message' => $result->get_error_message(),
 				);
 
-				// 遇到配額錯誤：不要繼續燒剩下的項目，立刻結束這個批次，
+				// 遇到「所有 key 皆配額用盡」：不要繼續燒剩下的項目，立刻結束這個批次，
 				// 讓前端用較長的冷卻時間再重試，而不是逐一把整批都燒成失敗。
 				if ( 'gemini_quota' === $result->get_error_code() ) {
 					$rate_limited = true;
+					$i++;
 					break;
 				}
 			} else {
@@ -158,7 +203,8 @@ function wxacg_ai_generate_batch_handler() {
 				);
 			}
 
-			usleep( 300000 ); // 300ms，避免撞 rate limit
+			$i++;
+			usleep( 150000 ); // 150ms，多把 key 輪替下可以稍微縮短間隔
 		}
 
 		wp_send_json_success( array(
@@ -166,6 +212,8 @@ function wxacg_ai_generate_batch_handler() {
 			'processed'       => count( $results ),
 			'total_remaining' => max( 0, $total_remaining - count( $results ) ),
 			'next_offset'     => $offset + count( $results ),
+			'next_key_cursor' => ( $key_cursor + $i ) % $key_count,
+			'key_count'       => $key_count,
 			'rate_limited'    => $rate_limited,
 		) );
 
@@ -263,91 +311,113 @@ function wxacg_gather_anime_data_for_editorial( $post_id ) {
 }
 
 /* ============================================================
- * 呼叫 Gemini API
+ * 呼叫 Gemini API（多把 key 輪替版）
  * ============================================================ */
 
 /**
- * @param string $api_key
- * @param array  $data
+ * 依序嘗試多把 API Key，單把 429 就換下一把，不 sleep 等待。
+ * 只有「這一輪所有 key 都 429」才短暫 sleep 後跑下一輪；
+ * 兩輪（每把 key 各試兩次）仍全部失敗，才視為整批配額用盡。
+ *
+ * @param array $api_keys   所有可用的 key
+ * @param int   $start_idx  這次從哪個 index 開始嘗試（round-robin 起點）
+ * @param array $data
  * @return string|WP_Error
  */
-function wxacg_call_gemini_editorial( $api_key, $data ) {
-	$prompt      = wxacg_build_editorial_prompt( $data );
-	$max_retries = 2; // 429 時最多重試 2 次（共 3 次嘗試）
+function wxacg_call_gemini_editorial_multi( $api_keys, $start_idx, $data ) {
+	$prompt     = wxacg_build_editorial_prompt( $data );
+	$key_count  = count( $api_keys );
+	$last_error = null;
+	$max_rounds = 2; // 每把 key 最多各試 2 次（第一輪 + 第二輪）
 
-	for ( $attempt = 0; $attempt <= $max_retries; $attempt++ ) {
+	for ( $round = 0; $round < $max_rounds; $round++ ) {
 
-		$response = wp_remote_post(
-			'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . rawurlencode( $api_key ),
-			array(
-				'timeout' => 45,
-				'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
-				'body'    => wp_json_encode( array(
-					'contents'         => array(
-						array( 'parts' => array( array( 'text' => $prompt ) ) ),
-					),
-					'generationConfig' => array(
-						'maxOutputTokens' => 320,
-						'thinkingConfig'  => array(
-							'thinkingLevel' => 'minimal',
+		$all_quota_this_round = true; // 是否這一輪每一把都是 429（配額問題）
+
+		for ( $offset = 0; $offset < $key_count; $offset++ ) {
+			$idx     = ( $start_idx + $offset ) % $key_count;
+			$api_key = $api_keys[ $idx ];
+
+			$response = wp_remote_post(
+				'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . rawurlencode( $api_key ),
+				array(
+					'timeout' => 45,
+					'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
+					'body'    => wp_json_encode( array(
+						'contents'         => array(
+							array( 'parts' => array( array( 'text' => $prompt ) ) ),
 						),
-					),
-					'safetySettings'   => array(
-						array( 'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE' ),
-						array( 'category' => 'HARM_CATEGORY_HATE_SPEECH',       'threshold' => 'BLOCK_NONE' ),
-						array( 'category' => 'HARM_CATEGORY_HARASSMENT',        'threshold' => 'BLOCK_NONE' ),
-						array( 'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE' ),
-					),
-				), JSON_UNESCAPED_UNICODE ),
-			)
-		);
+						'generationConfig' => array(
+							'maxOutputTokens' => 320,
+							'thinkingConfig'  => array(
+								'thinkingLevel' => 'minimal',
+							),
+						),
+						'safetySettings'   => array(
+							array( 'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE' ),
+							array( 'category' => 'HARM_CATEGORY_HATE_SPEECH',       'threshold' => 'BLOCK_NONE' ),
+							array( 'category' => 'HARM_CATEGORY_HARASSMENT',        'threshold' => 'BLOCK_NONE' ),
+							array( 'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE' ),
+						),
+					), JSON_UNESCAPED_UNICODE ),
+				)
+			);
 
-		if ( is_wp_error( $response ) ) {
-			return $response;
-		}
-
-		$code = (int) wp_remote_retrieve_response_code( $response );
-		$body = wp_remote_retrieve_body( $response );
-
-		if ( $code === 200 ) {
-			$decoded = json_decode( $body, true );
-			$text    = isset( $decoded['candidates'][0]['content']['parts'][0]['text'] )
-				? $decoded['candidates'][0]['content']['parts'][0]['text']
-				: '';
-			$text = trim( $text );
-
-			if ( $text === '' ) {
-				return new WP_Error( 'gemini_empty', 'Gemini 回傳空白（可能被安全過濾器擋下）' );
+			if ( is_wp_error( $response ) ) {
+				// 網路層錯誤，不算配額問題，換下一把繼續試
+				$last_error            = $response;
+				$all_quota_this_round  = false;
+				continue;
 			}
 
-			return $text;
-		}
+			$code = (int) wp_remote_retrieve_response_code( $response );
+			$body = wp_remote_retrieve_body( $response );
 
-		$err = json_decode( $body, true );
-		$msg = isset( $err['error']['message'] ) ? $err['error']['message'] : "HTTP {$code}";
+			if ( $code === 200 ) {
+				$decoded = json_decode( $body, true );
+				$text    = isset( $decoded['candidates'][0]['content']['parts'][0]['text'] )
+					? $decoded['candidates'][0]['content']['parts'][0]['text']
+					: '';
+				$text = trim( $text );
 
-		// 429 = 配額用盡。免費方案通常是 5 RPM，錯誤訊息裡會附建議等待秒數，
-		// 例如「Please retry in 41.37s」。解析出來，等待後再試一次；
-		// 若已達重試上限，回傳專屬的 error code，讓外層批次迴圈中止整批。
-		if ( 429 === $code ) {
-			if ( $attempt < $max_retries ) {
-				$wait_seconds = 15; // 預設值
-				if ( preg_match( '/retry in\s+([\d.]+)s/i', $msg, $m ) ) {
-					$wait_seconds = (float) $m[1];
+				if ( $text === '' ) {
+					$last_error           = new WP_Error( 'gemini_empty', "Key #{$idx} 回傳空白（可能被安全過濾器擋下）" );
+					$all_quota_this_round = false;
+					continue;
 				}
-				// 上限 20 秒，避免把 PHP / AJAX 執行時間拖到逾時
-				$wait_seconds = min( $wait_seconds + 1, 20 );
-				sleep( (int) ceil( $wait_seconds ) );
-				continue; // 重試
+
+				return $text; // 成功，直接回傳
 			}
 
-			return new WP_Error( 'gemini_quota', 'Gemini API 配額已用盡（免費方案通常僅 5 requests/分鐘）：' . $msg );
+			$err = json_decode( $body, true );
+			$msg = isset( $err['error']['message'] ) ? $err['error']['message'] : "HTTP {$code}";
+
+			if ( 429 === $code ) {
+				// 這把 key 配額用完，換下一把繼續試，不 sleep
+				$last_error = new WP_Error( 'gemini_quota_single', "Key #{$idx} 配額用盡：" . $msg );
+				continue; // all_quota_this_round 維持 true
+			}
+
+			// 非配額類錯誤（如 400 參數錯誤、500 伺服器錯誤），沒必要拿其他 key 再試同一筆內容
+			return new WP_Error( 'gemini_error', 'Gemini API 錯誤：' . $msg );
 		}
 
-		return new WP_Error( 'gemini_error', 'Gemini API 錯誤：' . $msg );
+		// 跑完一輪：如果不是「全部都因配額失敗」，就沒必要進第二輪硬撐（例如中間夾雜 empty/網路錯誤）
+		if ( ! $all_quota_this_round ) {
+			break;
+		}
+
+		// 這一輪所有 key 都 429：短暫等待，讓配額有機會恢復，再跑下一輪
+		if ( $round < $max_rounds - 1 ) {
+			sleep( 8 );
+		}
 	}
 
-	return new WP_Error( 'gemini_quota', 'Gemini API 配額已用盡，重試後仍失敗。' );
+	// 所有 key、所有輪次都失敗 → 視為整批配額用盡，交由外層中止批次
+	return new WP_Error(
+		'gemini_quota',
+		'所有 ' . $key_count . ' 把 API Key 皆已達配額上限或失敗：' . ( $last_error ? $last_error->get_error_message() : '未知錯誤' )
+	);
 }
 
 /* ============================================================
@@ -416,17 +486,27 @@ function wxacg_build_editorial_prompt( $d ) {
  * ============================================================ */
 
 function wxacg_ai_editorial_page() {
-	// 儲存 API Key
+	// 儲存 API Key（多把，一行一把）
 	if (
 		isset( $_POST['wxacg_save_apikey'] ) &&
 		check_admin_referer( 'wxacg_ai_editorial_save' )
 	) {
-		update_option( 'wxacg_gemini_api_key', sanitize_text_field( isset( $_POST['wxacg_gemini_api_key'] ) ? $_POST['wxacg_gemini_api_key'] : '' ) );
-		echo '<div class="notice notice-success is-dismissible"><p>✅ API Key 已儲存。</p></div>';
+		$raw  = isset( $_POST['wxacg_gemini_api_keys'] ) ? wp_unslash( $_POST['wxacg_gemini_api_keys'] ) : '';
+		$keys = preg_split( '/[\r\n]+/', $raw );
+		$keys = array_map( 'sanitize_text_field', $keys );
+		$keys = array_map( 'trim', $keys );
+		$keys = array_values( array_unique( array_filter( $keys ) ) );
+
+		update_option( 'wxacg_gemini_api_keys', $keys );
+		// 舊選項不再使用，清空避免混淆
+		delete_option( 'wxacg_gemini_api_key' );
+
+		echo '<div class="notice notice-success is-dismissible"><p>✅ 已儲存 ' . count( $keys ) . ' 把 API Key。</p></div>';
 	}
 
-	$api_key = get_option( 'wxacg_gemini_api_key', '' );
-	$nonce   = wp_create_nonce( 'wxacg_ai_editorial_nonce' );
+	$api_keys  = wxacg_get_gemini_api_keys();
+	$key_count = count( $api_keys );
+	$nonce     = wp_create_nonce( 'wxacg_ai_editorial_nonce' );
 
 	global $wpdb;
 	$total_anime   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='anime' AND post_status='publish'" );
@@ -436,7 +516,7 @@ function wxacg_ai_editorial_page() {
 	<div class="wrap">
 	<h1>✍️ AI 編輯短評批次產生器</h1>
 	<p style="color:#666;">使用 Gemini API，以「台灣動漫資深編輯」口吻批次產生短評，寫入 <code>anime_editorial_note</code>，前端自動渲染。</p>
-	<p style="color:#d63638;">⚠️ 免費方案通常僅 <strong>5 requests/分鐘</strong>，批次量大時建議至 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 幫該專案啟用計費以取得較高配額，否則會頻繁觸發速率限制。</p>
+	<p style="color:#666;">💡 支援設定多把 API Key，批次處理時會自動輪替使用，單把 key 遇到配額限制會自動換下一把，大幅提升批次速度。</p>
 
 	<!-- 統計卡片 -->
 	<div style="display:flex;gap:16px;margin:20px 0;flex-wrap:wrap;">
@@ -445,6 +525,7 @@ function wxacg_ai_editorial_page() {
 			array( 'label' => '動漫總數', 'value' => $total_anime,   'color' => '#2271b1' ),
 			array( 'label' => '已有短評', 'value' => $has_editorial, 'color' => '#00a32a' ),
 			array( 'label' => '待產生',   'value' => $need_gen,      'color' => $need_gen > 0 ? '#d63638' : '#00a32a' ),
+			array( 'label' => 'API Key 數', 'value' => $key_count,   'color' => $key_count > 0 ? '#8250df' : '#d63638' ),
 		);
 		foreach ( $cards as $c ) :
 		?>
@@ -457,30 +538,35 @@ function wxacg_ai_editorial_page() {
 
 	<!-- API Key 設定 -->
 	<div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:24px;margin-bottom:20px;">
-		<h2 style="margin-top:0;">🔑 Gemini API Key 設定</h2>
+		<h2 style="margin-top:0;">🔑 Gemini API Key 設定（可貼多把，一行一把）</h2>
 		<form method="post">
 			<?php wp_nonce_field( 'wxacg_ai_editorial_save' ); ?>
 			<table class="form-table" role="presentation">
 				<tr>
-					<th scope="row">API Key</th>
+					<th scope="row">API Keys</th>
 					<td>
-						<input type="password" name="wxacg_gemini_api_key"
-							   value="<?php echo esc_attr( $api_key ); ?>"
-							   style="width:420px;font-family:monospace;"
-							   placeholder="AIzaSy...">
-						<p class="description">至 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 免費申請。</p>
+						<textarea name="wxacg_gemini_api_keys" rows="7"
+								  style="width:460px;font-family:monospace;"
+								  placeholder="一行一把&#10;AIzaSy...key1&#10;AIzaSy...key2&#10;AIzaSy...key3"><?php echo esc_textarea( implode( "\n", $api_keys ) ); ?></textarea>
+						<p class="description">
+							至 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 免費申請，建議用不同 Google 帳號各申請一把以確保配額獨立。<br>
+							免費方案通常每把 key 約 5 requests/分鐘；目前共 <strong><?php echo (int) $key_count; ?></strong> 把，
+							理論上限約 <strong><?php echo (int) ( $key_count * 5 ); ?></strong> requests/分鐘。
+						</p>
 					</td>
 				</tr>
 			</table>
-			<button type="submit" name="wxacg_save_apikey" class="button button-primary">儲存 API Key</button>
-			<?php if ( $api_key ) : ?>
-			<span style="margin-left:12px;color:#00a32a;">✅ API Key 已設定</span>
+			<button type="submit" name="wxacg_save_apikey" class="button button-primary">儲存 API Keys</button>
+			<?php if ( $key_count > 0 ) : ?>
+			<span style="margin-left:12px;color:#00a32a;">✅ 已設定 <?php echo (int) $key_count; ?> 把 Key</span>
+			<?php else : ?>
+			<span style="margin-left:12px;color:#d63638;">⚠️ 尚未設定任何 Key</span>
 			<?php endif; ?>
 		</form>
 	</div>
 
 	<!-- 批次設定 -->
-	<?php if ( $api_key ) : ?>
+	<?php if ( $key_count > 0 ) : ?>
 	<div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:24px;">
 		<h2 style="margin-top:0;">🚀 批次產生設定</h2>
 
@@ -489,9 +575,22 @@ function wxacg_ai_editorial_page() {
 				<th>每批數量</th>
 				<td>
 					<select id="wxacg-batch-size">
-						<option value="5" selected>5 部（免費方案建議值，約 5 RPM）</option>
-						<option value="10">10 部（若已升級計費方案）</option>
-						<option value="20">20 部（最快，需較高配額）</option>
+						<?php
+						$size_options = array(
+							5  => '5 部',
+							10 => '10 部',
+							20 => '20 部',
+							30 => '30 部',
+							60 => '60 部',
+						);
+						$recommended  = min( 60, max( 5, $key_count * 5 ) );
+						foreach ( $size_options as $val => $label ) :
+							$is_recommended = ( $val === $recommended );
+						?>
+						<option value="<?php echo (int) $val; ?>" <?php selected( $is_recommended ); ?>>
+							<?php echo esc_html( $label ); ?><?php echo $is_recommended ? '（依 ' . (int) $key_count . ' 把 key 建議值）' : ''; ?>
+						</option>
+						<?php endforeach; ?>
 					</select>
 				</td>
 			</tr>
@@ -552,21 +651,23 @@ function wxacg_ai_editorial_page() {
 		var nonce     = '<?php echo esc_js( $nonce ); ?>';
 		var totalAnime = <?php echo (int) $total_anime; ?>;
 
-		// 免費方案冷卻秒數：遇到配額錯誤時，等這麼久再送下一批
+		// 所有 key 都配額用盡時的冷卻秒數；一般狀況下批次間的短暫延遲
 		var RATE_LIMIT_COOLDOWN_MS = 65000;
-		var NORMAL_DELAY_MS        = 800;
+		var NORMAL_DELAY_MS        = 500;
 
 		if ( ! startBtn ) return;
 
-		var running   = false;
-		var offset    = 0;
-		var totalDone = 0;
+		var running    = false;
+		var offset     = 0;
+		var totalDone  = 0;
+		var keyCursor  = 0;
 
 		startBtn.addEventListener('click', function () {
 			if ( running ) return;
-			running   = true;
-			offset    = 0;
-			totalDone = 0;
+			running    = true;
+			offset     = 0;
+			totalDone  = 0;
+			keyCursor  = 0;
 
 			startBtn.style.display = 'none';
 			stopBtn.style.display  = '';
@@ -600,6 +701,7 @@ function wxacg_ai_editorial_page() {
 			fd.append('offset',     offset);
 			fd.append('overwrite',  overwrite);
 			fd.append('sort',       sortOrder);
+			fd.append('key_cursor', keyCursor);
 
 			fetch(ajaxUrl, {
 				method: 'POST',
@@ -634,6 +736,7 @@ function wxacg_ai_editorial_page() {
 				var data = res.data;
 				totalDone += data.processed;
 				offset     = data.next_offset;
+				keyCursor  = data.next_key_cursor;
 
 				data.results.forEach(function (r) {
 					if ( r.status === 'success' ) {
@@ -646,7 +749,7 @@ function wxacg_ai_editorial_page() {
 
 				var pct = totalAnime > 0 ? Math.min( totalDone / totalAnime * 100, 100 ) : 0;
 				progressBar.style.width  = pct + '%';
-				progressText.textContent = '已完成：' + totalDone + ' 部　剩餘：' + data.total_remaining + ' 部　(' + pct.toFixed(1) + '%)';
+				progressText.textContent = '已完成：' + totalDone + ' 部　剩餘：' + data.total_remaining + ' 部　(' + pct.toFixed(1) + '%)　使用 ' + data.key_count + ' 把 key 輪替中';
 
 				if ( data.total_remaining <= 0 ) {
 					addLog( '🎉 全部完成！共產生 ' + totalDone + ' 筆短評。', '#89dceb' );
@@ -660,9 +763,9 @@ function wxacg_ai_editorial_page() {
 				if ( ! running ) return;
 
 				if ( data.rate_limited ) {
-					// 配額用盡：等冷卻時間再送下一批，並倒數提示，而不是立刻重打
+					// 所有 key 都配額用盡：等冷卻時間再送下一批，並倒數提示，而不是立刻重打
 					var remainMs = RATE_LIMIT_COOLDOWN_MS;
-					addLog( '⏳ 已達配額上限，冷卻 ' + Math.round(remainMs/1000) + ' 秒後自動繼續…', '#f9e2af' );
+					addLog( '⏳ 所有 API Key 皆已達配額上限，冷卻 ' + Math.round(remainMs/1000) + ' 秒後自動繼續…', '#f9e2af' );
 					var countdown = setInterval(function () {
 						remainMs -= 1000;
 						if ( ! running ) { clearInterval(countdown); return; }
