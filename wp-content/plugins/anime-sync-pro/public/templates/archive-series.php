@@ -3,7 +3,17 @@
  * Archive Series Template
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/archive-series.php
- * Version: 1.3.1 (漫畫年份修正版)
+ * Version: 1.4.0 (noindex 修正版)
+ *
+ * v1.4.0 (2026-08-12):
+ *   - [修正] get_header() 原本寫在檔案最頂端，早於 $all_posts 資料蒐集
+ *     完成，導致想依內容量決定 noindex 時 wp_head() 早已跑完、來不及
+ *     掛 filter。現在把 get_header() 移到 $all_posts（含 manga fallback）
+ *     計算完成之後、輸出 HTML 之前。
+ *   - [新增] 系列內作品數 <= 1 時（等同該系列頁內容與單一作品頁近乎
+ *     重複），透過 rank_math/frontend/robots filter 動態輸出
+ *     noindex,follow，避免被 Google 判定為近乎重複內容。之後若系列
+ *     內作品數增加到 2 部以上，自動恢復可索引。
  *
  * v1.3.1 變更:
  *   - [Fix] asa_build_post_row() 的 year 判斷新增 start_date fallback。
@@ -22,7 +32,11 @@
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-get_header();
+/* ── [v1.4.0] get_header() 不再放最前面 ──
+ * 原本這裡就呼叫 get_header()，但 noindex 判斷需要先知道
+ * $all_posts 的數量，所以往後移到資料蒐集完成之後。
+ * 中間所有邏輯都不依賴 header 是否已輸出，搬移是安全的。
+ */
 
 /* ── 系列 Term 資訊 ──────────────────────────────────────── */
 $series_term     = get_queried_object();
@@ -139,6 +153,27 @@ if ( ! empty( $anime_ids_in_list ) ) {
         $all_posts[] = asa_build_post_row( (int) $mpid );
     }
 }
+
+/* ── [v1.4.0] 單一作品系列 → noindex,follow ──
+ * $all_posts 到這裡已經是最終數量（含 manga fallback）。
+ * 系列內只有 0～1 部作品時，這個系列頁除了 Tab／統計框架外，
+ * 呈現的內容跟該作品自己的文章頁幾乎完全重複，屬於近乎重複內容。
+ * 用 RankMath 的 filter 動態掛 noindex，而不是自己印 <meta>，
+ * 避免跟 RankMath 本身輸出的 robots meta 衝突。
+ * 未來系列擴充到 2 部以上作品，$all_posts 數量增加，
+ * 此區塊不再觸發，頁面自動恢復可索引。
+ */
+$asa_series_is_thin = ( count( $all_posts ) <= 1 );
+if ( $asa_series_is_thin ) {
+    add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+        return $robots;
+    } );
+}
+
+get_header();
 
 /* ── Tab 設定（順序、標籤、icon）── */
 $tab_config = [

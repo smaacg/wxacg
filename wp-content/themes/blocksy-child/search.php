@@ -3,6 +3,14 @@
  * Search Results — 微笑動漫 weixiaoacg
  *
  * @package weixiaoacg
+ * @version 1.6.0 (2026-08-12)
+ *   - [新增] 內部搜尋結果頁一律透過 rank_math/frontend/robots filter
+ *     輸出 noindex,follow。原因：搜尋結果網址（?s=關鍵字&stype=xxx）
+ *     可依使用者輸入無限產生，屬於 Google Search Console 說明文件
+ *     明確列為「應避免索引」的低價值網址類型，尤其無結果時內容
+ *     幾乎是空樣板文字，風險比一般列表頁更高。
+ *     get_header() 因此從檔案最上面往後移一行，讓 filter
+ *     能在 wp_head() 執行前掛上。
  * @version 1.5.0 (2026-07-24)
  *   - 卡片式列表 + 左側類型色條（動畫紫 / 漫畫橘 / 文章藍）
  *   - 類型標籤精緻化；資料庫（anime/manga）顯示專屬標籤
@@ -16,20 +24,25 @@
  * @version 1.1.0 (2026-06-23)
  *   - 修正無結果區塊舊連結 /season/ → /bangumi/
  */
-get_header();
 
-$search_query = get_search_query();
-$total        = $GLOBALS['wp_query']->found_posts;
-$cur_stype    = isset( $_GET['stype'] ) ? sanitize_key( $_GET['stype'] ) : '';
-
-// ── [Thin Content 防護] 搜尋頁強制 noindex ──
-// 避免惡意爬蟲或不相干關鍵字產生無限網址，導致被視為垃圾農場
+/* ── [v1.6.0] 內部搜尋結果頁一律 noindex,follow ──
+ * 這支模板只在 is_search() 時載入，不需要像角色頁那樣依內容量
+ * 判斷──搜尋結果本質上就是「應避免索引」的頁面類型。
+ * 必須在 get_header()（觸發 wp_head() / RankMath robots 輸出）
+ * 之前註冊，所以往前移到檔案最開頭。
+ */
 add_filter( 'rank_math/frontend/robots', function ( $robots ) {
     $robots['index']  = 'noindex';
     $robots['follow'] = 'follow';
     unset( $robots['noarchive'], $robots['nosnippet'] );
     return $robots;
 } );
+
+get_header();
+
+$search_query = get_search_query();
+$total        = $GLOBALS['wp_query']->found_posts;
+$cur_stype    = isset( $_GET['stype'] ) ? sanitize_key( $_GET['stype'] ) : '';
 ?>
 
 <main class="search-page">
