@@ -4,6 +4,10 @@
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-character.php
  *
  * Changelog:
+ *   1.6.1 (2026-08-12)
+ *     - [新增] 無簡介(character_summary 為空)時，透過 RankMath
+ *              rank_math/frontend/robots filter 動態輸出 noindex,follow，
+ *              避免大量純資料卡片頁被 Google 判定為 Thin Content。
  *   1.6.0 (2026-07-29)
  *     - [新增] 基本資料加身高、體重;新增星座(由 birthday 推算,不進 DB)。
  *     - [新增] 「BGM 資料」通用展開區塊:把 repository 回傳的 infobox
@@ -252,6 +256,24 @@ if ( ! function_exists( 'asa_get_character_comment_post_id' ) ) {
 }
 
 $character_comment_post_id = asa_get_character_comment_post_id( $character );
+
+/* ── [v1.6.1] 無簡介時透過 RankMath filter 動態 noindex,follow ──
+ * 角色頁若沒有原創簡介文字，只剩「名字 + 圖 + 作品列表」，屬於資料
+ * 卡片型頁面，Google 會視為機器生成的薄內容。這裡不直接印
+ * <meta name="robots">，而是掛 RankMath 的 rank_math/frontend/robots
+ * filter，避免和 RankMath 自己輸出的 robots meta 重複衝突。
+ * 未來該角色補上簡介後，$character_summary 不再是空字串，
+ * 此區塊就不會觸發，頁面自動恢復可索引。
+ */
+$asa_has_real_content = ( $character_summary !== '' );
+if ( ! $asa_has_real_content ) {
+    add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+        return $robots;
+    } );
+}
 
 get_header();
 ?>
