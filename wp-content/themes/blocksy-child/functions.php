@@ -2,9 +2,13 @@
 /**
  * 微笑動漫 Child Theme — functions.php
  *
- * @version 2.28.4 (2026-08-12)
+ * @version 2.28.5 (2026-08-12)
  *
  * Changelog:
+ *  2.28.5
+ *   - P0-A：文章數少於 3 篇的標籤及製作公司分類頁設為 noindex, follow。
+ *   - 同步從 Rank Math XML Sitemap 排除低文章數分類頁。
+ *
  *  2.28.4
  *   - 關閉 Rank Math Frontend Stats Bar。
  *   - 修正 ACF Closure 使用 __FUNCTION__ 無法解除 Hook。
@@ -28,7 +32,7 @@ defined( 'ABSPATH' ) || exit;
  * ============================================================ */
 
 if ( ! defined( 'weixiaoacg_VERSION' ) ) {
-	define( 'weixiaoacg_VERSION', '2.28.4' );
+	define( 'weixiaoacg_VERSION', '2.28.5' );
 }
 
 if ( ! defined( 'weixiaoacg_THEME_URL' ) ) {
@@ -587,23 +591,66 @@ function wxacg_is_anime_adsense_eligible( int $post_id ): bool {
  * Taxonomy Thin 判斷
  * ============================================================ */
 
+/**
+ * 需要執行低文章數 noindex 的 Taxonomy。
+ *
+ * post_tag：WordPress 文章標籤。
+ * anime_studio：製作公司 Taxonomy。
+ *
+ * @return string[]
+ */
+function wxacg_get_thin_term_taxonomies(): array {
+	$taxonomies = [
+		'post_tag',
+		'anime_studio',
+	];
+
+	$taxonomies = (array) apply_filters(
+		'wxacg/thin_term_taxonomies',
+		$taxonomies
+	);
+
+	return array_values(
+		array_filter(
+			array_unique(
+				array_map(
+					'sanitize_key',
+					$taxonomies
+				)
+			)
+		)
+	);
+}
+
+/**
+ * 取得分類頁最低收錄文章數。
+ */
+function wxacg_get_term_index_minimum_count(): int {
+	return max(
+		1,
+		(int) apply_filters(
+			'wxacg/term_index_minimum_count',
+			3
+		)
+	);
+}
+
+/**
+ * 判斷標籤／製作公司分類頁是否低於收錄門檻。
+ */
 function wxacg_is_thin_term( WP_Term $term ): bool {
-	if ( is_wp_error( $term ) ) {
-		return true;
+	if (
+		! in_array(
+			$term->taxonomy,
+			wxacg_get_thin_term_taxonomies(),
+			true
+		)
+	) {
+		return false;
 	}
 
-	$count       = (int) $term->count;
-	$description = wxacg_plain_text( $term->description );
-	$desc_length = wxacg_text_length( $description );
-
-	/*
-	 * post_tag 數量龐大，採較嚴格規則。
-	 */
-	if ( 'post_tag' === $term->taxonomy ) {
-		return $count < 3 || $desc_length < 80;
-	}
-
-	return $count < 3 && $desc_length < 80;
+	return (int) $term->count <
+		wxacg_get_term_index_minimum_count();
 }
 
 /* ============================================================
@@ -721,7 +768,6 @@ add_filter(
 
 /*
  * Taxonomy Sitemap 排除。
- * Rank Math 官方 entry filter：
  * $type 可為 user、post、term。
  */
 function wxacg_rank_math_filter_sitemap_entry(
@@ -807,12 +853,6 @@ function wxacg_can_load_adsense(): bool {
 	}
 
 	if ( wxacg_is_virtual_entity_page() ) {
-		/*
-		 * Template 必須在 get_header() 前設定：
-		 * $GLOBALS['asa_page_is_thin'] = true/false;
-		 *
-		 * 缺少旗標時採保守策略，不顯示廣告。
-		 */
 		if ( ! array_key_exists( 'asa_page_is_thin', $GLOBALS ) ) {
 			return false;
 		}
@@ -1006,7 +1046,6 @@ add_action(
 	'template_redirect',
 	'wxacg_legacy_random_anime_redirect'
 );
-
 /* ============================================================
  * 熱門標籤
  * ============================================================ */
@@ -1255,10 +1294,12 @@ function smacg_push_email_verify_notification( int $user_id ): void {
 }
 
 function smacg_schedule_verify_notification( int $user_id ): void {
-	if ( ! wp_next_scheduled(
-		'smacg_delayed_verify_notif',
-		[ $user_id ]
-	) ) {
+	if (
+		! wp_next_scheduled(
+			'smacg_delayed_verify_notif',
+			[ $user_id ]
+		)
+	) {
 		wp_schedule_single_event(
 			time() + 2,
 			'smacg_delayed_verify_notif',
