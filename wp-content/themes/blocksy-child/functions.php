@@ -1038,7 +1038,7 @@ function smacg_ajax_search_blob_clause( $search, $wp_query ) {
 }
 
 /* ------------------------------------------------------------
- * 後台一次性回填：外觀 → 「回填搜尋索引」
+ * 后台一次性回填：外觀 → 「回填搜尋索引」
  * 把現有 anime + manga 全部重建 blob。跑一次即可。
  * ------------------------------------------------------------ */
 add_action( 'admin_menu', function () {
@@ -1173,24 +1173,48 @@ add_action( 'wp', function () {
 }, 1 );
 
 /* ============================================================
- * v2.28.0：AdSense「缺乏價值的內容」複查修正
+ * v2.28.1：AdSense 廣告腳本條件載入（完整角色 + 人物頁防護版）
  * ------------------------------------------------------------
- * 原本的 AdSense 主腳本(wp_head)是全站無條件載入，
- * 就算是被判定為 thin content 的 anime 頁面也照樣載入廣告腳本、
- * 有機會顯示廣告——這正是 AdSense 審查「缺乏價值的內容」
- * 最直接的違規來源，跟 noindex／sitemap 排除是兩件事，
- * noindex 只影響 SEO 收錄，不影響審查員/爬蟲實際看到的廣告曝光。
- *
- * 這裡沿用既有的 wxacg_is_thin_anime_page()（v2.27.0）判斷標準，
- * thin 頁面不載入 adsbygoogle.js，維持審查標準一致。
+ * v2.28.0 只檢查 is_singular('anime')，漏掉了角色頁（asa_character_id）
+ * 與聲優/製作人員頁（asa_person_id）——這兩種頁面不是真正的 post_type，
+ * is_singular() 對它們永遠 false，即使已加 noindex，廣告腳本仍照常載入。
+ * v2.28.1 補上這兩個 query var 的無簡介判斷，與 noindex 機制保持一致。
  * ============================================================ */
 add_action('wp_head', function() {
 
+    // 動畫單頁：thin content 不載入廣告腳本
     if ( is_singular( 'anime' ) && function_exists( 'wxacg_is_thin_anime_page' ) ) {
         $post_id = get_queried_object_id();
-
         if ( $post_id && wxacg_is_thin_anime_page( (int) $post_id ) ) {
-            return; // thin content 頁面不載入廣告腳本
+            return;
+        }
+    }
+
+    // 角色頁 /character/{id}/：無簡介就不載廣告
+    $char_id = (int) get_query_var( 'asa_character_id' );
+    if ( $char_id > 0 && class_exists( 'Anime_Sync_Entity_Repository' ) ) {
+        $repo      = new Anime_Sync_Entity_Repository();
+        $character = $repo->get_character( $char_id );
+        if ( $character ) {
+            $summary = isset( $character['summary'] )
+                ? trim( wp_strip_all_tags( str_replace( [ '[mask]', '[/mask]' ], '', (string) $character['summary'] ) ) )
+                : '';
+            if ( $summary === '' ) {
+                return; // thin content 角色頁不載廣告
+            }
+        }
+    }
+
+    // 聲優/製作人員頁 /person/{id}/：無簡介就不載廣告
+    $person_id = (int) get_query_var( 'asa_person_id' );
+    if ( $person_id > 0 && class_exists( 'Anime_Sync_Entity_Repository' ) ) {
+        $repo   = new Anime_Sync_Entity_Repository();
+        $person = $repo->get_person( $person_id );
+        if ( $person ) {
+            $summary = isset( $person['summary'] ) ? trim( wp_strip_all_tags( (string) $person['summary'] ) ) : '';
+            if ( $summary === '' ) {
+                return; // thin content 人物頁不載廣告
+            }
         }
     }
 
@@ -1639,11 +1663,14 @@ add_filter( 'rank_math/frontend/robots', function ( $robots ) {
 /**
  * 2. 取得目前所有 thin 的 anime 文章 ID（12 小時聚合快取）
  *
- * [優化 v2.27.1]
- *   - 新增 comment_count => 0：有留言的動畫直接在 SQL 層面排除，
- *     大幅減少後續迴圈需要檢查的筆數。
- *   - 新增 _prime_post_caches()：批次將所有待查 ID 的 Post Object
- *     與 Post Meta 一次性載入 WordPress 物件快取，避免 N+1 查詢。
+ * [v2.28.1 修正] comment_count 不是 WP_Query 可過濾參數，
+ *   原 get_posts() 的 'comment_count' => 0 對 SQL 完全無效，
+ *   查詢結果仍是全部已發布 anime，迴圈沒有真正省到。
+ *   改用 $wpdb->get_col() 直查 wp_posts.comment_count 欄位，
+ *   才能正確在 SQL 層排除有留言的動畫，大幅減少迴圈筆數。
+ *
+ * [保留 v2.27.1] _prime_post_caches()：批次預載 Post Object + Post Meta，
+ *   避免迴圈內 N+1 查詢。
  */
 function wxacg_get_thin_anime_ids(): array {
 
@@ -1652,26 +1679,26 @@ function wxacg_get_thin_anime_ids(): array {
         return $cached;
     }
 
-    // [優化 1] 只撈留言數為 0 的動畫，有留言代表不可能是 thin content，直接從 SQL 層過濾
-    $anime_ids = get_posts( [
-        'post_type'        => 'anime',
-        'post_status'      => 'publish',
-        'posts_per_page'   => -1,
-        'fields'           => 'ids',
-        'no_found_rows'    => true,
-        'suppress_filters' => true,
-        'comment_count'    => 0,
-    ] );
+    global $wpdb;
+
+    // [v2.28.1 修正] 直查 wp_posts.comment_count，正確在 SQL 層排除有留言的動畫
+    $anime_ids = $wpdb->get_col(
+        "SELECT ID FROM {$wpdb->posts}
+         WHERE post_type = 'anime'
+           AND post_status = 'publish'
+           AND comment_count = 0"
+    );
 
     $thin_ids = [];
 
     if ( ! empty( $anime_ids ) ) {
-        // [優化 2] 批次預載 Post Object + Post Meta，避免迴圈內每次 get_post_meta() 各自打 SQL
+        // 批次預載 Post Object + Post Meta，避免迴圈內每次 get_post_meta() 各自打 SQL
+        $anime_ids = array_map( 'intval', $anime_ids );
         _prime_post_caches( $anime_ids, false, true );
 
         foreach ( $anime_ids as $anime_id ) {
             if ( wxacg_is_thin_anime_page( (int) $anime_id ) ) {
-                $thin_ids[] = (int) $anime_id;
+                $thin_ids[] = $anime_id;
             }
         }
     }
