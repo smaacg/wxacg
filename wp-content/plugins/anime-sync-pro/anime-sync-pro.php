@@ -88,6 +88,11 @@ if ( file_exists( $anime_sync_seo_auto_file ) ) {
 	require_once $anime_sync_seo_auto_file;
 }
 
+/* ============================================================
+ * 1.2. AI 編輯短評批次產生工具
+ * ============================================================ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/ai-editorial-tool.php';
+
 if ( ! defined( 'ANIME_SYNC_PRO_CPTS' ) ) {
 	define( 'ANIME_SYNC_PRO_CPTS', 'anime,manga,novel,game,music' );
 }

@@ -145,7 +145,6 @@ foreach (
 		'image-optimizer',
 		'ajax-news-filter',
 		'search-hot',
-		'ai-editorial-tool', // AI 編輯短評批次產生器（後台專用）
 	] as $wxacg_optional_file
 ) {
 	$wxacg_path = $wxacg_inc_dir . $wxacg_optional_file . '.php';

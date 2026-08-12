@@ -2,7 +2,7 @@
 /**
  * 微笑動漫 — AI 編輯短評批次產生工具
  *
- * Path: wp-content/themes/blocksy-child/inc/ai-editorial-tool.php
+ * Path: wp-content/plugins/anime-sync-pro/includes/ai-editorial-tool.php
  *
  * @version 1.4.0 (2026-08-13)
  *
@@ -36,14 +36,15 @@ defined( 'ABSPATH' ) || exit;
  * ============================================================ */
 
 add_action( 'admin_menu', function () {
-	add_theme_page(
+	add_submenu_page(
+		'anime-sync-pro',
 		'AI 編輯短評產生器',
 		'✍️ AI 短評產生',
 		'manage_options',
 		'wxacg-ai-editorial',
 		'wxacg_ai_editorial_page'
 	);
-} );
+}, 11 );
 
 /* ============================================================
  * 共用：取得已設定的 API Key 陣列
