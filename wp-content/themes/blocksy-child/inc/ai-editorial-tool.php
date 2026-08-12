@@ -220,7 +220,14 @@ function wxacg_gather_anime_data_for_editorial( int $post_id ): array {
  * 呼叫 Gemini API
  * ============================================================ */
 
-function wxacg_call_gemini_editorial( string $api_key, array $data ): string|WP_Error {
+/**
+ * 呼叫 Gemini API 產生編輯短評。
+ *
+ * @param string $api_key Gemini API Key。
+ * @param array  $data    由 wxacg_gather_anime_data_for_editorial() 回傳的作品資料。
+ * @return string|WP_Error 成功回傳短評字串；失敗回傳 WP_Error。
+ */
+function wxacg_call_gemini_editorial( string $api_key, array $data ) {
 	$prompt = wxacg_build_editorial_prompt( $data );
 
 	$response = wp_remote_post(
