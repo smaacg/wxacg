@@ -3,9 +3,19 @@
  * Tag Archive Template
  *
  * Path: wp-content/themes/blocksy-child/tag.php
- * @version 1.0.0 (2026-05-26)
+ * @version 2.0.0 (2026-08-12)
  *
- * 設計依據 category.php v2.0.0，但簡化為標籤檔案：
+ * v2.0.0 變更（AdSense「缺乏價值的內容」複查修正）：
+ *   1. 提前執行主查詢，取得 found_posts 後才輸出 <head>，
+ *      藉此對「稀薄標籤頁」與「分頁 2 頁以後」加上 noindex,follow。
+ *   2. 空標籤頁（0 篇）不再輸出跟有內容頁一樣的完整殼版，
+ *      改為明確的「尚無內容」友善頁 + noindex，避免被視為空洞頁面。
+ *   3. hero_subtitle 不再是固定死文案，改用該標籤實際資料
+ *      （文章/動畫篇數、最新更新時間）動態組出，降低跨標籤頁重複文字比例。
+ *   4. 加上 self-canonical，避免分頁 / thin 變體與正規標籤網址互相competing。
+ *   5. THIN_TAG_THRESHOLD / NOINDEX_ALL_PAGED 常數集中在檔案頂端，方便依站務策略調整。
+ *
+ * 設計依據 category.php，但簡化為標籤檔案：
  *   - 不需要 channel/category 互切的 filter tabs
  *   - 自動撈所有「掛 post_tag」的 public CPT（含 post + anime + 未來 manga/novel/game/music）
  *   - 共用 template-parts/news-list.php，視覺一致
@@ -17,20 +27,21 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-get_header();
+// ── 站務策略設定 ──────────────────────────────────────────
+// 少於這個篇數的標籤頁視為「稀薄」，加上 noindex,follow（頁面仍可瀏覽，只是不建議被收錄）。
+if ( ! defined( 'TAG_THIN_THRESHOLD' ) ) {
+    define( 'TAG_THIN_THRESHOLD', 3 );
+}
+// true = 所有分頁第 2 頁以後一律 noindex（業界常見作法，避免大量近重複分頁頁面稀釋權重）。
+if ( ! defined( 'TAG_NOINDEX_PAGED' ) ) {
+    define( 'TAG_NOINDEX_PAGED', true );
+}
 
 // ── 取得目前 tag ──
 $queried      = get_queried_object();
 $current_tag  = ( $queried instanceof WP_Term ) ? $queried : null;
 
-$hero_title    = $current_tag ? '#' . $current_tag->name : '所有標籤';
-$hero_subtitle = $current_tag && $current_tag->description
-    ? $current_tag->description
-    : '所有掛有此標籤的文章與動畫';
-$hero_badge    = $current_tag ? $current_tag->name : '標籤';
-
 // ── 動態抓所有「掛 post_tag」且 public 的 CPT ──
-// 避免寫死，未來 anime-sync-pro 開放 manga/novel/game/music 時自動納入
 $tag_post_types = get_post_types( [ 'public' => true ], 'names' );
 $tag_post_types = array_values( array_filter( $tag_post_types, function( $t ) {
     return in_array( 'post_tag', get_object_taxonomies( $t ), true );
@@ -49,9 +60,7 @@ if ( $current_tag ) {
     ];
 }
 
-// ── 改寫主迴圈：包含 anime 等 CPT ──
-// 注意：functions.php 的 pre_get_posts 已經處理過 is_tag()，
-// 但這裡再 override 一次 $wp_query 比較保險。
+// ── 提前執行主查詢（在 get_header() 之前），才能在 <head> 輸出前就知道 found_posts ──
 global $wp_query;
 $paged = max( 1, get_query_var( 'paged' ) );
 $wp_query = new WP_Query( [
@@ -63,34 +72,63 @@ $wp_query = new WP_Query( [
     'tax_query'           => $archive_tax_query,
 ] );
 
-// ── 輪播：本標籤最新 5 篇（混合所有 CPT） ──
-$carousel_query = new WP_Query( [
-    'post_type'           => $tag_post_types,
-    'posts_per_page'      => 5,
-    'post_status'         => 'publish',
-    'ignore_sticky_posts' => true,
-    'tax_query'           => $archive_tax_query,
-] );
+$found_posts = (int) $wp_query->found_posts;
+$is_empty    = ( $found_posts === 0 );
+$is_thin     = ( $found_posts > 0 && $found_posts < TAG_THIN_THRESHOLD );
+$is_paged    = ( $paged > 1 );
 
-// ── 熱門：本標籤留言數最多 5 篇 ──
-$popular_query = new WP_Query( [
-    'post_type'           => $tag_post_types,
-    'posts_per_page'      => 5,
-    'post_status'         => 'publish',
-    'ignore_sticky_posts' => true,
-    'orderby'             => 'comment_count',
-    'order'               => 'DESC',
-    'tax_query'           => $archive_tax_query,
-] );
+// ── Robots 訊號：稀薄 / 空白 / 分頁一律 noindex,follow ──
+// （follow 讓 Googlebot 仍可順著連結探索到你真正有價值的單篇內容）
+add_filter( 'wp_robots', function ( $robots ) use ( $is_empty, $is_thin, $is_paged ) {
+    if ( $is_empty || $is_thin || ( TAG_NOINDEX_PAGED && $is_paged ) ) {
+        $robots['noindex'] = true;
+        $robots['follow']  = true;
+    }
+    return $robots;
+} );
 
-// ── 熱門標籤（全站，排除目前這個） ──
-$popular_tags = get_tags( [
-    'orderby'    => 'count',
-    'order'      => 'DESC',
-    'number'     => 15,
-    'hide_empty' => true,
-    'exclude'    => $current_tag ? [ $current_tag->term_id ] : [],
-] );
+// ── Self-canonical：避免分頁 / thin 變體與正規標籤網址互相競爭 ──
+add_filter( 'get_canonical_url', function ( $canonical_url ) use ( $current_tag ) {
+    if ( $current_tag instanceof WP_Term ) {
+        return get_tag_link( $current_tag->term_id );
+    }
+    return $canonical_url;
+} );
+
+// ── hero 文案：優先使用管理員手動填寫的標籤描述（真正獨特內容）；
+//    沒有的話，改用「該標籤實際資料」動態組字，而不是固定死文案，
+//    降低跨標籤頁的重複文字比例 ──
+$hero_title = $current_tag ? '#' . $current_tag->name : '所有標籤';
+$hero_badge = $current_tag ? $current_tag->name : '標籤';
+
+if ( $current_tag && $current_tag->description ) {
+    $hero_subtitle = $current_tag->description;
+} elseif ( $is_empty ) {
+    $hero_subtitle = '目前還沒有內容掛上這個標籤，你可以先看看其他熱門標籤。';
+} else {
+    // 統計本標籤內各 post_type 的篇數，組出「3 篇文章、2 部動畫」這種真實資料句子
+    $type_counts = [];
+    foreach ( $tag_post_types as $pt ) {
+        $c = new WP_Query( [
+            'post_type'           => $pt,
+            'post_status'         => 'publish',
+            'posts_per_page'      => 1,
+            'fields'               => 'ids',
+            'ignore_sticky_posts' => true,
+            'tax_query'           => $archive_tax_query,
+        ] );
+        if ( $c->found_posts > 0 ) {
+            $label = ( $pt === 'anime' ) ? '部動畫' : ( ( $pt === 'post' ) ? '篇文章' : $pt );
+            $type_counts[] = $c->found_posts . ' ' . $label;
+        }
+        wp_reset_postdata();
+    }
+    $hero_subtitle = $type_counts
+        ? '目前共有 ' . implode( '、', $type_counts ) . ' 掛有此標籤'
+        : '所有掛有此標籤的文章與動畫';
+}
+
+get_header();
 ?>
 
 <!-- 共用 category 頁同一份 CSS / Swiper -->
@@ -110,6 +148,76 @@ $popular_tags = get_tags( [
 
 <!-- ===== MAIN ===== -->
 <main class="container" style="padding: 32px 0 64px;">
+
+<?php if ( $is_empty ) : ?>
+
+  <!-- ── 空標籤頁：明確的友善頁面，而非跟有內容頁一樣的完整殼版 ── -->
+  <div class="news-layout">
+    <div class="news-main-grid" style="text-align:center; padding: 48px 24px;">
+      <p style="font-size:16px; color:rgba(255,255,255,.75); margin-bottom:24px;">
+        這個標籤底下目前還沒有任何文章或動畫，之後有新內容上架會自動出現在這裡。
+      </p>
+      <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="btn btn-primary">回到首頁看看其他內容</a>
+    </div>
+
+    <aside class="news-sidebar">
+      <?php
+      $popular_tags_empty = get_tags( [
+          'orderby'    => 'count',
+          'order'      => 'DESC',
+          'number'     => 15,
+          'hide_empty' => true,
+          'exclude'    => $current_tag ? [ $current_tag->term_id ] : [],
+      ] );
+      if ( ! empty( $popular_tags_empty ) ) : ?>
+      <div class="sidebar-widget glass">
+        <div class="sidebar-widget-title">
+          <i class="fa-solid fa-tags" style="color:var(--accent-blue);"></i> 熱門標籤
+        </div>
+        <div class="tag-cloud">
+          <?php foreach ( $popular_tags_empty as $tag ) : ?>
+          <a href="<?php echo esc_url( get_tag_link( $tag->term_id ) ); ?>" class="tag-pill">
+            #<?php echo esc_html( $tag->name ); ?>
+          </a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+    </aside>
+  </div>
+
+<?php else : ?>
+
+  <?php
+  // ── 輪播：本標籤最新 5 篇（混合所有 CPT） ──
+  $carousel_query = new WP_Query( [
+      'post_type'           => $tag_post_types,
+      'posts_per_page'      => 5,
+      'post_status'         => 'publish',
+      'ignore_sticky_posts' => true,
+      'tax_query'           => $archive_tax_query,
+  ] );
+
+  // ── 熱門：本標籤留言數最多 5 篇 ──
+  $popular_query = new WP_Query( [
+      'post_type'           => $tag_post_types,
+      'posts_per_page'      => 5,
+      'post_status'         => 'publish',
+      'ignore_sticky_posts' => true,
+      'orderby'             => 'comment_count',
+      'order'               => 'DESC',
+      'tax_query'           => $archive_tax_query,
+  ] );
+
+  // ── 熱門標籤（全站，排除目前這個） ──
+  $popular_tags = get_tags( [
+      'orderby'    => 'count',
+      'order'      => 'DESC',
+      'number'     => 15,
+      'hide_empty' => true,
+      'exclude'    => $current_tag ? [ $current_tag->term_id ] : [],
+  ] );
+  ?>
 
   <!-- ── 海報輪播 ── -->
   <?php if ( $carousel_query->have_posts() ) : ?>
@@ -229,6 +337,9 @@ $popular_tags = get_tags( [
 
     </aside>
   </div>
+
+<?php endif; ?>
+
 </main>
 
 <!-- Swiper JS -->

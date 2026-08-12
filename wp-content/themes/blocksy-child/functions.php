@@ -1,8 +1,14 @@
 <?php
 /**
  * 微笑動漫 Child Theme — functions.php
- * @version 2.27.0 (2026-08-12)
+ * @version 2.28.0 (2026-08-12)
  * Changelog：
+ *   2.28.0 (2026-08-12) AdSense「缺乏價值的內容」複查修正
+ *      - AdSense 主腳本(wp_head)改為條件式載入：
+ *        thin content 的 anime 單頁不再載入 adsbygoogle.js，
+ *        避免空洞頁面出現廣告曝光機會
+ *      - 沿用既有 wxacg_is_thin_anime_page() 判斷邏輯，
+ *        與 noindex / sitemap 排除機制保持一致標準
  *   2.27.0 (2026-08-12) 動畫百科 Thin Content 判斷 + noindex + Sitemap 排除
  *      - 新增 wxacg_is_thin_anime_page()：判斷單一 anime 文章是否
  *        缺乏簡介／評分／留言／關聯原創文章
@@ -34,7 +40,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 
-define( 'weixiaoacg_VERSION',   '2.27.0' );
+define( 'weixiaoacg_VERSION',   '2.28.0' );
 define( 'weixiaoacg_THEME_URL', get_stylesheet_directory_uri() );
 define( 'weixiaoacg_THEME_DIR', get_stylesheet_directory() );
 
@@ -1166,7 +1172,32 @@ add_action( 'wp', function () {
     $wp_query->queried_object_id = $cpost->ID;
 }, 1 );
 
-// AdBlock 偵測
+/* ============================================================
+ * v2.28.0：AdSense「缺乏價值的內容」複查修正
+ * ------------------------------------------------------------
+ * 原本的 AdSense 主腳本(wp_head)是全站無條件載入，
+ * 就算是被判定為 thin content 的 anime 頁面也照樣載入廣告腳本、
+ * 有機會顯示廣告——這正是 AdSense 審查「缺乏價值的內容」
+ * 最直接的違規來源，跟 noindex／sitemap 排除是兩件事，
+ * noindex 只影響 SEO 收錄，不影響審查員/爬蟲實際看到的廣告曝光。
+ *
+ * 這裡沿用既有的 wxacg_is_thin_anime_page()（v2.27.0）判斷標準，
+ * thin 頁面不載入 adsbygoogle.js，維持審查標準一致。
+ * ============================================================ */
+add_action('wp_head', function() {
+
+    if ( is_singular( 'anime' ) && function_exists( 'wxacg_is_thin_anime_page' ) ) {
+        $post_id = get_queried_object_id();
+
+        if ( $post_id && wxacg_is_thin_anime_page( (int) $post_id ) ) {
+            return; // thin content 頁面不載入廣告腳本
+        }
+    }
+
+    echo '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3709514691049766" crossorigin="anonymous"></script>' . "\n";
+}, 5);
+
+// AdSense 廣告碼（貼入 <head>）
 add_action('wp_footer', function() {
     $adcheck_url = content_url('uploads/adcheck/adsbygoogle.js');
 ?>
@@ -1346,11 +1377,6 @@ add_action('wp_footer', function() { ?>
 }
 </style>
 <?php }, 99);
-
-// AdSense 廣告碼（貼入 <head>）
-add_action('wp_head', function () {
-    echo '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3709514691049766" crossorigin="anonymous"></script>' . "\n";
-}, 5);
 
 // 允許 Python API 自動寫入 Rank Math SEO 欄位 (加入權限宣告)
 add_action( 'rest_api_init', function() {

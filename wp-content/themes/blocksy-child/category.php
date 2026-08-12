@@ -3,9 +3,19 @@
  * Category / Channel Archive Template
  *
  * Path: wp-content/themes/blocksy-child/category.php
- * @version 2.2.0 (2026-06-21)
+ * @version 2.3.0 (2026-08-12)
  *
  * Changelog:
+ *   2.3.0 (2026-08-12) AdSense「缺乏價值的內容」複查修正：
+ *     - 提前判斷 found_posts，才呼叫 get_header()，藉此在 <head> 輸出前
+ *       對「稀薄分類/頻道組合頁」與「分頁 2 頁以後」加上 noindex,follow。
+ *       分類 × 頻道排列組合（如 /news/anime/、/review/vtuber/）篇數落差很大，
+ *       是這支模板最主要的稀薄內容來源。
+ *     - 分類/頻道組合頁沒有原生 term_link，WP 核心無法自動輸出正確 canonical，
+ *       容易被判定跟母分類頁（如 /news/）重複 → 明確加上 self-canonical。
+ *     - 空結果（0 篇）不再輸出跟正常頁一樣的完整殼版，改為明確的「尚無內容」頁。
+ *     - THIN_THRESHOLD / NOINDEX_PAGED 常數集中在頂端，方便依站務策略調整。
+ *
  *   2.2.0 (2026-06-21) SEO 關鍵字 + 效能強化版：
  *     - H1 / 標題關鍵字化：news→「動漫新聞」、review→「動漫評論」、feature→「動漫專題」
  *     - 新增 channel 組合動態標題：/news/anime/ → H1 自動變「動畫新聞」，
@@ -19,7 +29,15 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-get_header();
+// ── 站務策略設定 ──────────────────────────────────────────
+// 分類/頻道組合頁篇數少於這個數字視為「稀薄」，加上 noindex,follow。
+if ( ! defined( 'CAT_THIN_THRESHOLD' ) ) {
+    define( 'CAT_THIN_THRESHOLD', 3 );
+}
+// true = 所有分頁第 2 頁以後一律 noindex（避免大量近重複分頁頁面稀釋權重）。
+if ( ! defined( 'CAT_NOINDEX_PAGED' ) ) {
+    define( 'CAT_NOINDEX_PAGED', true );
+}
 
 // ── 取得目前 archive 的 term ──
 $queried        = get_queried_object();
@@ -88,6 +106,56 @@ if ( $current_term ) {
     ];
 }
 
+/* ============================================================
+ * 稀薄內容判斷（在 get_header() 之前執行，才能趕上 <head> 輸出）
+ *
+ * 主查詢 $wp_query 在模板被載入前就已由 WP 解析完成（含 channel
+ * query var 的 pre_get_posts 過濾），這裡直接讀 found_posts 即可，
+ * 不需要重新查一次。
+ * ============================================================ */
+global $wp_query;
+$paged       = max( 1, (int) get_query_var( 'paged' ) );
+$found_posts = isset( $wp_query ) ? (int) $wp_query->found_posts : 0;
+$is_empty    = ( $found_posts === 0 );
+$is_thin     = ( $found_posts > 0 && $found_posts < CAT_THIN_THRESHOLD );
+$is_paged    = ( $paged > 1 );
+$is_combo    = ( 'category' === $current_tax && $current_channel !== '' ); // 分類×頻道組合頁
+
+// 組合頁本來就是母分類頁的子集合，篇數再多也跟母頁高度重疊，
+// 稀薄門檻可以比一般分類頁更嚴一點。
+if ( $is_combo && ! $is_empty && $found_posts < CAT_THIN_THRESHOLD ) {
+    $is_thin = true;
+}
+
+// ── Robots 訊號 ──
+add_filter( 'wp_robots', function ( $robots ) use ( $is_empty, $is_thin, $is_paged ) {
+    if ( $is_empty || $is_thin || ( CAT_NOINDEX_PAGED && $is_paged ) ) {
+        $robots['noindex'] = true;
+        $robots['follow']  = true;
+    }
+    return $robots;
+} );
+
+// ── Self-canonical ──
+// 組合頁（/news/anime/）沒有原生 term_link，WP 核心無法自動判斷正確網址，
+// 一定要自己補上，否則容易被當成跟母分類頁 /news/ 重複。
+add_filter( 'get_canonical_url', function ( $canonical_url ) use ( $current_tax, $current_term, $current_channel, $current_slug, $paged ) {
+    if ( 'category' === $current_tax && $current_channel !== '' ) {
+        $url = home_url( '/' . $current_slug . '/' . $current_channel . '/' );
+    } elseif ( $current_term instanceof WP_Term ) {
+        $link = get_term_link( $current_term );
+        $url  = is_wp_error( $link ) ? home_url( '/' ) : $link;
+    } else {
+        return $canonical_url;
+    }
+    if ( $paged > 1 ) {
+        $url = trailingslashit( $url ) . 'page/' . $paged . '/';
+    }
+    return $url;
+} );
+
+get_header();
+
 // ── 輪播：本分類最新 5 篇 ──
 $carousel_query = new WP_Query( [
     'post_type'           => 'post',
@@ -109,7 +177,7 @@ $popular_query = new WP_Query( [
 ] );
 
 // ── 熱門標籤（全站，transient 快取 6 小時） ──
-global $wpdb, $wp_query;
+global $wpdb;
 $popular_tags = get_transient( 'smacg_popular_tags_15' );
 if ( false === $popular_tags ) {
     $popular_tags = $wpdb->get_results( "
@@ -149,7 +217,7 @@ if ( 'category' === $current_tax ) {
  * ItemList JSON-LD
  *
  * 只輸出「本頁主迴圈」的文章清單，幫助搜尋引擎 / AI 理解
- * 這是一個有序的文章列表。
+ * 這是一個有序的文章列表。稀薄/空白頁不輸出，避免對空內容宣告 schema。
  *
  * ★ 不輸出 CollectionPage / BreadcrumbList / WebSite，
  *   那些由 Rank Math 負責，避免 schema 重複。
@@ -157,11 +225,10 @@ if ( 'category' === $current_tax ) {
  *   讓第 2 頁的 position 接續第 1 頁。
  * ============================================================ */
 $itemlist_elements = [];
-if ( isset( $wp_query ) && $wp_query->have_posts() ) {
-    $paged       = max( 1, (int) get_query_var( 'paged' ) );
-    $per_page    = (int) get_query_var( 'posts_per_page' ) ?: get_option( 'posts_per_page' );
-    $base_pos    = ( $paged - 1 ) * $per_page;
-    $pos         = 0;
+if ( ! $is_empty && isset( $wp_query ) && $wp_query->have_posts() ) {
+    $per_page = (int) get_query_var( 'posts_per_page' ) ?: get_option( 'posts_per_page' );
+    $base_pos = ( $paged - 1 ) * $per_page;
+    $pos      = 0;
 
     foreach ( $wp_query->posts as $p ) {
         $pos++;
@@ -208,6 +275,61 @@ if ( isset( $wp_query ) && $wp_query->have_posts() ) {
 
 <!-- ===== MAIN ===== -->
 <main class="container" style="padding: 32px 0 64px;">
+
+<?php if ( $is_empty ) : ?>
+
+  <!-- ── 空結果：明確的友善頁面，而非跟有內容頁一樣的完整殼版 ── -->
+  <?php if ( ! empty( $filter_terms ) ) : ?>
+  <div class="news-filter" id="news-filter-bar"
+       data-base-slug="<?php echo esc_attr( $current_slug ); ?>"
+       data-base-tax="<?php echo esc_attr( $current_tax ); ?>">
+    <a href="<?php echo esc_url( $filter_all_url ); ?>"
+       class="news-filter-btn<?php echo $current_channel === '' ? ' active' : ''; ?>"
+       data-ajax="1" data-target="all">全部</a>
+    <?php foreach ( $filter_terms as $t ) :
+        if ( 'category' === $current_tax ) {
+            $tab_url    = user_trailingslashit( home_url( '/' . $current_slug . '/' . $t->slug . '/' ) );
+            $is_active  = ( $current_channel === $t->slug );
+        } else {
+            $link      = get_term_link( $t );
+            $tab_url   = is_wp_error( $link ) ? home_url( '/' . $t->slug . '/' . $current_slug . '/' ) : $link;
+            $is_active = false;
+        }
+    ?>
+      <a href="<?php echo esc_url( $tab_url ); ?>"
+         class="news-filter-btn<?php echo $is_active ? ' active' : ''; ?>"
+         data-ajax="1" data-target="<?php echo esc_attr( $t->slug ); ?>"><?php echo esc_html( $t->name ); ?></a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <div class="news-layout">
+    <div class="news-main-grid" style="text-align:center; padding: 48px 24px;">
+      <p style="font-size:16px; color:rgba(255,255,255,.75); margin-bottom:24px;">
+        這個分類目前還沒有任何文章，之後有新內容上架會自動出現在這裡。你可以先看看其他頻道或分類。
+      </p>
+      <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="btn btn-primary">回到首頁看看其他內容</a>
+    </div>
+
+    <aside class="news-sidebar">
+      <?php if ( ! empty( $popular_tags ) ) : ?>
+      <div class="sidebar-widget glass">
+        <div class="sidebar-widget-title">
+          <i class="fa-solid fa-tags" style="color:var(--accent-blue);"></i> 熱門標籤
+        </div>
+        <div class="tag-cloud">
+          <?php foreach ( $popular_tags as $tag ) : ?>
+          <a href="<?php echo esc_url( get_tag_link( $tag->term_id ) ); ?>" class="tag-pill">
+            #<?php echo esc_html( $tag->name ); ?>
+          </a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+    </aside>
+  </div>
+
+<?php else : ?>
 
   <!-- ── 海報輪播 ── -->
   <?php if ( $carousel_query->have_posts() ) :
@@ -361,6 +483,9 @@ if ( isset( $wp_query ) && $wp_query->have_posts() ) {
 
     </aside>
   </div>
+
+<?php endif; ?>
+
 </main>
 
 <!-- Swiper JS（加 defer 降低 render-blocking） -->
