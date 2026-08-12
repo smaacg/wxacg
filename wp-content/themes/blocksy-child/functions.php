@@ -1,8 +1,23 @@
 <?php
 /**
  * 微笑動漫 Child Theme — functions.php
- * @version 2.28.0 (2026-08-12)
+ * @version 2.28.3 (2026-08-12)
  * Changelog：
+ *   2.28.3 (2026-08-12) 角色頁/人物頁 thin content 判斷改交給 template
+ *      - single-character.php (v1.6.1) / single-person.php (v1.5.2)
+ *        現在各自在 template 內判斷「有無簡介」並自行掛
+ *        rank_math/frontend/robots 輸出 noindex，與本檔 v2.28.2 曾
+ *        加過的同名判斷重複（兩處各查一次 Repository、各維護一份
+ *        「什麼算 thin」的規則，容易改一邊忘了改另一邊）。
+ *      - 移除本檔重複的 wxacg_is_thin_character_page() /
+ *        wxacg_is_thin_person_page() 與對應 robots filter，noindex
+ *        完全交給 template 負責。
+ *      - AdSense 腳本載入判斷改讀 template 在 get_header() 前寫入的
+ *        $GLOBALS['asa_page_is_thin']，不再自己查一次資料庫。
+ *   2.28.2 (2026-08-12)（已由 v2.28.3 取代，內容改動保留於版本歷史）
+ *      - 曾新增 wxacg_is_thin_character_page() / wxacg_is_thin_person_page()
+ *        與 rank_math/frontend/robots filter，後因 template 端已自行
+ *        處理同一件事而移除，避免邏輯重複。
  *   2.28.0 (2026-08-12) AdSense「缺乏價值的內容」複查修正
  *      - AdSense 主腳本(wp_head)改為條件式載入：
  *        thin content 的 anime 單頁不再載入 adsbygoogle.js，
@@ -40,7 +55,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 
-define( 'weixiaoacg_VERSION',   '2.28.0' );
+define( 'weixiaoacg_VERSION',   '2.28.3' );
 define( 'weixiaoacg_THEME_URL', get_stylesheet_directory_uri() );
 define( 'weixiaoacg_THEME_DIR', get_stylesheet_directory() );
 
@@ -1173,12 +1188,25 @@ add_action( 'wp', function () {
 }, 1 );
 
 /* ============================================================
- * v2.28.1：AdSense 廣告腳本條件載入（完整角色 + 人物頁防護版）
+ * v2.28.3：角色頁 / 人物頁 thin content — 改讀模板已算好的全域旗標
  * ------------------------------------------------------------
- * v2.28.0 只檢查 is_singular('anime')，漏掉了角色頁（asa_character_id）
- * 與聲優/製作人員頁（asa_person_id）——這兩種頁面不是真正的 post_type，
- * is_singular() 對它們永遠 false，即使已加 noindex，廣告腳本仍照常載入。
- * v2.28.1 補上這兩個 query var 的無簡介判斷，與 noindex 機制保持一致。
+ * single-character.php (v1.6.1) / single-person.php (v1.5.2) 現在
+ * 已經各自在自己的 template 內用 Anime_Sync_Entity_Repository 算過
+ * 一次「有沒有簡介」，並且自己掛了 rank_math/frontend/robots 輸出
+ * noindex；那份判斷本檔不再重複，避免兩處各自維護同一條規則、以後
+ * 改一邊忘了改另一邊。
+ *
+ * 兩支 template 都會在呼叫 get_header()（也就是 wp_head 觸發）之前，
+ * 把「是否為 thin」寫進 $GLOBALS['asa_page_is_thin']：
+ *     if ( ! $asa_has_real_content ) {
+ *         $GLOBALS['asa_page_is_thin'] = true;
+ *         add_filter( 'rank_math/frontend/robots', ... );
+ *     }
+ * 廣告腳本判斷只要讀這個旗標即可，不需要再讓
+ * Anime_Sync_Entity_Repository 在同一次請求裡被多查一次。
+ *
+ * 若日後模板改版、忘記設旗標，這裡的 fallback（找不到旗標時視為
+ * 「非 thin」）維持廣告照常顯示，不會誤擋，之後再依實際情況調整。
  * ============================================================ */
 add_action('wp_head', function() {
 
@@ -1190,32 +1218,9 @@ add_action('wp_head', function() {
         }
     }
 
-    // 角色頁 /character/{id}/：無簡介就不載廣告
-    $char_id = (int) get_query_var( 'asa_character_id' );
-    if ( $char_id > 0 && class_exists( 'Anime_Sync_Entity_Repository' ) ) {
-        $repo      = new Anime_Sync_Entity_Repository();
-        $character = $repo->get_character( $char_id );
-        if ( $character ) {
-            $summary = isset( $character['summary'] )
-                ? trim( wp_strip_all_tags( str_replace( [ '[mask]', '[/mask]' ], '', (string) $character['summary'] ) ) )
-                : '';
-            if ( $summary === '' ) {
-                return; // thin content 角色頁不載廣告
-            }
-        }
-    }
-
-    // 聲優/製作人員頁 /person/{id}/：無簡介就不載廣告
-    $person_id = (int) get_query_var( 'asa_person_id' );
-    if ( $person_id > 0 && class_exists( 'Anime_Sync_Entity_Repository' ) ) {
-        $repo   = new Anime_Sync_Entity_Repository();
-        $person = $repo->get_person( $person_id );
-        if ( $person ) {
-            $summary = isset( $person['summary'] ) ? trim( wp_strip_all_tags( (string) $person['summary'] ) ) : '';
-            if ( $summary === '' ) {
-                return; // thin content 人物頁不載廣告
-            }
-        }
+    // 角色頁 / 人物頁：讀 template 已算好的旗標，thin 就不載廣告
+    if ( ! empty( $GLOBALS['asa_page_is_thin'] ) ) {
+        return;
     }
 
     echo '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3709514691049766" crossorigin="anonymous"></script>' . "\n";
@@ -1729,6 +1734,12 @@ add_action( 'save_post_anime',    'wxacg_clear_thin_anime_cache' );
 add_action( 'save_post_post',     'wxacg_clear_thin_anime_cache' ); // 影評/前導文章掛關聯時
 /* ============================================================
  * v2.28.0：全域 SEO 防護網 (Global SEO Shield) - AdSense Thin Content 對策
+ * ------------------------------------------------------------
+ * 注意：is_tax() 本身就會涵蓋自訂 taxonomy（例如 anime_studio_tax），
+ * 不需要額外針對特定 taxonomy 再掛一次判斷。
+ * 目前規則：文章數 < 3 「且」該分類描述為空，才視為 thin。
+ * 若製作公司頁常常有填一兩句描述但文章數仍很少，這條件會漏掉——
+ * 屆時請確認是否要拿掉「且無描述」，改成單純「數量 < 3 就 noindex」。
  * ============================================================ */
 add_filter( 'rank_math/frontend/robots', function ( $robots ) {
     // 1. 全域分頁 (第2頁以後) 一律 noindex, follow
@@ -1756,4 +1767,3 @@ add_filter( 'rank_math/frontend/robots', function ( $robots ) {
 
     return $robots;
 }, 20 );
-

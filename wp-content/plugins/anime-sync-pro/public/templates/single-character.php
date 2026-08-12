@@ -4,6 +4,10 @@
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-character.php
  *
  * Changelog:
+ *   1.6.2 (2026-08-12)
+ *     - [新增] 判定為 thin content 時，寫入 $GLOBALS['asa_page_is_thin']，
+ *              讓 child theme functions.php 的 AdSense 腳本載入判斷
+ *              直接讀這個旗標，不用再自己查一次 Anime_Sync_Entity_Repository。
  *   1.6.1 (2026-08-12)
  *     - [新增] 無簡介(character_summary 為空)時，透過 RankMath
  *              rank_math/frontend/robots filter 動態輸出 noindex,follow，
@@ -264,9 +268,15 @@ $character_comment_post_id = asa_get_character_comment_post_id( $character );
  * filter，避免和 RankMath 自己輸出的 robots meta 重複衝突。
  * 未來該角色補上簡介後，$character_summary 不再是空字串，
  * 此區塊就不會觸發，頁面自動恢復可索引。
+ *
+ * [v1.6.2] 同時把判斷結果寫進 $GLOBALS['asa_page_is_thin']，
+ * 讓 child theme functions.php 的 AdSense 腳本載入判斷（掛在
+ * wp_head，執行時機晚於這裡）可以直接讀這個旗標，不用再自己
+ * 呼叫一次 Anime_Sync_Entity_Repository 查詢同一筆角色資料。
  */
 $asa_has_real_content = ( $character_summary !== '' );
 if ( ! $asa_has_real_content ) {
+    $GLOBALS['asa_page_is_thin'] = true;
     add_filter( 'rank_math/frontend/robots', function ( $robots ) {
         $robots['index']  = 'noindex';
         $robots['follow'] = 'follow';
