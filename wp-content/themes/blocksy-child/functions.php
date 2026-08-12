@@ -595,14 +595,14 @@ function wxacg_is_anime_adsense_eligible( int $post_id ): bool {
  * 需要執行低文章數 noindex 的 Taxonomy。
  *
  * post_tag：WordPress 文章標籤。
- * anime_studio：製作公司 Taxonomy。
+ * anime_studio_tax：製作公司 Taxonomy。
  *
  * @return string[]
  */
 function wxacg_get_thin_term_taxonomies(): array {
 	$taxonomies = [
 		'post_tag',
-		'anime_studio',
+		'anime_studio_tax',
 	];
 
 	$taxonomies = (array) apply_filters(
