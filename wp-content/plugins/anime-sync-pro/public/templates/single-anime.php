@@ -5381,6 +5381,50 @@ while ( have_posts() ) :
 		</div><!-- /.asd-tabs-wrap -->
 	</div><!-- /.asd-wrap -->
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	var tabLists = document.querySelectorAll('.asd-pv-tabs, .asd-online-tabs');
+	
+	tabLists.forEach(function(tabList) {
+		var tabs = tabList.querySelectorAll('[role="tab"]');
+		
+		tabs.forEach(function(tab) {
+			tab.addEventListener('click', function() {
+				var targetId = this.getAttribute('aria-controls');
+				var targetPanel = document.getElementById(targetId);
+				if (!targetPanel) return;
+
+				// 移除同一個 tablist 內所有 tab 的 active 狀態
+				tabs.forEach(function(t) {
+					t.classList.remove('is-active');
+					t.setAttribute('aria-selected', 'false');
+					t.setAttribute('tabindex', '-1');
+				});
+
+				// 設定當前點擊的 tab 為 active
+				this.classList.add('is-active');
+				this.setAttribute('aria-selected', 'true');
+				this.setAttribute('tabindex', '0');
+
+				// 尋找對應的 box 容器來取得 panels
+				var box = this.closest('.asd-pv-box') || this.closest('.asd-online-box');
+				if (box) {
+					var panels = box.querySelectorAll('[role="tabpanel"]');
+					panels.forEach(function(p) {
+						p.classList.remove('is-active');
+						p.setAttribute('hidden', '');
+					});
+				}
+
+				// 顯示目標 panel
+				targetPanel.classList.add('is-active');
+				targetPanel.removeAttribute('hidden');
+			});
+		});
+	});
+});
+</script>
+
 <?php
 endwhile;
 
