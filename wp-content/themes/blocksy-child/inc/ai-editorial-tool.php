@@ -256,7 +256,7 @@ function wxacg_call_gemini_editorial( $api_key, $data ) {
 	$prompt = wxacg_build_editorial_prompt( $data );
 
 	$response = wp_remote_post(
-		'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=' . rawurlencode( $api_key ),
+		'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . rawurlencode( $api_key ),
 		array(
 			'timeout' => 45,
 			'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
