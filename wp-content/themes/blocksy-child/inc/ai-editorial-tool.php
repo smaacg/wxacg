@@ -4,8 +4,14 @@
  *
  * Path: wp-content/themes/blocksy-child/inc/ai-editorial-tool.php
  *
- * @version 1.2.0 (2026-08-12)
+ * @version 1.3.0 (2026-08-12)
  *
+ * v1.3.0: 修正 Gemini 免費方案 5 RPM 配額問題 —
+ *         1) 呼叫端加入 429 自動重試（依錯誤訊息解析建議等待秒數，指數退避）
+ *         2) 偵測到配額錯誤時，批次立即中止（不再繼續燒剩餘項目），並回傳
+ *            rate_limited 旗標
+ *         3) 前端偵測到 rate_limited 時，改用較長的冷卻時間（預設 65 秒）
+ *            再重新呼叫，而不是原本的 300ms，避免無效重試洗爆日配額
  * v1.2.0: gemini-2.5-flash 已被 Google 擋掉新用戶／新專案呼叫（正式下線日 2026-10-16，
  *         但已提前限制），改用目前 GA 的 gemini-3.6-flash；同時把已棄用的
  *         temperature/topP/topK 換成新版 thinkingConfig（thinkingLevel: minimal，
@@ -111,7 +117,8 @@ function wxacg_ai_generate_batch_handler() {
 			   AND ( pm.meta_value IS NULL OR TRIM( pm.meta_value ) = '' )"
 		);
 
-		$results = array();
+		$results      = array();
+		$rate_limited = false;
 
 		foreach ( $posts as $post ) {
 			$post_id = (int) $post->ID;
@@ -125,6 +132,13 @@ function wxacg_ai_generate_batch_handler() {
 					'status'  => 'error',
 					'message' => $result->get_error_message(),
 				);
+
+				// 遇到配額錯誤：不要繼續燒剩下的項目，立刻結束這個批次，
+				// 讓前端用較長的冷卻時間再重試，而不是逐一把整批都燒成失敗。
+				if ( 'gemini_quota' === $result->get_error_code() ) {
+					$rate_limited = true;
+					break;
+				}
 			} else {
 				update_post_meta( $post_id, 'anime_editorial_note', $result );
 
@@ -151,7 +165,8 @@ function wxacg_ai_generate_batch_handler() {
 			'results'         => $results,
 			'processed'       => count( $results ),
 			'total_remaining' => max( 0, $total_remaining - count( $results ) ),
-			'next_offset'     => $offset + count( $posts ),
+			'next_offset'     => $offset + count( $results ),
+			'rate_limited'    => $rate_limited,
 		) );
 
 	} catch ( Exception $e ) {
@@ -257,57 +272,82 @@ function wxacg_gather_anime_data_for_editorial( $post_id ) {
  * @return string|WP_Error
  */
 function wxacg_call_gemini_editorial( $api_key, $data ) {
-	$prompt = wxacg_build_editorial_prompt( $data );
+	$prompt      = wxacg_build_editorial_prompt( $data );
+	$max_retries = 2; // 429 時最多重試 2 次（共 3 次嘗試）
 
-	$response = wp_remote_post(
-		'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . rawurlencode( $api_key ),
-		array(
-			'timeout' => 45,
-			'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
-			'body'    => wp_json_encode( array(
-				'contents'         => array(
-					array( 'parts' => array( array( 'text' => $prompt ) ) ),
-				),
-				'generationConfig' => array(
-					'maxOutputTokens' => 320,
-					'thinkingConfig'  => array(
-						'thinkingLevel' => 'minimal',
+	for ( $attempt = 0; $attempt <= $max_retries; $attempt++ ) {
+
+		$response = wp_remote_post(
+			'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . rawurlencode( $api_key ),
+			array(
+				'timeout' => 45,
+				'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
+				'body'    => wp_json_encode( array(
+					'contents'         => array(
+						array( 'parts' => array( array( 'text' => $prompt ) ) ),
 					),
-				),
-				'safetySettings'   => array(
-					array( 'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE' ),
-					array( 'category' => 'HARM_CATEGORY_HATE_SPEECH',       'threshold' => 'BLOCK_NONE' ),
-					array( 'category' => 'HARM_CATEGORY_HARASSMENT',        'threshold' => 'BLOCK_NONE' ),
-					array( 'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE' ),
-				),
-			), JSON_UNESCAPED_UNICODE ),
-		)
-	);
+					'generationConfig' => array(
+						'maxOutputTokens' => 320,
+						'thinkingConfig'  => array(
+							'thinkingLevel' => 'minimal',
+						),
+					),
+					'safetySettings'   => array(
+						array( 'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE' ),
+						array( 'category' => 'HARM_CATEGORY_HATE_SPEECH',       'threshold' => 'BLOCK_NONE' ),
+						array( 'category' => 'HARM_CATEGORY_HARASSMENT',        'threshold' => 'BLOCK_NONE' ),
+						array( 'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE' ),
+					),
+				), JSON_UNESCAPED_UNICODE ),
+			)
+		);
 
-	if ( is_wp_error( $response ) ) {
-		return $response;
-	}
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
 
-	$code = (int) wp_remote_retrieve_response_code( $response );
-	$body = wp_remote_retrieve_body( $response );
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$body = wp_remote_retrieve_body( $response );
 
-	if ( $code !== 200 ) {
+		if ( $code === 200 ) {
+			$decoded = json_decode( $body, true );
+			$text    = isset( $decoded['candidates'][0]['content']['parts'][0]['text'] )
+				? $decoded['candidates'][0]['content']['parts'][0]['text']
+				: '';
+			$text = trim( $text );
+
+			if ( $text === '' ) {
+				return new WP_Error( 'gemini_empty', 'Gemini 回傳空白（可能被安全過濾器擋下）' );
+			}
+
+			return $text;
+		}
+
 		$err = json_decode( $body, true );
 		$msg = isset( $err['error']['message'] ) ? $err['error']['message'] : "HTTP {$code}";
+
+		// 429 = 配額用盡。免費方案通常是 5 RPM，錯誤訊息裡會附建議等待秒數，
+		// 例如「Please retry in 41.37s」。解析出來，等待後再試一次；
+		// 若已達重試上限，回傳專屬的 error code，讓外層批次迴圈中止整批。
+		if ( 429 === $code ) {
+			if ( $attempt < $max_retries ) {
+				$wait_seconds = 15; // 預設值
+				if ( preg_match( '/retry in\s+([\d.]+)s/i', $msg, $m ) ) {
+					$wait_seconds = (float) $m[1];
+				}
+				// 上限 20 秒，避免把 PHP / AJAX 執行時間拖到逾時
+				$wait_seconds = min( $wait_seconds + 1, 20 );
+				sleep( (int) ceil( $wait_seconds ) );
+				continue; // 重試
+			}
+
+			return new WP_Error( 'gemini_quota', 'Gemini API 配額已用盡（免費方案通常僅 5 requests/分鐘）：' . $msg );
+		}
+
 		return new WP_Error( 'gemini_error', 'Gemini API 錯誤：' . $msg );
 	}
 
-	$decoded = json_decode( $body, true );
-	$text    = isset( $decoded['candidates'][0]['content']['parts'][0]['text'] )
-		? $decoded['candidates'][0]['content']['parts'][0]['text']
-		: '';
-	$text = trim( $text );
-
-	if ( $text === '' ) {
-		return new WP_Error( 'gemini_empty', 'Gemini 回傳空白（可能被安全過濾器擋下）' );
-	}
-
-	return $text;
+	return new WP_Error( 'gemini_quota', 'Gemini API 配額已用盡，重試後仍失敗。' );
 }
 
 /* ============================================================
@@ -396,6 +436,7 @@ function wxacg_ai_editorial_page() {
 	<div class="wrap">
 	<h1>✍️ AI 編輯短評批次產生器</h1>
 	<p style="color:#666;">使用 Gemini API，以「台灣動漫資深編輯」口吻批次產生短評，寫入 <code>anime_editorial_note</code>，前端自動渲染。</p>
+	<p style="color:#d63638;">⚠️ 免費方案通常僅 <strong>5 requests/分鐘</strong>，批次量大時建議至 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 幫該專案啟用計費以取得較高配額，否則會頻繁觸發速率限制。</p>
 
 	<!-- 統計卡片 -->
 	<div style="display:flex;gap:16px;margin:20px 0;flex-wrap:wrap;">
@@ -448,9 +489,9 @@ function wxacg_ai_editorial_page() {
 				<th>每批數量</th>
 				<td>
 					<select id="wxacg-batch-size">
-						<option value="5">5 部（測試品質）</option>
-						<option value="10" selected>10 部（推薦）</option>
-						<option value="20">20 部（最快）</option>
+						<option value="5" selected>5 部（免費方案建議值，約 5 RPM）</option>
+						<option value="10">10 部（若已升級計費方案）</option>
+						<option value="20">20 部（最快，需較高配額）</option>
 					</select>
 				</td>
 			</tr>
@@ -510,6 +551,10 @@ function wxacg_ai_editorial_page() {
 		var ajaxUrl   = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
 		var nonce     = '<?php echo esc_js( $nonce ); ?>';
 		var totalAnime = <?php echo (int) $total_anime; ?>;
+
+		// 免費方案冷卻秒數：遇到配額錯誤時，等這麼久再送下一批
+		var RATE_LIMIT_COOLDOWN_MS = 65000;
+		var NORMAL_DELAY_MS        = 800;
 
 		if ( ! startBtn ) return;
 
@@ -603,7 +648,7 @@ function wxacg_ai_editorial_page() {
 				progressBar.style.width  = pct + '%';
 				progressText.textContent = '已完成：' + totalDone + ' 部　剩餘：' + data.total_remaining + ' 部　(' + pct.toFixed(1) + '%)';
 
-				if ( data.total_remaining <= 0 || data.processed === 0 ) {
+				if ( data.total_remaining <= 0 ) {
 					addLog( '🎉 全部完成！共產生 ' + totalDone + ' 筆短評。', '#89dceb' );
 					running = false;
 					startBtn.textContent   = '🚀 重新產生';
@@ -612,9 +657,36 @@ function wxacg_ai_editorial_page() {
 					return;
 				}
 
-				if ( running ) {
-					setTimeout( runBatch, 300 );
+				if ( ! running ) return;
+
+				if ( data.rate_limited ) {
+					// 配額用盡：等冷卻時間再送下一批，並倒數提示，而不是立刻重打
+					var remainMs = RATE_LIMIT_COOLDOWN_MS;
+					addLog( '⏳ 已達配額上限，冷卻 ' + Math.round(remainMs/1000) + ' 秒後自動繼續…', '#f9e2af' );
+					var countdown = setInterval(function () {
+						remainMs -= 1000;
+						if ( ! running ) { clearInterval(countdown); return; }
+						if ( remainMs <= 0 ) {
+							clearInterval(countdown);
+							progressText.textContent = '已完成：' + totalDone + ' 部　剩餘：' + data.total_remaining + ' 部　(' + pct.toFixed(1) + '%)　— 恢復中…';
+							runBatch();
+						} else {
+							progressText.textContent = '已完成：' + totalDone + ' 部　剩餘：' + data.total_remaining + ' 部　— 冷卻中，' + Math.ceil(remainMs/1000) + ' 秒後繼續';
+						}
+					}, 1000);
+					return;
 				}
+
+				if ( data.processed === 0 ) {
+					addLog( '🎉 全部完成！共產生 ' + totalDone + ' 筆短評。', '#89dceb' );
+					running = false;
+					startBtn.textContent   = '🚀 重新產生';
+					startBtn.style.display = '';
+					stopBtn.style.display  = 'none';
+					return;
+				}
+
+				setTimeout( runBatch, NORMAL_DELAY_MS );
 			})
 			.catch(function (err) {
 				addLog( '❌ fetch 錯誤：' + err.message, '#f38ba8' );
