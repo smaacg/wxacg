@@ -1,23 +1,26 @@
 /* =================================================================
-   Anime Sync Pro — anime-single.css v20.0 (optimized)
-   Compatible with single-anime.php v15.4
+   Anime Sync Pro — anime-single.css v20.1
+   Compatible with single-anime.php v15.5
    深藍灰毛玻璃主題／Hero 三欄／內容區 7:3
 
-   本版整併自 v19.0 → v19.3 累積的 patch：
-   - Hero 右側評分卡過去被覆寫 4 次（inline → Restore → Compact →
-     舒展版），全部改為單一定義，不再靠 !important 疊加取勝。
-   - 顏色變數過去宣告 2 次，改為單一版本。
-   - 海報維持固定比例／桌面固定高度 424px，不再被評分卡拉長。
-   2026-08-04
+   2026-08-12
+   - 整併並移除 v20.0 後方重複的手機版 Patch
+   - 桌面 Hero：海報／內容／評分卡三欄
+   - 平板：評分卡移至 Hero 下方
+   - 手機：操作按鈕三欄、串流兩欄、線上看三欄
+   - 手機 STAFF／CAST 固定兩欄
+   - 補上編輯短評、作者、人工審核日期樣式
+   - 改善可讀性、鍵盤焦點、Reduced Motion 與列印
    ================================================================= */
 
 /* ================================================================
-   0. 容器與全域變數
+   0. 頁面與變數
    ================================================================ */
 
 body.single-anime {
-  background-color: #1E242B;
-  color: #D0D7E0;
+  overflow-x: hidden;
+  color: #d0d7e0;
+  background-color: #1e242b;
 }
 
 body.single-anime #main,
@@ -42,29 +45,26 @@ body.single-anime .entry-content>.asd-wrap {
 }
 
 .asd-wrap {
-  --asd-primary: #63A8FF;
-  --asd-primary-dark: #4080D0;
+  --asd-primary: #63a8ff;
+  --asd-primary-dark: #4080d0;
   --asd-primary-glow: rgba(99, 168, 255, .25);
 
-  --asd-bg: #1E242B;
-  --asd-bg-card: #242C35;
-  --asd-bg-card-2: #28323D;
-  --asd-bg-hover: #2A3340;
+  --asd-bg: #1e242b;
+  --asd-bg-card: #242c35;
+  --asd-bg-card-2: #28323d;
+  --asd-bg-hover: #2a3340;
 
-  --asd-text: #D0D7E0;
-  --asd-text-muted: rgba(208, 215, 224, .55);
-  --asd-text-dim: rgba(208, 215, 224, .35);
-  --asd-text-soft: rgba(208, 215, 224, .75);
-  --asd-text-faint: rgba(208, 215, 224, .25);
+  --asd-text: #d0d7e0;
+  --asd-text-soft: rgba(225, 231, 240, .84);
+  --asd-text-muted: rgba(208, 215, 224, .64);
+  --asd-text-dim: rgba(208, 215, 224, .44);
+  --asd-text-faint: rgba(208, 215, 224, .26);
 
-  --asd-border: rgba(255, 255, 255, .08);
-
-  --asd-shadow-sm: 0 2px 6px rgba(0, 0, 0, .28);
-  --asd-shadow-md: 0 4px 14px rgba(0, 0, 0, .35);
-  --asd-shadow-lg: 0 8px 28px rgba(0, 0, 0, .45);
+  --asd-border: rgba(255, 255, 255, .09);
+  --asd-border-hover: rgba(99, 168, 255, .32);
 
   --asd-score-al: #63a8ff;
-  --asd-score-mal: #8f6bff;
+  --asd-score-mal: #9b7cff;
   --asd-score-bgm: #fb7185;
   --asd-score-site: #34d399;
 
@@ -74,16 +74,19 @@ body.single-anime .entry-content>.asd-wrap {
   --asd-radius-xl: 20px;
   --asd-radius-pill: 999px;
 
+  --asd-shadow-sm: 0 2px 6px rgba(0, 0, 0, .28);
+  --asd-shadow-md: 0 4px 14px rgba(0, 0, 0, .35);
+  --asd-shadow-lg: 0 8px 28px rgba(0, 0, 0, .45);
+
   --asd-container: 1200px;
   --asd-gap: 24px;
   --asd-content-gap: 20px;
-
   --asd-poster-w: 300px;
   --asd-hero-side-w: 230px;
 
-  --glass-blur: 14px;
   --glass-bg: rgba(255, 255, 255, .055);
-  --glass-border: rgba(255, 255, 255, .08);
+  --glass-border: rgba(255, 255, 255, .09);
+  --glass-blur: 14px;
 
   --trans-smooth:
     color .22s ease,
@@ -110,10 +113,6 @@ body.single-anime .entry-content>.asd-wrap {
   line-height: 1.65;
   box-sizing: border-box;
 }
-
-/* ================================================================
-   1. 區域 Reset
-   ================================================================ */
 
 .asd-wrap *,
 .asd-wrap *::before,
@@ -160,22 +159,33 @@ body.single-anime .entry-content>.asd-wrap {
   display: none !important;
 }
 
-.asd-wrap code,
-.asd-wrap pre {
-  font-family:
-    "SFMono-Regular",
-    Consolas,
-    "Liberation Mono",
-    monospace;
-}
-
 .asd-wrap :focus-visible {
-  outline: 2px solid var(--asd-primary);
+  outline: 3px solid #8ac0ff;
   outline-offset: 3px;
 }
 
+.asd-wrap a,
+.asd-wrap button,
+.asd-wrap input,
+.asd-wrap textarea,
+.asd-wrap select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.asd-screen-reader-text {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 /* ================================================================
-   2. Banner
+   1. Banner
    ================================================================ */
 
 .asd-banner {
@@ -187,7 +197,6 @@ body.single-anime .entry-content>.asd-wrap {
   margin-bottom: var(--asd-gap);
   margin-left: -50vw;
   overflow: hidden;
-  border-radius: 0;
   background-color: #1a2532;
   background-repeat: no-repeat;
   background-position: center top;
@@ -216,25 +225,19 @@ body.single-anime .entry-content>.asd-wrap {
 }
 
 /* ================================================================
-   3. Hero 三欄
+   2. Hero
    ================================================================ */
 
 .asd-wrap .asd-hero-new {
   display: grid;
   grid-template-columns:
     var(--asd-poster-w) minmax(0, 1fr) var(--asd-hero-side-w);
-  gap: var(--asd-gap);
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
+  gap: var(--asd-gap);
   margin: 0 0 var(--asd-gap);
   padding: var(--asd-gap) 0;
-  overflow: visible;
-  background: transparent;
 }
-
-/* ── Hero 海報 ──
-   手機／平板（無右側評分卡）維持固定比例；
-   桌面則與右側評分卡等高，兩欄一起撐到最高欄位的高度 */
 
 .asd-hero-poster-wrap,
 .asd-hero-poster {
@@ -243,13 +246,13 @@ body.single-anime .entry-content>.asd-wrap {
 }
 
 .asd-hero-poster-wrap {
-  align-self: start;
+  align-self: stretch;
 }
 
 .asd-hero-poster {
   position: relative;
-  align-self: start;
-  max-width: var(--asd-poster-w);
+  height: 100%;
+  min-height: 424px;
   overflow: hidden;
   border-radius: var(--asd-radius-xl);
   background: var(--asd-bg-card);
@@ -258,9 +261,9 @@ body.single-anime .entry-content>.asd-wrap {
 
 .asd-poster-img,
 .asd-poster-fallback {
-  width: 100% !important;
-  height: auto !important;
-  aspect-ratio: 460 / 649;
+  width: 100%;
+  height: 100%;
+  min-height: 424px;
   border-radius: inherit;
 }
 
@@ -290,37 +293,15 @@ body.single-anime .entry-content>.asd-wrap {
   display: none !important;
 }
 
-@media (min-width: 901px) {
-
-  /* 桌面：海報跟隨右側評分卡的高度撐開，兩欄一起等高，
-     避免評分卡內容較少時海報下方留白 */
-  .asd-wrap .asd-hero-new {
-    align-items: stretch;
-  }
-
-  .asd-wrap .asd-hero-poster-wrap {
-    align-self: stretch;
-    height: auto;
-  }
-
-  .asd-wrap .asd-hero-poster {
-    align-self: stretch;
-    width: 100%;
-    height: 100%;
-    min-height: 424px;
-  }
-
-  .asd-wrap .asd-poster-img,
-  .asd-wrap .asd-poster-fallback {
-    height: 100% !important;
-    min-height: 424px !important;
-    aspect-ratio: auto !important;
-    object-fit: cover !important;
-    object-position: center center !important;
-  }
+.asd-hero-poster.is-image-error .asd-poster-img,
+.asd-cast-avatar-wrap.is-image-error img {
+  display: none !important;
 }
 
-/* ── Hero 中欄 ── */
+.asd-hero-poster.is-image-error .asd-poster-fallback--backup,
+.asd-cast-avatar-wrap.is-image-error .asd-cast-avatar-fb--backup {
+  display: flex !important;
+}
 
 .asd-hero-body {
   display: grid;
@@ -334,9 +315,14 @@ body.single-anime .entry-content>.asd-wrap {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin: 0;
   color: var(--asd-text-muted);
   font-size: 14px;
   line-height: 1.5;
+}
+
+.asd-hero-breadcrumb a:hover {
+  color: var(--asd-primary);
 }
 
 .asd-hbc-sep {
@@ -361,22 +347,23 @@ body.single-anime .entry-content>.asd-wrap {
   overflow-wrap: anywhere;
 }
 
-.asd-hero-simplified {
+.asd-hero-simplified,
+.asd-hero-romaji {
   color: var(--asd-text-muted);
 }
 
 .asd-hero-romaji {
-  color: var(--asd-text-muted);
   font-size: 14px;
 }
 
-/* ── 系列作品徽章 ── */
+/* 系列徽章 */
 
 .asd-series-entry-badge {
   display: inline-flex;
   align-items: center;
   width: fit-content;
   max-width: 100%;
+  min-height: 48px;
   gap: 10px;
   padding: 9px 14px;
   overflow: hidden;
@@ -400,9 +387,6 @@ body.single-anime .entry-content>.asd-wrap {
     linear-gradient(135deg,
       rgba(99, 102, 241, .36),
       rgba(168, 85, 247, .36));
-  box-shadow:
-    0 8px 24px rgba(168, 85, 247, .32),
-    inset 0 1px rgba(255, 255, 255, .12);
   transform: translateY(-2px);
 }
 
@@ -457,9 +441,11 @@ body.single-anime .entry-content>.asd-wrap {
   transform: translateX(3px);
 }
 
-/* ── Hero Badges ── */
+/* Hero 標籤 */
 
-.asd-hero-badges {
+.asd-hero-badges,
+.asd-hero-scores-new,
+.asd-hero-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
@@ -505,17 +491,12 @@ body.single-anime .entry-content>.asd-wrap {
   background: rgba(143, 107, 255, .13);
 }
 
-/* ── Hero 分數 ── */
-
-.asd-hero-scores-new {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
+/* Hero 分數 */
 
 .asd-score-pill {
   display: inline-flex;
   align-items: center;
+  min-height: 32px;
   gap: 7px;
   padding: 7px 12px;
   color: var(--asd-text);
@@ -557,25 +538,25 @@ body.single-anime .entry-content>.asd-wrap {
 .asd-score-pill--al .asd-sp-dot,
 .asd-hside-dot--al {
   background: var(--asd-score-al);
-  box-shadow: 0 0 5px 1px rgba(99, 168, 255, .6), 0 0 9px 2px rgba(99, 168, 255, .3);
+  box-shadow: 0 0 8px rgba(99, 168, 255, .72);
 }
 
 .asd-score-pill--mal .asd-sp-dot,
 .asd-hside-dot--mal {
   background: var(--asd-score-mal);
-  box-shadow: 0 0 5px 1px rgba(143, 107, 255, .6), 0 0 9px 2px rgba(143, 107, 255, .3);
+  box-shadow: 0 0 8px rgba(155, 124, 255, .72);
 }
 
 .asd-score-pill--bgm .asd-sp-dot,
 .asd-hside-dot--bgm {
   background: var(--asd-score-bgm);
-  box-shadow: 0 0 5px 1px rgba(251, 113, 133, .6), 0 0 9px 2px rgba(251, 113, 133, .3);
+  box-shadow: 0 0 8px rgba(251, 113, 133, .72);
 }
 
 .asd-score-pill--site .asd-sp-dot,
 .wacg-dot-site {
   background: var(--asd-score-site);
-  box-shadow: 0 0 5px 1px rgba(52, 211, 153, .6), 0 0 9px 2px rgba(52, 211, 153, .3);
+  box-shadow: 0 0 8px rgba(52, 211, 153, .72);
 }
 
 .asd-score-pill--al .asd-sp-val {
@@ -594,13 +575,7 @@ body.single-anime .entry-content>.asd-wrap {
   color: var(--asd-score-site);
 }
 
-/* ── Hero Actions ── */
-
-.asd-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
+/* Hero 按鈕 */
 
 .asd-action-btn {
   display: inline-flex;
@@ -634,108 +609,55 @@ body.single-anime .entry-content>.asd-wrap {
 }
 
 .asd-action-btn--ghost {
-  color: var(--asd-text-soft);
+  color: #edf2f7;
   border-color: var(--asd-border);
-  background: rgba(255, 255, 255, .055);
+  background: rgba(255, 255, 255, .065);
 }
 
 .asd-action-btn--ghost:hover {
   color: #fff;
-  border-color: rgba(109, 174, 255, .32);
+  border-color: var(--asd-border-hover);
   background: rgba(109, 174, 255, .1);
 }
 
 /* ================================================================
-   4. Hero 右側評分欄
-   單一定義（取代過去四份互相覆寫的版本）。
-   手機／平板（<901px）：Hero 下方全寬毛玻璃卡片，
-     使用者仍可看到分數與評分表單。
-   桌面（≥901px）：改為右側欄，並與左側海報等高
-     （見上方 .asd-hero-new 的 align-items: stretch）。
+   3. Hero 評分卡
    ================================================================ */
 
 .asd-wrap .asd-hero-new>.asd-hside-block {
-  display: block;
-  grid-column: 1 / -1;
-
-  width: 100%;
+  display: flex;
+  grid-column: auto;
+  flex-direction: column;
+  align-self: stretch;
+  width: var(--asd-hero-side-w);
   min-width: 0;
-
-  margin: 4px 0 0;
-  padding: 16px;
-
+  min-height: 424px;
+  margin: 0;
+  padding: 14px;
+  overflow: hidden;
   color: var(--asd-text);
-
   border: 1px solid var(--glass-border);
-  border-radius: var(--asd-radius-lg);
-  background: var(--glass-bg);
-
-  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .04);
-
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg,
+      rgba(36, 44, 53, .98),
+      rgba(31, 39, 48, .98));
+  box-shadow:
+    var(--asd-shadow-lg),
+    inset 0 1px rgba(255, 255, 255, .04);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-
-  box-sizing: border-box;
   word-break: break-word;
-}
-
-@media (min-width: 901px) {
-  .asd-wrap .asd-hero-new>.asd-hside-block {
-    display: flex;
-    flex-direction: column;
-    align-self: stretch;
-    grid-column: auto;
-
-    width: var(--asd-hero-side-w);
-    min-width: 0;
-    max-width: 100%;
-
-    height: auto;
-    min-height: 424px;
-    max-height: none;
-
-    margin: 0;
-    padding: 14px;
-
-    color: var(--asd-text);
-
-    border: 1px solid var(--glass-border);
-    border-radius: 10px;
-
-    background:
-      linear-gradient(145deg,
-        rgba(36, 44, 53, .98),
-        rgba(31, 39, 48, .98));
-
-    box-shadow:
-      0 8px 28px rgba(0, 0, 0, .45),
-      inset 0 1px 0 rgba(255, 255, 255, .04);
-
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-
-    overflow: hidden;
-    box-sizing: border-box;
-    scrollbar-width: none;
-    word-break: break-word;
-  }
-
-  .asd-wrap .asd-hero-new>.asd-hside-block::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 .asd-hside-title {
   display: block;
   margin: 0 0 10px;
-  padding: 0;
   color: var(--asd-text-muted);
-  border: 0;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
   letter-spacing: .5px;
-  text-transform: uppercase;
 }
 
 .asd-hside-row,
@@ -746,9 +668,6 @@ body.single-anime .entry-content>.asd-wrap {
   min-height: 24px;
   gap: 8px;
   padding: 4px 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
 }
 
 .asd-hside-key {
@@ -756,8 +675,6 @@ body.single-anime .entry-content>.asd-wrap {
   min-width: 0;
   color: var(--asd-text-muted);
   font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
 }
 
 .asd-hside-val {
@@ -765,10 +682,7 @@ body.single-anime .entry-content>.asd-wrap {
   color: #fff;
   font-size: 15px;
   font-weight: 800;
-  line-height: 1.4;
 }
-
-/* ── 分隔線 ── */
 
 .wacg-rating-divider {
   display: block;
@@ -779,8 +693,6 @@ body.single-anime .entry-content>.asd-wrap {
   background: rgba(255, 255, 255, .08);
 }
 
-/* ── 分類平均分 ── */
-
 .wacg-rating-stats {
   width: 100%;
   min-width: 0;
@@ -790,7 +702,6 @@ body.single-anime .entry-content>.asd-wrap {
   padding: 1px 0 4px;
   color: var(--asd-text-dim);
   font-size: 10px;
-  line-height: 1.4;
   text-align: center;
 }
 
@@ -809,48 +720,39 @@ body.single-anime .entry-content>.asd-wrap {
   min-width: 0;
   min-height: 20px;
   gap: 5px;
-  padding: 1px 0;
 }
 
 .wacg-cat-label {
   color: var(--asd-text-dim);
   font-size: 10px;
-  font-weight: 500;
-  line-height: 1.4;
 }
 
 .wacg-cat-val {
   color: var(--asd-text);
   font-size: 11px;
   font-weight: 700;
-  line-height: 1.4;
 }
 
 .wacg-be-first {
   display: block;
   margin: 6px 0 10px;
   padding: 6px 10px;
-  color: #c4a7ff;
+  color: #d0bcff;
   border: 1px solid rgba(166, 99, 255, .28);
   border-radius: 8px;
   background: rgba(166, 99, 255, .09);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
   font-size: 11px;
   font-weight: 600;
-  line-height: 1.5;
   text-align: center;
 }
-
-/* ── 評分表單 ── */
 
 .wacg-rating-form {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-width: 0;
   gap: 5px;
-  margin: 6px 0 0;
-  padding: 6px 0 0;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, .08);
 }
 
@@ -858,7 +760,6 @@ body.single-anime .entry-content>.asd-wrap {
   display: flex;
   align-items: center;
   width: 100%;
-  min-width: 0;
   min-height: 22px;
   gap: 5px;
 }
@@ -868,14 +769,11 @@ body.single-anime .entry-content>.asd-wrap {
   width: 25px;
   color: var(--asd-text-dim);
   font-size: 10px;
-  font-weight: 500;
-  line-height: 1.3;
   white-space: nowrap;
 }
 
 .wacg-slider {
-  flex: 1 1 auto;
-  width: auto;
+  flex: 1;
   min-width: 0;
   height: 3px;
   margin: 0;
@@ -890,20 +788,14 @@ body.single-anime .entry-content>.asd-wrap {
 }
 
 .wacg-slider::-webkit-slider-thumb {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border: 0;
   border-radius: 50%;
   background: var(--asd-score-site);
-  box-shadow: 0 0 4px rgba(52, 211, 153, .6);
+  box-shadow: 0 0 5px rgba(52, 211, 153, .65);
   appearance: none;
   -webkit-appearance: none;
-  cursor: pointer;
-  transition: transform .15s ease;
-}
-
-.wacg-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.25);
 }
 
 .wacg-slider::-moz-range-track {
@@ -914,13 +806,11 @@ body.single-anime .entry-content>.asd-wrap {
 }
 
 .wacg-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border: 0;
   border-radius: 50%;
   background: var(--asd-score-site);
-  box-shadow: 0 0 4px rgba(52, 211, 153, .6);
-  cursor: pointer;
 }
 
 .wacg-slider-val {
@@ -929,7 +819,6 @@ body.single-anime .entry-content>.asd-wrap {
   color: var(--asd-score-site);
   font-size: 11px;
   font-weight: 700;
-  line-height: 1.3;
   text-align: right;
 }
 
@@ -939,28 +828,22 @@ body.single-anime .entry-content>.asd-wrap {
   justify-content: center;
   width: 100%;
   min-height: 34px;
-  margin: 3px 0 0;
+  margin-top: 3px;
   padding: 7px 8px;
   color: #fff;
   border: 0;
   border-radius: 6px;
-  background: linear-gradient(135deg, var(--asd-score-site), var(--asd-primary));
-  box-shadow:
-    0 4px 12px rgba(52, 171, 204, .22),
-    inset 0 1px 0 rgba(255, 255, 255, .16);
+  background:
+    linear-gradient(135deg,
+      var(--asd-score-site),
+      var(--asd-primary));
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.3;
   cursor: pointer;
-  transition: opacity .2s ease, filter .2s ease, box-shadow .2s ease;
 }
 
 .wacg-submit-btn:hover:not(:disabled) {
-  opacity: .9;
-  filter: brightness(1.06);
-  box-shadow:
-    0 6px 16px rgba(52, 171, 204, .32),
-    inset 0 1px 0 rgba(255, 255, 255, .18);
+  filter: brightness(1.08);
 }
 
 .wacg-submit-btn:disabled {
@@ -971,7 +854,7 @@ body.single-anime .entry-content>.asd-wrap {
 .wacg-login-prompt {
   display: block;
   width: 100%;
-  margin: 6px 0 0;
+  margin-top: 6px;
   padding: 7px 4px;
   overflow: hidden;
   color: var(--asd-primary);
@@ -979,16 +862,11 @@ body.single-anime .entry-content>.asd-wrap {
   border-top: 1px solid rgba(255, 255, 255, .08);
   background: transparent;
   font-size: 11px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 700;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-}
-
-.wacg-login-prompt:hover {
-  color: #fff;
 }
 
 .wacg-rated-actions {
@@ -998,7 +876,6 @@ body.single-anime .entry-content>.asd-wrap {
   gap: 8px;
   margin-top: 8px;
   font-size: 11px;
-  line-height: 1.4;
 }
 
 .wacg-rated-badge {
@@ -1008,36 +885,23 @@ body.single-anime .entry-content>.asd-wrap {
 
 .wacg-delete-btn {
   padding: 4px 8px;
-  color: #f87171;
+  color: #fca5a5;
   border: 1px solid rgba(239, 68, 68, .4);
   border-radius: 6px;
   background: rgba(239, 68, 68, .12);
   font-size: 10px;
-  line-height: 1.3;
   cursor: pointer;
 }
-
-.wacg-delete-btn:hover {
-  border-color: rgba(239, 68, 68, .7);
-  background: rgba(239, 68, 68, .22);
-}
-
-/* ── 集數／時長／原作類型／原作者／製作公司 ── */
 
 .asd-hside-info-row {
   display: grid;
   grid-template-columns: 62px minmax(0, 1fr);
   align-items: start;
   width: 100%;
-  min-width: 0;
   min-height: 27px;
   gap: 8px;
   padding: 5px 0;
   border-bottom: 1px solid rgba(255, 255, 255, .08);
-}
-
-.asd-hside-info-row:first-of-type {
-  margin-top: 2px;
 }
 
 .asd-hside-info-row:last-child {
@@ -1045,12 +909,8 @@ body.single-anime .entry-content>.asd-wrap {
 }
 
 .asd-hside-info-key {
-  min-width: 0;
-  width: auto;
   color: var(--asd-text-dim);
   font-size: 11px;
-  font-weight: 500;
-  line-height: 1.5;
   white-space: nowrap;
 }
 
@@ -1059,9 +919,7 @@ body.single-anime .entry-content>.asd-wrap {
   color: var(--asd-text);
   font-size: 11px;
   font-weight: 700;
-  line-height: 1.5;
   overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
 .asd-hside-empty {
@@ -1072,22 +930,8 @@ body.single-anime .entry-content>.asd-wrap {
   text-align: center;
 }
 
-@media (min-width: 901px) and (max-width: 1100px) {
-  .asd-wrap {
-    --asd-hero-side-w: 220px;
-  }
-
-  .asd-wrap .asd-hero-new>.asd-hside-block {
-    padding: 13px;
-  }
-
-  .asd-hside-info-row {
-    grid-template-columns: 60px minmax(0, 1fr);
-  }
-}
-
 /* ================================================================
-   5. 追蹤列
+   4. 追蹤列與分享
    ================================================================ */
 
 .smacg-track-bar {
@@ -1113,7 +957,8 @@ body.single-anime .entry-content>.asd-wrap {
   display: none;
 }
 
-.smacg-status-group {
+.smacg-status-group,
+.smacg-action-group {
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
@@ -1134,14 +979,13 @@ body.single-anime .entry-content>.asd-wrap {
   background: rgba(255, 255, 255, .04);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1;
   cursor: pointer;
   transition: var(--trans-smooth);
 }
 
 .smacg-status-btn:hover:not(:disabled) {
   color: var(--asd-primary);
-  border-color: rgba(109, 174, 255, .34);
+  border-color: var(--asd-border-hover);
   background: rgba(109, 174, 255, .1);
 }
 
@@ -1149,7 +993,6 @@ body.single-anime .entry-content>.asd-wrap {
   color: #fff;
   border-color: var(--asd-primary);
   background: var(--asd-primary);
-  box-shadow: 0 5px 15px rgba(109, 174, 255, .3);
 }
 
 .smacg-status-btn:disabled {
@@ -1157,13 +1000,15 @@ body.single-anime .entry-content>.asd-wrap {
   cursor: not-allowed;
 }
 
-.smacg-status-btn .smacg-ico {
+.smacg-status-btn .smacg-ico,
+.smacg-icon-btn .smacg-ico {
   font-size: 17px;
   font-style: normal;
   line-height: 1;
 }
 
-.smacg-status-btn span:last-child {
+.smacg-status-btn span:last-child,
+.smacg-icon-label {
   font-size: 11px;
   white-space: nowrap;
 }
@@ -1182,19 +1027,12 @@ body.single-anime .entry-content>.asd-wrap {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 17px;
   color: var(--asd-text-muted);
   font-size: 12px;
-}
-
-.smacg-prog-label {
-  color: var(--asd-text-muted);
-  font-weight: 600;
 }
 
 .smacg-prog-pct {
   color: var(--asd-primary);
-  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1208,8 +1046,11 @@ body.single-anime .entry-content>.asd-wrap {
 
 .smacg-prog-bar {
   height: 100%;
-  border-radius: 5px;
-  background: linear-gradient(90deg, var(--asd-primary), var(--asd-score-site));
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg,
+      var(--asd-primary),
+      var(--asd-score-site));
   transition: width .35s ease;
 }
 
@@ -1234,9 +1075,7 @@ body.single-anime .entry-content>.asd-wrap {
   background: rgba(255, 255, 255, .055);
   font-size: 16px;
   font-weight: 800;
-  line-height: 1;
   cursor: pointer;
-  transition: var(--trans-smooth);
 }
 
 .smacg-prog-btn:hover {
@@ -1250,23 +1089,6 @@ body.single-anime .entry-content>.asd-wrap {
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.smacg-prog-current {
-  color: #fff;
-  font-weight: 800;
-}
-
-.smacg-prog-sep,
-.smacg-prog-total,
-.smacg-prog-unit {
-  color: var(--asd-text-muted);
-}
-
-.smacg-action-group {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 8px;
 }
 
 .smacg-track-bar .smacg-icon-btn {
@@ -1288,28 +1110,14 @@ body.single-anime .entry-content>.asd-wrap {
 
 .smacg-track-bar .smacg-icon-btn:hover {
   color: var(--asd-primary);
-  border-color: rgba(109, 174, 255, .35);
+  border-color: var(--asd-border-hover);
   background: rgba(109, 174, 255, .11);
-  transform: translateY(-1px);
-}
-
-.smacg-track-bar .smacg-icon-btn .smacg-ico {
-  font-size: 17px;
-  font-style: normal;
-  line-height: 1;
-}
-
-.smacg-track-bar .smacg-icon-label {
-  color: inherit;
-  font-size: 11px;
-  line-height: 1.2;
-  white-space: nowrap;
 }
 
 .smacg-fav-btn.is-active {
-  color: #fbbf24 !important;
-  border-color: rgba(251, 191, 36, .45) !important;
-  background: rgba(251, 191, 36, .16) !important;
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, .45);
+  background: rgba(251, 191, 36, .16);
 }
 
 .smacg-point-toast {
@@ -1325,15 +1133,12 @@ body.single-anime .entry-content>.asd-wrap {
   font-size: 12px;
   font-weight: 800;
   pointer-events: none;
-  transition: opacity .3s ease, transform .3s ease;
 }
 
 .smacg-point-toast.is-show {
   opacity: 1;
   transform: translateY(-6px);
 }
-
-/* ── 分享浮窗 ── */
 
 .smacg-share-modal {
   position: fixed;
@@ -1343,7 +1148,7 @@ body.single-anime .entry-content>.asd-wrap {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(0, 0, 0, .7);
+  background: rgba(0, 0, 0, .72);
   backdrop-filter: blur(3px);
 }
 
@@ -1388,12 +1193,11 @@ body.single-anime .entry-content>.asd-wrap {
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: var(--trans-smooth);
 }
 
 .smacg-share-link:hover {
   color: var(--asd-primary);
-  border-color: rgba(109, 174, 255, .35);
+  border-color: var(--asd-border-hover);
   background: rgba(109, 174, 255, .1);
 }
 
@@ -1423,19 +1227,13 @@ body.single-anime .entry-content>.asd-wrap {
   cursor: pointer;
 }
 
-.smacg-share-close:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, .08);
-}
-
 /* ================================================================
-   6. Tabs
+   5. Tabs
    ================================================================ */
 
 .asd-tabs-wrap {
   width: 100%;
   min-width: 0;
-  overflow: visible;
 }
 
 nav.asd-tabs {
@@ -1451,7 +1249,7 @@ nav.asd-tabs {
   padding: 7px 8px;
   border: 1px solid var(--glass-border);
   border-radius: var(--asd-radius-md);
-  background: rgba(36, 44, 53, .92);
+  background: rgba(36, 44, 53, .94);
   box-shadow: var(--asd-shadow-sm);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -1463,17 +1261,12 @@ nav.asd-tabs a.asd-tab {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  margin: 0;
   padding: 0 11px;
   color: var(--asd-text-soft);
-  border: 0;
   border-radius: var(--asd-radius-sm);
-  background: transparent;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
   white-space: nowrap;
-  cursor: pointer;
   transition: var(--trans-smooth);
 }
 
@@ -1499,7 +1292,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   7. 主內容與側欄 ／ 毛玻璃卡片
+   6. 主內容與共用卡片
    ================================================================ */
 
 .asd-container {
@@ -1514,13 +1307,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   gap: var(--asd-gap);
 }
 
-.asd-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: var(--asd-content-gap);
-}
-
+.asd-main,
 .asd-sidebar {
   display: flex;
   flex-direction: column;
@@ -1529,19 +1316,18 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-section,
-.asd-side-section,
-.smacg-track-bar {
+.asd-side-section {
+  min-width: 0;
   border: 1px solid var(--glass-border);
-  background-color: var(--glass-bg);
+  background: var(--glass-bg);
   box-shadow:
     var(--asd-shadow-md),
-    inset 0 1px 0 rgba(255, 255, 255, .025);
+    inset 0 1px rgba(255, 255, 255, .025);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
 .asd-section {
-  min-width: 0;
   padding: var(--asd-gap);
   border-radius: var(--asd-radius-lg);
   scroll-margin-top: calc(var(--asd-sticky-offset, 72px) + 64px);
@@ -1560,13 +1346,12 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   8. 基本資訊
+   7. 基本資訊、簡介、編輯短評
    ================================================================ */
 
 .asd-info-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  width: 100%;
   gap: 10px;
 }
 
@@ -1580,42 +1365,32 @@ nav.asd-tabs a.asd-tab.is-active::after {
   padding: 10px 12px;
   border: 1px solid var(--glass-border);
   border-radius: var(--asd-radius-sm);
-  background-color: var(--glass-bg);
-  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .035);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  transition: background-color .22s ease, border-color .22s ease, box-shadow .22s ease;
+  background: var(--glass-bg);
+  box-shadow: var(--asd-shadow-sm);
 }
 
 .asd-info-row:hover {
-  border-color: rgba(255, 255, 255, .13);
-  background-color: rgba(255, 255, 255, .085);
-  box-shadow: 0 6px 17px rgba(0, 0, 0, .39), inset 0 1px 0 rgba(255, 255, 255, .045);
+  border-color: rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .085);
 }
 
 .asd-info-label {
-  display: block;
-  min-width: 0;
+  overflow: hidden;
   color: var(--asd-text-dim);
   font-size: .70rem;
-  font-weight: 500;
-  line-height: 1.4;
+  font-weight: 600;
   letter-spacing: .5px;
+  text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .asd-info-val {
-  display: block;
   min-width: 0;
   color: var(--asd-text);
   font-size: .88rem;
   font-weight: 600;
-  line-height: 1.45;
   overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
 .asd-info-grid .asd-info-row:last-child:nth-child(3n + 2) {
@@ -1645,12 +1420,8 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-weight: 800;
 }
 
-/* ================================================================
-   9. 劇情簡介
-   ================================================================ */
-
 .asd-synopsis {
-  color: rgba(225, 231, 240, .9);
+  color: rgba(225, 231, 240, .92);
   font-size: 15px;
   line-height: 1.9;
 }
@@ -1663,14 +1434,95 @@ nav.asd-tabs a.asd-tab.is-active::after {
   margin-bottom: 0;
 }
 
+/* E-E-A-T 編輯短評 */
+
+.asd-section--editorial {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(99, 168, 255, .22);
+  background:
+    linear-gradient(135deg,
+      rgba(99, 168, 255, .08),
+      rgba(143, 107, 255, .055)),
+    var(--glass-bg);
+}
+
+.asd-section--editorial::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  content: "";
+  background:
+    linear-gradient(to bottom,
+      var(--asd-primary),
+      #9b7cff);
+}
+
+.asd-editorial-note {
+  color: rgba(232, 237, 244, .94);
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.asd-editorial-note p {
+  margin: 0 0 .9em;
+}
+
+.asd-editorial-note p:last-child {
+  margin-bottom: 0;
+}
+
+.asd-editorial-byline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  color: var(--asd-text-muted);
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.asd-editorial-author {
+  color: #dce9f8;
+  font-weight: 700;
+}
+
+.asd-editorial-date {
+  color: var(--asd-text-muted);
+}
+
+.asd-editorial-author a {
+  color: var(--asd-primary);
+}
+
+.asd-editorial-author a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.asd-admin-only-notice {
+  margin: 12px 0;
+  padding: 10px 13px;
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, .32);
+  border-radius: var(--asd-radius-sm);
+  background: rgba(251, 191, 36, .09);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
 /* ================================================================
-   10. PV／線上看
+   8. PV 與線上看
    ================================================================ */
 
 .asd-pv-count {
   color: var(--asd-text-muted);
   font-size: .85em;
-  font-weight: 600;
 }
 
 .asd-pv-box {
@@ -1684,16 +1536,14 @@ nav.asd-tabs a.asd-tab.is-active::after {
   gap: 7px;
   padding: 4px 2px 10px;
   overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-color: rgba(255, 255, 255, .16) transparent;
   scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
 }
 
 .asd-pv-tab {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
+  min-height: 36px;
   gap: 6px;
   padding: 8px 15px;
   color: var(--asd-text-muted);
@@ -1702,31 +1552,15 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: rgba(255, 255, 255, .045);
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  transition: var(--trans-smooth);
 }
 
-.asd-pv-tab:hover {
-  color: var(--asd-primary);
-  border-color: rgba(109, 174, 255, .32);
-  background: rgba(109, 174, 255, .1);
-}
-
+.asd-pv-tab:hover,
 .asd-pv-tab.is-active {
   color: var(--asd-primary);
-  border-color: rgba(109, 174, 255, .58);
-  background:
-    linear-gradient(135deg,
-      rgba(109, 174, 255, .22),
-      rgba(109, 174, 255, .09));
-  box-shadow: 0 3px 9px rgba(109, 174, 255, .18);
-}
-
-.asd-pv-tab-icon {
-  opacity: .9;
-  font-size: 11px;
+  border-color: rgba(109, 174, 255, .5);
+  background: rgba(109, 174, 255, .12);
 }
 
 .asd-pv-panels {
@@ -1758,12 +1592,11 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-trailer-wrap {
   position: relative;
   width: 100%;
-  height: 0;
-  padding-bottom: 56.25%;
   overflow: hidden;
   border-radius: var(--asd-radius-md);
   background: #000;
   box-shadow: var(--asd-shadow-lg);
+  aspect-ratio: 16 / 9;
 }
 
 .asd-trailer-wrap iframe {
@@ -1779,7 +1612,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   gap: 8px;
   padding-bottom: 6px;
-  overflow: visible;
 }
 
 .asd-ow-tab {
@@ -1796,7 +1628,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   11. 集數列表
+   9. 集數
    ================================================================ */
 
 .asd-ep-list {
@@ -1814,18 +1646,18 @@ nav.asd-tabs a.asd-tab.is-active::after {
   padding: 10px 12px;
   border: 1px solid var(--asd-border);
   border-radius: var(--asd-radius-sm);
-  background-color: rgba(255, 255, 255, .045);
-  box-shadow: 0 2px 7px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .02);
-  transition: var(--trans-smooth);
+  background: rgba(255, 255, 255, .045);
+  box-shadow: var(--asd-shadow-sm);
 }
 
 .asd-ep-row:hover {
-  border-color: rgba(99, 168, 255, .2);
-  background-color: rgba(255, 255, 255, .08);
-  box-shadow: 0 4px 11px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .035);
+  border-color: rgba(99, 168, 255, .24);
+  background: rgba(255, 255, 255, .08);
 }
 
-.asd-ep-hidden {
+.asd-ep-hidden,
+.asd-staff-hidden,
+.asd-cast-hidden {
   display: none !important;
 }
 
@@ -1850,15 +1682,13 @@ nav.asd-tabs a.asd-tab.is-active::after {
   overflow-wrap: anywhere;
 }
 
-.asd-ep-title-ja {
-  color: var(--asd-text-dim);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
+.asd-ep-title-ja,
 .asd-ep-date {
   color: var(--asd-text-dim);
   font-size: 12px;
+}
+
+.asd-ep-date {
   white-space: nowrap;
 }
 
@@ -1874,6 +1704,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 120px;
   min-height: 35px;
   gap: 6px;
   padding: 7px 18px;
@@ -1884,19 +1715,18 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: var(--trans-smooth);
 }
 
 .asd-ep-toggle:hover,
 .asd-staff-toggle:hover,
 .asd-cast-toggle:hover {
   color: var(--asd-primary);
-  border-color: rgba(109, 174, 255, .34);
+  border-color: var(--asd-border-hover);
   background: rgba(109, 174, 255, .1);
 }
 
 /* ================================================================
-   12. STAFF
+   10. STAFF
    ================================================================ */
 
 .asd-staff-grid-v2 {
@@ -1910,26 +1740,20 @@ nav.asd-tabs a.asd-tab.is-active::after {
   align-items: center;
   justify-content: center;
   min-width: 0;
+  min-height: 72px;
   padding: 14px 10px;
   border: 1px solid var(--glass-border);
   border-radius: var(--asd-radius-md);
-  background-color: var(--glass-bg);
-  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .035);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-bg);
+  box-shadow: var(--asd-shadow-sm);
   text-align: center;
   transition: var(--trans-smooth);
 }
 
 .asd-staff-card-v2:hover {
-  border-color: rgba(99, 168, 255, .22);
-  background-color: rgba(255, 255, 255, .09);
-  box-shadow: 0 7px 19px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .045);
+  border-color: rgba(99, 168, 255, .24);
+  background: rgba(255, 255, 255, .09);
   transform: translateY(-2px);
-}
-
-.asd-staff-hidden {
-  display: none !important;
 }
 
 .asd-staff-info {
@@ -1942,7 +1766,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-staff-role {
   color: var(--asd-text-dim);
   font-size: 11px;
-  letter-spacing: .02em;
   overflow-wrap: anywhere;
 }
 
@@ -1953,10 +1776,10 @@ nav.asd-tabs a.asd-tab.is-active::after {
   overflow-wrap: anywhere;
 }
 
-.asd-staff-name a,
-.asd-cast-char a,
-.asd-cast-va-name a {
-  transition: color .2s ease;
+.asd-staff-native {
+  color: var(--asd-text-dim);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .asd-staff-name a:hover,
@@ -1965,14 +1788,8 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-primary);
 }
 
-.asd-staff-native {
-  color: var(--asd-text-dim);
-  font-size: 11px;
-  overflow-wrap: anywhere;
-}
-
 /* ================================================================
-   13. CAST
+   11. CAST
    ================================================================ */
 
 .asd-cast-grid {
@@ -1990,34 +1807,27 @@ nav.asd-tabs a.asd-tab.is-active::after {
   padding: 11px 8px;
   border: 1px solid var(--glass-border);
   border-radius: var(--asd-radius-md);
-  background-color: var(--glass-bg);
-  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .035);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-bg);
+  box-shadow: var(--asd-shadow-sm);
   text-align: center;
   transition: var(--trans-smooth);
 }
 
 .asd-cast-card:hover {
-  border-color: rgba(99, 168, 255, .22);
-  background-color: rgba(255, 255, 255, .09);
-  box-shadow: 0 7px 19px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .045);
+  border-color: rgba(99, 168, 255, .24);
+  background: rgba(255, 255, 255, .09);
   transform: translateY(-2px);
-}
-
-.asd-cast-hidden {
-  display: none !important;
 }
 
 .asd-cast-avatar-wrap {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 3 / 4;
   overflow: hidden;
   border: 1px solid var(--asd-border);
   border-radius: var(--asd-radius-sm);
   background: var(--asd-bg);
+  aspect-ratio: 3 / 4;
 }
 
 .asd-cast-avatar-wrap img,
@@ -2029,7 +1839,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-cast-avatar-wrap img {
   object-fit: cover;
   object-position: center top;
-  transition: transform .25s ease, filter .25s ease;
+  transition: transform .25s ease;
 }
 
 .asd-cast-avatar-fb {
@@ -2037,14 +1847,12 @@ nav.asd-tabs a.asd-tab.is-active::after {
   align-items: center;
   justify-content: center;
   color: var(--asd-text-dim);
-  background: linear-gradient(135deg, var(--asd-bg-card-2), var(--asd-bg));
+  background:
+    linear-gradient(135deg,
+      var(--asd-bg-card-2),
+      var(--asd-bg));
   font-size: 21px;
   font-weight: 800;
-}
-
-.asd-cast-avatar-wrap--link {
-  cursor: pointer;
-  transition: box-shadow .25s ease;
 }
 
 .asd-cast-avatar-wrap--link:hover {
@@ -2052,11 +1860,11 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-cast-avatar-wrap--link:hover img {
-  filter: brightness(1.08);
   transform: scale(1.055);
 }
 
-.asd-cast-info {
+.asd-cast-info,
+.asd-cast-va-info {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -2074,7 +1882,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-cast-char-native {
   color: var(--asd-text-dim);
   font-size: 11px;
-  overflow-wrap: anywhere;
 }
 
 .asd-cast-va {
@@ -2087,13 +1894,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   border-top: 1px solid var(--asd-border);
 }
 
-.asd-cast-va-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 1px;
-}
-
 .asd-cast-va-name {
   color: var(--asd-text-muted);
   font-size: 12px;
@@ -2103,11 +1903,10 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-cast-va-native {
   color: var(--asd-text-dim);
   font-size: 10px;
-  overflow-wrap: anywhere;
 }
 
 /* ================================================================
-   14. 主題曲
+   12. 主題曲
    ================================================================ */
 
 .asd-music-group {
@@ -2123,7 +1922,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-text-muted);
   font-size: 13px;
   font-weight: 800;
-  letter-spacing: .04em;
 }
 
 .asd-music-card-v2 {
@@ -2136,18 +1934,8 @@ nav.asd-tabs a.asd-tab.is-active::after {
   padding: 12px 14px;
   border: 1px solid var(--glass-border);
   border-radius: var(--asd-radius-md);
-  background-color: var(--glass-bg);
-  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .035);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  transition: var(--trans-smooth);
-}
-
-.asd-music-card-v2:hover {
-  border-color: rgba(99, 168, 255, .22);
-  background-color: rgba(255, 255, 255, .09);
-  box-shadow: 0 7px 19px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .045);
-  transform: translateY(-2px);
+  background: var(--glass-bg);
+  box-shadow: var(--asd-shadow-sm);
 }
 
 .asd-music-type-badge {
@@ -2169,7 +1957,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-music-type-badge--ed {
-  color: #b9a5ff;
+  color: #c4b5fd;
   background: rgba(143, 107, 255, .2);
 }
 
@@ -2192,13 +1980,11 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-music-native {
   color: var(--asd-text-dim);
   font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .asd-music-artist {
   color: var(--asd-text-muted);
   font-size: 13px;
-  overflow-wrap: anywhere;
 }
 
 .asd-music-artist-romaji {
@@ -2219,24 +2005,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: rgba(255, 255, 255, .065);
   font-size: 11px;
   font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.asd-music-episodes::before {
-  flex: 0 0 auto;
-  content: "📺";
-}
-
-.asd-music-card-v2:has(.asd-music-type-badge--op) .asd-music-episodes {
-  color: #a8cdff;
-  border-color: rgba(109, 174, 255, .34);
-  background: rgba(109, 174, 255, .1);
-}
-
-.asd-music-card-v2:has(.asd-music-type-badge--ed) .asd-music-episodes {
-  color: #c4b5fd;
-  border-color: rgba(143, 107, 255, .34);
-  background: rgba(143, 107, 255, .1);
 }
 
 .asd-music-player-wrap {
@@ -2252,10 +2020,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: rgba(255, 255, 255, .055);
 }
 
-.asd-music-video[hidden] {
-  display: none !important;
-}
-
 .asd-music-play-btn {
   display: flex;
   flex: 0 0 auto;
@@ -2269,7 +2033,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   border-radius: 50%;
   background: rgba(109, 174, 255, .12);
   cursor: pointer;
-  transition: var(--trans-smooth);
 }
 
 .asd-music-play-btn::before {
@@ -2279,12 +2042,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
 .asd-music-play-btn.is-playing::before {
   content: "⏸";
-}
-
-.asd-music-play-btn:hover {
-  color: #fff;
-  border-color: var(--asd-primary);
-  background: var(--asd-primary);
 }
 
 .asd-music-progress-wrap {
@@ -2301,9 +2058,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-music-progress-bar {
   width: 0;
   height: 100%;
-  border-radius: 4px;
   background: linear-gradient(90deg, var(--asd-primary), #a6ceff);
-  pointer-events: none;
 }
 
 .asd-music-time {
@@ -2311,22 +2066,16 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-text-dim);
   font-size: 11px;
   text-align: right;
-  white-space: nowrap;
 }
 
 .asd-music-open-link {
-  flex: 0 0 auto;
   color: var(--asd-primary);
   font-size: 11px;
   font-weight: 700;
 }
 
-.asd-music-open-link:hover {
-  color: #fff;
-}
-
 /* ================================================================
-   15. 串流平台
+   13. 串流平台
    ================================================================ */
 
 .asd-stream-region {
@@ -2375,22 +2124,18 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
 .asd-stream-dot--tw {
   background: #ef4444;
-  box-shadow: 0 0 7px rgba(239, 68, 68, .7);
 }
 
 .asd-stream-dot--dub {
   background: #00a0e9;
-  box-shadow: 0 0 7px rgba(0, 160, 233, .7);
 }
 
 .asd-stream-dot--os {
   background: #94a3b8;
-  box-shadow: 0 0 7px rgba(148, 163, 184, .55);
 }
 
 .asd-stream-dot--google {
   background: #4285f4;
-  box-shadow: 0 0 7px rgba(66, 133, 244, .65);
 }
 
 .asd-stream-list {
@@ -2413,7 +2158,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: rgba(109, 174, 255, .07);
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.4;
   transition: var(--trans-smooth);
 }
 
@@ -2435,9 +2179,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-stream-label {
-  display: inline-block;
   min-width: 0;
-  color: inherit;
   overflow-wrap: anywhere;
 }
 
@@ -2454,14 +2196,8 @@ nav.asd-tabs a.asd-tab.is-active::after {
   display: none;
 }
 
-.asd-stream-btn--icon-only .asd-stream-icon {
-  width: 32px;
-  height: 32px;
-}
-
 .asd-stream-btn--no-link {
   opacity: .7;
-  cursor: default;
   pointer-events: none;
 }
 
@@ -2470,31 +2206,16 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: rgba(0, 160, 233, .1);
 }
 
-.asd-stream-btn--dub:hover {
-  border-color: rgba(0, 160, 233, .72);
-  background: rgba(0, 160, 233, .2);
-}
-
 .asd-stream-btn--os {
   border-color: rgba(148, 163, 184, .3);
   background: rgba(148, 163, 184, .07);
-}
-
-.asd-stream-btn--os:hover {
-  border-color: rgba(148, 163, 184, .58);
-  background: rgba(148, 163, 184, .15);
-}
-
-.asd-stream-btn--icon-fail {
-  min-width: auto;
-  padding: 10px 14px;
 }
 
 .asd-stream-btn--icon-fail .asd-stream-label--fallback {
   display: inline-block;
 }
 
-.asd-wrap .asd-stream-disclaimer {
+.asd-stream-disclaimer {
   margin: 12px 0 0;
   color: var(--asd-text-muted);
   font-size: 12px;
@@ -2502,7 +2223,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   16. FAQ
+   14. FAQ 與外部連結
    ================================================================ */
 
 .asd-faq-list {
@@ -2512,81 +2233,46 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-faq-item {
-  position: relative;
   padding: 16px;
-  overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: var(--asd-radius-md);
-  background-color: var(--glass-bg);
-  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .035);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  transition: background-color .22s ease, border-color .22s ease, box-shadow .22s ease, transform .22s ease;
+  background: var(--glass-bg);
+  box-shadow: var(--asd-shadow-sm);
 }
 
-.asd-faq-item:hover {
-  border-color: rgba(99, 168, 255, .22);
-  background-color: rgba(255, 255, 255, .075);
-  box-shadow: 0 7px 20px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .045);
-  transform: translateY(-1px);
-}
-
-.asd-faq-q {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-bottom: 10px;
-}
-
-.asd-faq-q-label {
-  flex: 0 0 auto;
-  color: var(--asd-primary);
-  font-size: .88rem;
-  font-weight: 800;
-  line-height: 1.5;
-}
-
-.asd-faq-q-text {
-  color: var(--asd-text);
-  font-size: .90rem;
-  font-weight: 700;
-  line-height: 1.5;
-}
-
+.asd-faq-q,
 .asd-faq-a {
   display: flex;
   align-items: flex-start;
   gap: 9px;
+}
+
+.asd-faq-q {
+  margin-bottom: 10px;
+}
+
+.asd-faq-a {
   padding-top: 8px;
   border-top: 1px solid var(--asd-border);
 }
 
-.asd-faq-a-label {
-  flex: 0 0 auto;
-  color: var(--asd-text-muted);
-  font-size: .88rem;
+.asd-faq-q-label {
+  color: var(--asd-primary);
   font-weight: 800;
-  line-height: 1.75;
 }
 
+.asd-faq-q-text {
+  color: var(--asd-text);
+  font-size: .9rem;
+  font-weight: 700;
+}
+
+.asd-faq-a-label,
 .asd-faq-a-text {
-  min-width: 0;
   color: var(--asd-text-muted);
   font-size: .88rem;
   line-height: 1.75;
 }
-
-.asd-faq-a-text p {
-  margin: 0 0 .55em;
-}
-
-.asd-faq-a-text p:last-child {
-  margin-bottom: 0;
-}
-
-/* ================================================================
-   17. 外部連結
-   ================================================================ */
 
 .asd-ext-links-grid {
   display: grid;
@@ -2604,21 +2290,15 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-text-soft);
   border: 1px solid var(--glass-border);
   border-radius: var(--asd-radius-md);
-  background-color: var(--glass-bg);
-  box-shadow: var(--asd-shadow-md), inset 0 1px 0 rgba(255, 255, 255, .035);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-bg);
   font-size: 13px;
   font-weight: 700;
-  transition: var(--trans-smooth);
 }
 
 .asd-ext-link-card:hover {
   color: #fff;
-  border-color: rgba(99, 168, 255, .22);
-  background-color: rgba(255, 255, 255, .09);
-  box-shadow: 0 7px 19px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .045);
-  transform: translateY(-2px);
+  border-color: var(--asd-border-hover);
+  background: rgba(255, 255, 255, .09);
 }
 
 .asd-ext-site {
@@ -2628,31 +2308,14 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-ext-arrow {
-  flex: 0 0 auto;
   color: var(--asd-text-dim);
 }
 
-.asd-ext--al:hover {
-  color: var(--asd-score-al);
-  border-color: rgba(99, 168, 255, .45);
-}
-
-.asd-ext--mal:hover {
-  color: var(--asd-score-mal);
-  border-color: rgba(143, 107, 255, .45);
-}
-
-.asd-ext--bgm:hover {
-  color: var(--asd-score-bgm);
-  border-color: rgba(251, 113, 133, .45);
-}
-
 /* ================================================================
-   18. Sidebar
+   15. Sidebar
    ================================================================ */
 
 .asd-side-section {
-  min-width: 0;
   padding: 16px;
   border-radius: var(--asd-radius-lg);
 }
@@ -2665,11 +2328,9 @@ nav.asd-tabs a.asd-tab.is-active::after {
   margin: 0 !important;
   padding: 0 0 10px !important;
   color: #fff !important;
-  border: 0 !important;
   border-bottom: 1px solid rgba(255, 255, 255, .15) !important;
   font-size: 15px !important;
   font-weight: 800 !important;
-  line-height: 1.4 !important;
 }
 
 .asd-side-empty {
@@ -2680,13 +2341,10 @@ nav.asd-tabs a.asd-tab.is-active::after {
   text-align: center;
 }
 
-/* ── 標籤 ── */
-
 .asd-tags-wrap {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  overflow: hidden;
 }
 
 .asd-tag-item {
@@ -2699,60 +2357,43 @@ nav.asd-tabs a.asd-tab.is-active::after {
   border-radius: var(--asd-radius-pill);
   background: rgba(255, 255, 255, .055);
   font-size: 12px;
-  line-height: 1.3;
-  transition: var(--trans-smooth);
 }
 
 .asd-tag-item:hover {
   color: #fff;
-  border-color: rgba(255, 255, 255, .2);
   background: rgba(255, 255, 255, .1);
 }
 
 .asd-tag-item--season {
   color: var(--asd-primary);
   border-color: rgba(109, 174, 255, .23);
-  background: rgba(109, 174, 255, .09);
 }
 
 .asd-tag-item--studio {
   color: #fbbf24;
   border-color: rgba(251, 191, 36, .28);
-  background: rgba(251, 191, 36, .09);
 }
 
-/* ── 相關新聞／相關作品 ── */
-
-.asd-side-news {
+.asd-side-news,
+.asd-side-cards {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 }
 
 .asd-news-card,
 .asd-mini-card {
   border: 1px solid var(--asd-border);
-  background-color: rgba(255, 255, 255, .04);
-  box-shadow: 0 2px 7px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .02);
-  transition: background-color .22s ease, border-color .22s ease, box-shadow .22s ease;
-}
-
-.asd-news-card:hover,
-.asd-mini-card:hover {
-  color: #fff;
-  border-color: rgba(99, 168, 255, .2);
-  background-color: rgba(255, 255, 255, .08);
-  box-shadow: 0 4px 11px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .035);
+  border-radius: var(--asd-radius-sm);
+  background: rgba(255, 255, 255, .04);
 }
 
 .asd-news-card {
   display: flex;
   align-items: center;
-  min-width: 0;
   gap: 8px;
   padding: 9px 10px;
   color: var(--asd-text-muted);
-  border-radius: var(--asd-radius-sm);
 }
 
 .asd-news-card__title {
@@ -2762,30 +2403,22 @@ nav.asd-tabs a.asd-tab.is-active::after {
   overflow: hidden;
   font-size: 13px;
   line-height: 1.5;
-  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.asd-news-arrow {
-  flex: 0 0 auto;
-  color: var(--asd-text-dim);
-}
-
-.asd-side-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .asd-mini-card {
   display: flex;
   align-items: center;
-  min-width: 0;
   gap: 10px;
   padding: 9px 10px;
-  color: var(--asd-text);
-  border-radius: var(--asd-radius-sm);
+}
+
+.asd-news-card:hover,
+.asd-mini-card:hover {
+  color: #fff;
+  border-color: rgba(99, 168, 255, .22);
+  background: rgba(255, 255, 255, .08);
 }
 
 .asd-mini-card__thumb {
@@ -2793,7 +2426,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   width: 46px;
   height: 64px;
   overflow: hidden;
-  border: 1px solid var(--asd-border);
   border-radius: var(--asd-radius-sm);
   background: var(--asd-bg);
 }
@@ -2813,9 +2445,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   align-items: center;
   justify-content: center;
   color: var(--asd-text-dim);
-  background: linear-gradient(135deg, var(--asd-bg-card-2), var(--asd-bg));
-  font-size: 13px;
-  font-weight: 800;
 }
 
 .asd-mini-card__body {
@@ -2833,7 +2462,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
-  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -2841,10 +2469,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-mini-card__meta {
   color: var(--asd-primary);
   font-size: 11px;
-  font-weight: 600;
 }
-
-/* ── 贊助 ── */
 
 .asd-sponsor-block {
   display: flex;
@@ -2861,7 +2486,8 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-weight: 800;
 }
 
-.asd-sponsor-desc {
+.asd-sponsor-desc,
+.asd-affiliate-box {
   color: var(--asd-text-muted);
   font-size: 13px;
   line-height: 1.65;
@@ -2869,38 +2495,17 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
 .asd-sponsor-btn {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
   padding: 9px 21px;
   color: #fff;
   border-radius: var(--asd-radius-pill);
   background: linear-gradient(135deg, #3b82f6, #6d5dfc);
-  box-shadow: 0 5px 16px rgba(59, 130, 246, .3);
   font-size: 13px;
   font-weight: 800;
-  transition: var(--trans-smooth);
-}
-
-.asd-sponsor-btn:hover {
-  color: #fff;
-  box-shadow: 0 7px 22px rgba(59, 130, 246, .45);
-  filter: brightness(1.08);
-  transform: translateY(-1px);
 }
 
 .asd-sponsor-note {
   color: var(--asd-text-dim);
   font-size: 11px;
-}
-
-.asd-affiliate-box {
-  color: var(--asd-text-muted);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.asd-affiliate-box img {
-  height: auto;
 }
 
 .asd-ad-placeholder:empty,
@@ -2909,7 +2514,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   19. 留言與 wpDiscuz
+   16. 留言
    ================================================================ */
 
 .asd-comments,
@@ -2920,7 +2525,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-comments .comment-respond,
 .asd-comments #wpcomm,
 .asd-comments .wpd-thread-list,
-.asd-comments .wpd-primary,
 .asd-comments #disqus_thread {
   width: 100%;
   max-width: 100%;
@@ -2936,13 +2540,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: transparent !important;
 }
 
-.asd-comments .comment-list {
-  width: 100%;
-  margin: 0 0 16px !important;
-  padding: 0 !important;
-  list-style: none !important;
-}
-
 .asd-wrap .comment-form input:not([type="submit"]),
 .asd-wrap .comment-form textarea {
   width: 100%;
@@ -2953,12 +2550,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: var(--asd-bg-card);
 }
 
-.asd-wrap .comment-form input:focus,
-.asd-wrap .comment-form textarea:focus {
-  border-color: var(--asd-primary);
-  outline: 0;
-}
-
 .asd-wrap .comment-form .submit {
   padding: 9px 20px;
   color: #fff;
@@ -2967,48 +2558,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: var(--asd-primary);
   font-weight: 700;
   cursor: pointer;
-}
-
-.asd-wrap .comment-form .submit:hover {
-  background: var(--asd-primary-dark);
-}
-
-/* 避免全域字型覆蓋 Font Awesome */
-
-.asd-wrap i.fa,
-.asd-wrap i.fas,
-.asd-wrap i.far,
-.asd-wrap i.fa-solid,
-.asd-wrap i.fa-regular,
-.asd-comments i.fa,
-.asd-comments i.fas,
-.asd-comments i.far,
-.asd-comments .wpdicon,
-.asd-comments i[class*="fa-"] {
-  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free" !important;
-}
-
-.asd-wrap i.fab,
-.asd-wrap i.fa-brands,
-.asd-comments i.fab,
-.asd-comments i.fa-brands {
-  font-family: "Font Awesome 6 Brands", "Font Awesome 5 Brands" !important;
-  font-weight: 400 !important;
-}
-
-.asd-wrap i.fas,
-.asd-wrap i.fa-solid,
-.asd-comments i.fas,
-.asd-comments i.fa-solid {
-  font-weight: 900 !important;
-}
-
-.asd-comments,
-.asd-comments .wpd-comment,
-.asd-comments .wpd-comment-right,
-.asd-comments .wpd-comment-text {
-  --theme-text-color: rgba(225, 231, 240, .92);
-  --theme-headings-color: #fff;
 }
 
 .asd-comments .wpd-comment-text,
@@ -3027,13 +2576,36 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-comments .wpd-comment-date,
 .asd-comments .wpd-comment-meta,
 .asd-comments .wpd-comment-footer,
-.asd-comments .wpd-comment-footer a,
-.asd-comments .wpd-thread-info {
-  color: rgba(215, 222, 232, .7) !important;
+.asd-comments .wpd-comment-footer a {
+  color: rgba(215, 222, 232, .72) !important;
+}
+
+/* Font Awesome 保護 */
+
+.asd-wrap i.fa,
+.asd-wrap i.fas,
+.asd-wrap i.far,
+.asd-wrap i.fa-solid,
+.asd-wrap i.fa-regular,
+.asd-comments .wpdicon,
+.asd-comments i[class*="fa-"] {
+  font-family:
+    "Font Awesome 6 Free",
+    "Font Awesome 5 Free" !important;
+}
+
+.asd-wrap i.fab,
+.asd-wrap i.fa-brands,
+.asd-comments i.fab,
+.asd-comments i.fa-brands {
+  font-family:
+    "Font Awesome 6 Brands",
+    "Font Awesome 5 Brands" !important;
+  font-weight: 400 !important;
 }
 
 /* ================================================================
-   20. 評分完成引導視窗
+   17. Modal 與 Toast
    ================================================================ */
 
 .wacg-modal-overlay {
@@ -3046,7 +2618,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   padding: 20px;
   visibility: hidden;
   opacity: 0;
-  background: rgba(0, 0, 0, .68);
+  background: rgba(0, 0, 0, .7);
   backdrop-filter: blur(3px);
   transition: opacity .25s ease, visibility .25s ease;
 }
@@ -3066,18 +2638,11 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: var(--asd-bg-card);
   box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
   text-align: center;
-  transform: translateY(12px) scale(.96);
-  transition: transform .25s ease;
-}
-
-.wacg-modal-overlay.is-open .wacg-modal-box {
-  transform: translateY(0) scale(1);
 }
 
 .wacg-modal-emoji {
   margin-bottom: 10px;
   font-size: 40px;
-  line-height: 1;
 }
 
 .wacg-modal-title {
@@ -3092,11 +2657,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-text-muted);
   font-size: 14px;
   line-height: 1.7;
-}
-
-.wacg-modal-text strong {
-  color: #ffb84d;
-  font-size: 16px;
 }
 
 .wacg-modal-actions {
@@ -3123,10 +2683,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: #1a1a1a;
   background: #ff9f43;
 }
-
-/* ================================================================
-   21. Toast
-   ================================================================ */
 
 .wacg-toast {
   position: fixed;
@@ -3159,33 +2715,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   22. 隱藏元素保險
-   ================================================================ */
-
-.asd-wrap [hidden],
-.smacg-share-modal[hidden],
-.wacg-rated-actions[hidden],
-.asd-music-video[hidden] {
-  display: none !important;
-}
-
-/* ================================================================
-   23. 圖片載入失敗狀態
-   外部 JS 可在載入失敗時加入 .is-image-error
-   ================================================================ */
-
-.asd-hero-poster.is-image-error .asd-poster-img,
-.asd-cast-avatar-wrap.is-image-error img {
-  display: none !important;
-}
-
-.asd-hero-poster.is-image-error .asd-poster-fallback--backup,
-.asd-cast-avatar-wrap.is-image-error .asd-cast-avatar-fb--backup {
-  display: flex !important;
-}
-
-/* ================================================================
-   24. Firefox／不支援 backdrop-filter 降級
+   18. 不支援毛玻璃時的降級
    ================================================================ */
 
 @supports not (backdrop-filter: blur(1px)) {
@@ -3200,18 +2730,18 @@ nav.asd-tabs a.asd-tab.is-active::after {
   .asd-music-card-v2,
   .asd-faq-item,
   .asd-ext-link-card {
-    background-color: rgba(36, 44, 53, .92);
+    background-color: rgba(36, 44, 53, .96);
   }
 }
 
 /* ================================================================
-   25. RWD — 小型桌面
+   19. 小型桌面
    ================================================================ */
 
 @media (max-width: 1100px) {
   .asd-wrap {
     --asd-poster-w: 255px;
-    --asd-hero-side-w: 195px;
+    --asd-hero-side-w: 210px;
   }
 
   .asd-container.asd-container--has-sidebar {
@@ -3224,7 +2754,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   26. RWD — 平板
+   20. 平板
    ================================================================ */
 
 @media (max-width: 900px) {
@@ -3234,6 +2764,33 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
   .asd-wrap .asd-hero-new {
     grid-template-columns: var(--asd-poster-w) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .asd-hero-poster-wrap {
+    align-self: start;
+  }
+
+  .asd-hero-poster {
+    height: auto;
+    min-height: 0;
+  }
+
+  .asd-poster-img,
+  .asd-poster-fallback {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 460 / 649;
+  }
+
+  .asd-wrap .asd-hero-new>.asd-hside-block {
+    display: block;
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 0;
+    margin-top: 4px;
+    padding: 16px;
+    border-radius: var(--asd-radius-lg);
   }
 
   .asd-container.asd-container--has-sidebar {
@@ -3255,18 +2812,15 @@ nav.asd-tabs a.asd-tab.is-active::after {
     gap: 14px;
   }
 
-  .smacg-status-group {
+  .smacg-status-group,
+  .smacg-progress-group {
     width: 100%;
+    max-width: none;
   }
 
   .smacg-status-btn {
     flex: 1;
     width: auto;
-  }
-
-  .smacg-progress-group {
-    width: 100%;
-    max-width: none;
   }
 
   .smacg-action-group {
@@ -3276,14 +2830,10 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   27. RWD — 手機／直向平板
+   21. 手機
    ================================================================ */
 
 @media (max-width: 768px) {
-  body.single-anime .entry-content {
-    padding: 0;
-  }
-
   .asd-wrap {
     --asd-gap: 16px;
 
@@ -3298,42 +2848,112 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
   .asd-wrap .asd-hero-new {
     grid-template-columns: 1fr;
-    gap: 18px;
-    padding: 16px 0;
+    gap: 17px;
+    margin-bottom: 16px;
+    padding: 14px 4px;
+  }
+
+  .asd-hero-poster-wrap {
+    width: 100%;
   }
 
   .asd-hero-poster {
-    width: min(300px, 72vw);
+    width: min(270px, 76vw);
     max-width: none;
     margin: 0 auto;
+    border-radius: 14px;
+  }
+
+  .asd-poster-img,
+  .asd-poster-fallback {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 460 / 649;
+    object-fit: cover;
   }
 
   .asd-hero-body {
-    gap: 13px;
+    width: 100%;
+    gap: 15px;
+    padding: 0;
+    text-align: left;
+  }
+
+  .asd-hero-breadcrumb {
+    gap: 6px;
+    font-size: 13px;
   }
 
   .asd-hero-title {
-    font-size: clamp(27px, 8vw, 34px) !important;
-    line-height: 1.28 !important;
+    font-size: 28px !important;
+    line-height: 1.25 !important;
   }
 
-  .asd-hero-native {
+  .asd-hero-native,
+  .asd-hero-simplified,
+  .asd-hero-romaji {
     font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .asd-series-entry-badge {
+    display: flex;
+    width: 100%;
+    max-width: none;
+  }
+
+  .asd-hero-badges,
+  .asd-hero-scores-new {
+    max-width: 100%;
+    gap: 8px;
+  }
+
+  .asd-hbadge {
+    min-height: 32px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .asd-score-pill {
+    min-height: 31px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* 手機 Hero 按鈕：一排三個 */
+  .asd-hero-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
   }
 
   .asd-hero-actions .asd-action-btn {
-    flex: 1 1 calc(50% - 5px);
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 9px 5px;
+    overflow: hidden;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .asd-wrap .asd-hero-new>.asd-hside-block {
+    grid-column: 1;
+    width: 100%;
+    margin: 0;
+    padding: 14px;
+    border-radius: 13px;
   }
 
   nav.asd-tabs {
     top: var(--asd-mobile-sticky-offset, 56px);
     flex-wrap: nowrap;
-    gap: 4px;
-    padding: 6px;
     overflow-x: auto;
-    overflow-y: hidden;
     scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
   }
 
   nav.asd-tabs::-webkit-scrollbar {
@@ -3342,21 +2962,22 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
   nav.asd-tabs a.asd-tab {
     flex: 0 0 auto;
-    min-height: 36px;
     padding: 0 10px;
     font-size: 12px;
   }
 
   .asd-section {
     padding: 18px;
-    scroll-margin-top: calc(var(--asd-mobile-sticky-offset, 56px) + 58px);
+    scroll-margin-top:
+      calc(var(--asd-mobile-sticky-offset, 56px) + 58px);
   }
 
   .asd-info-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .asd-info-grid .asd-info-row {
+  .asd-info-grid .asd-info-row,
+  .asd-info-grid .asd-info-row:last-child {
     grid-column: auto;
   }
 
@@ -3379,53 +3000,36 @@ nav.asd-tabs a.asd-tab.is-active::after {
   .asd-ep-date {
     grid-column: 2;
   }
-
-  .asd-music-player-wrap {
-    flex-wrap: nowrap;
-  }
 }
 
 /* ================================================================
-   28. RWD — 小手機
+   22. 小手機
    ================================================================ */
 
 @media (max-width: 560px) {
   .asd-wrap {
-    --asd-gap: 14px;
+    --asd-gap: 16px;
 
-    padding: 12px;
+    padding: 16px;
   }
 
   .asd-banner {
     height: 180px;
   }
 
-  .asd-hero-poster {
-    width: min(270px, 78vw);
-  }
-
-  .asd-hero-breadcrumb {
-    font-size: 12px;
-  }
-
   .asd-hero-title {
-    font-size: clamp(25px, 8.5vw, 31px) !important;
+    font-size: 28px !important;
   }
 
-  .asd-hbadge {
-    min-height: 32px;
-    padding: 5px 11px;
+  .asd-series-badge-name {
     font-size: 12px;
   }
 
-  .asd-score-pill {
-    padding: 6px 10px;
+  .asd-series-badge-count {
+    font-size: 10px;
   }
 
-  .asd-hero-actions .asd-action-btn {
-    flex: 1 1 100%;
-    width: 100%;
-  }
+  /* 追蹤列 */
 
   .smacg-track-bar {
     padding: 12px;
@@ -3433,7 +3037,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
   .smacg-status-group {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
 
@@ -3452,7 +3056,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   }
 
   .asd-wrap h2.asd-section-title {
-    font-size: 16px !important;
+    font-size: 17px !important;
   }
 
   .asd-info-grid,
@@ -3465,63 +3069,184 @@ nav.asd-tabs a.asd-tab.is-active::after {
     grid-column: auto;
   }
 
-  .asd-cast-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  /* STAFF：一排兩張 */
 
   .asd-staff-grid-v2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .asd-staff-card-v2 {
+    min-height: 50px;
+    padding: 8px 10px;
+    overflow: hidden;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .095);
+  }
+
+  .asd-staff-info {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .asd-staff-role,
+  .asd-staff-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asd-staff-role {
+    font-size: 10px;
+  }
+
+  .asd-staff-name {
+    font-size: 12px;
+  }
+
+  .asd-staff-native {
+    display: none;
+  }
+
+  /* CAST：一排兩張 */
+
+  .asd-cast-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  /* 串流平台：一排兩個 */
+
+  .asd-stream-region {
+    margin-bottom: 10px;
+    padding: 12px;
+    border-radius: 11px;
+  }
+
+  .asd-stream-region-head {
+    margin-bottom: 11px;
+    color: #e8edf4;
+    font-size: 13px;
+    font-weight: 800;
   }
 
   .asd-stream-list {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .asd-stream-btn,
   .asd-stream-btn--icon-only {
+    display: flex;
+    align-items: center;
     justify-content: flex-start;
     width: 100%;
     min-width: 0;
-    padding: 10px 13px;
+    min-height: 48px;
+    gap: 8px;
+    padding: 8px 10px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .075);
   }
 
-  .asd-stream-btn--icon-only .asd-stream-label--fallback {
-    display: inline-block;
+  .asd-stream-icon,
+  .asd-stream-btn--icon-only .asd-stream-icon {
+    flex: 0 0 29px;
+    width: 29px;
+    height: 29px;
+    padding: 3px;
+    border-radius: 7px;
   }
 
-  .asd-music-card-v2 {
-    align-items: flex-start;
+  .asd-stream-label,
+  .asd-stream-btn--icon-only .asd-stream-label:not(.asd-stream-label--fallback) {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    color: #f0f4f8;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .asd-music-player-wrap {
-    padding: 7px 9px;
+  .asd-stream-btn--icon-fail .asd-stream-label--fallback {
+    display: block;
+  }
+
+  /* 線上看：一排三個 */
+
+  .asd-ow-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    padding: 2px 0 8px;
+  }
+
+  .asd-ow-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 39px;
+    gap: 4px;
+    padding: 7px 4px;
+    overflow: hidden;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .asd-ow-tab.is-active {
+    color: #fff;
+    border-color: rgba(105, 154, 255, .75);
+    background:
+      linear-gradient(135deg,
+        rgba(62, 130, 210, .95),
+        rgba(91, 82, 205, .95));
+  }
+
+  .asd-ow-tab .asd-pv-tab-label {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .asd-music-open-link {
     display: none;
   }
 
-  .asd-ow-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .wacg-modal-actions {
     flex-direction: column;
   }
 
-  .asd-faq-item {
-    padding: 14px;
+  .asd-editorial-byline {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 }
 
 /* ================================================================
-   29. RWD — 超窄手機
+   23. 超窄手機
    ================================================================ */
 
 @media (max-width: 380px) {
   .asd-wrap {
-    padding: 10px;
+    padding: 14px;
   }
 
   .asd-banner {
@@ -3533,30 +3258,55 @@ nav.asd-tabs a.asd-tab.is-active::after {
   }
 
   .asd-hero-title {
-    font-size: 24px !important;
-  }
-
-  .asd-series-entry-badge {
-    width: 100%;
-    padding: 9px 10px;
+    font-size: 26px !important;
   }
 
   .asd-series-badge-count {
     display: none;
   }
 
+  .asd-hero-actions .asd-action-btn {
+    min-height: 42px;
+    padding: 8px 3px;
+    font-size: 12px;
+  }
+
   .smacg-status-group {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .smacg-status-btn {
-    height: 49px;
+  .asd-staff-grid-v2,
+  .asd-cast-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
 
-  .asd-cast-grid,
-  .asd-staff-grid-v2 {
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+  .asd-staff-card-v2 {
+    min-height: 46px;
+    padding: 7px 6px;
+  }
+
+  .asd-staff-role {
+    font-size: 9px;
+  }
+
+  .asd-staff-name {
+    font-size: 10px;
+  }
+
+  .asd-stream-btn,
+  .asd-stream-btn--icon-only {
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .asd-stream-label {
+    font-size: 11px;
+  }
+
+  .asd-ow-tab,
+  .asd-ow-tab .asd-pv-tab-label {
+    font-size: 11px;
   }
 
   .asd-ep-row {
@@ -3567,16 +3317,12 @@ nav.asd-tabs a.asd-tab.is-active::after {
     grid-column: 1;
   }
 
-  .asd-ow-tabs {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .wacg-toast {
     right: 12px;
     left: 12px;
     width: auto;
-    text-align: center;
     white-space: normal;
+    text-align: center;
     transform: translateY(20px);
   }
 
@@ -3586,7 +3332,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ================================================================
-   30. Reduced Motion
+   24. Reduced Motion
    ================================================================ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -3601,911 +3347,332 @@ nav.asd-tabs a.asd-tab.is-active::after {
   }
 }
 
+/* ================================================================
+   25. 高對比模式
+   ================================================================ */
+
+@media (prefers-contrast: more) {
+  .asd-wrap {
+    --asd-text-muted: rgba(235, 240, 247, .82);
+    --asd-text-dim: rgba(225, 231, 240, .7);
+    --asd-border: rgba(255, 255, 255, .2);
+    --glass-border: rgba(255, 255, 255, .2);
+  }
+
+  .asd-section,
+  .asd-side-section,
+  .smacg-track-bar,
+  .asd-hside-block {
+    border-width: 2px;
+  }
+}
+
+/* ================================================================
+   26. 列印
+   ================================================================ */
+
+@media print {
+  body.single-anime {
+    color: #111;
+    background: #fff;
+  }
+
+  .asd-wrap {
+    max-width: none;
+    padding: 0;
+    color: #111;
+    background: #fff;
+  }
+
+  .asd-banner,
+  nav.asd-tabs,
+  .smacg-track-bar,
+  .asd-hero-actions,
+  .asd-hside-block,
+  .asd-sidebar,
+  .asd-comments,
+  .wacg-modal-overlay,
+  .wacg-toast,
+  .smacg-share-modal,
+  .asd-ad-placeholder,
+  .asd-sponsor-block {
+    display: none !important;
+  }
+
+  .asd-wrap .asd-hero-new,
+  .asd-container.asd-container--has-sidebar {
+    display: block;
+  }
+
+  .asd-hero-poster {
+    width: 180px;
+    min-height: 0;
+    margin-bottom: 20px;
+    box-shadow: none;
+  }
+
+  .asd-poster-img,
+  .asd-poster-fallback {
+    min-height: 0;
+    aspect-ratio: 460 / 649;
+  }
+
+  .asd-section {
+    margin-bottom: 18px;
+    padding: 0;
+    color: #111;
+    border: 0;
+    background: #fff;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .asd-wrap h1,
+  .asd-wrap h2,
+  .asd-wrap h3,
+  .asd-wrap p,
+  .asd-wrap span,
+  .asd-wrap div {
+    color: #111;
+  }
+
+  .asd-wrap a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    word-break: break-all;
+  }
+
+  .asd-cast-grid,
+  .asd-staff-grid-v2 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* =================================================================
-   END — Anime Sync Pro anime-single.css v20.0 (optimized)
+   END — Anime Sync Pro anime-single.css v20.1
+   Compatible with single-anime.php v15.5
    ================================================================= */
 
-/* =====================================================
-   v20.1 手機版改成測試站排列
-   ===================================================== */
-@media (max-width:560px) {
+/* ================================================================
+   v20.1.1 手機 Hero 修正
+   - 降低標題尺寸
+   - 操作按鈕改成兩欄
+   - 評分卡縮小間距
+   - 避免 Hero 顯得過長、過度鬆散
+   ================================================================ */
 
-  /* Hero 保持緊湊 */
+@media (max-width: 768px) {
+  .asd-wrap {
+    padding: 12px;
+  }
+
+  .asd-banner {
+    height: 165px;
+    margin-bottom: 4px;
+  }
+
   .asd-wrap .asd-hero-new {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 12px 0;
+    gap: 13px;
+    margin-bottom: 14px;
+    padding: 10px 0;
   }
 
-  .asd-wrap .asd-hero-body {
-    display: grid;
+  .asd-hero-poster {
+    width: min(220px, 62vw);
+    margin: 0 auto;
+  }
+
+  .asd-hero-body {
     gap: 11px;
   }
 
-  /* 強制顯示作品標題 */
-  .asd-wrap .asd-hero-title {
-    display: block !important;
-    visibility: visible !important;
-    margin: 0 !important;
-    color: #fff !important;
-    font-size: 22px !important;
+  .asd-hero-title {
+    font-size: 24px !important;
     line-height: 1.3 !important;
-    font-weight: 800 !important;
+    letter-spacing: -.01em;
   }
 
-  .asd-wrap .asd-hero-native,
-  .asd-wrap .asd-hero-romaji {
-    font-size: 12px;
+  .asd-hero-native,
+  .asd-hero-simplified {
+    font-size: 13px;
     line-height: 1.55;
   }
 
-  /* 標籤縮小 */
-  .asd-wrap .asd-hero-badges {
-    gap: 6px;
+  .asd-hero-romaji {
+    font-size: 12px;
+    line-height: 1.5;
   }
 
-  .asd-wrap .asd-hbadge {
-    min-height: 27px;
-    padding: 4px 10px;
-    font-size: 11px;
+  .asd-series-entry-badge {
+    min-height: 46px;
+    padding: 8px 12px;
   }
 
-  /* 分數膠囊 */
-  .asd-wrap .asd-hero-scores-new {
-    gap: 6px;
+  .asd-hero-badges,
+  .asd-hero-scores-new {
+    gap: 7px;
   }
 
-  .asd-wrap .asd-score-pill {
-    gap: 5px;
-    padding: 5px 9px;
-    font-size: 11px;
-  }
-
-  .asd-wrap .asd-sp-val {
+  .asd-hbadge {
+    min-height: 30px;
+    padding: 5px 11px;
     font-size: 12px;
   }
 
-  .asd-wrap .asd-sp-label {
-    font-size: 9px;
+  .asd-score-pill {
+    min-height: 30px;
+    padding: 5px 10px;
   }
 
-  /* 操作按鈕：改回測試站一排兩個 */
-  .asd-wrap .asd-hero-actions {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 6px !important;
+  /* 改回兩欄，避免五個按鈕排成 3 + 2 */
+  .asd-hero-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
   }
 
-  .asd-wrap .asd-hero-actions .asd-action-btn {
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 34px !important;
-    padding: 6px 8px !important;
-    font-size: 11px !important;
+  .asd-hero-actions .asd-action-btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 7px;
+    font-size: 12px;
   }
 
-  /* 手機評分區 */
+  /* 第一個主要按鈕橫跨兩欄 */
+  .asd-hero-actions .asd-action-btn:first-child {
+    grid-column: 1 / -1;
+  }
+
   .asd-wrap .asd-hero-new>.asd-hside-block {
-    grid-column: 1 !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 12px !important;
-    border-radius: 12px !important;
+    grid-column: 1;
+    width: 100%;
+    min-height: 0;
+    margin: 2px 0 0;
+    padding: 13px;
+    border-radius: 12px;
+  }
+
+  .asd-hside-title {
+    margin-bottom: 7px;
+  }
+
+  .asd-hside-row,
+  .wacg-score-row {
+    min-height: 23px;
+    padding: 3px 0;
   }
 }
 
-/* 超窄手機仍維持兩欄 */
-@media (max-width:380px) {
-  .asd-wrap .asd-hero-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+@media (max-width: 380px) {
+  .asd-wrap {
+    padding: 10px;
   }
 
-  .asd-wrap .asd-hero-actions .asd-action-btn {
-    padding: 6px 4px !important;
-    font-size: 10px !important;
+  .asd-banner {
+    height: 145px;
+  }
+
+  .asd-hero-poster {
+    width: min(205px, 60vw);
+  }
+
+  .asd-hero-title {
+    font-size: 22px !important;
+  }
+
+  .asd-hero-actions .asd-action-btn {
+    min-height: 40px;
+    padding: 7px 5px;
+    font-size: 11px;
   }
 }
 
-/* =====================================================
-   手機版：串流平台 2 欄／線上看 3 欄
-   ===================================================== */
-@media (max-width:560px) {
+/* ================================================================
+   手機 Hero 標籤固定分段
+   第一列：狀態／類型／季度／集數
+   第二列：題材分類
+   ================================================================ */
 
-  /* 串流平台：一排兩個 */
-  .asd-wrap .asd-stream-list {
+@media (max-width: 768px) {
+  .asd-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    width: 100%;
+    column-gap: 7px;
+    row-gap: 0;
+  }
+
+  /* 一般資料放在第一段 */
+  .asd-hero-badges .asd-hbadge:not(.asd-hbadge--genre) {
+    order: 1;
+  }
+
+  /* 只有存在題材標籤時才插入強制換行 */
+  .asd-hero-badges:has(.asd-hbadge--genre)::before {
+    content: "";
+    order: 2;
+    flex: 0 0 100%;
+    width: 100%;
+    height: 0;
+  }
+
+  /* 題材分類放在第二段 */
+  .asd-hero-badges .asd-hbadge--genre {
+    order: 3;
+    margin-top: 8px;
+  }
+}
+
+/* ================================================================
+   v20.1.2 手機基本資訊卡修正
+   - 強制左右平均兩欄
+   - 最後更新固定整列
+   - 防止舊版 grid-column 規則干擾
+   ================================================================ */
+
+@media (max-width: 560px) {
+  .asd-info-grid {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) !important;
     gap: 8px !important;
+    width: 100%;
   }
 
-  .asd-wrap .asd-stream-btn,
-  .asd-wrap .asd-stream-btn--icon-only {
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 48px !important;
-    padding: 8px !important;
-  }
-
-  .asd-wrap .asd-stream-label {
-    min-width: 0 !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  /* 線上看：一排三個 */
-  .asd-wrap .asd-ow-tabs {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 6px !important;
-  }
-
-  .asd-wrap .asd-ow-tab {
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    padding: 7px 4px !important;
-    font-size: 10px !important;
-  }
-
-  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
-    min-width: 0 !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-}
-
-/* =====================================================
-   手機版串流平台／線上看美化版
-   ===================================================== */
-@media (max-width:560px) {
-
-  /* 區塊縮排 */
-  .asd-wrap .asd-stream-region {
-    margin-bottom: 10px !important;
-    padding: 12px !important;
-    border-radius: 11px !important;
-    background: rgba(255, 255, 255, .035) !important;
-  }
-
-  .asd-wrap .asd-stream-region-head {
-    margin-bottom: 10px !important;
-    font-size: 12px !important;
-  }
-
-  /* ── 串流平台：一排兩個 ── */
-  .asd-wrap .asd-stream-list {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 8px !important;
-  }
-
-  .asd-wrap .asd-stream-btn,
-  .asd-wrap .asd-stream-btn--icon-only {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 48px !important;
-    gap: 7px !important;
-    padding: 8px 9px !important;
-    border-radius: 10px !important;
-    background: rgba(255, 255, 255, .055) !important;
-    box-shadow:
-      0 3px 9px rgba(0, 0, 0, .24),
-      inset 0 1px rgba(255, 255, 255, .04) !important;
-  }
-
-  .asd-wrap .asd-stream-btn:hover {
-    background: rgba(99, 168, 255, .13) !important;
-    transform: none !important;
-  }
-
-  /* 平台圖示統一大小 */
-  .asd-wrap .asd-stream-icon,
-  .asd-wrap .asd-stream-btn--icon-only .asd-stream-icon {
-    flex: 0 0 26px !important;
-    width: 26px !important;
-    height: 26px !important;
-    padding: 3px !important;
-    border-radius: 7px !important;
-  }
-
-  /* 平台名稱最多顯示兩行 */
-  .asd-wrap .asd-stream-label {
-    display: -webkit-box !important;
-    min-width: 0 !important;
-    overflow: hidden !important;
-    color: rgba(225, 231, 240, .9) !important;
-    font-size: 10px !important;
-    font-weight: 700 !important;
-    line-height: 1.35 !important;
-    white-space: normal !important;
-    text-overflow: clip !important;
-    overflow-wrap: anywhere !important;
-    -webkit-box-orient: vertical !important;
-    -webkit-line-clamp: 2 !important;
-  }
-
-  /* ── 線上看：一排三個 ── */
-  .asd-wrap .asd-ow-tabs {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 7px !important;
-    padding: 2px 0 8px !important;
-    overflow: visible !important;
-  }
-
-  .asd-wrap .asd-ow-tab {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 36px !important;
-    gap: 4px !important;
-    padding: 6px 5px !important;
-    border-radius: 9px !important;
-    font-size: 10px !important;
-    box-shadow:
-      0 2px 7px rgba(0, 0, 0, .22),
-      inset 0 1px rgba(255, 255, 255, .035) !important;
-  }
-
-  .asd-wrap .asd-ow-tab.is-active {
-    color: #fff !important;
-    border-color: rgba(99, 168, 255, .55) !important;
-    background: linear-gradient(135deg,
-        rgba(64, 128, 208, .75),
-        rgba(99, 104, 238, .75)) !important;
-  }
-
-  .asd-wrap .asd-ow-tab .asd-pv-tab-icon {
-    flex: 0 0 auto !important;
-    font-size: 8px !important;
-  }
-
-  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
-    min-width: 0 !important;
-    overflow: hidden !important;
-    font-size: 10px !important;
-    line-height: 1.25 !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-}
-
-/* 380px 以下避免內容擠爆 */
-@media (max-width:380px) {
-
-  .asd-wrap .asd-stream-btn,
-  .asd-wrap .asd-stream-btn--icon-only {
-    gap: 5px !important;
-    padding: 7px !important;
-  }
-
-  .asd-wrap .asd-stream-label {
-    font-size: 9px !important;
-  }
-
-  .asd-wrap .asd-ow-tab {
-    min-height: 34px !important;
-    padding: 5px 3px !important;
-  }
-}
-
-/* =====================================================
-   STAFF 手機版完整整合
-   一排兩張／預設數量由 PHP 控制／職位姓名同一行
-   ===================================================== */
-@media (max-width:560px) {
-
-  /* STAFF 外層區塊 */
-  .asd-wrap .asd-section:has(.asd-staff-grid-v2) {
-    padding: 13px !important;
-    border-radius: 15px !important;
-  }
-
-  /* STAFF 標題 */
-  .asd-wrap .asd-section:has(.asd-staff-grid-v2) .asd-section-title {
-    margin: 0 0 10px !important;
-    padding: 0 0 10px !important;
-    font-size: 15px !important;
-    line-height: 1.4 !important;
-  }
-
-  /* 一排固定兩張 */
-  .asd-wrap .asd-staff-grid-v2 {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 8px !important;
-  }
-
-  /* STAFF 卡片 */
-  .asd-wrap .asd-staff-card-v2 {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 50px !important;
-    padding: 8px 10px !important;
-    overflow: hidden !important;
-    border: 1px solid rgba(255, 255, 255, .07) !important;
-    border-radius: 9px !important;
-    background: rgba(255, 255, 255, .105) !important;
-    box-shadow:
-      0 3px 8px rgba(0, 0, 0, .28),
-      inset 0 1px 0 rgba(255, 255, 255, .035) !important;
-    transform: none !important;
-  }
-
-  .asd-wrap .asd-staff-card-v2:hover {
-    border-color: rgba(99, 168, 255, .18) !important;
-    background: rgba(255, 255, 255, .13) !important;
-    box-shadow:
-      0 4px 10px rgba(0, 0, 0, .32),
-      inset 0 1px 0 rgba(255, 255, 255, .045) !important;
-    transform: none !important;
-  }
-
-  /* 保持 PHP 原本的隱藏功能 */
-  .asd-wrap .asd-staff-card-v2.asd-staff-hidden {
-    display: none !important;
-  }
-
-  /* 職位和姓名同一行 */
-  .asd-wrap .asd-staff-info {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    gap: 4px !important;
-    overflow: hidden !important;
-    white-space: nowrap !important;
-  }
-
-  /* 職位 */
-  .asd-wrap .asd-staff-role {
-    flex: 0 1 auto !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    overflow: hidden !important;
-    color: rgba(208, 215, 224, .38) !important;
-    font-size: 10px !important;
-    font-weight: 500 !important;
-    line-height: 1.4 !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  /* 姓名 */
-  .asd-wrap .asd-staff-name {
-    flex: 0 1 auto !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    overflow: hidden !important;
-    color: #e4e9ef !important;
-    font-size: 12px !important;
-    font-weight: 800 !important;
-    line-height: 1.4 !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  .asd-wrap .asd-staff-name a {
-    color: inherit !important;
-  }
-
-  /* 隱藏原文姓名，避免卡片變高 */
-  .asd-wrap .asd-staff-native {
-    display: none !important;
-  }
-
-  /* 顯示全部按鈕外層 */
-  .asd-wrap .asd-staff-grid-v2+.asd-toggle-wrap {
-    display: flex !important;
-    justify-content: center !important;
-    margin-top: 14px !important;
-  }
-
-  /* 顯示全部按鈕 */
-  .asd-wrap .asd-staff-toggle {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+  .asd-info-grid>.asd-info-row {
+    grid-column: auto !important;
     width: auto !important;
-    min-width: 120px !important;
-    min-height: 32px !important;
-    margin: 0 !important;
-    padding: 6px 14px !important;
-    color: rgba(208, 215, 224, .55) !important;
-    border: 1px solid rgba(255, 255, 255, .09) !important;
-    border-radius: 999px !important;
-    background: rgba(255, 255, 255, .035) !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .025) !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    line-height: 1.3 !important;
-    transform: none !important;
-  }
-
-  .asd-wrap .asd-staff-toggle:hover {
-    color: #fff !important;
-    border-color: rgba(99, 168, 255, .3) !important;
-    background: rgba(99, 168, 255, .1) !important;
-    transform: none !important;
-  }
-}
-
-/* 超窄手機微調，仍維持一排兩張 */
-@media (max-width:380px) {
-
-  .asd-wrap .asd-staff-grid-v2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 6px !important;
-  }
-
-  .asd-wrap .asd-staff-card-v2 {
-    min-height: 46px !important;
-    padding: 7px 6px !important;
-  }
-
-  .asd-wrap .asd-staff-info {
-    gap: 3px !important;
-  }
-
-  .asd-wrap .asd-staff-role {
-    font-size: 9px !important;
-  }
-
-  .asd-wrap .asd-staff-name {
-    font-size: 10px !important;
-  }
-}
-
-/* ===== STAFF 手機版完整整合 END ===== */
-
-/* =====================================================
-   Mobile Hero 最終整合版
-   左右對齊／字體放大／標籤 4＋3／分數 3＋1
-   ===================================================== */
-@media (max-width:560px) {
-
-  /* 外層固定 16px */
-  .asd-wrap {
-    --asd-gap: 16px !important;
-    padding: 16px !important;
-  }
-
-  /* Hero 再增加 4px，總留白約 20px */
-  .asd-wrap .asd-hero-new {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    align-items: start !important;
-    width: 100% !important;
-    gap: 17px !important;
-    margin: 0 0 16px !important;
-    padding: 14px 4px !important;
-    box-sizing: border-box !important;
-  }
-
-  /* 海報 */
-  .asd-wrap .asd-hero-poster-wrap {
-    display: block !important;
-    width: 100% !important;
-  }
-
-  .asd-wrap .asd-hero-poster {
-    width: min(270px, 76vw) !important;
-    max-width: none !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 auto !important;
-    border-radius: 14px !important;
-  }
-
-  .asd-wrap .asd-poster-img,
-  .asd-wrap .asd-poster-fallback {
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    aspect-ratio: 460/649 !important;
-    object-fit: cover !important;
-  }
-
-  /* 重要：不要再加左右 padding */
-  .asd-wrap .asd-hero-body {
-    display: grid !important;
-    width: 100% !important;
     min-width: 0 !important;
-    gap: 15px !important;
-    padding: 0 !important;
-    text-align: left !important;
-    box-sizing: border-box !important;
+    min-height: 58px;
+    padding: 9px 11px;
   }
 
-  /* 麵包屑 */
-  .asd-wrap .asd-hero-breadcrumb {
-    width: 100% !important;
-    gap: 6px !important;
-    margin: 0 !important;
-    color: rgba(208, 215, 224, .48) !important;
-    font-size: 13px !important;
-    line-height: 1.5 !important;
+  /* 最後更新固定橫跨整列 */
+  .asd-info-grid>.asd-info-row:last-child {
+    grid-column: 1 / -1 !important;
   }
 
-  /* 中文標題 */
-  .asd-wrap .asd-hero-title {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    color: #fff !important;
-    font-size: 28px !important;
-    font-weight: 800 !important;
-    line-height: 1.25 !important;
-    letter-spacing: -.02em !important;
-    text-align: left !important;
-    overflow-wrap: anywhere !important;
+  .asd-info-label {
+    font-size: 10px;
+    line-height: 1.35;
   }
 
-  /* 日文、簡中、羅馬字 */
-  .asd-wrap .asd-hero-native,
-  .asd-wrap .asd-hero-simplified,
-  .asd-wrap .asd-hero-romaji {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    font-size: 14px !important;
-    line-height: 1.65 !important;
-    text-align: left !important;
+  .asd-info-val {
+    font-size: 13px;
+    line-height: 1.45;
   }
 
-  .asd-wrap .asd-hero-native {
-    color: rgba(225, 231, 240, .86) !important;
-  }
-
-  .asd-wrap .asd-hero-simplified,
-  .asd-wrap .asd-hero-romaji {
-    color: rgba(208, 215, 224, .68) !important;
-  }
-
-  /* 系列作品卡片 */
-  .asd-wrap .asd-series-entry-badge {
-    display: flex !important;
-    align-items: center !important;
-    width: 100% !important;
-    max-width: none !important;
-    min-height: 51px !important;
-    gap: 9px !important;
-    margin: 0 !important;
-    padding: 9px 13px !important;
-    border-radius: 11px !important;
-    box-sizing: border-box !important;
-  }
-
-  .asd-wrap .asd-series-badge-text {
-    flex: 1 !important;
-    min-width: 0 !important;
-  }
-
-  .asd-wrap .asd-series-badge-label {
-    font-size: 10px !important;
-  }
-
-  .asd-wrap .asd-series-badge-name {
-    overflow: hidden !important;
-    font-size: 12px !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  .asd-wrap .asd-series-badge-count {
-    display: inline-flex !important;
-    padding: 3px 9px !important;
-    font-size: 10px !important;
-  }
-
-  /* 標籤：限制寬度，固定形成 4＋3 */
-  .asd-wrap .asd-hero-badges {
-    display: flex !important;
-    justify-content: flex-start !important;
-    flex-wrap: wrap !important;
-    width: 100% !important;
-    max-width: 340px !important;
-    gap: 8px !important;
-  }
-
-  .asd-wrap .asd-hbadge {
-    flex: 0 0 auto !important;
-    min-height: 32px !important;
-    padding: 6px 14px !important;
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    line-height: 1.2 !important;
-  }
-
-  /* 分數：前三個第一排，站內分數第二排 */
-  .asd-wrap .asd-hero-scores-new {
-    display: flex !important;
-    justify-content: flex-start !important;
-    flex-wrap: wrap !important;
-    width: 100% !important;
-    max-width: 340px !important;
-    gap: 8px !important;
-  }
-
-  .asd-wrap .asd-score-pill {
-    flex: 0 0 auto !important;
-    min-height: 31px !important;
-    gap: 6px !important;
-    padding: 6px 11px !important;
-    font-size: 12px !important;
-  }
-
-  .asd-wrap .asd-sp-val {
-    font-size: 13px !important;
-  }
-
-  .asd-wrap .asd-sp-label {
-    font-size: 10px !important;
-  }
-
-  /* 功能按鈕：一排三個 */
-  .asd-wrap .asd-hero-actions {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    width: 100% !important;
-    gap: 7px !important;
-    margin: 0 !important;
-  }
-
-  .asd-wrap .asd-hero-actions .asd-action-btn {
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 38px !important;
-    padding: 7px 4px !important;
-    overflow: hidden !important;
-    border-radius: 8px !important;
-    font-size: 10px !important;
-    white-space: nowrap !important;
-  }
-
-  /* 下方評分區與 Hero 同寬 */
-  .asd-wrap .asd-hero-new>.asd-hside-block {
-    display: block !important;
-    grid-column: 1 !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    margin: 0 !important;
-    padding: 14px !important;
-    overflow: hidden !important;
-    border-radius: 13px !important;
-    box-sizing: border-box !important;
-  }
-}
-
-/* 超窄手機只縮小文字，不再改左右 padding */
-@media (max-width:380px) {
-
-  .asd-wrap {
-    padding: 14px !important;
-  }
-
-  .asd-wrap .asd-hero-new {
-    padding-right: 4px !important;
-    padding-left: 4px !important;
-  }
-
-  .asd-wrap .asd-hero-title {
-    font-size: 26px !important;
-  }
-
-  .asd-wrap .asd-hero-badges,
-  .asd-wrap .asd-hero-scores-new {
-    max-width: 100% !important;
-  }
-
-  .asd-wrap .asd-hbadge {
-    padding-right: 11px !important;
-    padding-left: 11px !important;
-    font-size: 11px !important;
-  }
-}
-
-/* Hero 功能按鈕：清晰放大版 */
-@media (max-width:560px) {
-
-  .asd-wrap .asd-hero-actions {
-    gap: 8px !important;
-  }
-
-  .asd-wrap .asd-hero-actions .asd-action-btn {
-    min-height: 44px !important;
-    padding: 9px 5px !important;
-    color: #f5f7fa !important;
-    font-size: 13px !important;
-    font-weight: 800 !important;
-    line-height: 1.2 !important;
-    letter-spacing: .1px !important;
-    white-space: nowrap !important;
-    text-rendering: optimizeLegibility !important;
-    -webkit-font-smoothing: auto !important;
-  }
-
-  /* 灰色按鈕提高文字對比 */
-  .asd-wrap .asd-action-btn--ghost {
-    color: #edf2f7 !important;
-    border-color: rgba(255, 255, 255, .11) !important;
-    background: rgba(255, 255, 255, .075) !important;
-  }
-
-  /* 藍色主要按鈕 */
-  .asd-wrap .asd-action-btn--primary {
-    color: #fff !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, .22) !important;
-  }
-}
-
-/* 超窄手機 */
-@media (max-width:380px) {
-  .asd-wrap .asd-hero-actions .asd-action-btn {
-    min-height: 42px !important;
-    padding: 8px 3px !important;
-    font-size: 12px !important;
-  }
-}
-
-/* ===== Mobile Hero 最終整合版 END ===== */
-
-/* =====================================================
-   串流平台＋線上看：手機字體清晰放大版
-   ===================================================== */
-@media (max-width:560px) {
-
-  /* 區塊標題 */
-  .asd-wrap .asd-section-title {
-    color: #f4f7fb !important;
-    font-size: 17px !important;
-    font-weight: 800 !important;
-    line-height: 1.35 !important;
-  }
-
-  /* 地區標題 */
-  .asd-wrap .asd-stream-region-head {
-    margin-bottom: 11px !important;
-    color: #e8edf4 !important;
-    font-size: 13px !important;
-    font-weight: 800 !important;
-    line-height: 1.4 !important;
-  }
-
-  /* 串流平台：一排兩個 */
-  .asd-wrap .asd-stream-list {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 8px !important;
-  }
-
-  .asd-wrap .asd-stream-btn,
-  .asd-wrap .asd-stream-btn--icon-only {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 48px !important;
-    gap: 8px !important;
-    padding: 8px 10px !important;
-    border-color: rgba(140, 175, 220, .32) !important;
-    border-radius: 10px !important;
-    background: rgba(255, 255, 255, .075) !important;
-  }
-
-  /* 平台圖示 */
-  .asd-wrap .asd-stream-icon,
-  .asd-wrap .asd-stream-btn--icon-only .asd-stream-icon {
-    flex: 0 0 29px !important;
-    width: 29px !important;
-    height: 29px !important;
-    padding: 3px !important;
-    border-radius: 7px !important;
-  }
-
-  /* 平台名稱 */
-  .asd-wrap .asd-stream-label {
-    display: block !important;
-    min-width: 0 !important;
-    overflow: hidden !important;
-    color: #f0f4f8 !important;
-    font-size: 12px !important;
-    font-weight: 800 !important;
-    line-height: 1.3 !important;
-    letter-spacing: 0 !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, .32) !important;
-  }
-
-  /* 提示與警告文字 */
-  .asd-wrap .asd-stream-note,
-  .asd-wrap .asd-stream-notice,
-  .asd-wrap .asd-stream-warning {
-    color: #dce2e9 !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    line-height: 1.65 !important;
-  }
-
-  /* 線上看分頁：一排三個 */
-  .asd-wrap .asd-ow-tabs {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 7px !important;
-  }
-
-  .asd-wrap .asd-ow-tab {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 39px !important;
-    padding: 7px 4px !important;
-    color: #cbd3dc !important;
-    font-size: 12px !important;
-    font-weight: 800 !important;
-    line-height: 1.2 !important;
-    border-radius: 8px !important;
-    background: rgba(255, 255, 255, .05) !important;
-  }
-
-  .asd-wrap .asd-ow-tab.is-active {
-    color: #fff !important;
-    border-color: rgba(105, 154, 255, .75) !important;
-    background: linear-gradient(135deg,
-        rgba(62, 130, 210, .95),
-        rgba(91, 82, 205, .95)) !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, .3) !important;
-  }
-
-  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
-    overflow: hidden !important;
-    color: inherit !important;
-    font-size: 12px !important;
-    font-weight: 800 !important;
-    line-height: 1.2 !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  /* 全區文字渲染清晰 */
-  .asd-wrap .asd-stream-region,
-  .asd-wrap .asd-ow-tabs {
-    text-rendering: optimizeLegibility !important;
-    -webkit-font-smoothing: antialiased !important;
-  }
-}
-
-/* 超窄手機，避免一排三個擠壓 */
-@media (max-width:380px) {
-  .asd-wrap .asd-stream-label {
-    font-size: 11px !important;
-  }
-
-  .asd-wrap .asd-ow-tab,
-  .asd-wrap .asd-ow-tab .asd-pv-tab-label {
-    font-size: 11px !important;
+  /* 倒數區塊 */
+  .asd-airing-bar {
+    width: 100%;
+    margin-top: 10px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    font-size: 12px;
   }
 }
