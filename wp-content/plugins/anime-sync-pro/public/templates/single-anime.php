@@ -5373,9 +5373,11 @@ while ( have_posts() ) :
 						</div>
 					</div>
 
-					<div class="asd-ad-placeholder" aria-label="廣告">
-						<div class="asd-ad-inner"></div>
-					</div>
+					<?php if ( ! $is_thin_content ) : ?>
+						<div class="asd-ad-placeholder" aria-label="廣告">
+							<div class="asd-ad-inner"></div>
+						</div>
+					<?php endif; ?>
 				</aside>
 			</div><!-- /.asd-container -->
 		</div><!-- /.asd-tabs-wrap -->

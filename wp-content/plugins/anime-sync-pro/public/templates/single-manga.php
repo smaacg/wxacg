@@ -297,6 +297,13 @@ while ( have_posts() ) :
     if ( empty( $synopsis_raw ) ) $synopsis_raw = get_the_content();
     $synopsis = trim( (string) $synopsis_raw );
 
+    // 判斷是否為內容空洞頁面 (防護廣告版位)
+    $is_thin_content = (
+        $synopsis === ''
+        && $site_count <= 0
+        && get_comments_number( $post_id ) <= 0
+    );
+
     /* ── Labels ── */
     $format_labels = [
         'MANGA' => '漫畫', 'ONE_SHOT' => '短篇', 'NOVEL' => '小說',
@@ -1153,9 +1160,11 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     <div class="asd-sponsor-note">贊助費用於伺服器維護,感謝每一位支持者</div>
                 </div>
 
+                <?php if ( ! $is_thin_content ) : ?>
                 <div class="asd-ad-placeholder" aria-label="廣告版位" role="complementary">
                     <div class="asd-ad-inner"></div>
                 </div>
+                <?php endif; ?>
 
             </aside><!-- /.asd-sidebar -->
 
