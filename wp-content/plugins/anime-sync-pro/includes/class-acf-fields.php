@@ -28,6 +28,12 @@ class Anime_Sync_ACF_Fields {
         add_action( 'acf/init',         [ $this, 'register_all_field_groups' ] );
         add_action( 'add_meta_boxes',   [ $this, 'register_resync_metabox' ] );
 
+		/*
+		 * 讓 asp-readonly 或 readonly 欄位真正帶有 readonly 屬性。
+		 * CSS 僅負責視覺效果，不再作為唯一防護。
+		 */
+		add_filter( 'acf/prepare_field', [ $this, 'prepare_readonly_field' ], 20 );
+
         // 修正 5:讓 readonly 真的生效(免費版 ACF 透過 wrapper class + CSS)
         add_action( 'acf/input/admin_head', [ $this, 'inject_readonly_css' ] );
 
@@ -126,7 +132,405 @@ class Anime_Sync_ACF_Fields {
         remove_post_type_support( 'manga', 'editor' );
     }
 
-    public function register_all_field_groups(): void {
+	/**
+	 * 讓 readonly 欄位真正無法在瀏覽器中修改。
+	 *
+	 * 支援兩種設定：
+	 * 1. 欄位本身具有 'readonly' => 1。
+	 * 2. wrapper class 包含 asp-readonly。
+	 *
+	 * @param array|false $field ACF 欄位資料。
+	 * @return array|false
+	 */
+	public function prepare_readonly_field( $field ) {
+		if ( ! is_array( $field ) ) {
+			return $field;
+		}
+
+		$wrapper_class = '';
+
+		if (
+			isset( $field['wrapper'] ) &&
+			is_array( $field['wrapper'] ) &&
+			isset( $field['wrapper']['class'] )
+		) {
+			$wrapper_class = (string) $field['wrapper']['class'];
+		}
+
+		$is_readonly = ! empty( $field['readonly'] );
+
+		if (
+			! $is_readonly &&
+			'' !== $wrapper_class &&
+			false !== strpos( ' ' . $wrapper_class . ' ', ' asp-readonly ' )
+		) {
+			$is_readonly = true;
+		}
+
+		if ( ! $is_readonly ) {
+			return $field;
+		}
+
+		/*
+		 * ACF 的 text、textarea、url、email、number、date/time 等輸入型欄位
+		 * 會讀取 readonly 設定並輸出 HTML readonly attribute。
+		 *
+		 * 不使用 disabled，避免一般文章儲存時欄位值消失。
+		 */
+		$field['readonly'] = 1;
+
+		if ( ! isset( $field['wrapper'] ) || ! is_array( $field['wrapper'] ) ) {
+			$field['wrapper'] = [];
+		}
+
+		$current_class = isset( $field['wrapper']['class'] )
+			? trim( (string) $field['wrapper']['class'] )
+			: '';
+
+		if (
+			false === strpos( ' ' . $current_class . ' ', ' asp-readonly ' )
+		) {
+			$current_class = trim( $current_class . ' asp-readonly' );
+		}
+
+		$field['wrapper']['class'] = $current_class;
+
+		return $field;
+	}
+
+	/**
+	 * 取得目前後台正在編輯的文章 ID。
+	 *
+	 * @return int
+	 */
+	private function get_current_admin_post_id(): int {
+		if ( ! is_admin() ) {
+			return 0;
+		}
+
+		if ( isset( $_GET['post'] ) ) {
+			return absint( wp_unslash( $_GET['post'] ) );
+		}
+
+		if ( isset( $_POST['post_ID'] ) ) {
+			return absint( wp_unslash( $_POST['post_ID'] ) );
+		}
+
+		return 0;
+	}
+
+	/**
+	 * 建立 AI 提示詞使用的作品補充辨識內容。
+	 *
+	 * @param int $post_id 文章 ID。
+	 * @return string
+	 */
+	private function build_prompt_extra_line( int $post_id ): string {
+		$extra_parts = [];
+
+		if ( $post_id <= 0 ) {
+			return "【補充辨識】（選填，例如：第二季／劇場版／TV 版）\n";
+		}
+
+		$extra_map = [
+			'日文原名' => 'anime_title_native',
+			'原作來源' => 'anime_source',
+			'作品類型' => 'anime_format',
+			'播出季度' => 'anime_season',
+			'播出年份' => 'anime_season_year',
+		];
+
+		$season_labels = [
+			'WINTER' => '冬季',
+			'SPRING' => '春季',
+			'SUMMER' => '夏季',
+			'FALL'   => '秋季',
+			'AUTUMN' => '秋季',
+		];
+
+		$source_labels = [
+			'ORIGINAL'           => '原創',
+			'MANGA'              => '漫畫',
+			'LIGHT_NOVEL'        => '輕小說',
+			'VISUAL_NOVEL'       => '視覺小說',
+			'VIDEO_GAME'         => '電子遊戲',
+			'GAME'               => 'Comic Game（桌遊／卡牌）',
+			'NOVEL'              => '小說',
+			'WEB_NOVEL'          => '網路小說',
+			'WEB_MANGA'          => '網路漫畫',
+			'DOUJINSHI'          => '同人誌',
+			'ANIME'              => '動畫',
+			'COMIC'              => '歐美漫畫',
+			'LIVE_ACTION'        => '真人影視',
+			'MULTIMEDIA_PROJECT' => '多媒體企劃',
+			'PICTURE_BOOK'       => '繪本',
+			'OTHER'              => '其他',
+		];
+
+		$format_labels = [
+			'TV'       => '電視動畫',
+			'TV_SHORT' => '電視短篇動畫',
+			'MOVIE'    => '劇場版',
+			'OVA'      => 'OVA',
+			'ONA'      => 'ONA（網路動畫）',
+			'SPECIAL'  => '特別篇',
+			'MUSIC'    => '音樂 MV',
+		];
+
+		foreach ( $extra_map as $label => $meta_key ) {
+			$value = get_post_meta( $post_id, $meta_key, true );
+
+			if (
+				! is_scalar( $value ) ||
+				'' === trim( (string) $value )
+			) {
+				continue;
+			}
+
+			$value = trim( (string) $value );
+			$upper = strtoupper( $value );
+
+			if (
+				'anime_season' === $meta_key &&
+				isset( $season_labels[ $upper ] )
+			) {
+				$value = $season_labels[ $upper ];
+			} elseif (
+				'anime_source' === $meta_key &&
+				isset( $source_labels[ $upper ] )
+			) {
+				$value = $source_labels[ $upper ];
+			} elseif (
+				'anime_format' === $meta_key &&
+				isset( $format_labels[ $upper ] )
+			) {
+				$value = $format_labels[ $upper ];
+			}
+
+			$extra_parts[] = $label . '：' . $value;
+		}
+
+		if ( empty( $extra_parts ) ) {
+			return "【補充辨識】（選填，例如：第二季／劇場版／TV 版）\n";
+		}
+
+		return '【補充辨識】' . implode( '／', $extra_parts ) . "\n";
+	}
+
+	// =========================================================================
+	// 群組 3.5：人工編輯與品質審核
+	// =========================================================================
+
+	/**
+	 * 註冊人工編輯、審核及 AI 草稿追蹤欄位。
+	 *
+	 * 注意：
+	 * - AI 產生內容時只能設為 draft。
+	 * - AI 不得自動填入人工審核者與審核日期。
+	 * - 只有人工確認後才能將狀態改為 published。
+	 * - 實際索引與廣告資格由 functions.php 統一判定。
+	 */
+	private function register_editorial_quality(): void {
+		acf_add_local_field_group(
+			[
+				'key'    => 'group_anime_editorial_quality',
+				'title'  => '✍️ 人工編輯與品質審核',
+				'fields' => [
+					[
+						'key'          => 'field_anime_editor_summary',
+						'label'        => '編輯推薦短評',
+						'name'         => 'anime_editor_summary',
+						'type'         => 'textarea',
+						'instructions' => '請以台灣繁體中文撰寫原創推薦短評。建議至少 120 個中文字；AI 內容只能作為草稿，必須經人工查證、修改及審核後才能發布。',
+						'required'     => 0,
+						'rows'         => 4,
+						'new_lines'    => 'br',
+						'wrapper'      => [ 'width' => '100' ],
+					],
+					[
+						'key'          => 'field_anime_watch_guide',
+						'label'        => '觀看指南',
+						'name'         => 'anime_watch_guide',
+						'type'         => 'textarea',
+						'instructions' => '由編輯人工整理觀看順序、前作需求、OVA／劇場版關聯、是否適合新觀眾等實用資訊。此欄不由 AI 工具自動產生。',
+						'required'     => 0,
+						'rows'         => 3,
+						'new_lines'    => 'br',
+						'wrapper'      => [ 'width' => '100' ],
+					],
+					[
+						'key'          => 'field_anime_editorial_note',
+						'label'        => '編輯補充備註',
+						'name'         => 'anime_editorial_note',
+						'type'         => 'textarea',
+						'instructions' => '選填。可記錄資料來源、特殊譯名、版本差異或其他不適合放在推薦短評中的編輯說明。舊版 AI 短評若仍儲存在此欄，後續程式可作為相容性 fallback，但不等同人工審核完成。',
+						'required'     => 0,
+						'rows'         => 2,
+						'new_lines'    => 'br',
+						'wrapper'      => [ 'width' => '100' ],
+					],
+					[
+						'key'           => 'field_anime_editorial_status',
+						'label'         => '編輯審核狀態',
+						'name'          => 'anime_editorial_status',
+						'type'          => 'select',
+						'instructions'  => 'AI 產生後只能設為「草稿」。完成事實查證、人工修改、作者及審核日期填寫後，才可改為「已發布」。',
+						'required'      => 0,
+						'choices'       => [
+							'draft'        => '草稿',
+							'review'       => '等待人工審核',
+							'published'    => '已發布',
+							'needs_update' => '需要更新',
+						],
+						'default_value' => 'draft',
+						'allow_null'    => 0,
+						'return_format' => 'value',
+						'wrapper'       => [ 'width' => '33' ],
+					],
+					[
+						'key'           => 'field_anime_editorial_author_id',
+						'label'         => '人工編輯／審核者',
+						'name'          => 'anime_editorial_author_id',
+						'type'          => 'user',
+						'instructions'  => '選擇實際完成內容查證與審核的人員。AI 不得自動填入此欄。',
+						'required'      => 0,
+						'role'          => [
+							'administrator',
+							'editor',
+							'author',
+						],
+						'allow_null'    => 1,
+						'multiple'      => 0,
+						'return_format' => 'id',
+						'wrapper'       => [ 'width' => '33' ],
+					],
+					[
+						'key'            => 'field_anime_editorial_reviewed_at',
+						'label'          => '人工審核日期',
+						'name'           => 'anime_editorial_reviewed_at',
+						'type'           => 'date_picker',
+						'instructions'   => '實際完成人工查證與審核的日期。AI 不得自動填入；資料以 Ymd 格式儲存。',
+						'required'       => 0,
+						'display_format' => 'Y-m-d',
+						'return_format'  => 'Ymd',
+						'first_day'      => 1,
+						'wrapper'        => [ 'width' => '34' ],
+					],
+					[
+						'key'          => 'field_anime_curated_tags',
+						'label'        => '編輯精選標籤',
+						'name'         => 'anime_curated_tags',
+						'type'         => 'text',
+						'instructions' => '選填。使用半形逗號分隔，例如：新手推薦,奇幻冒險,女性主角。請勿堆疊無關 SEO 關鍵字。',
+						'required'     => 0,
+						'wrapper'      => [ 'width' => '100' ],
+					],
+					[
+						'key'           => 'field_anime_editorial_ai_generated',
+						'label'         => '內容包含 AI 草稿',
+						'name'          => 'anime_editorial_ai_generated',
+						'type'          => 'true_false',
+						'instructions'  => '由 AI 編輯工具自動記錄，請勿手動修改。',
+						'required'      => 0,
+						'ui'            => 1,
+						'default_value' => 0,
+						'readonly'      => 1,
+						'wrapper'       => [
+							'width' => '20',
+							'class' => 'asp-readonly',
+						],
+					],
+					[
+						'key'           => 'field_anime_editorial_ai_needs_review',
+						'label'         => 'AI 草稿需要人工審核',
+						'name'          => 'anime_editorial_ai_needs_review',
+						'type'          => 'true_false',
+						'instructions'  => 'AI 產生草稿時由系統開啟。完成事實查證與人工修改後，可由編輯手動關閉。',
+						'required'      => 0,
+						'ui'            => 1,
+						'default_value' => 0,
+						'wrapper'       => [ 'width' => '20' ],
+					],
+					[
+						'key'          => 'field_anime_editorial_ai_model',
+						'label'        => 'AI 模型',
+						'name'         => 'anime_editorial_ai_model',
+						'type'         => 'text',
+						'instructions' => '由 AI 編輯工具自動記錄實際使用的模型。',
+						'required'     => 0,
+						'readonly'     => 1,
+						'wrapper'      => [
+							'width' => '20',
+							'class' => 'asp-readonly',
+						],
+					],
+					[
+						'key'          => 'field_anime_editorial_ai_prompt_version',
+						'label'        => 'AI Prompt 版本',
+						'name'         => 'anime_editorial_prompt_version',
+						'type'         => 'text',
+						'instructions' => '由 AI 編輯工具記錄產生草稿時使用的提示詞版本。',
+						'required'     => 0,
+						'readonly'     => 1,
+						'wrapper'      => [
+							'width' => '20',
+							'class' => 'asp-readonly',
+						],
+					],
+					[
+						'key'          => 'field_anime_editorial_ai_generated_at',
+						'label'        => 'AI 草稿產生時間',
+						'name'         => 'anime_editorial_ai_generated_at',
+						'type'         => 'text',
+						'instructions' => '由 AI 編輯工具自動記錄，建議格式為 WordPress 本地時間 Y-m-d H:i:s。',
+						'required'     => 0,
+						'readonly'     => 1,
+						'wrapper'      => [
+							'width' => '20',
+							'class' => 'asp-readonly',
+						],
+					],
+					[
+						'key'       => 'field_anime_editorial_quality_notice',
+						'label'     => '',
+						'name'      => '',
+						'type'      => 'message',
+						'message'   => '<strong>發布前檢查：</strong><br>'
+							. '① 編輯推薦短評已達最低內容要求，且不是未經修改的 AI 原稿。<br>'
+							. '② 觀看指南已提供實際觀看順序或版本差異資訊。<br>'
+							. '③ 已選擇人工審核者並填寫審核日期。<br>'
+							. '④ 合法串流平台與直達連結仍有效。<br>'
+							. '⑤ 確認資料後，才將狀態改成「已發布」。<br><br>'
+							. '品質分數、搜尋引擎索引及廣告資格將由網站共用品質函式判定，不能只靠手動切換狀態。',
+						'new_lines' => '',
+						'esc_html'  => 0,
+					],
+				],
+				'location' => [
+					[
+						[
+							'param'    => 'post_type',
+							'operator' => '==',
+							'value'    => 'anime',
+						],
+					],
+				],
+				'menu_order'            => 35,
+				'position'              => 'normal',
+				'style'                 => 'default',
+				'label_placement'       => 'top',
+				'instruction_placement' => 'label',
+				'active'                => true,
+				'description'           => '人工編輯內容、品質審核狀態與 AI 草稿來源追蹤。',
+			]
+		);
+	}
+
+
+    /**
+	 * 註冊全部 ACF 欄位群組。
+	 */
+	public function register_all_field_groups(): void {
         if ( ! function_exists( 'acf_add_local_field_group' ) ) {
             return;
         }
@@ -136,6 +540,14 @@ class Anime_Sync_ACF_Fields {
         $this->register_basic_info();
         $this->register_ratings();
         $this->register_synopsis();
+
+		/*
+		 * 人工編輯與品質審核欄位。
+		 * 品質分數、noindex、AdSense 等判斷不放在本檔，
+		 * 後續由 child theme functions.php 統一處理。
+		 */
+		$this->register_editorial_quality();
+
         $this->register_media();
         $this->register_production();
         $this->register_themes_and_streaming();
