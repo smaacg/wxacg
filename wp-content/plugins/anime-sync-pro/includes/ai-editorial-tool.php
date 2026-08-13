@@ -4,7 +4,15 @@
  *
  * Path: wp-content/plugins/anime-sync-pro/includes/ai-editorial-tool.php
  *
- * @version 1.9.1 (2026-08-13)
+ * @version 1.10.0 (2026-08-13)
+ *
+ * v1.10.0（資料正確性與用詞規範）：
+ *   1) 平台幻覺防護 wxacg_editorial_platform_guard()：短評若出現「台灣合法串流」
+ *      欄位以外的平台名，或用「其他合法平台／各大串流」等籠統說法規避限制，
+ *      一律判定為軟錯誤走既有重試（與字數硬牆同一路徑），不再靜默進草稿
+ *   2) prompt 第 4 條改嚴：平台名僅能逐字取用欄位值，禁止籠統帶過
+ *   3) prompt 新增第 10、11 條：敏感題材語氣中性只做提醒不推薦；禁用罐頭套語
+ *   4) 提高 WXACG_EDITORIAL_PROMPT_VERSION → 1.10.0，覆蓋模式將以新規則重跑
  *
  * v1.9.1（可續跑修正）：
  *   1) 覆蓋模式改以 anime_editorial_prompt_version 為水位標記，重寫過的作品自動離開
@@ -44,7 +52,7 @@ if ( ! defined( 'WXACG_GROQ_MODEL_DEFAULT' ) ) {
  * 調整 prompt 內容時才需要提高版本號；提高後覆蓋模式會重跑全部作品。
  */
 if ( ! defined( 'WXACG_EDITORIAL_PROMPT_VERSION' ) ) {
-	define( 'WXACG_EDITORIAL_PROMPT_VERSION', '1.9.1' );
+	define( 'WXACG_EDITORIAL_PROMPT_VERSION', '1.10.0' );
 }
 
 if ( ! defined( 'WXACG_BATCH_TIME_BUDGET' ) ) {
@@ -215,6 +223,65 @@ function wxacg_normalize_editorial_text( $text ) {
 	}
 
 	return $text;
+}
+
+/**
+ * 平台幻覺防護。
+ *
+ * 短評若出現「台灣合法串流」欄位以外的平台名，或用籠統說法規避限制，
+ * 回傳觸發的關鍵字（供錯誤訊息使用）；通過檢查則回傳空字串。
+ *
+ * @param string $text    已 normalize 的短評本文。
+ * @param string $allowed $data['streaming']（已 implode 的允許平台字串，可能為空）。
+ * @return string 觸發的關鍵字，未觸發時為空字串。
+ */
+function wxacg_editorial_platform_guard( $text, $allowed ) {
+	$text    = (string) $text;
+	$allowed = (string) $allowed;
+
+	// mbstring 不可用時退回大小寫敏感比對，避免 fatal。
+	$has_mb = function_exists( 'mb_stripos' );
+
+	// 已知平台關鍵字庫（含常見別名）。
+	$known = array(
+		'Crunchyroll', 'Netflix', 'Disney+', 'Disney', '迪士尼',
+		'Bilibili', 'bilibili', 'B站', '嗶哩嗶哩', '哔哩哔哩',
+		'LINE TV', 'LINETV', '愛奇藝', 'iQIYI', '優酷', 'Youku',
+		'YouTube', 'Amazon', 'Prime Video', 'Hulu', 'Abema', 'AbemaTV',
+		'friDay', 'KKTV', 'myVideo', 'Hami Video', 'CATCHPLAY', 'Viu',
+		'Ani-One', 'Muse', '木棉花', '巴哈姆特', '動畫瘋',
+	);
+
+	foreach ( $known as $kw ) {
+		if ( '' === $kw ) {
+			continue;
+		}
+
+		$in_text = $has_mb ? ( false !== mb_stripos( $text, $kw ) ) : ( false !== stripos( $text, $kw ) );
+
+		if ( ! $in_text ) {
+			continue;
+		}
+
+		$in_allowed = $has_mb ? ( false !== mb_stripos( $allowed, $kw ) ) : ( false !== stripos( $allowed, $kw ) );
+
+		// 短評提到此平台，但欄位裡沒有 → 判定為幻覺。
+		if ( '' === $allowed || ! $in_allowed ) {
+			return $kw;
+		}
+	}
+
+	// 籠統帶過的說法一律擋，避免模型用模糊字眼規避「只能用給定資料」。
+	$vague = array( '其他合法平台', '其他串流平台', '各大串流', '各大平台', '正版平台', '合法平台觀看' );
+
+	foreach ( $vague as $phrase ) {
+		// 皆為 CJK 精確字串，strpos 於 UTF-8 位元組比對即可正確運作。
+		if ( false !== strpos( $text, $phrase ) ) {
+			return $phrase;
+		}
+	}
+
+	return '';
 }
 
 /* ============================================================
@@ -1971,6 +2038,20 @@ function wxacg_call_ai_editorial_multi( $pool, $start_idx, $data ) {
 					continue;
 				}
 
+				// 平台幻覺防護：出現欄位外平台名或籠統說法 → 當成軟錯誤，走既有重試。
+				$bad_platform = wxacg_editorial_platform_guard( $normalized, $data['streaming'] );
+
+				if ( '' !== $bad_platform ) {
+					$last_error = new WP_Error(
+						'ai_platform_hallucination',
+						sprintf( '%s：短評出現未授權平台或籠統平台說法「%s」，已重新產生。', $label, $bad_platform )
+					);
+
+					$saw_non_quota = true;
+					$only_quota    = false;
+					continue;
+				}
+
 				return array(
 					'text'     => $normalized,
 					'provider' => $provider,
@@ -2183,12 +2264,14 @@ function wxacg_build_editorial_prompt_parts( $data ) {
 	$user .= "1. 只輸出短評本文，不加標題、引號、Markdown、署名或說明文字\n";
 	$user .= "2. 不要以「這部動畫」、「本作」、「如果你喜歡」開頭\n";
 	$user .= "3. 不要照抄劇情簡介，要加入具體但不劇透的編輯觀點\n";
-	$user .= "4. 有台灣串流資訊時可自然融入；沒有資料時不要自行猜測平台\n";
+	$user .= "4. 平台名稱僅能逐字使用【台灣合法串流】欄位列出的名稱；不得使用「Crunchyroll」「Netflix」「Bilibili 國際版」「LINE TV」等未列於該欄位的平台名，也不得用「其他合法平台」「各大串流」這類籠統說法規避此限制；欄位為空時完全不要提及任何觀看平台\n";
 	$user .= "5. 字數控制在 120～160 個繁體中文字，低於 90 字視為不合格\n";
 	$user .= "6. 不得捏造資料中沒有提供的角色、聲優、製作人、獎項或觀看平台\n";
 	$user .= "7. 不要把外部評分當作本站評分，也不要宣稱評分保證作品品質\n";
 	$user .= "8. 若為劇場版或續作，敘述時要與 TV 版區分清楚，不可混淆季別\n";
 	$user .= "9. 不要在短評中提及任何欄位「未標註」或「資料不足」這件事\n";
+	$user .= "10. 若題材涉及情色、成人向或敏感內容，語氣須客觀中性、只做分級提醒不做推薦，禁止「值得一看」「意外的治癒」「輕色情調」「若能接受少量成人暗示」等帶有招攬點閱意味的措辭\n";
+	$user .= "11. 避免使用以下已用濫的套語：「依舊保留前作的高品質作畫」「光影處理」「細膩」「不自覺期待」「值得一看」，改用具體、非重複的描述\n";
 
 	return array(
 		'system' => $system,
