@@ -1422,6 +1422,53 @@ get_header();
 			</p>
 		</section>
 
+		<!-- 編輯團隊 -->
+		<section class="wx-about-section">
+
+			<h2 class="wx-about-heading wx-about-heading-center">
+				編輯團隊
+			</h2>
+
+			<p class="wx-about-lead wx-about-center">
+				微笑動漫的內容，由具備多年動漫觀賞、評論與資料整理經驗的編輯群負責。
+				每一則作品短評、專欄與資料整理，都經過人工查證與複核後才會發布。
+			</p>
+
+			<div class="wx-about-grid-2" style="margin-top:32px;">
+
+				<article class="wx-about-card">
+					<div class="wx-about-card-icon" aria-hidden="true">✍️</div>
+					<h3 class="wx-about-card-title">笑編｜主編</h3>
+					<p class="wx-about-card-text">
+						自 2008 年開始接觸動漫，累積超過十五年的觀賞與評論經驗，
+						橫跨不同年代、類型與播出季度的作品。負責編輯短評的方向與品質把關，
+						以台灣讀者熟悉的語氣，提供具體、不劇透且經查證的觀點，
+						而非制式的資料複述。
+					</p>
+				</article>
+
+				<article class="wx-about-card">
+					<div class="wx-about-card-icon" aria-hidden="true">🔎</div>
+					<h3 class="wx-about-card-title">資料查核與整理</h3>
+					<p class="wx-about-card-text">
+						負責繁體中文名稱、系列關聯、製作資料與合法觀看資訊的
+						人工校正與來源比對。資料若有疑義，以官方公告及
+						多來源交叉查核為準，並歡迎讀者回報更正。
+					</p>
+				</article>
+
+			</div>
+
+			<div class="wx-about-notice">
+				<span class="wx-about-notice-icon" aria-hidden="true">✅</span>
+				<span>
+					本站的作品短評皆為原創，並經人工查證與複核後才發布。
+					AI 工具僅用於輔助整理草稿，最終內容一律由編輯人工修改、
+					確認事實與來源後才會刊出，並標註審核者。
+				</span>
+			</div>
+		</section>
+
 		<!-- 資料來源 -->
 		<section class="wx-about-section">
 
@@ -1430,7 +1477,13 @@ get_header();
 			</h2>
 
 			<p class="wx-about-lead" style="margin:0;">
-				本站可能依各服務的使用規範，透過第三方網站或公開 API
+				本站的<strong>繁體中文作品說明、編輯短評、系列分類與各地區合法觀看整理，
+				皆由編輯人工原創、查核與撰寫</strong>；作品的基礎識別資料，
+				則參考下列公開資料庫並清楚標註來源。
+			</p>
+
+			<p class="wx-about-lead" style="margin:14px 0 0;">
+				本站依各服務的使用規範，透過第三方網站或公開 API
 				進行作品識別、資料比對、連結建立及內容查核，
 				並在必要範圍內快取資料以改善網站效能。
 			</p>
