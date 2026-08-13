@@ -58,7 +58,134 @@ class Anime_Sync_ACF_Fields {
         add_action( 'wp_ajax_asp_cast_dict_load', [ $this, 'ajax_cast_dict_load' ] );
         add_action( 'wp_ajax_asp_cast_dict_save', [ $this, 'ajax_cast_dict_save' ] );
 
+        // 全人工短評：可複製提示詞盒（含繁中標題）＋ 儲存時自動指定審核者。
+        add_filter( 'acf/prepare_field/key=field_anime_editorial_prompt_helper', [ $this, 'render_editorial_prompt_helper' ] );
+        add_filter( 'acf/prepare_field/key=field_shortcut_anime_prompt_helper', [ $this, 'render_editorial_prompt_helper' ] );
+        add_action( 'acf/save_post', [ $this, 'auto_assign_editorial_reviewer' ], 20 );
+
         $this->register_mirror_hooks();
+    }
+
+    /**
+     * 全人工模式：組出可餵給 AI 對話視窗的短評提示詞（含該作品繁中標題）。
+     *
+     * @param string $title 作品繁中標題。
+     * @return string
+     */
+    private function build_editorial_ai_prompt( string $title ): string {
+        $title = trim( $title );
+        $name  = ( '' !== $title ) ? '《' . $title . '》' : '本作品';
+
+        return "請為動畫{$name}撰寫一段 120～160 字的繁體中文原創推薦短評，用於動漫資訊網站的編輯短評。\n"
+            . "① 先查證真實資料（原作、製作公司、監督、聲優、劇情走向），嚴禁杜撰不存在的角色、聲優、製作人或獎項。\n"
+            . "② 只有在確認台灣有合法上架時才寫出確切平台名；無法確認就完全不提平台，禁止「各大串流」「其他合法平台」等籠統說法。\n"
+            . "③ 提供具體、不劇透的觀點，不要照抄官方簡介。\n"
+            . "④ 語氣自然口語、有觀點但不誇大，使用台灣慣用詞（聲優、追番、新番、劇場版）。\n"
+            . "⑤ 題材若涉及成人／敏感內容，語氣客觀中性、只做分級提醒、不做推薦。\n"
+            . "⑥ 避免罐頭套語：「高品質作畫」「光影處理」「細膩」「值得一看」「不自覺期待」。\n"
+            . "⑦ 只輸出短評本文，不加標題、引號或說明。";
+    }
+
+    /**
+     * 動態填入提示詞盒的訊息內容（含繁中標題與「📋 複製提示詞」按鈕）。
+     *
+     * @param array|false $field ACF 欄位。
+     * @return array|false
+     */
+    public function render_editorial_prompt_helper( $field ) {
+        if ( ! is_array( $field ) ) {
+            return $field;
+        }
+
+        $post_id = $this->get_current_admin_post_id();
+        $title   = '';
+
+        if ( $post_id > 0 ) {
+            $title = trim( (string) get_post_meta( $post_id, 'anime_title_chinese', true ) );
+
+            if ( '' === $title ) {
+                $title = trim( (string) get_the_title( $post_id ) );
+            }
+        }
+
+        $prompt      = $this->build_editorial_ai_prompt( $title );
+        $title_label = ( '' !== $title ) ? esc_html( $title ) : '（尚未填繁中標題）';
+
+        $field['message'] =
+            '<div class="asp-ai-prompt-helper" style="background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:10px 12px;">'
+            . '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
+            . '<strong>🤖 丟給 AI 找資料的提示詞</strong>'
+            . '<span style="color:#50575e;">作品：<strong>' . $title_label . '</strong></span>'
+            . '<button type="button" class="button button-primary" '
+            . 'onclick="var t=this.parentNode.parentNode.querySelector(\'.asp-prompt-text\');t.focus();t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand(\'copy\');}this.textContent=\'✅ 已複製\';setTimeout(function(b){return function(){b.textContent=\'📋 複製提示詞\';};}(this),1500);">'
+            . '📋 複製提示詞</button>'
+            . '<button type="button" class="button" '
+            . 'onclick="var t=this.parentNode.parentNode.querySelector(\'.asp-prompt-title\');if(t){t.focus();t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand(\'copy\');}this.textContent=\'✅ 已複製標題\';setTimeout(function(b){return function(){b.textContent=\'📋 複製繁中標題\';};}(this),1500);}">'
+            . '📋 複製繁中標題</button>'
+            . '</div>'
+            . '<input type="text" class="asp-prompt-title" readonly value="' . esc_attr( $title ) . '" '
+            . 'style="width:100%;margin-bottom:6px;font-family:monospace;" onclick="this.select();">'
+            . '<textarea class="asp-prompt-text" readonly rows="9" '
+            . 'style="width:100%;font-family:monospace;font-size:12px;line-height:1.6;" onclick="this.select();">'
+            . esc_textarea( $prompt )
+            . '</textarea>'
+            . '</div>';
+
+        return $field;
+    }
+
+    /**
+     * 全人工模式：儲存 anime 時，若已有編輯短評則自動指定審核者、審核日期與已發布狀態。
+     *
+     * 取代原本的「手動選審核者/狀態/日期」欄位——因批次 AI 產生已停用、短評皆由
+     * 管理員人工貼上，貼上即視為完成人工複核。thin 判定所需的 author 因此自動成立。
+     *
+     * @param mixed $post_id ACF 傳入的 post id（options 頁為字串）。
+     * @return void
+     */
+    public function auto_assign_editorial_reviewer( $post_id ): void {
+        if ( ! is_numeric( $post_id ) ) {
+            return;
+        }
+
+        $post_id = (int) $post_id;
+
+        if ( $post_id <= 0 || 'anime' !== get_post_type( $post_id ) ) {
+            return;
+        }
+
+        $summary = trim( (string) get_post_meta( $post_id, 'anime_editor_summary', true ) );
+
+        if ( '' === $summary ) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+
+        if ( $user_id <= 0 || ! current_user_can( 'edit_post', $post_id ) ) {
+            return;
+        }
+
+        update_post_meta( $post_id, 'anime_editorial_author_id', $user_id );
+        update_post_meta( $post_id, '_anime_editorial_author_id', 'field_anime_editorial_author_id' );
+
+        // 前端短評署名讀舊字串欄，一併寫入顯示名稱以維持 E-E-A-T 可見作者。
+        $user = get_userdata( $user_id );
+
+        if ( $user && '' !== trim( (string) $user->display_name ) ) {
+            update_post_meta( $post_id, 'anime_editorial_author', $user->display_name );
+        }
+
+        update_post_meta( $post_id, 'anime_editorial_reviewed_at', current_time( 'Ymd' ) );
+        update_post_meta( $post_id, '_anime_editorial_reviewed_at', 'field_anime_editorial_reviewed_at' );
+
+        update_post_meta( $post_id, 'anime_editorial_status', 'published' );
+        update_post_meta( $post_id, '_anime_editorial_status', 'field_anime_editorial_status' );
+
+        // 這頁品質提升，排一次背景 thin 重算讓它盡快回到索引。
+        if ( function_exists( 'wxacg_schedule_thin_rebuild' ) ) {
+            wxacg_schedule_thin_rebuild();
+        }
     }
 
     private function register_mirror_hooks(): void {
@@ -73,6 +200,7 @@ class Anime_Sync_ACF_Fields {
             'shortcut_anime_online_watch'     => 'anime_online_watch',
             'shortcut_anime_trailer_url'      => 'anime_trailer_url',
             'shortcut_anime_wikipedia_url'    => 'anime_wikipedia_url',
+            'shortcut_anime_editor_summary'   => 'anime_editor_summary',
             // AI 輔助區塊鏡像
             'shortcut_anime_synopsis_chinese' => 'anime_synopsis_chinese',
             'shortcut_anime_faq_json'         => 'anime_faq_json',
@@ -337,140 +465,37 @@ class Anime_Sync_ACF_Fields {
 				'title'  => '✍️ 人工編輯與品質審核',
 				'fields' => [
 					[
+						'key'       => 'field_anime_editorial_prompt_helper',
+						'label'     => '',
+						'name'      => '',
+						'type'      => 'message',
+						// 訊息內容由 acf/prepare_field 動態填入（含該作品繁中標題）。
+						'message'   => '',
+						'new_lines' => '',
+						'esc_html'  => 0,
+						'wrapper'   => [ 'width' => '100' ],
+					],
+					[
 						'key'          => 'field_anime_editor_summary',
 						'label'        => '編輯推薦短評',
 						'name'         => 'anime_editor_summary',
 						'type'         => 'textarea',
-						'instructions' => '請以台灣繁體中文撰寫原創推薦短評。建議至少 120 個中文字；AI 內容只能作為草稿，必須經人工查證、修改及審核後才能發布。',
+						'instructions' => '貼上你在 AI 對話視窗撰寫並查證過的繁體中文原創短評（建議 120～160 字）。儲存後系統會自動將你設為審核者、帶入今天日期並標記為「已發布」。',
 						'required'     => 0,
-						'rows'         => 4,
+						'rows'         => 5,
 						'new_lines'    => 'br',
 						'wrapper'      => [ 'width' => '100' ],
-					],
-					[
-						'key'           => 'field_anime_editorial_status',
-						'label'         => '編輯審核狀態',
-						'name'          => 'anime_editorial_status',
-						'type'          => 'select',
-						'instructions'  => 'AI 產生後只能設為「草稿」。完成事實查證、人工修改、作者及審核日期填寫後，才可改為「已發布」。',
-						'required'      => 0,
-						'choices'       => [
-							'draft'        => '草稿',
-							'review'       => '等待人工審核',
-							'published'    => '已發布',
-							'needs_update' => '需要更新',
-						],
-						'default_value' => 'draft',
-						'allow_null'    => 0,
-						'return_format' => 'value',
-						'wrapper'       => [ 'width' => '33' ],
-					],
-					[
-						'key'           => 'field_anime_editorial_author_id',
-						'label'         => '人工編輯／審核者',
-						'name'          => 'anime_editorial_author_id',
-						'type'          => 'user',
-						'instructions'  => '選擇實際完成內容查證與審核的人員。AI 不得自動填入此欄。',
-						'required'      => 0,
-						'role'          => [
-							'administrator',
-							'editor',
-							'author',
-						],
-						'allow_null'    => 1,
-						'multiple'      => 0,
-						'return_format' => 'id',
-						'wrapper'       => [ 'width' => '33' ],
-					],
-					[
-						'key'            => 'field_anime_editorial_reviewed_at',
-						'label'          => '人工審核日期',
-						'name'           => 'anime_editorial_reviewed_at',
-						'type'           => 'date_picker',
-						'instructions'   => '實際完成人工查證與審核的日期。AI 不得自動填入；資料以 Ymd 格式儲存。',
-						'required'       => 0,
-						'display_format' => 'Y-m-d',
-						'return_format'  => 'Ymd',
-						'first_day'      => 1,
-						'wrapper'        => [ 'width' => '34' ],
-					],
-					[
-						'key'           => 'field_anime_editorial_ai_generated',
-						'label'         => '內容包含 AI 草稿',
-						'name'          => 'anime_editorial_ai_generated',
-						'type'          => 'true_false',
-						'instructions'  => '由 AI 編輯工具自動記錄，請勿手動修改。',
-						'required'      => 0,
-						'ui'            => 1,
-						'default_value' => 0,
-						'readonly'      => 1,
-						'wrapper'       => [
-							'width' => '20',
-							'class' => 'asp-readonly',
-						],
-					],
-					[
-						'key'           => 'field_anime_editorial_ai_needs_review',
-						'label'         => 'AI 草稿需要人工審核',
-						'name'          => 'anime_editorial_ai_needs_review',
-						'type'          => 'true_false',
-						'instructions'  => 'AI 產生草稿時由系統開啟。完成事實查證與人工修改後，可由編輯手動關閉。',
-						'required'      => 0,
-						'ui'            => 1,
-						'default_value' => 0,
-						'wrapper'       => [ 'width' => '20' ],
-					],
-					[
-						'key'          => 'field_anime_editorial_ai_model',
-						'label'        => 'AI 模型',
-						'name'         => 'anime_editorial_ai_model',
-						'type'         => 'text',
-						'instructions' => '由 AI 編輯工具自動記錄實際使用的模型。',
-						'required'     => 0,
-						'readonly'     => 1,
-						'wrapper'      => [
-							'width' => '20',
-							'class' => 'asp-readonly',
-						],
-					],
-					[
-						'key'          => 'field_anime_editorial_ai_prompt_version',
-						'label'        => 'AI Prompt 版本',
-						'name'         => 'anime_editorial_prompt_version',
-						'type'         => 'text',
-						'instructions' => '由 AI 編輯工具記錄產生草稿時使用的提示詞版本。',
-						'required'     => 0,
-						'readonly'     => 1,
-						'wrapper'      => [
-							'width' => '20',
-							'class' => 'asp-readonly',
-						],
-					],
-					[
-						'key'          => 'field_anime_editorial_ai_generated_at',
-						'label'        => 'AI 草稿產生時間',
-						'name'         => 'anime_editorial_ai_generated_at',
-						'type'         => 'text',
-						'instructions' => '由 AI 編輯工具自動記錄，建議格式為 WordPress 本地時間 Y-m-d H:i:s。',
-						'required'     => 0,
-						'readonly'     => 1,
-						'wrapper'      => [
-							'width' => '20',
-							'class' => 'asp-readonly',
-						],
 					],
 					[
 						'key'       => 'field_anime_editorial_quality_notice',
 						'label'     => '',
 						'name'      => '',
 						'type'      => 'message',
-						'message'   => '<strong>發布前檢查：</strong><br>'
-							. '① 編輯推薦短評已達最低內容要求，且不是未經修改的 AI 原稿。<br>'
-							. '② 觀看指南已提供實際觀看順序或版本差異資訊。<br>'
-							. '③ 已選擇人工審核者並填寫審核日期。<br>'
-							. '④ 合法串流平台與直達連結仍有效。<br>'
-							. '⑤ 確認資料後，才將狀態改成「已發布」。<br><br>'
-							. '品質分數、搜尋引擎索引及廣告資格將由網站共用品質函式判定，不能只靠手動切換狀態。',
+						'message'   => '<strong>全人工模式：</strong>'
+							. '用上方「📋 複製提示詞」貼到 AI 對話視窗產出短評，'
+							. '自己<strong>查證修改</strong>後貼回上面欄位並儲存即可——'
+							. '系統會自動指定審核者、審核日期與「已發布」狀態。'
+							. '品質分數、搜尋引擎索引與廣告資格一律由網站共用品質函式判定。',
 						'new_lines' => '',
 						'esc_html'  => 0,
 					],
@@ -490,7 +515,7 @@ class Anime_Sync_ACF_Fields {
 				'label_placement'       => 'top',
 				'instruction_placement' => 'label',
 				'active'                => true,
-				'description'           => '人工編輯內容、品質審核狀態與 AI 草稿來源追蹤。',
+				'description'           => '人工編輯內容與品質審核狀態。',
 			]
 		);
 	}
@@ -2633,8 +2658,9 @@ private function register_manga_fields(): void {
             'shortcut_anime_online_watch'     => 'anime_online_watch',
             'shortcut_anime_trailer_url'      => 'anime_trailer_url',
             'shortcut_anime_wikipedia_url'    => 'anime_wikipedia_url',
+            'shortcut_anime_editor_summary'   => 'anime_editor_summary',
         ];
-        
+
         $old_ya_url = get_post_meta( $post_id, 'anime_youranimes_url', true );
         $new_ya_url = isset( $fields['shortcut_anime_youranimes_url'] ) ? $fields['shortcut_anime_youranimes_url'] : '';
         
@@ -2647,6 +2673,9 @@ private function register_manga_fields(): void {
                 update_post_meta( $post_id, $real_key, $fields[$shortcut] );
             }
         }
+
+        // 捷徑盒走 AJAX 不會觸發 acf/save_post，這裡手動補上「貼短評即自動指定審核者」。
+        $this->auto_assign_editorial_reviewer( $post_id );
         
         // 儲存 Taxonomy (系列標籤) - 從純文字解析
         if ( isset( $fields['shortcut_anime_series_tax'] ) ) {
@@ -2710,6 +2739,26 @@ private function register_manga_fields(): void {
             'key'                   => 'group_anime_shortcuts',
             'title'                 => '🚀 編輯捷徑方塊',
             'fields'                => [
+                [
+                    'key'       => 'field_shortcut_anime_prompt_helper',
+                    'label'     => '',
+                    'name'      => '',
+                    'type'      => 'message',
+                    // 訊息由 acf/prepare_field 動態填入（含繁中標題）。
+                    'message'   => '',
+                    'new_lines' => '',
+                    'esc_html'  => 0,
+                    'wrapper'   => [ 'width' => '100' ],
+                ],
+                [
+                    'key'          => 'field_shortcut_anime_editor_summary',
+                    'label'        => '編輯推薦短評（貼上後按「儲存捷徑變更」）',
+                    'name'         => 'shortcut_anime_editor_summary',
+                    'type'         => 'textarea',
+                    'instructions' => '貼上查證過的繁中原創短評；儲存後自動指定審核者/日期並標記已發布。',
+                    'rows'         => 5,
+                    'wrapper'      => [ 'width' => '100' ],
+                ],
                 [
                     'key'     => 'field_shortcut_anime_title_chinese',
                     'label'   => '中文標題 (台灣繁體)',
