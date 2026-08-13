@@ -2,9 +2,17 @@
 /**
  * 微笑動漫 Child Theme — functions.php
  *
- * @version 2.28.5 (2026-08-12)
+ * @version 2.29.0 (2026-08-13)
  *
  * Changelog:
+ *  2.29.0
+ *   - 收緊 Anime Thin 判定以符合 AdSense 內容政策（缺乏價值內容複審）：
+ *       · 純簡介不再單獨解除空洞；短簡介＝Google 眼中的 auto-generated thin。
+ *       · 短評需「經人工審核」（有審核者）才算獨立編輯價值，純 AI 草稿不算，
+ *         避免大量未把關 AI 內容撐起收錄頁數。人審一篇即自動回到索引。
+ *       · 簡介需達 WXACG_THIN_SYNOPSIS_RICH（預設 300）字且有社群訊號才算充實。
+ *   - 門檻抽為常數 WXACG_THIN_SYNOPSIS_RICH／WXACG_THIN_EDITORIAL_MIN，便於微調。
+ *
  *  2.28.5
  *   - P0-A：文章數少於 3 篇的標籤及製作公司分類頁設為 noindex, follow。
  *   - 同步從 Rank Math XML Sitemap 排除低文章數分類頁。
@@ -32,7 +40,7 @@ defined( 'ABSPATH' ) || exit;
  * ============================================================ */
 
 if ( ! defined( 'weixiaoacg_VERSION' ) ) {
-	define( 'weixiaoacg_VERSION', '2.28.5' );
+	define( 'weixiaoacg_VERSION', '2.29.0' );
 }
 
 if ( ! defined( 'weixiaoacg_THEME_URL' ) ) {
@@ -436,6 +444,22 @@ function wxacg_text_length( $value ): int {
  * Anime Thin Content
  * ============================================================ */
 
+/**
+ * Thin 判定門檻（可調）。
+ *
+ * WXACG_THIN_SYNOPSIS_RICH：簡介達此字數「且」有社群訊號才算充實；
+ *                           純簡介（尤其自動匯入的短簡介）不再單獨解除空洞，
+ *                           以符合 AdSense「auto-generated / thin content」政策。
+ * WXACG_THIN_EDITORIAL_MIN：人工／AI 短評達此字數即視為獨立編輯價值，可單獨解除。
+ */
+if ( ! defined( 'WXACG_THIN_SYNOPSIS_RICH' ) ) {
+	define( 'WXACG_THIN_SYNOPSIS_RICH', 300 );
+}
+
+if ( ! defined( 'WXACG_THIN_EDITORIAL_MIN' ) ) {
+	define( 'WXACG_THIN_EDITORIAL_MIN', 120 );
+}
+
 function wxacg_is_thin_anime_page( int $post_id ): bool {
 	if (
 		$post_id <= 0 ||
@@ -504,20 +528,40 @@ function wxacg_is_thin_anime_page( int $post_id ): bool {
 	);
 
 	/*
-	 * 簡介達 120 字即不屬於完全空洞頁。
-	 * 人工短評、原創文章、站內互動也可解除 Thin。
+	 * v2.29.0 收緊 thin 判定以符合 AdSense 內容政策：
+	 *   - 純簡介不再單獨解除空洞（短簡介＝Google 眼中的 auto-generated thin）。
+	 *   - 短評需「經人工審核」（有審核者）才算獨立編輯價值；純 AI 草稿不算，
+	 *     避免大量未經人工把關的 AI 短評撐起收錄頁數、反被判低品質。
+	 *   - 簡介需達 WXACG_THIN_SYNOPSIS_RICH 字「且」有社群訊號才算充實。
+	 * 與 wxacg_is_anime_adsense_eligible() 的「需審核者」邏輯對齊。
 	 */
-	$has_synopsis  = $synopsis_length >= 120;
-	$has_editorial = $editorial_length >= 120;
-	$has_original  = $feature_count > 0 || $review_count > 0;
-	$has_community = $score_count > 0 || $comment_count > 0;
-
-	return ! (
-		$has_synopsis ||
-		$has_editorial ||
-		$has_original ||
-		$has_community
+	$author_id = (int) get_post_meta(
+		$post_id,
+		'anime_editorial_author_id',
+		true
 	);
+
+	$legacy_author = wxacg_plain_text(
+		get_post_meta(
+			$post_id,
+			'anime_editorial_author',
+			true
+		)
+	);
+
+	$has_author = $author_id > 0 || '' !== $legacy_author;
+
+	$has_reviewed_editorial = ( $editorial_length >= WXACG_THIN_EDITORIAL_MIN ) && $has_author;
+	$has_rich_synopsis      = $synopsis_length >= WXACG_THIN_SYNOPSIS_RICH;
+	$has_original           = $feature_count > 0 || $review_count > 0;
+	$has_community          = $score_count > 0 || $comment_count > 0;
+
+	$is_valuable =
+		$has_reviewed_editorial ||
+		$has_original ||
+		( $has_rich_synopsis && $has_community );
+
+	return ! $is_valuable;
 }
 
 /* ============================================================
