@@ -4,19 +4,18 @@
  *
  * Path: wp-content/plugins/anime-sync-pro/includes/ai-editorial-tool.php
  *
- * @version 1.9.0 (2026-08-13)
+ * @version 1.9.1 (2026-08-13)
  *
- * v1.9.0（配合 class-acf-fields.php 對齊）：
- *   1) 寫入 anime_editor_summary 時同步補寫 ACF field key 參照 _anime_editor_summary
- *   2) anime_tw_streaming 為 checkbox 存 key，改用 Streaming Registry 轉中文標籤
- *   3) anime_studios 為逗號分隔 text 欄位，改為 meta 優先讀取
- *   4) Prompt 補入作品類型、原作來源、台灣代理商，減少 AI 誤判季別
- *   5) 新增「本次工作階段上限」：跑滿 N 部自動停止
- *   6) 新增「每日產生上限」：伺服器端強制，跨瀏覽器分頁都算同一份額度
- *   7) 覆蓋模式新增「保護已人工審核」：跳過 status=published 或已填審核者的作品
- *   8) 可一鍵匯入編輯畫面 AI 面板（user meta asp_ai_api_key）的既有金鑰
- *   9) 短評長度驗證改為 90～240 字，對齊 ACF「建議至少 120 字」
+ * v1.9.1（可續跑修正）：
+ *   1) 覆蓋模式改以 anime_editorial_prompt_version 為水位標記，重寫過的作品自動離開
+ *      查詢集合，offset 恆為 0，可跨工作階段／跨日續跑，進度條與完成判斷同步修正
+ *   2) wxacg_count_remaining() 新增 $overwrite 參數，統計與查詢共用同一組條件
+ *   3) 補上 set_time_limit／ignore_user_abort，並在 usleep 前先判斷時間預算，
+ *      避免 45s HTTP timeout + sleep 疊加撞上 max_execution_time 造成 504
+ *   4) 拆除 wxacg_build_sort_clauses() 內的巢狀 $wpdb->prepare()
+ *   5) 題材類型上限 6 個；每筆間隔改依「未冷卻」的 Key 計算容量
  *
+ * v1.9.0: 對齊 class-acf-fields.php（field key 參照、串流標籤、studios meta 優先）
  * v1.8.0: 排序改為可組合子句，新增本季／下季／最近匯入
  * v1.7.0: 同時支援 Gemini 與 Groq，跨供應商 Key 池輪替
  * v1.6.0: 改寫入 anime_editor_summary，一律標記待人工審核草稿
@@ -38,8 +37,14 @@ if ( ! defined( 'WXACG_GROQ_MODEL_DEFAULT' ) ) {
 	define( 'WXACG_GROQ_MODEL_DEFAULT', 'openai/gpt-oss-120b' );
 }
 
+/**
+ * Prompt 版本。
+ *
+ * 覆蓋模式以此值判斷「這部是否已用目前版本重寫過」。
+ * 調整 prompt 內容時才需要提高版本號；提高後覆蓋模式會重跑全部作品。
+ */
 if ( ! defined( 'WXACG_EDITORIAL_PROMPT_VERSION' ) ) {
-	define( 'WXACG_EDITORIAL_PROMPT_VERSION', '1.9.0' );
+	define( 'WXACG_EDITORIAL_PROMPT_VERSION', '1.9.1' );
 }
 
 if ( ! defined( 'WXACG_BATCH_TIME_BUDGET' ) ) {
@@ -58,10 +63,19 @@ if ( ! defined( 'WXACG_EDITORIAL_META' ) ) {
 	define( 'WXACG_EDITORIAL_META', 'anime_editor_summary' );
 }
 
+if ( ! defined( 'WXACG_PROMPT_VERSION_META' ) ) {
+	define( 'WXACG_PROMPT_VERSION_META', 'anime_editorial_prompt_version' );
+}
+
 /**
  * ACF 欄位 name → field key 對照。
  *
  * 寫入 meta 時一併補上 _name 參照，確保後台 ACF 編輯框正常顯示。
+ *
+ * ⚠️ 請與 class-acf-fields.php 逐項核對：name 與 key 必須成對，
+ *    特別是 prompt version 這一列（name 無 ai_、key 有 ai_）。
+ *    若 ACF 註冊的欄位名是 anime_editorial_ai_prompt_version，
+ *    請同時修改上方 WXACG_PROMPT_VERSION_META 常數。
  */
 function wxacg_acf_field_key_map() {
 	return array(
@@ -779,6 +793,10 @@ function wxacg_sort_choices() {
 
 /**
  * 產生批次查詢用的 SELECT／JOIN／HAVING／ORDER 子句。
+ *
+ * 注意：回傳的字串會被外層再次組進 $wpdb->prepare()，
+ * 因此這裡一律不使用 prepare()，改以 sprintf + esc_sql 產生字面值，
+ * 避免巢狀 prepare 誤把 % 當成佔位符。
  */
 function wxacg_build_sort_clauses( $sort ) {
 	global $wpdb;
@@ -814,28 +832,28 @@ function wxacg_build_sort_clauses( $sort ) {
 
 	$sel_score = "MAX( CAST( NULLIF( pm_al.meta_value, '' ) AS DECIMAL(5,2) ) ) AS s_score";
 
-	$sel_current = $wpdb->prepare(
+	$sel_current = sprintf(
 		"MAX(
 			CASE
 				WHEN CAST( NULLIF( pm_yr.meta_value, '' ) AS UNSIGNED ) = %d
-				 AND UPPER( TRIM( pm_se.meta_value ) ) = %s THEN 1
+				 AND UPPER( TRIM( pm_se.meta_value ) ) = '%s' THEN 1
 				ELSE 0
 			END
 		) AS s_current",
-		$now['year'],
-		$now['season']
+		(int) $now['year'],
+		esc_sql( $now['season'] )
 	);
 
-	$sel_next = $wpdb->prepare(
+	$sel_next = sprintf(
 		"MAX(
 			CASE
 				WHEN CAST( NULLIF( pm_yr.meta_value, '' ) AS UNSIGNED ) = %d
-				 AND UPPER( TRIM( pm_se.meta_value ) ) = %s THEN 1
+				 AND UPPER( TRIM( pm_se.meta_value ) ) = '%s' THEN 1
 				ELSE 0
 			END
 		) AS s_next",
-		$next['year'],
-		$next['season']
+		(int) $next['year'],
+		esc_sql( $next['season'] )
 	);
 
 	switch ( $sort ) {
@@ -908,6 +926,9 @@ function wxacg_build_sort_clauses( $sort ) {
 
 /**
  * 保護子句：跳過已完成人工審核的作品。
+ *
+ * ⚠️ 'published' 必須與 class-acf-fields.php 中 anime_editorial_status
+ *    select 的實際 choice value 一致，否則保護會失效。
  */
 function wxacg_protect_clause() {
 	global $wpdb;
@@ -929,6 +950,9 @@ function wxacg_protect_clause() {
 	";
 }
 
+/**
+ * 一般模式：只挑尚未有短評的作品。
+ */
 function wxacg_missing_clause() {
 	global $wpdb;
 
@@ -943,12 +967,41 @@ function wxacg_missing_clause() {
 }
 
 /**
- * 尚未填入編輯摘要的已發佈動漫數量。
+ * 覆蓋模式：跳過「已用目前 prompt 版本重寫過」的作品。
  *
- * @param string $sort    傳入排序模式時只計算該範圍。
- * @param bool   $protect 是否排除已人工審核的作品。
+ * 有了這個水位標記，成功處理的項目會離開查詢集合，
+ * 因此 offset 可維持 0，關掉瀏覽器隔天再跑也會從上次的斷點接續。
  */
-function wxacg_count_remaining( $sort = '', $protect = true ) {
+function wxacg_overwrite_skip_clause() {
+	global $wpdb;
+
+	return $wpdb->prepare(
+		"AND NOT EXISTS (
+			SELECT 1 FROM {$wpdb->postmeta} pm_ver
+			WHERE pm_ver.post_id = p.ID
+			  AND pm_ver.meta_key = %s
+			  AND pm_ver.meta_value = %s
+		)",
+		WXACG_PROMPT_VERSION_META,
+		WXACG_EDITORIAL_PROMPT_VERSION
+	);
+}
+
+/**
+ * 取得本次模式使用的篩選子句。
+ */
+function wxacg_scope_clause( $overwrite = false ) {
+	return $overwrite ? wxacg_overwrite_skip_clause() : wxacg_missing_clause();
+}
+
+/**
+ * 尚待處理的已發佈動漫數量。
+ *
+ * @param string $sort      傳入排序模式時只計算該範圍。
+ * @param bool   $protect   是否排除已人工審核的作品。
+ * @param bool   $overwrite 覆蓋模式：改算「尚未用目前版本重寫」的數量。
+ */
+function wxacg_count_remaining( $sort = '', $protect = true, $overwrite = false ) {
 	global $wpdb;
 
 	$clauses = ( '' !== $sort )
@@ -960,7 +1013,7 @@ function wxacg_count_remaining( $sort = '', $protect = true ) {
 		);
 
 	$protect_sql = $protect ? wxacg_protect_clause() : '';
-	$missing_sql = wxacg_missing_clause();
+	$scope_sql   = wxacg_scope_clause( $overwrite );
 
 	$sql = "
 		SELECT COUNT(*) FROM (
@@ -969,7 +1022,7 @@ function wxacg_count_remaining( $sort = '', $protect = true ) {
 			{$clauses['join']}
 			WHERE p.post_type = 'anime'
 			  AND p.post_status = 'publish'
-			  {$missing_sql}
+			  {$scope_sql}
 			  {$protect_sql}
 			GROUP BY p.ID
 			{$clauses['having']}
@@ -1007,13 +1060,15 @@ function wxacg_save_editorial_ai_draft( $post_id, $editorial, $provider = 'gemin
 	);
 	wxacg_update_acf_meta(
 		$post_id,
-		'anime_editorial_prompt_version',
-		WXACG_EDITORIAL_PROMPT_VERSION
-	);
-	wxacg_update_acf_meta(
-		$post_id,
 		'anime_editorial_ai_generated_at',
 		current_time( 'mysql' )
+	);
+
+	// 覆蓋模式的續跑水位，務必最後寫入。
+	wxacg_update_acf_meta(
+		$post_id,
+		WXACG_PROMPT_VERSION_META,
+		WXACG_EDITORIAL_PROMPT_VERSION
 	);
 
 	// 非 ACF 欄位，純粹供後台查詢與統計使用。
@@ -1033,6 +1088,13 @@ function wxacg_save_editorial_ai_draft( $post_id, $editorial, $provider = 'gemin
 add_action( 'wp_ajax_wxacg_ai_generate_batch', 'wxacg_ai_generate_batch_handler' );
 
 function wxacg_ai_generate_batch_handler() {
+	// 單筆最壞情況：HTTP 45s + 輪替 sleep + 每筆間隔，預設 30s 上限會被砍成 504。
+	if ( function_exists( 'set_time_limit' ) ) {
+		@set_time_limit( 120 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+	}
+
+	ignore_user_abort( true );
+
 	try {
 		check_ajax_referer( 'wxacg_ai_editorial_nonce', 'nonce' );
 
@@ -1095,26 +1157,26 @@ function wxacg_ai_generate_batch_handler() {
 		if ( $daily_room <= 0 ) {
 			wp_send_json_success(
 				array(
-					'results'          => array(),
-					'processed'        => 0,
-					'succeeded'        => 0,
-					'failed'           => 0,
-					'total_remaining'  => wxacg_count_remaining( '', $protect ),
-					'scope_remaining'  => wxacg_count_remaining( $sort, $protect ),
-					'scope_label'      => $sort_choices[ $sort ],
-					'next_offset'      => $offset,
-					'next_key_cursor'  => 0,
-					'key_count'        => $key_count,
-					'keys_ready'       => 0,
-					'key_status'       => array(),
-					'rate_limited'     => false,
-					'daily_exhausted'  => false,
-					'daily_cap_hit'    => true,
-					'daily_cap'        => $daily_cap,
-					'daily_used'       => $daily_used['count'],
-					'reset_text'       => '',
-					'cooldown_sec'     => 0,
-					'item_delay_ms'    => 0,
+					'results'         => array(),
+					'processed'       => 0,
+					'succeeded'       => 0,
+					'failed'          => 0,
+					'total_remaining' => wxacg_count_remaining( '', $protect, $overwrite ),
+					'scope_remaining' => wxacg_count_remaining( $sort, $protect, $overwrite ),
+					'scope_label'     => $sort_choices[ $sort ],
+					'next_offset'     => $offset,
+					'next_key_cursor' => 0,
+					'key_count'       => $key_count,
+					'keys_ready'      => 0,
+					'key_status'      => array(),
+					'rate_limited'    => false,
+					'daily_exhausted' => false,
+					'daily_cap_hit'   => true,
+					'daily_cap'       => $daily_cap,
+					'daily_used'      => $daily_used['count'],
+					'reset_text'      => '',
+					'cooldown_sec'    => 0,
+					'item_delay_ms'   => 0,
 				)
 			);
 		}
@@ -1125,7 +1187,7 @@ function wxacg_ai_generate_batch_handler() {
 		$item_delay_ms = (int) ( isset( $_POST['item_delay'] ) ? $_POST['item_delay'] : 0 );
 
 		if ( $item_delay_ms <= 0 ) {
-			$item_delay_ms = wxacg_auto_item_delay_ms( $pool );
+			$item_delay_ms = wxacg_auto_item_delay_ms( $pool, true );
 		}
 
 		$item_delay_ms = min( max( $item_delay_ms, 100 ), 15000 );
@@ -1145,8 +1207,8 @@ function wxacg_ai_generate_batch_handler() {
 					'processed'       => 0,
 					'succeeded'       => 0,
 					'failed'          => 0,
-					'total_remaining' => wxacg_count_remaining( '', $protect ),
-					'scope_remaining' => wxacg_count_remaining( $sort, $protect ),
+					'total_remaining' => wxacg_count_remaining( '', $protect, $overwrite ),
+					'scope_remaining' => wxacg_count_remaining( $sort, $protect, $overwrite ),
 					'scope_label'     => $sort_choices[ $sort ],
 					'next_offset'     => $offset,
 					'next_key_cursor' => $key_cursor,
@@ -1169,7 +1231,7 @@ function wxacg_ai_generate_batch_handler() {
 
 		$clauses     = wxacg_build_sort_clauses( $sort );
 		$protect_sql = $protect ? wxacg_protect_clause() : '';
-		$missing_sql = $overwrite ? '' : wxacg_missing_clause();
+		$scope_sql   = wxacg_scope_clause( $overwrite );
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$sql = $wpdb->prepare(
@@ -1178,7 +1240,7 @@ function wxacg_ai_generate_batch_handler() {
 			 {$clauses['join']}
 			 WHERE p.post_type = 'anime'
 			   AND p.post_status = 'publish'
-			   {$missing_sql}
+			   {$scope_sql}
 			   {$protect_sql}
 			 GROUP BY p.ID, p.post_title, p.comment_count, p.post_date
 			 {$clauses['having']}
@@ -1276,7 +1338,10 @@ function wxacg_ai_generate_batch_handler() {
 				$attempted++;
 			}
 
-			if ( $attempted < $post_total ) {
+			// 已接近時間預算就不要再空睡，直接把結果交給前端接續。
+			$elapsed_after_sleep = ( microtime( true ) - $started_at ) + ( $item_delay_ms / 1000 );
+
+			if ( $attempted < $post_total && $elapsed_after_sleep < WXACG_BATCH_TIME_BUDGET ) {
 				usleep( $item_delay_ms * 1000 );
 			}
 		}
@@ -1308,14 +1373,12 @@ function wxacg_ai_generate_batch_handler() {
 				'processed'       => count( $results ),
 				'succeeded'       => $saved_count,
 				'failed'          => $error_count,
-				'total_remaining' => wxacg_count_remaining( '', $protect ),
-				'scope_remaining' => wxacg_count_remaining( $sort, $protect ),
+				'total_remaining' => wxacg_count_remaining( '', $protect, $overwrite ),
+				'scope_remaining' => wxacg_count_remaining( $sort, $protect, $overwrite ),
 				'scope_label'     => $sort_choices[ $sort ],
 
-				// 非覆蓋模式中成功項目已離開查詢集合，offset 僅跳過仍留下的失敗項目。
-				'next_offset'     => $overwrite
-					? ( $offset + count( $results ) )
-					: ( $offset + $error_count ),
+				// 兩種模式的成功項目都會離開查詢集合，offset 僅需跳過仍留下的失敗項目。
+				'next_offset'     => $offset + $error_count,
 
 				'next_key_cursor' => ( $key_cursor + $attempted ) % $key_count,
 				'key_count'       => $key_count,
@@ -1356,10 +1419,21 @@ function wxacg_ai_generate_batch_handler() {
 	}
 }
 
-function wxacg_auto_item_delay_ms( $pool ) {
-	$capacity = 0;
+/**
+ * 依 Key 池容量推算每筆間隔。
+ *
+ * @param array $pool
+ * @param bool  $only_ready 只計算目前未冷卻的 Key，避免剩一把時間隔仍算得太短。
+ */
+function wxacg_auto_item_delay_ms( $pool, $only_ready = false ) {
+	$cooldowns = $only_ready ? wxacg_get_key_cooldowns() : array();
+	$capacity  = 0;
 
 	foreach ( $pool as $entry ) {
+		if ( $only_ready && wxacg_key_is_cooling( $entry, $cooldowns ) ) {
+			continue;
+		}
+
 		$capacity += wxacg_provider_safe_rpm( $entry['provider'] );
 	}
 
@@ -1517,7 +1591,9 @@ function wxacg_gather_anime_data_for_editorial( $post_id ) {
 		}
 
 		if ( ! empty( $names ) ) {
-			$genres = implode( '、', array_values( array_unique( $names ) ) );
+			// 上限 6 個：類型太多會撐大 prompt 又稀釋重點。
+			$names  = array_slice( array_values( array_unique( $names ) ), 0, 6 );
+			$genres = implode( '、', $names );
 			break;
 		}
 	}
@@ -2075,15 +2151,24 @@ function wxacg_build_editorial_prompt_parts( $data ) {
 		$title_text .= '（' . $data['title_ja'] . '）';
 	}
 
+	// 缺值時的描述不要寫成「資料不足」，否則模型偶爾會把這四個字寫進短評。
+	$genre_text = ( '' !== $data['genres'] )
+		? $data['genres']
+		: '（未標註，請依劇情簡介自行判斷，不要在短評中提及缺少分類）';
+
+	$studio_text = ( '' !== $data['studio'] )
+		? $data['studio']
+		: '（未標註，不要在短評中提及製作公司）';
+
 	$user  = "請為以下作品撰寫一段 120～160 字的繁體中文「AI 編輯短評草稿」，之後會交由人工編輯審核：\n\n";
 	$user .= "【作品資料】\n";
 	$user .= '- 標題：' . $title_text . "\n";
 	$user .= '- 作品類型：' . ( '' !== $data['format'] ? $data['format'] : '未標註' ) . "\n";
 	$user .= '- 原作來源：' . ( '' !== $data['source'] ? $data['source'] : '未標註' ) . "\n";
-	$user .= '- 題材類型：' . ( '' !== $data['genres'] ? $data['genres'] : '類型資料不足' ) . "\n";
+	$user .= '- 題材類型：' . $genre_text . "\n";
 	$user .= '- 集數：' . $episodes_text . "\n";
 	$user .= '- 播出：' . $air_info . "\n";
-	$user .= '- 製作公司：' . ( '' !== $data['studio'] ? $data['studio'] : '製作資料不足' ) . "\n";
+	$user .= '- 製作公司：' . $studio_text . "\n";
 
 	if ( '' !== $data['distributor'] ) {
 		$user .= '- 台灣代理：' . $data['distributor'] . "\n";
@@ -2103,6 +2188,7 @@ function wxacg_build_editorial_prompt_parts( $data ) {
 	$user .= "6. 不得捏造資料中沒有提供的角色、聲優、製作人、獎項或觀看平台\n";
 	$user .= "7. 不要把外部評分當作本站評分，也不要宣稱評分保證作品品質\n";
 	$user .= "8. 若為劇場版或續作，敘述時要與 TV 版區分清楚，不可混淆季別\n";
+	$user .= "9. 不要在短評中提及任何欄位「未標註」或「資料不足」這件事\n";
 
 	return array(
 		'system' => $system,
@@ -2210,7 +2296,7 @@ function wxacg_ai_editorial_page() {
 		if ( empty( $source ) ) {
 			echo '<div class="notice notice-warning is-dismissible"><p>⚠️ 您的編輯畫面 AI 面板尚未儲存任何金鑰，無可匯入項目。</p></div>';
 		} else {
-			$option  = ( 'groq' === $target ) ? 'wxacg_groq_api_keys' : 'wxacg_gemini_api_keys';
+			$option   = ( 'groq' === $target ) ? 'wxacg_groq_api_keys' : 'wxacg_gemini_api_keys';
 			$existing = ( 'groq' === $target ) ? wxacg_get_groq_api_keys() : wxacg_get_gemini_api_keys();
 
 			$merged = array_values( array_unique( array_merge( $existing, $source ) ) );
@@ -2291,11 +2377,14 @@ function wxacg_ai_editorial_page() {
 		 WHERE post_type = 'anime' AND post_status = 'publish'"
 	);
 
-	$need_generate = wxacg_count_remaining( '', true );
+	$need_generate = wxacg_count_remaining( '', true, false );
 	$has_summary   = max( 0, $total_anime - $need_generate );
 
+	// 覆蓋模式下「尚未用目前版本重寫」的總數，供說明文字使用。
+	$rewrite_pending = wxacg_count_remaining( '', true, true );
+
 	$default_sort  = 'season';
-	$scope_default = wxacg_count_remaining( $default_sort, true );
+	$scope_default = wxacg_count_remaining( $default_sort, true, false );
 	?>
 	<div class="wrap">
 		<h1>✍️ AI 編輯短評批次產生器</h1>
@@ -2308,8 +2397,10 @@ function wxacg_ai_editorial_page() {
 		</p>
 
 		<p style="color:#666;">
-			💡 設有「每日上限」與「本次工作階段上限」雙層煞車，可以分很多天慢慢補齊，
-			不必一次跑完全站作品。
+			💡 設有「每日上限」與「本次工作階段上限」雙層煞車，可以分很多天慢慢補齊。
+			覆蓋模式會以 prompt 版本
+			<code><?php echo esc_html( WXACG_EDITORIAL_PROMPT_VERSION ); ?></code>
+			為進度標記，關掉瀏覽器隔天再跑也會自動接續，不會重複處理同一批。
 		</p>
 
 		<div style="display:flex;gap:14px;margin:20px 0;flex-wrap:wrap;">
@@ -2329,6 +2420,11 @@ function wxacg_ai_editorial_page() {
 					'label' => '待產生',
 					'value' => $need_generate,
 					'color' => $need_generate > 0 ? '#d63638' : '#00a32a',
+				),
+				array(
+					'label' => '待重寫（覆蓋）',
+					'value' => $rewrite_pending,
+					'color' => '#8250df',
 				),
 				array(
 					'label' => '今日已產生',
@@ -2609,6 +2705,7 @@ function wxacg_ai_editorial_page() {
 							<label style="display:block;">
 								<input type="checkbox" id="wxacg-overwrite">
 								覆蓋模式：連同已有短評的作品一起重新產生
+								（尚待重寫 <strong><?php echo (int) $rewrite_pending; ?></strong> 部）
 							</label>
 
 							<p class="description" style="color:#b32d2e;">
@@ -2711,7 +2808,7 @@ function wxacg_ai_editorial_page() {
 			addLog(
 				'🟢 開始產生。本次工作階段上限：' +
 				(sessionLimit > 0 ? sessionLimit + ' 部' : '不限') +
-				(overwrite ? '（覆蓋模式）' : ''),
+				(overwrite ? '（覆蓋模式，已重寫過的會自動略過）' : ''),
 				'#89dceb'
 			);
 
@@ -2790,7 +2887,7 @@ function wxacg_ai_editorial_page() {
 					try {
 						response = JSON.parse(text);
 					} catch (error) {
-						addLog('❌ 伺服器回傳非 JSON，可能發生 PHP 錯誤：\n' + text.substring(0, 800), '#f38ba8');
+						addLog('❌ 伺服器回傳非 JSON，可能發生 PHP 錯誤或執行逾時：\n' + text.substring(0, 800), '#f38ba8');
 						finish('▶ 繼續產生');
 						return;
 					}
@@ -2881,7 +2978,8 @@ function wxacg_ai_editorial_page() {
 				return;
 			}
 
-			if (scopeRemaining <= 0 && !document.getElementById('wxacg-overwrite').checked) {
+			// 覆蓋模式同樣有水位標記，剩餘數歸零即代表本範圍完成。
+			if (scopeRemaining <= 0) {
 				addLog('🎉 本範圍全部完成！共產生 ' + totalDone + ' 筆待審核短評草稿。', '#89dceb');
 				finish('🚀 重新檢查');
 				return;
