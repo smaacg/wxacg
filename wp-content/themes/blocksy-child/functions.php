@@ -2,9 +2,16 @@
 /**
  * 微笑動漫 Child Theme — functions.php
  *
- * @version 2.29.0 (2026-08-13)
+ * @version 2.29.1 (2026-08-13)
  *
  * Changelog:
+ *  2.29.1
+ *   - 補上漫畫頁 thin → noindex（原本只擋廣告、沒 noindex，薄漫畫頁照常被收錄）：
+ *       · 新增 wxacg_is_thin_manga_page()，判定精神與 anime 一致。
+ *       · 掛進 rank_math/frontend/robots（is_singular('manga')）動態 noindex,follow。
+ *       · 背景重算同時掃描 manga，sitemap 一併排除薄漫畫頁。
+ *       · 新增 save_post_manga 觸發背景重算。
+ *
  *  2.29.0
  *   - 收緊 Anime Thin 判定以符合 AdSense 內容政策（缺乏價值內容複審）：
  *       · 純簡介不再單獨解除空洞；短簡介＝Google 眼中的 auto-generated thin。
@@ -44,7 +51,7 @@ defined( 'ABSPATH' ) || exit;
  * ============================================================ */
 
 if ( ! defined( 'weixiaoacg_VERSION' ) ) {
-	define( 'weixiaoacg_VERSION', '2.29.0' );
+	define( 'weixiaoacg_VERSION', '2.29.1' );
 }
 
 if ( ! defined( 'weixiaoacg_THEME_URL' ) ) {
@@ -568,6 +575,50 @@ function wxacg_is_thin_anime_page( int $post_id ): bool {
 	return ! $is_valuable;
 }
 
+/**
+ * 漫畫 Thin 判定（v2.29.0 新增）。
+ *
+ * 原本漫畫頁的 thin 只用於「擋廣告版位」、沒有掛 noindex，
+ * 造成薄漫畫頁照常被 Google 收錄，形成收斂缺口。此函式與 anime 同一套
+ * 精神：純短簡介不足以解除空洞，須有原創單行本整理、夠長簡介，或
+ * 「簡介＋社群互動」才算有價值。掛進 rank_math/frontend/robots 與
+ * sitemap 排除（見 wxacg_rebuild_thin_anime_ids）。
+ */
+function wxacg_is_thin_manga_page( int $post_id ): bool {
+	if (
+		$post_id <= 0 ||
+		'manga' !== get_post_type( $post_id )
+	) {
+		return false;
+	}
+
+	$synopsis = (string) get_post_meta( $post_id, 'anime_synopsis_chinese', true );
+
+	if ( '' === trim( $synopsis ) ) {
+		$synopsis = (string) get_post_field( 'post_content', $post_id );
+	}
+
+	$synopsis_length = wxacg_text_length( $synopsis );
+
+	// 原創單行本整理（manga_volumes_summary）屬於獨立編輯價值。
+	$has_volumes = '' !== trim( (string) get_post_meta( $post_id, 'manga_volumes_summary', true ) );
+
+	$site_count = (int) get_post_meta( $post_id, 'anime_score_site_count', true );
+
+	if ( $site_count <= 0 ) {
+		$site_count = (int) get_post_meta( $post_id, 'smacg_site_score_count', true );
+	}
+
+	$has_community = $site_count > 0 || get_comments_number( $post_id ) > 0;
+
+	$is_valuable =
+		$has_volumes ||
+		$synopsis_length >= WXACG_THIN_SYNOPSIS_RICH ||
+		( $has_community && $synopsis_length >= WXACG_THIN_EDITORIAL_MIN );
+
+	return ! $is_valuable;
+}
+
 /* ============================================================
  * Anime AdSense 資格
  * ============================================================ */
@@ -750,6 +801,20 @@ function wxacg_rank_math_robots_filter( array $robots ): array {
 		return $robots;
 	}
 
+	if ( is_singular( 'manga' ) ) {
+		$post_id = get_queried_object_id();
+
+		if (
+			$post_id > 0 &&
+			wxacg_is_thin_manga_page( $post_id )
+		) {
+			$robots['index']  = 'noindex';
+			$robots['follow'] = 'follow';
+		}
+
+		return $robots;
+	}
+
 	if ( is_tax() || is_category() || is_tag() ) {
 		$term = get_queried_object();
 
@@ -820,15 +885,18 @@ function wxacg_rebuild_thin_anime_ids(): array {
 
 	global $wpdb;
 
-	$anime_ids = $wpdb->get_col(
-		"SELECT ID
-		FROM {$wpdb->posts}
-		WHERE post_type = 'anime'
-			AND post_status = 'publish'"
-	);
+	$thin_ids = [];
 
-	$anime_ids = array_map( 'intval', (array) $anime_ids );
-	$thin_ids  = [];
+	// Anime。
+	$anime_ids = array_map(
+		'intval',
+		(array) $wpdb->get_col(
+			"SELECT ID
+			FROM {$wpdb->posts}
+			WHERE post_type = 'anime'
+				AND post_status = 'publish'"
+		)
+	);
 
 	if ( ! empty( $anime_ids ) ) {
 		_prime_post_caches( $anime_ids, false, true );
@@ -836,6 +904,27 @@ function wxacg_rebuild_thin_anime_ids(): array {
 		foreach ( $anime_ids as $anime_id ) {
 			if ( wxacg_is_thin_anime_page( $anime_id ) ) {
 				$thin_ids[] = $anime_id;
+			}
+		}
+	}
+
+	// Manga（同樣排除薄頁，避免 sitemap 收薄漫畫）。
+	$manga_ids = array_map(
+		'intval',
+		(array) $wpdb->get_col(
+			"SELECT ID
+			FROM {$wpdb->posts}
+			WHERE post_type = 'manga'
+				AND post_status = 'publish'"
+		)
+	);
+
+	if ( ! empty( $manga_ids ) ) {
+		_prime_post_caches( $manga_ids, false, true );
+
+		foreach ( $manga_ids as $manga_id ) {
+			if ( wxacg_is_thin_manga_page( $manga_id ) ) {
+				$thin_ids[] = $manga_id;
 			}
 		}
 	}
@@ -946,6 +1035,7 @@ function wxacg_clear_thin_anime_cache(): void {
 }
 
 add_action( 'save_post_anime', 'wxacg_clear_thin_anime_cache', 50 );
+add_action( 'save_post_manga', 'wxacg_clear_thin_anime_cache', 50 );
 add_action( 'save_post_post', 'wxacg_clear_thin_anime_cache', 50 );
 add_action( 'wp_insert_comment', 'wxacg_clear_thin_anime_cache', 50 );
 add_action( 'edit_comment', 'wxacg_clear_thin_anime_cache', 50 );

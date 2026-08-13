@@ -5,7 +5,11 @@
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-anime.php
  *
- * @version 15.5 — 2026-08-12
+ * @version 15.6 — 2026-08-13
+ *
+ * 15.6:
+ * - 移除不完整的 trailer VideoObject（缺 uploadDate 會被 Search Console 判無效）；
+ *   預告片改由嵌入的 YouTube iframe 讓 Google 直接偵測，避免結構化資料錯誤
  *
  * 15.5:
  * - 統一 YouTube 影片／播放清單解析，播放清單優先於影片
@@ -2522,23 +2526,17 @@ while ( have_posts() ) :
 		$schema['actor'] = $schema_actors;
 	}
 
-	if ( $youtube_id ) {
-		$schema['trailer'] = [
-			'@type'        => 'VideoObject',
-			'name'         => $display_title . ' 預告片',
-			'description'  => $schema_description !== ''
-				? $schema_description
-				: $display_title . ' 預告片',
-			'thumbnailUrl' => [
-				'https://i.ytimg.com/vi/'
-					. rawurlencode( $youtube_id )
-					. '/hqdefault.jpg',
-			],
-			'embedUrl'     =>
-				'https://www.youtube-nocookie.com/embed/'
-				. rawurlencode( $youtube_id ),
-		];
-	}
+	/*
+	 * [v15.6] 不再輸出 trailer VideoObject。
+	 *
+	 * Google 對 VideoObject 要求 uploadDate（影片首次發佈日），而我們沒有
+	 * YouTube 真實上傳日的可靠來源（v15.5 已移除以動畫首播日充當的錯誤寫法）。
+	 * 缺 uploadDate 的 VideoObject 會被 Search Console 判「無效」且拿不到任何
+	 * 複合式搜尋結果加分，只是徒增結構化資料錯誤。移除後，預告片仍以嵌入的
+	 * YouTube iframe 呈現，Google 會直接從 iframe 偵測影片（含 YouTube 提供的
+	 * uploadDate），比我們自輸出不完整 schema 更正確。
+	 * 未來若接 YouTube Data API 取得真實 uploadDate，可在此還原並補上該欄位。
+	 */
 
 	if ( $site_score > 0 && $site_count > 0 ) {
 		$schema['aggregateRating'] = [

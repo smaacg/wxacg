@@ -4,7 +4,11 @@
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-manga.php
  *
- * @version 1.7.3 — 2026-07-25
+ * @version 1.7.4 — 2026-08-13
+ *
+ * v1.7.4 變更:
+ *   - [SEO] $is_thin_content 改用 functions.php 的 wxacg_is_thin_manga_page()，
+ *           讓廣告版位判斷與新的漫畫 noindex 判定一致（函式不存在時 fallback 舊邏輯）。
  *
  * v1.7.3 變更:
  *   - [新增] 簡體中文標題（anime_title_simplified）支援,對齊 single-anime.php v14.7:
@@ -297,12 +301,14 @@ while ( have_posts() ) :
     if ( empty( $synopsis_raw ) ) $synopsis_raw = get_the_content();
     $synopsis = trim( (string) $synopsis_raw );
 
-    // 判斷是否為內容空洞頁面 (防護廣告版位)
-    $is_thin_content = (
-        $synopsis === ''
-        && $site_count <= 0
-        && get_comments_number( $post_id ) <= 0
-    );
+    // 判斷是否為內容空洞頁面 (防護廣告版位；與 functions.php 的 noindex 判斷一致)
+    $is_thin_content = function_exists( 'wxacg_is_thin_manga_page' )
+        ? wxacg_is_thin_manga_page( $post_id )
+        : (
+            $synopsis === ''
+            && $site_count <= 0
+            && get_comments_number( $post_id ) <= 0
+        );
 
     /* ── Labels ── */
     $format_labels = [
