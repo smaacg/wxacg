@@ -12,6 +12,10 @@
  *         避免大量未把關 AI 內容撐起收錄頁數。人審一篇即自動回到索引。
  *       · 簡介需達 WXACG_THIN_SYNOPSIS_RICH（預設 300）字且有社群訊號才算充實。
  *   - 門檻抽為常數 WXACG_THIN_SYNOPSIS_RICH／WXACG_THIN_EDITORIAL_MIN，便於微調。
+ *   - 修正 sitemap 間歇性「無法擷取／錯誤」：thin anime 清單改為持久 option ＋
+ *     背景 WP-Cron 每 6 小時重算，前台只讀現成結果，永不在 Googlebot 抓取
+ *     sitemap 當下觸發全站掃描（原本 ~1,300 篇 × 重查詢會撞 PHP 逾時 → 500）。
+ *     內容異動改排 5 分鐘 debounce 背景重算，取代舊的刪 transient inline 重掃。
  *
  *  2.28.5
  *   - P0-A：文章數少於 3 篇的標籤及製作公司分類頁設為 noindex, follow。
@@ -396,7 +400,7 @@ function wxacg_clear_article_relation_cache( int $post_id ): void {
 	}
 
 	update_post_meta( $post_id, '_related_anime_prev', $new_ids );
-	delete_transient( 'wxacg_thin_anime_ids' );
+	wxacg_schedule_thin_rebuild();
 }
 add_action( 'save_post_post', 'wxacg_clear_article_relation_cache', 30 );
 
@@ -414,7 +418,7 @@ function wxacg_clear_deleted_article_relation_cache( int $post_id ): void {
 		delete_transient( 'smacg_anime_art_cnt_' . $anime_id . '_feature' );
 	}
 
-	delete_transient( 'wxacg_thin_anime_ids' );
+	wxacg_schedule_thin_rebuild();
 }
 add_action( 'before_delete_post', 'wxacg_clear_deleted_article_relation_cache' );
 
@@ -775,11 +779,43 @@ add_filter(
  * Thin Anime Sitemap
  * ============================================================ */
 
+/**
+ * thin anime ID 清單。
+ *
+ * v2.29.0：改為持久 option ＋ 背景 WP-Cron 重算，前台請求「只讀」現成結果、
+ * 永不 inline 掃描。避免 Rank Math 產生 sitemap（Googlebot 抓取）時觸發
+ * 全站 ~1,300 篇 anime × 重查詢的掃描而逾時，導致 sitemap「無法擷取／錯誤」。
+ */
 function wxacg_get_thin_anime_ids(): array {
-	$cached = get_transient( 'wxacg_thin_anime_ids' );
+	$stored = get_option( 'wxacg_thin_anime_ids', null );
 
-	if ( is_array( $cached ) ) {
-		return array_map( 'intval', $cached );
+	if ( is_array( $stored ) ) {
+		return array_map( 'intval', $stored );
+	}
+
+	// 首次部署：option 尚未建立 → 排背景重算，先回空集合（safe：暫不排除）。
+	if ( ! wp_next_scheduled( 'wxacg_thin_rebuild_now' ) ) {
+		wp_schedule_single_event( time(), 'wxacg_thin_rebuild_now' );
+	}
+
+	return [];
+}
+
+/**
+ * 背景重算 thin anime 清單並寫入 option（只由 WP-Cron／debounce 事件呼叫）。
+ */
+function wxacg_rebuild_thin_anime_ids(): array {
+	// 併發鎖：避免定時事件與即時事件重疊執行重掃描。
+	if ( get_transient( 'wxacg_thin_rebuild_lock' ) ) {
+		$existing = get_option( 'wxacg_thin_anime_ids', [] );
+
+		return is_array( $existing ) ? array_map( 'intval', $existing ) : [];
+	}
+
+	set_transient( 'wxacg_thin_rebuild_lock', 1, 10 * MINUTE_IN_SECONDS );
+
+	if ( function_exists( 'set_time_limit' ) ) {
+		@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 	}
 
 	global $wpdb;
@@ -804,14 +840,61 @@ function wxacg_get_thin_anime_ids(): array {
 		}
 	}
 
-	set_transient(
-		'wxacg_thin_anime_ids',
-		$thin_ids,
-		12 * HOUR_IN_SECONDS
-	);
+	update_option( 'wxacg_thin_anime_ids', $thin_ids, false );
+	delete_transient( 'wxacg_thin_rebuild_lock' );
 
 	return $thin_ids;
 }
+add_action( 'wxacg_thin_rebuild_cron', 'wxacg_rebuild_thin_anime_ids' );
+add_action( 'wxacg_thin_rebuild_now', 'wxacg_rebuild_thin_anime_ids' );
+
+/**
+ * 內容異動後排一次 debounce 背景重算（5 分鐘內多次異動合併成一次）。
+ * 取代舊的「刪 transient → 下次前台請求 inline 重掃描」行為。
+ */
+function wxacg_schedule_thin_rebuild(): void {
+	if ( ! wp_next_scheduled( 'wxacg_thin_rebuild_now' ) ) {
+		wp_schedule_single_event(
+			time() + 5 * MINUTE_IN_SECONDS,
+			'wxacg_thin_rebuild_now'
+		);
+	}
+}
+
+/**
+ * 自訂 6 小時排程。
+ */
+add_filter( 'cron_schedules', function ( $schedules ) {
+	if ( ! isset( $schedules['wxacg_6h'] ) ) {
+		$schedules['wxacg_6h'] = [
+			'interval' => 6 * HOUR_IN_SECONDS,
+			'display'  => 'Every 6 hours (weixiaoacg thin rebuild)',
+		];
+	}
+
+	return $schedules;
+} );
+
+/**
+ * 註冊每 6 小時的定時重算事件。
+ */
+add_action( 'init', function () {
+	if ( ! wp_next_scheduled( 'wxacg_thin_rebuild_cron' ) ) {
+		wp_schedule_event(
+			time() + HOUR_IN_SECONDS,
+			'wxacg_6h',
+			'wxacg_thin_rebuild_cron'
+		);
+	}
+} );
+
+/**
+ * 停用主題時清除排程，避免殘留 cron。
+ */
+add_action( 'switch_theme', function () {
+	wp_clear_scheduled_hook( 'wxacg_thin_rebuild_cron' );
+	wp_clear_scheduled_hook( 'wxacg_thin_rebuild_now' );
+} );
 
 function wxacg_rank_math_exclude_thin_anime( $exclude_ids ): array {
 	return array_values(
@@ -859,7 +942,7 @@ add_filter(
  * ============================================================ */
 
 function wxacg_clear_thin_anime_cache(): void {
-	delete_transient( 'wxacg_thin_anime_ids' );
+	wxacg_schedule_thin_rebuild();
 }
 
 add_action( 'save_post_anime', 'wxacg_clear_thin_anime_cache', 50 );
@@ -873,7 +956,7 @@ add_action( 'transition_comment_status', 'wxacg_clear_thin_anime_cache', 50 );
 add_action( 'acf/save_post', 'wxacg_clear_thin_anime_cache', 100 );
 
 function wxacg_clear_term_quality_cache(): void {
-	delete_transient( 'wxacg_thin_anime_ids' );
+	wxacg_schedule_thin_rebuild();
 }
 add_action( 'created_term', 'wxacg_clear_term_quality_cache' );
 add_action( 'edited_term', 'wxacg_clear_term_quality_cache' );
