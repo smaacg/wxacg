@@ -5,7 +5,11 @@
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-anime.php
  *
- * @version 15.6 — 2026-08-13
+ * @version 15.7 — 2026-08-13
+ *
+ * 15.7:
+ * - 管理員 thin 提示改為區分原因：已有短評但未指定審核者時，明確提示「需填審核者
+ *   解除 noindex」，而非誤導的「缺乏編輯內容」（對齊 wxacg_is_thin_anime_page 邏輯）
  *
  * 15.6:
  * - 移除不完整的 trailer VideoObject（缺 uploadDate 會被 Search Console 判無效）；
@@ -2733,15 +2737,28 @@ while ( have_posts() ) :
 	<div class="asd-wrap">
 
 		<?php if ( $is_thin_content && current_user_can( 'manage_options' ) ) : ?>
+			<?php
+			// 與 functions.php wxacg_is_thin_anime_page() 一致：短評需有審核者才算數。
+			$asd_reviewer_id  = (int) $get_meta( 'anime_editorial_author_id' );
+			$asd_has_reviewer = ( $asd_reviewer_id > 0 ) || ( $editorial_author !== '' );
+			?>
 			<div
 				class="asd-admin-only-notice"
 				role="status"
 			>
-				<strong>⚠️ 僅管理員可見：</strong>
-				本頁目前可能缺乏足夠的人工編輯內容。
-				現有編輯短評約
-				<?php echo esc_html( number_format_i18n( $original_content_length ) ); ?>
-				字，建議補充查證來源、作品特色、適合族群與人工複核資訊。
+				<?php if ( $editorial_note !== '' && ! $asd_has_reviewer ) : ?>
+					<strong>⚠️ 僅管理員可見：</strong>
+					本頁已有編輯短評約
+					<?php echo esc_html( number_format_i18n( $original_content_length ) ); ?>
+					字，但<strong>尚未指定人工審核者</strong>，因此仍被視為 AI 草稿並暫時設為 noindex。
+					請於編輯畫面複核短評內容後填寫「審核者」，即可解除此標記並恢復索引。
+				<?php else : ?>
+					<strong>⚠️ 僅管理員可見：</strong>
+					本頁目前可能缺乏足夠的人工編輯內容。
+					現有編輯短評約
+					<?php echo esc_html( number_format_i18n( $original_content_length ) ); ?>
+					字，建議補充查證來源、作品特色、適合族群與人工複核資訊。
+				<?php endif; ?>
 			</div>
 		<?php endif; ?>
 
