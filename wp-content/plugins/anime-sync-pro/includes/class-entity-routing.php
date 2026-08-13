@@ -2,10 +2,17 @@
 /**
  * Entity Routing (聲優/角色 個別頁路由)
  * Path: wp-content/plugins/anime-sync-pro/includes/class-entity-routing.php
- * Version: 1.1.1 (2026-07-28)
+ * Version: 1.2.0 (2026-08-13)
  *
  * 功能：攔截 /person/{bgm_id}/{name?} 與 /character/{bgm_id}/{name?}，
  *      載入對應模板。bgm_id 為真正識別碼,name 片段僅 SEO 裝飾(可省略)。
+ *
+ * Changelog:
+ *   1.2.0 (2026-08-13)
+ *     - [修正] 虛擬頁 <title> 未設定，導致角色/聲優頁標題顯示成主查詢
+ *              （首頁最新文章）的標題。新增 filter_entity_title() 掛
+ *              pre_get_document_title 與 rank_math/frontend/title，
+ *              改為顯示「角色名 - 角色資料｜站名」。
  *
  * 設計對齊 class-series-index.php:
  *   - 靜態 class + __CLASS__ 註冊
@@ -48,6 +55,11 @@ class Anime_Sync_Entity_Routing {
         add_filter( 'query_vars',       [ __CLASS__, 'add_query_var' ] );
         add_filter( 'template_include', [ __CLASS__, 'load_template' ] );
         add_action( 'wp_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
+
+        // 虛擬頁沒有真正的 post，需自行設定 <title>，否則會退回主查詢
+        // （最新文章）的標題。同時掛 Rank Math 的 title filter 才能覆蓋。
+        add_filter( 'pre_get_document_title',   [ __CLASS__, 'filter_entity_title' ], 99 );
+        add_filter( 'rank_math/frontend/title', [ __CLASS__, 'filter_entity_title' ], 99 );
     }
 
     /**
@@ -126,6 +138,53 @@ class Anime_Sync_Entity_Routing {
             [],
             defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0'
         );
+    }
+
+    /**
+     * 為 person / character 虛擬頁設定正確的文件標題。
+     *
+     * 這兩頁靠 rewrite 攔截載入模板、沒有對應的 WP post，
+     * 若不覆蓋，Rank Math/WP 會用主查詢（首頁最新文章）的標題，
+     * 造成角色頁 <title> 顯示成最新新聞稿標題。
+     *
+     * @param string $title 原標題。
+     * @return string
+     */
+    public static function filter_entity_title( $title ) {
+        if ( ! self::is_entity_page() || ! class_exists( 'Anime_Sync_Entity_Repository' ) ) {
+            return $title;
+        }
+
+        $character_id = (int) get_query_var( self::QV_CHARACTER );
+        $person_id    = (int) get_query_var( self::QV_PERSON );
+
+        $repo = new Anime_Sync_Entity_Repository();
+        $name = '';
+        $kind = '';
+
+        if ( $character_id > 0 ) {
+            $entity = $repo->get_character( $character_id );
+
+            if ( is_array( $entity ) && ! empty( $entity['name'] ) ) {
+                $name = (string) $entity['name'];
+                $kind = '角色';
+            }
+        } elseif ( $person_id > 0 ) {
+            $entity = $repo->get_person( $person_id );
+
+            if ( is_array( $entity ) && ! empty( $entity['name'] ) ) {
+                $name = (string) $entity['name'];
+                $kind = ( isset( $entity['type'] ) && 'cv' === $entity['type'] ) ? '配音員' : '人物';
+            }
+        }
+
+        $name = trim( wp_strip_all_tags( $name ) );
+
+        if ( '' === $name ) {
+            return $title;
+        }
+
+        return sprintf( '%s - %s資料｜%s', $name, $kind, get_bloginfo( 'name' ) );
     }
 
     /**

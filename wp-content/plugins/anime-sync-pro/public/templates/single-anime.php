@@ -5,7 +5,11 @@
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-anime.php
  *
- * @version 15.7 — 2026-08-13
+ * @version 15.8 — 2026-08-13
+ *
+ * 15.8:
+ * - 修正角色/聲優連結網址雙重編碼（rawurlencode(sanitize_title()) → 單次編碼），
+ *   避免 /character/{id}/%25e8... 這種亂碼網址
  *
  * 15.7:
  * - 管理員 thin 提示改為區分原因：已有短評但未指定審核者時，明確提示「需填審核者
@@ -196,8 +200,11 @@ while ( have_posts() ) :
 
 		$name = trim( (string) $name );
 
+		// sanitize_title() 會先把中文名 percent-encode 成 %e8...，再 rawurlencode
+		// 就會把 % 又編一次（%25e8...）造成網址雙重編碼。改為單次編碼，與
+		// class-entity-repository.php 的 url_slug() 一致。
 		$slug = $name !== ''
-			? rawurlencode( sanitize_title( $name ) )
+			? rawurlencode( str_replace( ' ', '-', $name ) )
 			: '';
 
 		$path = '/' . $type . '/' . $id;
