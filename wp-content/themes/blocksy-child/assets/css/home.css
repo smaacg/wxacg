@@ -374,6 +374,15 @@
     margin-top: 20px;
 }
 
+/*
+ * 未選取的分頁面板帶 hidden 屬性，但上面的 display:grid 會蓋掉瀏覽器原生的
+ * [hidden]{display:none}，導致初次載入時三個分頁 18 筆全部一次噴出。
+ * 這裡明確讓 [hidden] 生效，未啟用的分頁保持隱藏（JS 尚未執行也有效）。
+ */
+.wxacg-anime-grid[hidden] {
+    display: none !important;
+}
+
 .wxacg-anime-card {
     display: flex;
     flex-direction: column;
