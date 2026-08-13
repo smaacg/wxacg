@@ -1273,9 +1273,16 @@ while ( have_posts() ) :
 	 *
 	 * 這些欄位應與自動同步欄位分開，避免同步程序覆蓋。
 	 */
+	// 優先讀新欄位（AI 批次工具寫入），fallback 舊欄位（共 129 筆舊資料）。
 	$editorial_note = trim(
-		(string) $get_meta( 'anime_editorial_note' )
+		(string) $get_meta( 'anime_editor_summary' )
 	);
+
+	if ( '' === $editorial_note ) {
+		$editorial_note = trim(
+			(string) $get_meta( 'anime_editorial_note' )
+		);
+	}
 
 	$editorial_author = trim(
 		(string) $get_meta( 'anime_editorial_author' )

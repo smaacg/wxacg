@@ -460,11 +460,20 @@ function wxacg_is_thin_anime_page( int $post_id ): bool {
 
 	$synopsis_length = wxacg_text_length( $synopsis );
 
+	// 優先讀新欄位（AI 批次工具寫入），fallback 舊欄位（共 129 筆舊資料）。
 	$editorial_note = (string) get_post_meta(
 		$post_id,
-		'anime_editorial_note',
+		'anime_editor_summary',
 		true
 	);
+
+	if ( '' === trim( $editorial_note ) ) {
+		$editorial_note = (string) get_post_meta(
+			$post_id,
+			'anime_editorial_note',
+			true
+		);
+	}
 
 	$editorial_length = wxacg_text_length( $editorial_note );
 
@@ -528,11 +537,20 @@ function wxacg_is_anime_adsense_eligible( int $post_id ): bool {
 		return false;
 	}
 
+	// 優先讀新欄位（AI 批次工具寫入），fallback 舊欄位（共 129 筆舊資料）。
 	$editorial_note = (string) get_post_meta(
 		$post_id,
-		'anime_editorial_note',
+		'anime_editor_summary',
 		true
 	);
+
+	if ( '' === trim( $editorial_note ) ) {
+		$editorial_note = (string) get_post_meta(
+			$post_id,
+			'anime_editorial_note',
+			true
+		);
+	}
 
 	$editorial_length = wxacg_text_length( $editorial_note );
 
