@@ -4,7 +4,11 @@
  *
  * Path: wp-content/plugins/anime-sync-pro/includes/ai-editorial-tool.php
  *
- * @version 1.10.0 (2026-08-13)
+ * @version 1.11.0 (2026-08-13)
+ *
+ * v1.11.0（改為全人工）：
+ *   - 移除「🚀 開始批次產生」按鈕，改為全人工貼上流程說明（API 產生幻覺過多）。
+ *     後端 AJAX 端點暫時保留（未觸發即不執行）；設定頁與統計卡仍可查看。
  *
  * v1.10.0（資料正確性與用詞規範）：
  *   1) 平台幻覺防護 wxacg_editorial_platform_guard()：短評若出現「台灣合法串流」
@@ -2799,12 +2803,14 @@ function wxacg_ai_editorial_page() {
 					</tr>
 				</table>
 
-				<div style="display:flex;gap:12px;align-items:center;margin-top:8px;">
-					<button id="wxacg-start-btn" class="button button-primary" style="height:40px;padding:0 20px;font-size:15px;">
-						🚀 開始批次產生（本範圍待補 <?php echo (int) $scope_default; ?> 部）
-					</button>
-
-					<button id="wxacg-stop-btn" class="button" style="display:none;">⏹ 停止</button>
+				<div class="notice notice-warning inline" style="margin:8px 0 0;padding:12px 14px;">
+					<p style="margin:0;font-size:14px;line-height:1.7;">
+						<strong>🖐️ 已改為全人工模式：</strong>
+						API 批次自動產生按鈕已停用（避免模型幻覺）。
+						目前本範圍待補 <strong><?php echo (int) $scope_default; ?></strong> 部——
+						請於各動漫的編輯畫面「✍️ 人工編輯與品質審核」面板，
+						貼上你在 AI 對話視窗撰寫並核對過的短評，指定審核者與審核日期後改為「已發布」。
+					</p>
 				</div>
 
 				<div id="wxacg-progress" style="margin-top:20px;display:none;">
