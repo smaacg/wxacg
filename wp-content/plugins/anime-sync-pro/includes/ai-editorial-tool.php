@@ -1108,7 +1108,7 @@ function wxacg_gather_anime_data_for_editorial( $post_id ) {
 	$synopsis = wp_strip_all_tags( $synopsis );
 	$synopsis = wxacg_editorial_substr( $synopsis, 0, 400 );
 
-	$genre_terms = get_the_terms( $post_id, 'anime_genre_tax' );
+	$genre_terms = get_the_terms( $post_id, 'genre' );
 	$genres      = '';
 
 	if ( is_array( $genre_terms ) && ! is_wp_error( $genre_terms ) ) {
