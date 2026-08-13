@@ -146,7 +146,7 @@ $footer_columns = apply_filters( 'smacg_footer_columns', [
             __( '聯絡／合作',   'blocksy-child' ) => home_url( '/contact/' ),
             __( '服務條款',     'blocksy-child' ) => home_url( '/terms/' ),
             __( '免責聲明',     'blocksy-child' ) => home_url( '/disclaimer/' ),
-            __( '隱私政策',     'blocksy-child' ) => home_url( '/privacy/' ),
+            __( '隱私政策',     'blocksy-child' ) => home_url( '/privacy-policy/' ),
         ],
     ],
 ] );

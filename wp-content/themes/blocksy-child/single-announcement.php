@@ -197,7 +197,7 @@ $related_query = new WP_Query([
                 <ul class="widget-list">
                     <li><a href="<?php echo esc_url( home_url( '/level-guide/' ) ); ?>">等級制度說明</a></li>
                     <li><a href="<?php echo esc_url( home_url( '/disclaimer/' ) ); ?>">免責聲明</a></li>
-                    <li><a href="<?php echo esc_url( home_url( '/privacy/' ) ); ?>">隱私政策</a></li>
+                    <li><a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">隱私政策</a></li>
                     <li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">聯絡我們</a></li>
                 </ul>
             </div>

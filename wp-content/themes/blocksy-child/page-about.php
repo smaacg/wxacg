@@ -1669,7 +1669,7 @@ get_header();
 				<div class="wx-about-links">
 
 					<a
-						href="<?php echo esc_url( home_url( '/privacy/' ) ); ?>"
+						href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>"
 						class="wx-about-link"
 					>
 						<i class="fa-solid fa-shield-halved" aria-hidden="true"></i>

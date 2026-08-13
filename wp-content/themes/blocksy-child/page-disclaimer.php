@@ -401,7 +401,7 @@ get_header();
           廣告供應商可能使用 Cookie 或類似技術。
           詳細資料請參閱本站的
           <a
-            href="<?php echo esc_url( home_url( '/privacy/' ) ); ?>"
+            href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>"
             class="static-link"
             style="margin:0;display:inline;"
           >

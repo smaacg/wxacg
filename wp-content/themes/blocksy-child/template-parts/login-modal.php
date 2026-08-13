@@ -119,7 +119,7 @@ $brand_logo_url = isset( $brand_logo_url )
         <p class="lm-switch-login-wrap">已有帳號？<button type="button" class="lm-switch-login lm-link-btn">登入</button></p>
       </form>
 
-      <p class="lm-terms-hint">註冊即代表你同意 <a href="<?php echo esc_url( home_url( '/terms/' ) ); ?>" target="_blank">使用條款</a> 及 <a href="<?php echo esc_url( home_url( '/privacy/' ) ); ?>" target="_blank">隱私政策</a></p>
+      <p class="lm-terms-hint">註冊即代表你同意 <a href="<?php echo esc_url( home_url( '/terms/' ) ); ?>" target="_blank">使用條款</a> 及 <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>" target="_blank">隱私政策</a></p>
 
       <?php if ( class_exists( 'NextendSocialLogin', false ) ) : ?>
       <div class="lm-social-divider"><span>或使用以下方式註冊</span></div>
