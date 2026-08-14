@@ -3691,6 +3691,8 @@ private function register_manga_fields(): void {
                             <div id="asp-dict-list" style="flex:1; overflow-y:auto; padding:15px 20px; background:#f0f0f1; display:flex; flex-direction:column; gap:10px;">
                                 <div style="text-align:center; padding:20px; color:#888;">正在載入字典...</div>
                             </div>
+                            <!-- 分頁列:資料量大時只渲染目前這一頁,避免一次塞上千列拖慢開啟速度。只有 1 頁時整個藏起來,避免留下空白的 padding/邊框線。 -->
+                            <div id="asp-dict-pager" style="display:none; padding:8px 20px; border-top:1px solid #e2e4e7; background:#fff; border-radius:0 0 8px 8px; flex-wrap:wrap; gap:4px; align-items:center; justify-content:center;"></div>
                         </div>
                     </div>`;
                     $('body').append(modalHTML);
@@ -3853,36 +3855,116 @@ private function register_manga_fields(): void {
             var fullDictData = { va: {}, char: {} };
             // 記錄載入字典當下的版本,儲存時回傳後端比對,偵測其他管理員的併發修改
             var dictBaseVersion = '';
-            
-            function renderDictList(filter = '') {
-                var $list = $('#asp-dict-list');
-                $list.empty();
-                
+            // 分頁狀態:字典筆數多時只渲染目前這一頁,避免一次塞進上千列拖慢開啟速度
+            var DICT_PAGE_SIZE = 50;
+            var dictCurrentPage = 1;
+            // 搜尋 debounce 計時器:停止打字一小段時間才真正過濾,避免字典筆數變大後每個按鍵都重新掃描整份資料
+            var dictSearchDebounceTimer = null;
+
+            /*
+             * 名稱插進 HTML 前先做跳脫。
+             *
+             * 字典內容是 AI 生成翻譯後自動寫入的,不保證不含 " < > & 等字元;
+             * 未跳脫時,名稱裡的雙引號會把屬性提早關掉,導致該列顯示錯誤、
+             * 甚至把錯誤的值存回字典。跳脫後瀏覽器讀回來會自動還原,儲存內容不受影響。
+             */
+            function escHtml(s) {
+                return String(s).replace(/[&<>"']/g, function(c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            }
+
+            // 依目前搜尋條件取出要顯示的項目(聲優 + 角色),搜尋比對規則維持原樣
+            function getDictItems(filter) {
                 var items = [];
                 $.each(fullDictData.va, function(k, v) { items.push({ type: 'va', key: k, val: v, label: '聲優' }); });
                 $.each(fullDictData.char, function(k, v) { items.push({ type: 'char', key: k, val: v, label: '角色' }); });
-                
+
                 if (filter) {
                     var lowerFilter = filter.toLowerCase();
                     items = items.filter(i => i.key.toLowerCase().includes(lowerFilter) || i.val.toLowerCase().includes(lowerFilter));
                 }
-                
-                if (items.length === 0) {
-                    $list.append('<div style="text-align:center; padding:20px; color:#888;">' + (filter ? '找不到符合的結果' : '字典目前是空的') + '</div>');
+
+                return items;
+            }
+
+            // 渲染分頁列。頁數很多時只列出目前頁前後各 2 頁(頭尾固定顯示),避免頁碼列本身過長。
+            function renderDictPager(totalItems) {
+                var $pager = $('#asp-dict-pager');
+                var totalPages = Math.ceil(totalItems / DICT_PAGE_SIZE);
+
+                if (totalPages <= 1) {
+                    // 藏起整個容器(而不只是清空內容),避免留下空白的 padding/邊框線
+                    $pager.empty().css('display', 'none');
                     return;
                 }
-                
-                $.each(items, function(i, item) {
+
+                var makeBtn = function(page, text, disabled, active) {
+                    var style = 'min-width:28px; padding:2px 6px; font-size:12px; line-height:1.6;';
+                    if (active) style += ' background:#2271b1; color:#fff; border-color:#2271b1; font-weight:bold;';
+                    return '<button type="button" class="button button-small asp-dict-page" data-page="' + page + '"' +
+                        (disabled ? ' disabled' : '') + ' style="' + style + '">' + text + '</button>';
+                };
+
+                var html = [];
+                html.push(makeBtn(dictCurrentPage - 1, '‹', dictCurrentPage <= 1, false));
+
+                var pages = [];
+                for (var p = 1; p <= totalPages; p++) {
+                    if (p === 1 || p === totalPages || Math.abs(p - dictCurrentPage) <= 2) pages.push(p);
+                }
+
+                var prevPage = 0;
+                $.each(pages, function(i, page) {
+                    // 與上一個顯示的頁碼不相鄰時補上省略號
+                    if (prevPage && page - prevPage > 1) {
+                        html.push('<span style="padding:0 2px; color:#888;">…</span>');
+                    }
+                    html.push(makeBtn(page, page, false, page === dictCurrentPage));
+                    prevPage = page;
+                });
+
+                html.push(makeBtn(dictCurrentPage + 1, '›', dictCurrentPage >= totalPages, false));
+                html.push('<span style="margin-left:8px; font-size:12px; color:#666;">共 ' + totalItems + ' 筆 / ' + totalPages + ' 頁</span>');
+
+                $pager.html(html.join('')).css('display', 'flex');
+            }
+
+            function renderDictList(filter = '') {
+                var $list = $('#asp-dict-list');
+                var items = getDictItems(filter);
+
+                if (items.length === 0) {
+                    $list.html('<div style="text-align:center; padding:20px; color:#888;">' + (filter ? '找不到符合的結果' : '字典目前是空的') + '</div>');
+                    $('#asp-dict-pager').empty().css('display', 'none');
+                    return;
+                }
+
+                // 目前頁碼可能因搜尋或清除 A=A 而超出範圍,先夾回合法區間
+                var totalPages = Math.ceil(items.length / DICT_PAGE_SIZE);
+                if (dictCurrentPage > totalPages) dictCurrentPage = totalPages;
+                if (dictCurrentPage < 1) dictCurrentPage = 1;
+
+                var start = (dictCurrentPage - 1) * DICT_PAGE_SIZE;
+                var pageItems = items.slice(start, start + DICT_PAGE_SIZE);
+
+                // 先把整頁 HTML 組好再一次寫入,避免逐筆 append 造成大量重繪
+                var html = [];
+                $.each(pageItems, function(i, item) {
                     var displayKey = item.type === 'char' ? item.key.replace('|||', ' - ') : item.key;
-                    var html = `
+                    var safeKey = escHtml(displayKey);
+                    html.push(`
                     <div style="display:flex; align-items:center; background:#fff; padding:8px 12px; border-radius:4px; border:1px solid #ddd; gap:10px;">
                         <span style="font-size:11px; padding:2px 4px; background:#e0e0e0; border-radius:3px;">${item.label}</span>
-                        <div style="flex:1; font-weight:bold; font-size:13px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${displayKey}">${displayKey}</div>
+                        <div style="flex:1; font-weight:bold; font-size:13px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeKey}">${safeKey}</div>
                         <span style="color:#888;">➔</span>
-                        <input type="text" class="asp-dict-input" data-type="${item.type}" data-key="${item.key}" value="${item.val}" style="flex:1; padding:3px 8px; font-size:13px;">
-                    </div>`;
-                    $list.append(html);
+                        <input type="text" class="asp-dict-input" data-type="${item.type}" data-key="${escHtml(item.key)}" value="${escHtml(item.val)}" style="flex:1; padding:3px 8px; font-size:13px;">
+                    </div>`);
                 });
+
+                $list.html(html.join(''));
+                $list.scrollTop(0);
+                renderDictPager(items.length);
             }
 
             $(document).on('click', '#asp-dict-clear-aa', function(e) {
@@ -3909,7 +3991,11 @@ private function register_manga_fields(): void {
                 $('#asp-dict-modal').css('display', 'flex');
                 $('#asp-dict-list').html('<div style="text-align:center; padding:20px; color:#888;">正在載入字典...</div>');
                 $('#asp-dict-search').val('');
-                
+                $('#asp-dict-pager').empty().css('display', 'none');
+                dictCurrentPage = 1;
+                // 清掉尚未觸發的搜尋 debounce,避免舊的過濾條件在重新開啟後才延遲觸發、蓋掉剛載入的畫面
+                clearTimeout(dictSearchDebounceTimer);
+
                 $.post(ajaxurl, {
                     action: 'asp_cast_dict_load',
                     nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>'
@@ -3932,24 +4018,46 @@ private function register_manga_fields(): void {
             });
 
             $(document).on('input', '#asp-dict-search', function(e) {
-                renderDictList($(this).val());
+                var val = $(this).val();
+                // Debounce:停止打字 180ms 後才真正過濾與渲染,字典筆數變大時避免每個按鍵都全量掃描一次
+                clearTimeout(dictSearchDebounceTimer);
+                dictSearchDebounceTimer = setTimeout(function() {
+                    // 搜尋結果的頁數會變,固定回到第 1 頁,避免停在超出範圍的頁碼
+                    dictCurrentPage = 1;
+                    renderDictList(val);
+                }, 180);
+            });
+
+            // 切換頁碼:只重新渲染該頁,不重新向後端要資料
+            $(document).on('click', '.asp-dict-page', function(e) {
+                e.preventDefault();
+                var page = parseInt($(this).attr('data-page'), 10);
+                if (isNaN(page) || page === dictCurrentPage) return;
+                dictCurrentPage = page;
+                renderDictList($('#asp-dict-search').val());
+            });
+
+            /*
+             * 編輯內容即時寫回 fullDictData。
+             *
+             * 分頁後,不在目前頁面的列不存在於 DOM,若沿用「儲存時才掃描畫面上的輸入框」,
+             * 換頁或搜尋前改過的內容就會漏掉。改成打字當下就同步,無論改了幾頁都不會遺失。
+             */
+            $(document).on('input', '.asp-dict-input', function() {
+                var type = $(this).attr('data-type');
+                var key  = $(this).attr('data-key');
+                if (fullDictData[type] && fullDictData[type][key] !== undefined) {
+                    fullDictData[type][key] = $(this).val().trim();
+                }
             });
 
             $(document).on('click', '#asp-dict-save', function(e) {
                 e.preventDefault();
                 var $btn = $(this);
                 $btn.prop('disabled', true).text('儲存中...');
-                
-                // 收集畫面上被修改的值
-                $('.asp-dict-input').each(function() {
-                    var type = $(this).data('type');
-                    var key = String($(this).data('key'));
-                    var val = $(this).val().trim();
-                    if (fullDictData[type] && fullDictData[type][key] !== undefined) {
-                        fullDictData[type][key] = val;
-                    }
-                });
-                
+
+                // 修改在輸入當下就已同步進 fullDictData(見 .asp-dict-input 的 input 事件),
+                // 這裡直接送出整包資料,不再掃描畫面上的輸入框。
                 $.post(ajaxurl, {
                     action: 'asp_cast_dict_save',
                     nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
@@ -4866,12 +4974,27 @@ private function register_manga_fields(): void {
         }
     }
 
-    private function get_cast_dict(): array {
+    /**
+     * 讀取字典內容。
+     *
+     * @param string|null $version 傳入變數時,一併帶出本次讀到的內容版本(md5)。
+     *                             用途是省下再呼叫一次 get_cast_dict_version() 重讀整份檔案的成本,
+     *                             結果與 md5_file() 完全相同(同樣是對整份檔案位元組取 md5)。
+     *                             檔案不存在或讀取失敗時為空字串,與 get_cast_dict_version() 行為一致。
+     * @return array
+     */
+    private function get_cast_dict( ?string &$version = null ): array {
+        $version = '';
         $file = $this->get_cast_dict_path();
         if ( ! file_exists( $file ) ) {
             return [ 'va' => [], 'char' => [] ];
         }
         $json = file_get_contents( $file );
+        if ( false === $json ) {
+            return [ 'va' => [], 'char' => [] ];
+        }
+        // 直接用已讀進記憶體的內容計算版本,不必再開檔讀第二次
+        $version = md5( $json );
         $data = json_decode( $json, true );
         if ( ! is_array( $data ) ) {
             return [ 'va' => [], 'char' => [] ];
@@ -4915,9 +5038,11 @@ private function register_manga_fields(): void {
         check_ajax_referer( 'asp_ai_nonce', 'nonce' );
         if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
 
-        $dict = $this->get_cast_dict();
+        // 讀檔的同時取回版本,避免為了算版本再整份重讀一次檔案(字典越大差異越明顯)。
+        $version = '';
+        $dict = $this->get_cast_dict( $version );
         // 一併回傳載入當下的版本,前端記住後於儲存時比對(併發保護)。
-        $dict['_version'] = $this->get_cast_dict_version();
+        $dict['_version'] = $version;
 
         wp_send_json_success( $dict );
     }
