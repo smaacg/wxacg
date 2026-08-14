@@ -4336,6 +4336,25 @@ while ( have_posts() ) :
 											$voice_name
 										)
 										: '';
+
+									$other_voice_actors = [];
+									foreach ( array_slice( $voice_actors, 1 ) as $other_va ) {
+										if ( ! is_array( $other_va ) ) {
+											continue;
+										}
+										$other_name = trim( (string) ( $other_va['name'] ?? '' ) );
+										if ( $other_name === '' ) {
+											continue;
+										}
+										$other_id  = (int) ( $other_va['id'] ?? 0 );
+										$other_url = $other_id > 0
+											? $entity_url( 'person', $other_id, $other_name )
+											: '';
+										$other_voice_actors[] = [
+											'name' => $other_name,
+											'url'  => $other_url,
+										];
+									}
 									?>
 									<div class="asd-cast-card<?php echo $cast_output_index >= 6 ? ' asd-cast-hidden' : ''; ?>">
 										<?php if ( $character_url ) : ?>
@@ -4416,6 +4435,25 @@ while ( have_posts() ) :
 															</span>
 														<?php endif; ?>
 													</div>
+
+													<?php if ( ! empty( $other_voice_actors ) ) : ?>
+														<details class="asd-cast-va-other">
+															<summary>其他配音 (<?php echo count( $other_voice_actors ); ?>)</summary>
+															<ul>
+																<?php foreach ( $other_voice_actors as $other_va ) : ?>
+																	<li>
+																		<?php if ( $other_va['url'] ) : ?>
+																			<a href="<?php echo esc_url( $other_va['url'] ); ?>">
+																				<?php echo esc_html( $other_va['name'] ); ?>
+																			</a>
+																		<?php else : ?>
+																			<?php echo esc_html( $other_va['name'] ); ?>
+																		<?php endif; ?>
+																	</li>
+																<?php endforeach; ?>
+															</ul>
+														</details>
+													<?php endif; ?>
 												</div>
 											<?php endif; ?>
 										</div>
