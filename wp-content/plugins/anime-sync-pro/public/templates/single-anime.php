@@ -4950,13 +4950,7 @@ while ( have_posts() ) :
 												continue;
 											}
 
-											$overseas_key = strtolower(
-												str_replace(
-													[ ' ', '-' ],
-													'_',
-													$overseas_site
-												)
-											);
+											$overseas_key = strtolower( $overseas_site );
 
 											$overseas_icon =
 												isset( $provider_icon_map[ $overseas_key ] )
