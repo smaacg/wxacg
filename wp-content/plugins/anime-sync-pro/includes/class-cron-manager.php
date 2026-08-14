@@ -221,6 +221,16 @@ class Anime_Sync_Cron_Manager {
             );
         }
 
+        // 季度自動匯入：run_season_auto_import() 原本就寫好，但一直沒被排程過。
+        // 抓當季 AniList 新作清單逐筆匯入，新增項目一律 draft，等人工在審核佇列複核發佈。
+        if ( ! wp_next_scheduled( self::HOOK_SEASON_IMPORT ) ) {
+            wp_schedule_event(
+                strtotime( 'next tuesday 03:00:00' ),
+                'anime_sync_weekly',
+                self::HOOK_SEASON_IMPORT
+            );
+        }
+
         if ( ! wp_next_scheduled( self::HOOK_ENTITY_BACKFILL ) ) {
             wp_schedule_event( time() + 60, 'anime_sync_five_min', self::HOOK_ENTITY_BACKFILL );
         }
