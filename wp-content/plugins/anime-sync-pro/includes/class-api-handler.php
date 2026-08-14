@@ -726,6 +726,17 @@ class Anime_Sync_API_Handler {
             }
         }
 
+        // STAFF：Bangumi 中文姓名優先，AniList 只在 Bangumi 抓不到時當備援
+        // （與動畫 get_bgm_staff() 覆蓋 AniList 的邏輯一致）。
+        $staff = $this->parse_staff( $media['staff']['edges'] ?? [] );
+        if ( $bangumi_id && $bangumi_id > 0 ) {
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $bgm_staff = $this->get_bgm_manga_staff( $bangumi_id, $bgm_data['infobox'] ?? [] );
+            if ( ! empty( $bgm_staff ) ) {
+                $staff = $bgm_staff;
+            }
+        }
+
         $title_chinese_raw = '';
         if ( $bgm_data ) {
             $title_chinese_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
@@ -807,6 +818,7 @@ class Anime_Sync_API_Handler {
             'anime_cover_image'        => $cover,
             'anime_banner_image'       => $media['bannerImage'] ?? '',
             'anime_synopsis_chinese'   => $synopsis_chinese,
+            'anime_staff_json'         => wp_json_encode( $staff, JSON_UNESCAPED_UNICODE ),
             'manga_chapters'           => isset( $media['chapters'] ) && $media['chapters'] !== null ? (int) $media['chapters'] : '',
             'manga_volumes'            => isset( $media['volumes'] )  && $media['volumes']  !== null ? (int) $media['volumes']  : '',
             'manga_author'             => $author,
@@ -850,7 +862,7 @@ class Anime_Sync_API_Handler {
             staff(sort: RELEVANCE, perPage: 10) {
               edges {
                 role
-                node { id name { full native } }
+                node { id name { full native } image { large } }
               }
             }
             relations {
@@ -1835,6 +1847,69 @@ class Anime_Sync_API_Handler {
             return $value;
         }
         return '';
+    }
+
+    /**
+     * 漫畫版 STAFF：與 get_bgm_staff() 共用 /persons 端點與中文姓名轉換，
+     * 但不套用動畫那份職位白名單（导演/系列构成/音楽…全是動畫製作職位，
+     * 對漫畫不適用）。漫畫 persons 名單本來就短，先不過濾，
+     * 之後看實際同步結果需要再補白名單。
+     */
+    private function get_bgm_manga_staff( int $bangumi_id, array $infobox = [] ): array {
+        $cache_key = 'anime_sync_bgm_manga_staff_' . $bangumi_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
+
+        $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id . '/persons', [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
+
+        $persons = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $persons ) ) return [];
+
+        $staff = [];
+        foreach ( $persons as $p ) {
+            $role = $p['relation'] ?? '';
+            $name = $p['name']     ?? '';
+            if ( $role === '' || $name === '' ) continue;
+
+            $staff[] = [
+                'id'     => $p['id']             ?? 0,
+                'name'   => Anime_Sync_CN_Converter::static_convert( $name ),
+                'role'   => $role,
+                'image'  => $p['images']['large'] ?? $p['images']['medium'] ?? '',
+                'source' => 'bangumi',
+            ];
+        }
+
+        $has_original = false;
+        foreach ( $staff as $s ) {
+            if ( $s['role'] === '原作' || $s['role'] === '原著' ) { $has_original = true; break; }
+        }
+        if ( ! $has_original && ! empty( $infobox ) ) {
+            $original_name = $this->extract_infobox_original( $infobox );
+            if ( $original_name !== '' ) {
+                $staff[] = [
+                    'id'     => 0,
+                    'name'   => Anime_Sync_CN_Converter::static_convert( $original_name ),
+                    'role'   => '原作',
+                    'image'  => '',
+                    'source' => 'bangumi_infobox',
+                ];
+            }
+        }
+
+        usort( $staff, function( $a, $b ) {
+            if ( $a['role'] === '原作' ) return -1;
+            if ( $b['role'] === '原作' ) return 1;
+            return 0;
+        } );
+
+        set_transient( $cache_key, $staff, 12 * HOUR_IN_SECONDS );
+        return $staff;
     }
 
     private function get_bgm_chars( int $bangumi_id ): array {

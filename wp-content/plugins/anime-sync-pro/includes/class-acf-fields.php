@@ -1824,6 +1824,17 @@ private function register_manga_fields(): void {
 				'name'  => 'anime_cover_image', // 沿用共用 key,封面下載邏輯能複用
 				'type'  => 'text',
 			],
+			[
+				'key'          => 'field_manga_staff_json',
+				'label'        => 'STAFF 資料(JSON)',
+				'name'         => 'anime_staff_json', // 沿用動畫共用 key，前台/人物頁交叉連結邏輯能複用
+				'type'         => 'textarea',
+				'instructions' => 'Bangumi 優先、AniList 備援自動填入。可手動修正後儲存，記得在下方「鎖定欄位」勾選避免被同步覆蓋。',
+				'required'     => 0,
+				'rows'         => 6,
+				'new_lines'    => '',
+				'wrapper'      => [ 'width' => '100' ],
+			],
 
 			// ---- 台灣代理資訊(純手動,SEO 差異化重點) ----
 			[

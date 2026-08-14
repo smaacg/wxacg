@@ -72,8 +72,10 @@ class Anime_Sync_Entity_Migrator {
 		if ( $post_id > 0 ) {
 			$ids = [ $post_id ];
 		} else {
+			// 漫畫 STAFF（anime_staff_json，Bangumi 優先／AniList 備援）也要
+			// 攤平進 wp_anime_relations，人物頁「其他作品」才看得到漫畫credit。
 			$ids = get_posts( [
-				'post_type'      => 'anime',
+				'post_type'      => [ 'anime', 'manga' ],
 				'post_status'    => 'any',
 				'posts_per_page' => -1,
 				'fields'         => 'ids',

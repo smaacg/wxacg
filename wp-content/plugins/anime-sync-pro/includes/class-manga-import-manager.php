@@ -298,6 +298,16 @@ class Anime_Sync_Manga_Import_Manager {
 				);
 			}
 		}
+
+		// ★ STAFF（Bangumi 優先、AniList 備援，見 get_manga_data()）存成 JSON，
+		//   沿用動畫共用的 anime_staff_json key。陣列型資料,獨立處理。
+		//   鎖定或空字串（代表沒抓到人）時都不覆蓋舊值。
+		if ( ! in_array( 'anime_staff_json', $locked, true ) ) {
+			$staff_json = $data['anime_staff_json'] ?? '';
+			if ( is_string( $staff_json ) && $staff_json !== '' && $staff_json !== '[]' ) {
+				update_post_meta( $post_id, 'anime_staff_json', $staff_json );
+			}
+		}
 	}
 
 	/**

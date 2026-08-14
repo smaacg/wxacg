@@ -172,6 +172,29 @@ while ( have_posts() ) :
     $external_links     = $external_links_raw ? json_decode( $external_links_raw, true ) : [];
     $external_links     = is_array( $external_links ) ? $external_links : [];
 
+    // ── STAFF(Bangumi 優先、AniList 備援，沿用動畫共用 key)──
+    $staff_list_raw = $get_meta( 'anime_staff_json' );
+    $staff_list     = $staff_list_raw ? json_decode( $staff_list_raw, true ) : [];
+    $staff_list     = is_array( $staff_list ) ? $staff_list : [];
+
+    $entity_url = static function ( $type, $id, $name ) {
+        $id = (int) $id;
+        if ( $id <= 0 ) {
+            return '';
+        }
+        $type = $type === 'character' ? 'character' : 'person';
+        $name = trim( (string) $name );
+        // sanitize_title() 會先把中文名 percent-encode 成 %e8...，再 rawurlencode
+        // 就會把 % 又編一次（%25e8...）造成網址雙重編碼。改為單次編碼，與
+        // class-entity-repository.php 的 url_slug() 一致。
+        $slug = $name !== '' ? rawurlencode( str_replace( ' ', '-', $name ) ) : '';
+        $path = '/' . $type . '/' . $id;
+        if ( $slug !== '' ) {
+            $path .= '/' . $slug;
+        }
+        return home_url( $path );
+    };
+
     // ── Wikipedia URL(維基 cron 寫入)──
     $wikipedia_url = $get_meta( 'manga_wikipedia_url' );
 
@@ -593,30 +616,30 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
 
             <div class="asd-hero-scores-new">
                 <?php if ( $score_anilist ) : ?>
-                    <div class="asd-score-pill asd-score-pill--al">
+                    <div class="asd-score-pill asd-score-pill--al" title="AniList－國際動漫評分資料庫">
                         <span class="asd-sp-dot"></span>
                         <span class="asd-sp-val"><?php echo esc_html( $score_anilist ); ?></span>
                         <span class="asd-sp-label">AniList</span>
                     </div>
                 <?php endif; ?>
                 <?php if ( $score_mal ) : ?>
-                    <div class="asd-score-pill asd-score-pill--mal">
+                    <div class="asd-score-pill asd-score-pill--mal" title="MyAnimeList（MAL）－國際動漫評分資料庫">
                         <span class="asd-sp-dot"></span>
                         <span class="asd-sp-val"><?php echo esc_html( $score_mal ); ?></span>
                         <span class="asd-sp-label">MAL</span>
                     </div>
                 <?php endif; ?>
                 <?php if ( $score_bangumi ) : ?>
-                    <div class="asd-score-pill asd-score-pill--bgm">
+                    <div class="asd-score-pill asd-score-pill--bgm" title="Bangumi（bgm.tv）－大陸地區動漫社群評分">
                         <span class="asd-sp-dot"></span>
                         <span class="asd-sp-val"><?php echo esc_html( $score_bangumi ); ?></span>
                         <span class="asd-sp-label">Bangumi</span>
                     </div>
                 <?php endif; ?>
-                <div class="asd-score-pill asd-score-pill--site">
+                <div class="asd-score-pill asd-score-pill--site" title="本站會員評分">
                     <span class="asd-sp-dot"></span>
                     <span class="asd-sp-val wacg-hero-score"><?php echo $site_score > 0 ? esc_html( number_format( $site_score, 1 ) ) : '暫無'; ?></span>
-                    <span class="asd-sp-label">WeixiaoACG+</span>
+                    <span class="asd-sp-label">本站</span>
                 </div>
             </div>
 
@@ -644,21 +667,21 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
             <div class="asd-hside-title">評分</div>
 
             <?php if ( $score_anilist ) : ?>
-                <div class="asd-hside-row">
+                <div class="asd-hside-row" title="AniList－國際動漫評分資料庫">
                     <span class="asd-hside-dot" style="background:var(--asd-score-al)"></span>
                     <span class="asd-hside-key">AniList</span>
                     <span class="asd-hside-val"><?php echo esc_html( $score_anilist ); ?></span>
                 </div>
             <?php endif; ?>
             <?php if ( $score_mal ) : ?>
-                <div class="asd-hside-row">
+                <div class="asd-hside-row" title="MyAnimeList（MAL）－國際動漫評分資料庫">
                     <span class="asd-hside-dot" style="background:var(--asd-score-mal)"></span>
                     <span class="asd-hside-key">MyAnimeList</span>
                     <span class="asd-hside-val"><?php echo esc_html( $score_mal ); ?></span>
                 </div>
             <?php endif; ?>
             <?php if ( $score_bangumi ) : ?>
-                <div class="asd-hside-row">
+                <div class="asd-hside-row" title="Bangumi（bgm.tv）－大陸地區動漫社群評分">
                     <span class="asd-hside-dot" style="background:var(--asd-score-bgm)"></span>
                     <span class="asd-hside-key">Bangumi</span>
                     <span class="asd-hside-val"><?php echo esc_html( $score_bangumi ); ?></span>
@@ -668,28 +691,36 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
             <div class="wacg-rating-divider"></div>
 
             <div id="wacg-rating-stats" class="wacg-rating-stats">
-                <div class="wacg-score-row">
+                <div class="wacg-score-row" title="本站會員評分">
                     <span class="asd-hside-dot wacg-dot-site"></span>
-                    <span class="asd-hside-key">WeixiaoACG+</span>
+                    <span class="asd-hside-key">本站</span>
                     <span class="asd-hside-val wacg-score-main"><?php echo $site_score > 0 ? esc_html( number_format( $site_score, 1 ) ) : '—'; ?></span>
                 </div>
                 <div class="wacg-vote-count"><?php echo $site_count > 0 ? esc_html( $site_count . ' 人評分' ) : ''; ?></div>
-                <div class="wacg-cats">
-                    <div class="wacg-cat-row"><span class="wacg-cat-label">劇情</span><span class="wacg-cat-val wacg-cat-story"><?php echo $site_story > 0 ? esc_html( number_format( $site_story, 1 ) ) : '—'; ?></span></div>
-                    <div class="wacg-cat-row"><span class="wacg-cat-label">音樂</span><span class="wacg-cat-val wacg-cat-music"><?php echo $site_music > 0 ? esc_html( number_format( $site_music, 1 ) ) : '—'; ?></span></div>
-                    <div class="wacg-cat-row"><span class="wacg-cat-label">作畫</span><span class="wacg-cat-val wacg-cat-animation"><?php echo $site_animation > 0 ? esc_html( number_format( $site_animation, 1 ) ) : '—'; ?></span></div>
-                    <div class="wacg-cat-row"><span class="wacg-cat-label">聲優</span><span class="wacg-cat-val wacg-cat-voice"><?php echo $site_voice > 0 ? esc_html( number_format( $site_voice, 1 ) ) : '—'; ?></span></div>
-                </div>
+                <?php if ( $site_count > 0 ) : ?>
+                    <div class="wacg-cats">
+                        <div class="wacg-cat-row"><span class="wacg-cat-label">劇情</span><span class="wacg-cat-val wacg-cat-story"><?php echo $site_story > 0 ? esc_html( number_format( $site_story, 1 ) ) : '—'; ?></span></div>
+                        <div class="wacg-cat-row"><span class="wacg-cat-label">角色</span><span class="wacg-cat-val wacg-cat-music"><?php echo $site_music > 0 ? esc_html( number_format( $site_music, 1 ) ) : '—'; ?></span></div>
+                        <div class="wacg-cat-row"><span class="wacg-cat-label">作畫</span><span class="wacg-cat-val wacg-cat-animation"><?php echo $site_animation > 0 ? esc_html( number_format( $site_animation, 1 ) ) : '—'; ?></span></div>
+                        <div class="wacg-cat-row"><span class="wacg-cat-label">樂趣</span><span class="wacg-cat-val wacg-cat-voice"><?php echo $site_voice > 0 ? esc_html( number_format( $site_voice, 1 ) ) : '—'; ?></span></div>
+                    </div>
+                <?php endif; ?>
             </div>
+
+            <?php if ( $site_count <= 0 ) : ?>
+                <p class="wacg-be-first">
+                    ✨ 尚無評分，歡迎分享你的看法：
+                </p>
+            <?php endif; ?>
 
             <?php if ( is_user_logged_in() ) : ?>
                 <form id="wacg-rating-form" class="wacg-rating-form">
                     <?php
                     $sliders = [
                         [ 'key' => 'story',     'label' => '劇情' ],
-                        [ 'key' => 'music',     'label' => '音樂' ],
+                        [ 'key' => 'music',     'label' => '角色' ],
                         [ 'key' => 'animation', 'label' => '作畫' ],
-                        [ 'key' => 'voice',     'label' => '聲優' ],
+                        [ 'key' => 'voice',     'label' => '樂趣' ],
                     ];
                     foreach ( $sliders as $s ) :
                         $init_val = $user_rating[ $s['key'] ];
@@ -877,6 +908,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
         <nav class="asd-tabs" id="asd-tabs" aria-label="頁面導航">
             <a class="asd-tab" href="#asd-sec-info">📋 基本資訊</a>
             <?php if ( $synopsis ) : ?><a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a><?php endif; ?>
+            <?php if ( ! empty( $staff_list ) ) : ?><a class="asd-tab" href="#asd-sec-staff">🎬 STAFF</a><?php endif; ?>
             <?php if ( $has_publish_region ) : ?><a class="asd-tab" href="#asd-sec-region">🌏 各地區出版</a><?php endif; ?>
             <?php if ( $tw_publisher || $tw_translator || $tw_release_date || $purchase_url ) : ?><a class="asd-tab" href="#asd-sec-tw">🇹🇼 台版資訊</a><?php endif; ?>
             <?php if ( $has_preview ) : ?><a class="asd-tab" href="#asd-sec-preview">📖 免費閱讀</a><?php endif; ?>
@@ -922,6 +954,55 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     <section class="asd-section" id="asd-sec-synopsis">
                         <h2 class="asd-section-title">📝 劇情簡介</h2>
                         <div class="asd-synopsis"><?php echo wp_kses_post( wpautop( $synopsis ) ); ?></div>
+                    </section>
+                <?php endif; ?>
+
+                <?php if ( ! empty( $staff_list ) ) : ?>
+                    <section class="asd-section" id="asd-sec-staff">
+                        <h2 class="asd-section-title">🎬 STAFF</h2>
+                        <div class="asd-staff-grid-v2" id="asd-staff-grid">
+                            <?php
+                            $staff_output_index = 0;
+                            foreach ( $staff_list as $staff_item ) :
+                                if ( ! is_array( $staff_item ) ) continue;
+                                $staff_id     = (int) ( $staff_item['id'] ?? 0 );
+                                $staff_name   = trim( (string) ( $staff_item['name']   ?? '' ) );
+                                $staff_native = trim( (string) ( $staff_item['native'] ?? '' ) );
+                                $staff_role_raw = trim( (string) ( $staff_item['role'] ?? '' ) );
+                                if ( $staff_name === '' ) continue;
+                                $staff_role = function_exists( 'wxacg_staff_role' )
+                                    ? wxacg_staff_role( $staff_role_raw )
+                                    : $staff_role_raw;
+                                $staff_role = trim( (string) $staff_role );
+                                $staff_url  = $staff_id > 0 ? $entity_url( 'person', $staff_id, $staff_name ) : '';
+                            ?>
+                                <div class="asd-staff-card-v2<?php echo $staff_output_index >= 10 ? ' asd-staff-hidden' : ''; ?>">
+                                    <div class="asd-staff-info">
+                                        <?php if ( $staff_role ) : ?>
+                                            <span class="asd-staff-role"><?php echo esc_html( $staff_role ); ?></span>
+                                        <?php endif; ?>
+                                        <span class="asd-staff-name">
+                                            <?php if ( $staff_url ) : ?>
+                                                <a href="<?php echo esc_url( $staff_url ); ?>"><?php echo esc_html( $staff_name ); ?></a>
+                                            <?php else : ?>
+                                                <?php echo esc_html( $staff_name ); ?>
+                                            <?php endif; ?>
+                                        </span>
+                                        <?php if ( $staff_native && $staff_native !== $staff_name ) : ?>
+                                            <span class="asd-staff-native" lang="ja"><?php echo esc_html( $staff_native ); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php $staff_output_index++; ?>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php if ( $staff_output_index > 10 ) : ?>
+                            <div class="asd-toggle-wrap">
+                                <button class="asd-staff-toggle" id="asd-staff-toggle" type="button" aria-expanded="false" aria-controls="asd-staff-grid">
+                                    顯示全部 <?php echo esc_html( $staff_output_index ); ?> 人 ▼
+                                </button>
+                            </div>
+                        <?php endif; ?>
                     </section>
                 <?php endif; ?>
 

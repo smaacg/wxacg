@@ -571,8 +571,10 @@ class Anime_Sync_Entity_Repository {
 			return [];
 		}
 
+		// 漫畫 STAFF 也會攤平進同一張關聯表，這裡要放行 manga 才能組出
+		// 標題/封面/連結，否則會被下面的 null 檢查悄悄濾掉、漫畫作品永遠不顯示。
 		$posts = get_posts( [
-			'post_type'      => 'anime',
+			'post_type'      => [ 'anime', 'manga' ],
 			'post_status'    => 'publish',
 			'post__in'       => $anime_ids,
 			'posts_per_page' => -1,
