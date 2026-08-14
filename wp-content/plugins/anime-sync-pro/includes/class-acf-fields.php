@@ -3060,8 +3060,7 @@ private function register_manga_fields(): void {
 
         $user_id = get_current_user_id();
         $provider = get_user_meta($user_id, 'asp_ai_provider', true) ?: 'gemini';
-        $api_key = get_user_meta($user_id, 'asp_ai_api_key', true) ?: '';
-        $model = get_user_meta($user_id, 'asp_ai_model_name', true) ?: 'gemini-3.6-flash';
+        $model = get_user_meta($user_id, 'asp_ai_model_name', true) ?: 'gemini-3.7-flash';
 
         ?>
         <style>
@@ -3185,7 +3184,7 @@ private function register_manga_fields(): void {
                             
                             <div class="asp-ai-settings-item" style="display:flex; align-items:center; gap:5px;">
                                 <label style="margin:0;">模型名稱</label>
-                                <input type="text" id="asp_ai_model_name" value="<?php echo esc_attr($model); ?>" placeholder="gemini-3.6-flash" style="width: 150px; height: 32px;">
+                                <input type="text" id="asp_ai_model_name" value="<?php echo esc_attr($model); ?>" placeholder="gemini-3.7-flash" style="width: 150px; height: 32px;">
                             </div>
 
                             <div class="asp-ai-settings-item" style="display:flex; align-items:center; gap:5px;">
@@ -4221,7 +4220,7 @@ private function register_manga_fields(): void {
             }
         } else {
             // 預設 Gemini
-            if ( empty( $model ) ) $model = 'gemini-3.6-flash';
+            if ( empty( $model ) ) $model = 'gemini-3.7-flash';
             $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$current_key}";
             $payload = [
                 'contents' => [
@@ -4621,7 +4620,7 @@ private function register_manga_fields(): void {
                 }
 
         } else {
-            if ( empty( $model ) ) $model = 'gemini-3.6-flash';
+            if ( empty( $model ) ) $model = 'gemini-3.7-flash';
                 $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$current_key}";
                 $payload = [
                     'contents' => [ [ 'role' => 'user', 'parts' => [ [ 'text' => $user_prompt ] ] ] ],
