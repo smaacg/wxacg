@@ -3999,6 +3999,7 @@ private function register_manga_fields(): void {
                         <div style="flex:1; font-weight:bold; font-size:13px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeKey}">${safeKey}</div>
                         <span style="color:#888;">➔</span>
                         <input type="text" class="asp-dict-input" data-type="${item.type}" data-key="${escHtml(item.key)}" value="${escHtml(item.val)}" style="flex:1; padding:3px 8px; font-size:13px;">
+                        <button type="button" class="asp-dict-row-delete" data-type="${item.type}" data-key="${escHtml(item.key)}" title="刪除這筆紀錄" style="padding:0; width:26px; height:26px; background:none; border:none; color:#b32d2e; display:flex; align-items:center; justify-content:center; cursor:pointer;"><span class="dashicons dashicons-trash" style="width:20px; height:20px; font-size:20px;"></span></button>
                     </div>`);
                 });
 
@@ -4089,6 +4090,17 @@ private function register_manga_fields(): void {
                 if (fullDictData[type] && fullDictData[type][key] !== undefined) {
                     fullDictData[type][key] = $(this).val().trim();
                 }
+            });
+
+            // 單筆刪除:跟「清除 A=A」一樣先從記憶體移除、重新渲染,要按「💾 儲存修改」才會真的寫檔
+            $(document).on('click', '.asp-dict-row-delete', function(e) {
+                e.preventDefault();
+                var type = $(this).attr('data-type');
+                var key  = $(this).attr('data-key');
+                if (fullDictData[type] && fullDictData[type][key] !== undefined) {
+                    delete fullDictData[type][key];
+                }
+                renderDictList($('#asp-dict-search').val());
             });
 
             $(document).on('click', '#asp-dict-save', function(e) {
