@@ -770,8 +770,8 @@ class Anime_Sync_YouTube_Playlist_Sync {
         }
 
         // 3. 自動填入網址 (防呆：格子空白才填)
-        $stream_url_meta = 'anime_tw_streaming_' . $target_platform;
-        $stream_url_field = 'field_anime_tw_streaming_' . $target_platform;
+        $stream_url_meta = 'anime_tw_streaming_url_' . $target_platform;
+        $stream_url_field = 'field_anime_tw_streaming_url_' . $target_platform;
         $current_stream_url = get_post_meta( $post_id, $stream_url_meta, true );
         if ( empty( $current_stream_url ) ) {
             if ( function_exists( 'update_field' ) ) {
