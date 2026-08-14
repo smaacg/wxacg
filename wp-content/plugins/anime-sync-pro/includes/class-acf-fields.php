@@ -3627,6 +3627,7 @@ private function register_manga_fields(): void {
                     var retries = 0;
                     var keyRetries = 0;
                     var maxKeys = 0; // 0 = 尚未知道，後端第一次回傳後才會設定
+                    var retryAfterError = false; // 5xx 暫時性錯誤：是否要帶著旗標重打同一把 Key
                     var isDebug = $('#asp-ai-debug-mode').is(':checked');
                     
                     // Fix 2: 改用 while(!success && retries <= 2)，消除初始 maxKeys=1 的歧義
@@ -3654,8 +3655,10 @@ private function register_manga_fields(): void {
                                 title: animeTitle,
                                 context: extraContext,
                                 items: JSON.stringify(batch),
-                                debug: isDebug ? 1 : 0
+                                debug: isDebug ? 1 : 0,
+                                ai_retry_after_error: retryAfterError ? 1 : 0
                             });
+                            retryAfterError = false; // 一次性旗標，送出後立即歸零，避免誤用到下一把新 Key
 
                             // 停止任務：請求回來後立即確認,避免繼續處理與進入冷卻等待
                             if (window.asp_ai_abort) {
@@ -3708,6 +3711,18 @@ private function register_manga_fields(): void {
                                         throw new Error('All keys failed');
                                     }
                                     continue; // Try again with next key without incrementing `retries`
+                                }
+
+                                // 5xx 等暫時性伺服器錯誤：原地等待 3 秒後用同一把 Key 重試一次
+                                if (res.data && res.data.retry_same_key) {
+                                    logAI(`⏳ [CAST] ${res.data.message}`, true);
+                                    await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+                                    if (window.asp_ai_abort) {
+                                        logAI(`🛑 [CAST] 已中止,停止重試。`, true);
+                                        return;
+                                    }
+                                    retryAfterError = true;
+                                    continue;
                                 }
 
                                 // 非 Key 層級的失敗(內容被安全機制擋下、請求本身有誤)重試也不會變好,直接停止
@@ -3914,6 +3929,7 @@ private function register_manga_fields(): void {
                             var success = false;
                             var keyRetries = 0;
                             var maxKeys = 0; // 0 = 尚未知道，後端第一次回傳後才會設定
+                            var retryAfterError = false; // 5xx 暫時性錯誤：是否要帶著旗標重打同一把 Key
                             var res;
 
                             // Fix 2: 改用 while(!success) 消除初始 maxKeys=1 的歧義
@@ -3925,9 +3941,11 @@ private function register_manga_fields(): void {
                                     nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
                                     system_prompt: sysPrompt,
                                     user_prompt: userPrompt,
-                                    debug: isDebug ? 1 : 0
+                                    debug: isDebug ? 1 : 0,
+                                    ai_retry_after_error: retryAfterError ? 1 : 0
                                 });
-                                
+                                retryAfterError = false; // 一次性旗標，送出後立即歸零，避免誤用到下一把新 Key
+
                                 if (window.asp_ai_abort) return; // 使用者中斷
 
                                 if (res.success) {
@@ -3941,6 +3959,13 @@ private function register_manga_fields(): void {
                                         logAI(`❌ 所有設定的 API Key (${maxKeys} 把) 皆已測試失敗。`, true);
                                         throw new Error('All keys failed');
                                     }
+                                    // continue: 不需要寫，while 迴圈會自然進入下一圈
+                                } else if (res.data && res.data.retry_same_key) {
+                                    // 5xx 等暫時性伺服器錯誤：原地等待 3 秒後用同一把 Key 重試一次
+                                    logAI(res.data.message, true);
+                                    await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+                                    if (window.asp_ai_abort) return;
+                                    retryAfterError = true;
                                     // continue: 不需要寫，while 迴圈會自然進入下一圈
                                 } else {
                                     // 一般性錯誤（非 Key 問題），直接拋出終止
@@ -4136,6 +4161,8 @@ private function register_manga_fields(): void {
         $current_key = $key_set['current'];
 
         $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
+        // 前端在 3 秒重試倒數後,會帶著此旗標重打同一把 Key,見 send_api_failure()
+        $is_retry = ! empty( $_POST['ai_retry_after_error'] );
 
         $system_prompt = isset( $_POST['system_prompt'] ) ? wp_unslash( $_POST['system_prompt'] ) : '';
         $user_prompt   = isset( $_POST['user_prompt'] ) ? wp_unslash( $_POST['user_prompt'] ) : '';
@@ -4176,7 +4203,8 @@ private function register_manga_fields(): void {
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'openai' ),
                     $key_set,
-                    $user_id
+                    $user_id,
+                    $is_retry
                 );
             }
         } elseif ( $provider === 'claude' ) {
@@ -4215,7 +4243,8 @@ private function register_manga_fields(): void {
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'claude' ),
                     $key_set,
-                    $user_id
+                    $user_id,
+                    $is_retry
                 );
             }
         } else {
@@ -4259,7 +4288,8 @@ private function register_manga_fields(): void {
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'gemini' ),
                     $key_set,
-                    $user_id
+                    $user_id,
+                    $is_retry
                 );
             }
         }
@@ -4431,6 +4461,8 @@ private function register_manga_fields(): void {
         if ( empty( $api_key ) ) wp_send_json_error( '未設定 API Key' );
 
         $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
+        // 前端在 3 秒重試倒數後,會帶著此旗標重打同一把 Key,見 send_api_failure()
+        $is_retry = ! empty( $_POST['ai_retry_after_error'] );
 
         $title   = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
         $context = isset( $_POST['context'] ) ? sanitize_text_field( wp_unslash( $_POST['context'] ) ) : '';
@@ -4580,7 +4612,8 @@ private function register_manga_fields(): void {
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'openai' ),
                     $key_set,
-                    $user_id
+                    $user_id,
+                    $is_retry
                 );
             }
 
@@ -4615,7 +4648,8 @@ private function register_manga_fields(): void {
                     $this->send_api_failure(
                         $this->classify_api_failure( $code, $body, 'claude' ),
                         $key_set,
-                        $user_id
+                        $user_id,
+                        $is_retry
                     );
                 }
 
@@ -4650,7 +4684,8 @@ private function register_manga_fields(): void {
                     $this->send_api_failure(
                         $this->classify_api_failure( $code, $body, 'gemini' ),
                         $key_set,
-                        $user_id
+                        $user_id,
+                        $is_retry
                     );
                 }
             }
@@ -4796,9 +4831,11 @@ private function register_manga_fields(): void {
         }
 
         if ( $code >= 500 ) {
+            // 標記為 retryable:讓 send_api_failure() 先原地等待重試同一把 Key,而非直接換 Key
             return [
-                'type'    => 'request',
-                'message' => "AI 服務暫時無法回應(HTTP {$code}),請稍後再試",
+                'type'      => 'request',
+                'message'   => "AI 服務暫時無法回應(HTTP {$code}),請稍後再試",
+                'retryable' => true,
             ];
         }
 
@@ -4879,14 +4916,16 @@ private function register_manga_fields(): void {
      * 依失敗分類回應前端。
      *
      * 只有 Key 層級的問題才推進游標並要求前端換下一把 Key;
-     * 請求層級與內容層級的失敗換 Key 也沒用,直接回不可重試,讓前端停止該項任務。
+     * 內容層級的失敗換 Key 也沒用,直接回不可重試,讓前端停止該項任務;
+     * retryable(5xx)則先讓前端原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才視同 Key 失效換下一把。
      *
-     * @param array $failure classify_api_failure() 的結果。
-     * @param array $key_set get_api_key_set() 的結果。
-     * @param int   $user_id 使用者 ID。
+     * @param array $failure  classify_api_failure() 的結果。
+     * @param array $key_set  get_api_key_set() 的結果。
+     * @param int   $user_id  使用者 ID。
+     * @param bool  $is_retry 是否為前端 3 秒後帶著 ai_retry_after_error 旗標送來的重試請求。
      * @return void 本方法一定會結束請求。
      */
-    private function send_api_failure( array $failure, array $key_set, int $user_id ): void {
+    private function send_api_failure( array $failure, array $key_set, int $user_id, bool $is_retry = false ): void {
         $key_no = $key_set['index'] + 1;
 
         if ( 'key' === $failure['type'] ) {
@@ -4895,6 +4934,28 @@ private function register_manga_fields(): void {
             wp_send_json_error( [
                 'type'       => 'key_failed',
                 'message'    => "⚠️ 第 {$key_no} 把 Key 失敗: {$failure['message']}，自動切換下一把 Key...",
+                'retry'      => true,
+                'total_keys' => $key_set['count'],
+            ] );
+        }
+
+        // retryable(5xx 等暫時性伺服器錯誤):第一次先不換 Key,讓前端原地等待 3 秒後用同一把 Key 重試一次;
+        // 若這是重試後仍失敗($is_retry === true),才視同這把 Key 不可用,換下一把繼續。
+        if ( ! empty( $failure['retryable'] ) ) {
+            if ( ! $is_retry ) {
+                wp_send_json_error( [
+                    'type'           => $failure['type'],
+                    'message'        => "第 {$key_no} 把 Key：{$failure['message']}（3 秒後自動重試...）",
+                    'retry'          => true,
+                    'retry_same_key' => true,
+                ] );
+            }
+
+            update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+
+            wp_send_json_error( [
+                'type'       => 'key_failed',
+                'message'    => "⚠️ 第 {$key_no} 把 Key 重試後仍失敗: {$failure['message']}，自動切換下一把 Key...",
                 'retry'      => true,
                 'total_keys' => $key_set['count'],
             ] );
