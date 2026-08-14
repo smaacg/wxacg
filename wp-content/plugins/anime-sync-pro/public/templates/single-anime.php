@@ -310,6 +310,22 @@ while ( have_posts() ) :
 		}
 
 		/*
+		 * 容錯：貼上的內容可能夾雜 Markdown 連結或 Google 搜尋轉址格式，
+		 * 例如「[https://youtu.be/xxx](https://www.google.com/search?q=https://youtu.be/xxx)」，
+		 * 直接從整段文字裡抓出真正的 YouTube 網址再繼續往下解析，
+		 * 避免因為外層包裝格式導致整支影片被判定無效而消失。
+		 */
+		if (
+			preg_match(
+				'#https?://(?:www\.)?(?:youtu\.be/[A-Za-z0-9_-]{11}|(?:m\.|music\.)?youtube(?:-nocookie)?\.com/[^\s\]\)]+)#i',
+				$input,
+				$embedded_youtube_url
+			)
+		) {
+			$input = $embedded_youtube_url[0];
+		}
+
+		/*
 		 * 純 11 碼 YouTube 影片 ID。
 		 */
 		if ( preg_match( '/^[A-Za-z0-9_-]{11}$/', $input ) ) {
