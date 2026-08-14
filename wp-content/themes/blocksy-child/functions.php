@@ -545,6 +545,18 @@ function wxacg_is_thin_anime_page( int $post_id ): bool {
 	 *     避免大量未經人工把關的 AI 短評撐起收錄頁數、反被判低品質。
 	 *   - 簡介需達 WXACG_THIN_SYNOPSIS_RICH 字「且」有社群訊號才算充實。
 	 * 與 wxacg_is_anime_adsense_eligible() 的「需審核者」邏輯對齊。
+	 *
+	 * v2.30.0 新增「已驗證台灣串流平台資訊」作為第四種解除條件：
+	 *   anime_tw_streaming / anime_tw_distributor(_custom) 皆為純人工欄位
+	 *   （YourAnimes 半自動帶入時也只在空白時填、不覆蓋人工值），
+	 *   AniList/Bangumi 不提供，屬於本站對台灣讀者的在地查證資訊，
+	 *   非單純聚合轉載。
+	 *
+	 * v2.30.1 新增「原創 FAQ」作為第五種解除條件：
+	 *   anime_faq_json 欄位說明明載「完全人工輸入」，無任何自動寫入路徑，
+	 *   且撰寫規則要求多來源查證後原創改寫、不得照抄，比對外部聚合資料
+	 *   更接近短評等級的原創價值；門檻與前台實際渲染 FAQPage schema 一致，
+	 *   至少 1 筆 q/a 皆非空即算數。
 	 */
 	$author_id = (int) get_post_meta(
 		$post_id,
@@ -562,14 +574,39 @@ function wxacg_is_thin_anime_page( int $post_id ): bool {
 
 	$has_author = $author_id > 0 || '' !== $legacy_author;
 
-	$has_reviewed_editorial = ( $editorial_length >= WXACG_THIN_EDITORIAL_MIN ) && $has_author;
-	$has_rich_synopsis      = $synopsis_length >= WXACG_THIN_SYNOPSIS_RICH;
-	$has_original           = $feature_count > 0 || $review_count > 0;
-	$has_community          = $score_count > 0 || $comment_count > 0;
+	$tw_platforms = get_post_meta( $post_id, 'anime_tw_streaming', true );
+	$tw_platforms = is_array( $tw_platforms ) ? array_filter( $tw_platforms ) : [];
+
+	$tw_distributor        = wxacg_plain_text( get_post_meta( $post_id, 'anime_tw_distributor', true ) );
+	$tw_distributor_custom = wxacg_plain_text( get_post_meta( $post_id, 'anime_tw_distributor_custom', true ) );
+
+	$faq_items = json_decode( (string) get_post_meta( $post_id, 'anime_faq_json', true ), true );
+	$has_faq   = false;
+
+	if ( is_array( $faq_items ) ) {
+		foreach ( $faq_items as $faq_item ) {
+			if (
+				is_array( $faq_item ) &&
+				'' !== trim( wxacg_plain_text( $faq_item['q'] ?? '' ) ) &&
+				'' !== trim( wxacg_plain_text( $faq_item['a'] ?? '' ) )
+			) {
+				$has_faq = true;
+				break;
+			}
+		}
+	}
+
+	$has_reviewed_editorial    = ( $editorial_length >= WXACG_THIN_EDITORIAL_MIN ) && $has_author;
+	$has_rich_synopsis         = $synopsis_length >= WXACG_THIN_SYNOPSIS_RICH;
+	$has_original              = $feature_count > 0 || $review_count > 0;
+	$has_community             = $score_count > 0 || $comment_count > 0;
+	$has_verified_tw_streaming = ! empty( $tw_platforms ) || '' !== $tw_distributor || '' !== $tw_distributor_custom;
 
 	$is_valuable =
 		$has_reviewed_editorial ||
 		$has_original ||
+		$has_verified_tw_streaming ||
+		$has_faq ||
 		( $has_rich_synopsis && $has_community );
 
 	return ! $is_valuable;
