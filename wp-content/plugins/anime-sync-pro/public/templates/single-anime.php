@@ -5014,7 +5014,7 @@ while ( have_posts() ) :
 								</div>
 							<?php endif; ?>
 
-							<p class="asd-stream-disclaimer">
+							<p class="asd-stream-disclaimer" style="margin-top:20px !important;">
 								串流授權、方案及地區限制可能隨時異動，實際供應狀況請以平台與代理商公告為準。
 							</p>
 						</section>
@@ -5096,7 +5096,7 @@ while ( have_posts() ) :
 								</div>
 							</div>
 
-							<p class="asd-stream-disclaimer">
+							<p class="asd-stream-disclaimer" style="margin-top:20px !important;">
 								影片由 YouTube 頻道提供。若無法播放，可能是影片已下架、限制嵌入、設有地區限制或需要頻道會員資格。
 							</p>
 						</section>
