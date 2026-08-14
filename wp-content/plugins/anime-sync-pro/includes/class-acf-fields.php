@@ -2697,10 +2697,11 @@ private function register_manga_fields(): void {
         $old_yt_url = get_post_meta( $post_id, 'anime_yt_playlist_url', true );
         $new_yt_url = isset( $fields['shortcut_anime_yt_playlist_url'] ) ? $fields['shortcut_anime_yt_playlist_url'] : '';
 
-        // 儲存一般 Post Meta
+        // 儲存一般 Post Meta(同步補寫 ACF 參考鍵,與 auto_assign_editorial_reviewer() 的寫法一致)
         foreach ( $mapping as $shortcut => $real_key ) {
             if ( isset( $fields[$shortcut] ) ) {
                 update_post_meta( $post_id, $real_key, $fields[$shortcut] );
+                update_post_meta( $post_id, '_' . $real_key, 'field_' . $real_key );
             }
         }
 
@@ -2930,7 +2931,8 @@ private function register_manga_fields(): void {
                     'label'   => '',
                     'name'    => '',
                     'type'    => 'message',
-                    'message' => '<div id="asp-ai-top-ui"></div><div id="asp-ai-console" style="display:none; margin-top:10px; padding:10px; background:#1e1e1e; color:#00ff00; font-family:monospace; font-size:13px; border-radius:4px; max-height:200px; overflow-y:auto; overflow-x:hidden; word-break:break-all;"></div>',
+                    // 修正 3:移除死碼 #asp-ai-console(display:none 且從未被 JS 使用,實際 log 面板是動態注入的 #asp-ai-console-box)
+                    'message' => '<div id="asp-ai-top-ui"></div>',
                     'new_lines' => '',
                     'esc_html' => 0,
                 ],
@@ -3189,9 +3191,9 @@ private function register_manga_fields(): void {
                             <div class="asp-ai-settings-item" style="display:flex; align-items:center; gap:5px;">
                                 <label style="margin:0;">AI 供應商</label>
                                 <select id="asp_ai_provider" style="width: 150px; height: 32px; line-height: 1.5;">
-                                    <option value="gemini" ${'<?php echo $provider; ?>'==='gemini'?'selected':''}>Google Gemini</option>
-                                    <option value="openai" ${'<?php echo $provider; ?>'==='openai'?'selected':''}>OpenAI (ChatGPT)</option>
-                                    <option value="claude" ${'<?php echo $provider; ?>'==='claude'?'selected':''}>Anthropic Claude</option>
+                                    <option value="gemini" ${'<?php echo esc_js( $provider ); ?>'==='gemini'?'selected':''}>Google Gemini</option>
+                                    <option value="openai" ${'<?php echo esc_js( $provider ); ?>'==='openai'?'selected':''}>OpenAI (ChatGPT)</option>
+                                    <option value="claude" ${'<?php echo esc_js( $provider ); ?>'==='claude'?'selected':''}>Anthropic Claude</option>
                                 </select>
                             </div>
 
@@ -3217,30 +3219,38 @@ private function register_manga_fields(): void {
                     $('#acf-group_anime_shortcuts_ai .inside').append(settingsHTML);
                 }
 
-                // 3. 鏡像複製 CAST 提示詞到左側
+                // 3. 鏡像複製 CAST 提示詞到左側 + 字典管理按鈕
+                // 修正 1:字典管理按鈕改為只依賴 $castSwitchField,不再耦合於「找得到提示詞來源 textarea」,
+                // 避免提示詞文字被改動導致 $sourceTextarea 找不到時,字典管理按鈕連帶消失。
                 var $castSwitchField = $('#acf-group_anime_shortcuts_ai .acf-field[data-name="shortcut_ai_generate_cast"]');
-                if ($castSwitchField.length > 0 && $('#asp-mirrored-prompt').length === 0) {
-                    // 尋找包含提示詞的來源 textarea
-                    var $sourceTextarea = $('textarea').filter(function() {
-                        return $(this).val().indexOf('你是熟悉台灣 ACG') > -1;
-                    }).first();
-                    
-                    if ($sourceTextarea.length > 0) {
-                        var mirroredValue = $sourceTextarea.val();
-                        var $mirroredBox = $('<div id="asp-mirrored-prompt" style="margin-left: 10px; flex: 1; min-width: 0;">' + 
-                            '<div style="font-size:9px; font-weight:bold; color:#888; margin-bottom:1px; line-height:1;">📋 提示詞(點擊複製)</div>' +
-                            '<textarea readonly title="點擊全選複製" style="width:100%; height:80px; background:#f5f5f5; color:#444; font-size:11px; border:1px solid #ccc; resize:none; padding:2px 4px; box-sizing:border-box; line-height:1.2;" onclick="this.select();"></textarea>' + 
-                            '</div>');
-                        $mirroredBox.find('textarea').val(mirroredValue);
-                        
-                        var $inputWrap = $castSwitchField.find('.acf-input');
-                        $inputWrap.css({
-                            'display': 'flex',
-                            'align-items': 'flex-start'
-                        });
-                        $inputWrap.append($mirroredBox);
-                        
-                        // 注入字典管理按鈕 (在開關正下方)
+                if ($castSwitchField.length > 0) {
+                    var $inputWrap = $castSwitchField.find('.acf-input');
+
+                    // 3a. 鏡像提示詞框(依賴找得到來源 textarea,找不到就略過,不影響下方字典管理按鈕)
+                    if ($('#asp-mirrored-prompt').length === 0) {
+                        // 尋找包含提示詞的來源 textarea
+                        var $sourceTextarea = $('textarea').filter(function() {
+                            return $(this).val().indexOf('你是熟悉台灣 ACG') > -1;
+                        }).first();
+
+                        if ($sourceTextarea.length > 0) {
+                            var mirroredValue = $sourceTextarea.val();
+                            var $mirroredBox = $('<div id="asp-mirrored-prompt" style="margin-left: 10px; flex: 1; min-width: 0;">' +
+                                '<div style="font-size:9px; font-weight:bold; color:#888; margin-bottom:1px; line-height:1;">📋 提示詞(點擊複製)</div>' +
+                                '<textarea readonly title="點擊全選複製" style="width:100%; height:80px; background:#f5f5f5; color:#444; font-size:11px; border:1px solid #ccc; resize:none; padding:2px 4px; box-sizing:border-box; line-height:1.2;" onclick="this.select();"></textarea>' +
+                                '</div>');
+                            $mirroredBox.find('textarea').val(mirroredValue);
+
+                            $inputWrap.css({
+                                'display': 'flex',
+                                'align-items': 'flex-start'
+                            });
+                            $inputWrap.append($mirroredBox);
+                        }
+                    }
+
+                    // 3b. 注入字典管理按鈕 (在開關正下方) — 與上方 3a 脫鉤,獨立判斷是否已注入過
+                    if ($('#asp-btn-manage-dict').length === 0) {
                         var $switch = $inputWrap.find('.acf-true-false').first();
                         if ($switch.length > 0) {
                             $switch.wrap('<div style="display:flex; flex-direction:column; gap:5px;"></div>');
@@ -3871,8 +3881,8 @@ private function register_manga_fields(): void {
                         } else if (task === 'cast') {
                             taskName = 'CAST';
                             targetField = 'shortcut_anime_cast_json';
-                            var $descTextarea = $('.acf-field[data-name="anime_cast_json"] .description textarea');
-                            sysPrompt = $descTextarea.length ? $descTextarea.val().trim() : $('.acf-field[data-name="anime_cast_json"] .description').text().trim();
+                            // 修正 2:移除死碼 sysPrompt 計算(第 1 版遺留,改版後 CAST 已改走 processCastTranslation()
+                            // 專用流程,系統提示詞寫死在後端 ajax_shortcut_ai_cast_translate(),前端這裡算了也送不出去)
                             var f_target = acf.getField($('.acf-field[data-name="' + targetField + '"]'));
                             userPrompt = (f_target && f_target.val()) ? String(f_target.val()).trim() : '';
                             if (userPrompt === '') {
@@ -4108,6 +4118,7 @@ private function register_manga_fields(): void {
         foreach ( $mapping as $shortcut => $real_key ) {
             if ( isset( $fields[$shortcut] ) ) {
                 update_post_meta( $post_id, $real_key, $fields[$shortcut] );
+                update_post_meta( $post_id, '_' . $real_key, 'field_' . $real_key );
             }
         }
         wp_send_json_success();
