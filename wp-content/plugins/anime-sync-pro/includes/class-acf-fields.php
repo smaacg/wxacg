@@ -24,6 +24,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Anime_Sync_ACF_Fields {
 
+    /**
+     * 全站共用 AI API Key 池(依供應商分池)。
+     * 結構:[ 'gemini' => "key1\nkey2", 'openai' => '', 'claude' => '' ]
+     * OpenAI / Claude 兩池目前保留供日後擴充,預設為空。
+     */
+    const SHARED_KEYS_OPTION = 'asp_ai_shared_keys';
+
+    /** 各 Key 池獨立的輪替游標。結構:[ 'gemini' => 0, 'openai' => 0, 'claude' => 0 ] */
+    const SHARED_CURSOR_OPTION = 'asp_ai_shared_key_cursor';
+
+    /** 共用 Key 的管理密碼雜湊。空值 = 尚未設定密碼的「首次設定模式」,管理員可免密碼直接設定。 */
+    const SHARED_PASSWORD_OPTION = 'asp_ai_shared_key_password_hash';
+
+    /** 解鎖 token 的 transient 名稱前綴(解鎖狀態不寫 Cookie,重整頁面即失效) */
+    const UNLOCK_TRANSIENT_PREFIX = 'asp_ai_key_unlock_';
+
+    /** 解鎖 token 有效秒數(僅為 transient 上限,實際重整頁面就要重新解鎖) */
+    const UNLOCK_TTL = 1800;
+
     public function __construct() {
         add_action( 'acf/init',         [ $this, 'register_all_field_groups' ] );
         add_action( 'add_meta_boxes',   [ $this, 'register_resync_metabox' ] );
@@ -52,7 +71,12 @@ class Anime_Sync_ACF_Fields {
         add_action( 'wp_ajax_asp_shortcut_ai_save_post', [ $this, 'ajax_shortcut_ai_save_post' ] );
         add_action( 'wp_ajax_asp_shortcut_ai_save_user', [ $this, 'ajax_shortcut_ai_save_user' ] );
         add_action( 'wp_ajax_asp_shortcut_ai_generate', [ $this, 'ajax_shortcut_ai_generate' ] );
-        
+
+        // 全站共用 API Key(管理員角色 + 管理密碼雙重鎖)
+        add_action( 'wp_ajax_asp_ai_shared_key_unlock', [ $this, 'ajax_ai_shared_key_unlock' ] );
+        add_action( 'wp_ajax_asp_ai_shared_key_save', [ $this, 'ajax_ai_shared_key_save' ] );
+        add_action( 'wp_ajax_asp_ai_shared_key_set_password', [ $this, 'ajax_ai_shared_key_set_password' ] );
+
         // CAST 字典管理與翻譯 AJAX
         add_action( 'wp_ajax_asp_shortcut_ai_cast_translate', [ $this, 'ajax_shortcut_ai_cast_translate' ] );
         add_action( 'wp_ajax_asp_cast_dict_load', [ $this, 'ajax_cast_dict_load' ] );
@@ -3387,6 +3411,10 @@ private function register_manga_fields(): void {
         $provider = get_user_meta($user_id, 'asp_ai_provider', true) ?: 'gemini';
         $model = get_user_meta($user_id, 'asp_ai_model_name', true) ?: 'gemini-3.7-flash';
 
+        // 全站共用 API Key:只有管理員看得到這個區塊;已設定管理密碼時預設鎖住,要輸入密碼才解鎖。
+        $can_manage_keys     = current_user_can( 'manage_options' );
+        $shared_password_set = $this->is_shared_key_password_set();
+
         ?>
         <style>
             #asp-ai-settings-accordion { margin-top: 20px; border: 1px solid #ccd0d4; background: #fff; }
@@ -3405,6 +3433,32 @@ private function register_manga_fields(): void {
         </style>
         <script>
         jQuery(document).ready(function($) {
+            // 模型下拉選單：依供應商切換，目前主要用 Gemini(3個型號),OpenAI/Claude 先各給一個預設值,保留後續擴充空間
+            var AI_MODEL_OPTIONS = {
+                gemini: [
+                    { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
+                    { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
+                    { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' }
+                ],
+                openai: [
+                    { value: 'gpt-4o', label: 'GPT-4o' }
+                ],
+                claude: [
+                    { value: 'claude-3-5-sonnet-20240620', label: 'Claude 3.5 Sonnet' }
+                ]
+            };
+
+            function renderModelOptions(provider, preferredModel) {
+                var options = AI_MODEL_OPTIONS[provider] || AI_MODEL_OPTIONS.gemini;
+                var hasPreferred = options.some(function(o) { return o.value === preferredModel; });
+                var selected = hasPreferred ? preferredModel : options[0].value;
+                var $select = $('#asp_ai_model_name');
+                $select.empty();
+                options.forEach(function(o) {
+                    $select.append($('<option>', { value: o.value, text: o.label, selected: o.value === selected }));
+                });
+            }
+
             function initAIPanel() {
                 if ($('#asp-btn-ai-generate').length) return;
 
@@ -3486,30 +3540,37 @@ private function register_manga_fields(): void {
                             <div style="display:flex; flex-direction:column; gap:5px;">
                                 <div style="display:flex; gap: 10px;">
                                     <button type="button" id="asp-btn-ai-settings-save" class="button button-primary" style="height:32px;">💾 儲存 AI 設定</button>
-                                    <button type="button" id="asp-btn-ai-settings-clear" class="button" style="height:32px;">🗑️ 清空所有 Key</button>
                                 </div>
                                 <span id="asp-ai-settings-msg" style="color:green; display:none; white-space:nowrap; text-align:center;">已儲存！</span>
                             </div>
                             
+                            <?php if ( $can_manage_keys ) : ?>
                             <div class="asp-ai-settings-item" style="display:flex; align-items:center; gap:5px;">
-                                <?php 
-                                    $saved_keys = get_user_meta( get_current_user_id(), 'asp_ai_api_key', true );
-                                    $key_count_display = 0;
-                                    if (!empty($saved_keys)) {
-                                        $lines = array_filter(array_map('trim', explode("\n", $saved_keys)));
-                                        $key_count_display = count($lines);
-                                    }
-                                ?>
-                                <label style="margin:0;">API Key
-                                    <span id="asp-key-count-display" style="color: green; font-weight: normal; margin-left: 5px; <?php echo $key_count_display > 0 ? '' : 'display:none;'; ?>">(🔒 目前已儲存 <?php echo $key_count_display; ?> 把)</span>
-                                </label>
-                                <input type="hidden" id="asp_ai_api_key" value="">
-                                <button type="button" id="asp-btn-edit-apikey" class="button" style="height:32px;">🔑 點此貼上多把 Key</button>
+                                <label style="margin:0;">API Key（全站共用）</label>
+
+                                <?php if ( $shared_password_set ) : ?>
+                                <span id="asp-shared-key-locked" style="display:flex; align-items:center; gap:5px;">
+                                    <span style="color:#b32d2e; font-weight:normal;">🔒 已鎖定</span>
+                                    <input type="password" id="asp-shared-key-password" placeholder="請輸入管理密碼" autocomplete="new-password" style="width:150px; height:32px;">
+                                    <button type="button" id="asp-btn-shared-key-unlock" class="button" style="height:32px;">🔓 解鎖</button>
+                                </span>
+                                <?php endif; ?>
+
+                                <span id="asp-shared-key-unlocked" style="<?php echo $shared_password_set ? 'display:none;' : 'display:flex;'; ?> align-items:center; gap:5px;">
+                                    <span id="asp-shared-key-state" style="color:green; font-weight:normal;"><?php echo $shared_password_set ? '' : '🔓 可設定'; ?></span>
+                                    <button type="button" id="asp-btn-edit-apikey" class="button" style="height:32px;">🔑 編輯共用 Key</button>
+                                    <button type="button" id="asp-btn-shared-key-password" class="button" style="height:32px;"><?php echo $shared_password_set ? '🔐 修改密碼' : '🔐 設定管理密碼'; ?></button>
+                                </span>
+
+                                <?php if ( ! $shared_password_set ) : ?>
+                                <span style="color:#b32d2e; font-weight:normal;">⚠️ 尚未設定管理密碼</span>
+                                <?php endif; ?>
                             </div>
-                            
+                            <?php endif; ?>
+
                             <div class="asp-ai-settings-item" style="display:flex; align-items:center; gap:5px;">
                                 <label style="margin:0;">模型名稱</label>
-                                <input type="text" id="asp_ai_model_name" value="<?php echo esc_attr($model); ?>" placeholder="gemini-3.7-flash" style="width: 150px; height: 32px;">
+                                <select id="asp_ai_model_name" style="width: 150px; height: 32px; line-height: 1.5;"></select>
                             </div>
 
                             <div class="asp-ai-settings-item" style="display:flex; align-items:center; gap:5px;">
@@ -3524,23 +3585,53 @@ private function register_manga_fields(): void {
                         </div>
                     </details>
                     
+                    <?php if ( $can_manage_keys ) : ?>
                     <div id="asp-apikey-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99999; justify-content:center; align-items:center;">
                         <div style="background:#fff; width:500px; max-width:90%; display:flex; flex-direction:column; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
                             <div style="padding:15px 20px; border-bottom:1px solid #e2e4e7; display:flex; justify-content:space-between; align-items:center; background:#f8f9fa; border-radius:8px 8px 0 0;">
-                                <h3 style="margin:0; font-size:16px;">🔑 編輯 API Key (可貼上多把，一行一把)</h3>
+                                <h3 style="margin:0; font-size:16px;">🔑 編輯全站共用 API Key (可貼上多把，一行一把)</h3>
                                 <button type="button" id="asp-apikey-close" style="background:none; border:none; font-size:20px; cursor:pointer; padding:0; color:#666;">&times;</button>
                             </div>
                             <div style="padding:20px; display:flex; flex-direction:column; gap:10px;">
-                                <div style="color:#666; font-size:13px;">為保障安全，此處不會顯示您原本已儲存的明文 Key。<br>如需新增或覆蓋，請直接在此處貼上全新的 Key 清單。</div>
-                                <textarea id="asp_ai_api_key_modal_input" placeholder="請在此貼上您的金鑰，一行一把..." style="width:100%; height:150px; resize:vertical; font-family:monospace; padding: 10px;"></textarea>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <label style="margin:0; font-weight:bold;">Key 池</label>
+                                    <select id="asp-apikey-pool" style="height:32px;">
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="openai">OpenAI (ChatGPT)</option>
+                                        <option value="claude">Anthropic Claude</option>
+                                    </select>
+                                    <span id="asp-apikey-pool-count" style="color:green; font-weight:normal;"></span>
+                                </div>
+                                <div style="color:#666; font-size:13px;">此處為<strong>全站共用</strong>設定，所有編輯者都會使用這組 Key。<br>為保障安全，不會顯示已儲存的明文 Key；按下儲存會<strong>整批覆蓋</strong>所選 Key 池。</div>
+                                <textarea id="asp_ai_api_key_modal_input" placeholder="請在此貼上金鑰，一行一把..." style="width:100%; height:150px; resize:vertical; font-family:monospace; padding: 10px;"></textarea>
                                 <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
                                     <button type="button" id="asp-apikey-cancel" class="button">取消</button>
-                                    <button type="button" id="asp-apikey-confirm" class="button button-primary">確定並套用</button>
+                                    <button type="button" id="asp-apikey-confirm" class="button button-primary">確定並儲存</button>
                                 </div>
                             </div>
                         </div>
-                    </div>`;
+                    </div>
+
+                    <div id="asp-keypass-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99999; justify-content:center; align-items:center;">
+                        <div style="background:#fff; width:420px; max-width:90%; display:flex; flex-direction:column; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                            <div style="padding:15px 20px; border-bottom:1px solid #e2e4e7; display:flex; justify-content:space-between; align-items:center; background:#f8f9fa; border-radius:8px 8px 0 0;">
+                                <h3 id="asp-keypass-title" style="margin:0; font-size:16px;">🔐 設定管理密碼</h3>
+                                <button type="button" id="asp-keypass-close" style="background:none; border:none; font-size:20px; cursor:pointer; padding:0; color:#666;">&times;</button>
+                            </div>
+                            <div style="padding:20px; display:flex; flex-direction:column; gap:10px;">
+                                <div style="color:#666; font-size:13px;">這組密碼用來保護全站共用 API Key。<br>設定後每次重新整理頁面都要重新輸入才能檢視或修改 Key。</div>
+                                <input type="password" id="asp-keypass-new" placeholder="新密碼（至少 6 個字元）" autocomplete="new-password" style="padding:8px;">
+                                <input type="password" id="asp-keypass-confirm" placeholder="再次輸入新密碼" autocomplete="new-password" style="padding:8px;">
+                                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+                                    <button type="button" id="asp-keypass-cancel" class="button">取消</button>
+                                    <button type="button" id="asp-keypass-save" class="button button-primary">儲存密碼</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>`;
                     $('#acf-group_anime_shortcuts_ai .inside').append(settingsHTML);
+                    renderModelOptions('<?php echo esc_js( $provider ); ?>', '<?php echo esc_js( $model ); ?>');
                 }
 
                 // 3. 鏡像複製 CAST 提示詞到左側 + 字典管理按鈕
@@ -3610,28 +3701,152 @@ private function register_manga_fields(): void {
                 acf.addAction('ready', initAIPanel);
             }
             initAIPanel();
-            
-            // API Key Modal 事件綁定
+
+            // AI 供應商切換時,模型下拉選單跟著換成對應清單(重設為該供應商的預設型號)
+            $(document).on('change', '#asp_ai_provider', function() {
+                renderModelOptions($(this).val(), '');
+            });
+
+            // ── 全站共用 API Key（管理員角色 + 管理密碼雙重鎖）────────────────────
+            // 解鎖通行證只放在這個變數裡,不寫 Cookie/localStorage,重整頁面即失效
+            var sharedKeyToken = '';
+
+            // 各池已儲存把數。鎖定狀態下不預先帶出(避免未解鎖就看到把數),解鎖或儲存後才由後端回填。
+            var sharedKeyCounts = <?php echo wp_json_encode( ( $can_manage_keys && ! $shared_password_set ) ? $this->get_shared_key_counts() : (object) [] ); ?>;
+
+            // 在編輯 Modal 的 Key 池下拉選單旁顯示該池目前的把數
+            function renderPoolCount() {
+                var pool = $('#asp-apikey-pool').val();
+                var count = (sharedKeyCounts && typeof sharedKeyCounts[pool] !== 'undefined') ? sharedKeyCounts[pool] : null;
+                $('#asp-apikey-pool-count').text(count === null ? '' : '(🔒 目前已儲存 ' + count + ' 把)');
+            }
+
+            // 解鎖：驗證管理密碼後才顯示把數與編輯按鈕
+            $(document).on('click', '#asp-btn-shared-key-unlock', function(e) {
+                e.preventDefault();
+                var btn = $(this);
+                var password = $('#asp-shared-key-password').val();
+                if (!password) { alert('請先輸入管理密碼'); return; }
+
+                btn.prop('disabled', true).text('驗證中...');
+                $.post(ajaxurl, {
+                    action: 'asp_ai_shared_key_unlock',
+                    nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                    password: password
+                }, function(res) {
+                    btn.prop('disabled', false).text('🔓 解鎖');
+                    if (res.success) {
+                        sharedKeyToken = res.data.token || '';
+                        sharedKeyCounts = res.data.counts || {};
+                        $('#asp-shared-key-password').val('');
+                        $('#asp-shared-key-locked').hide();
+                        $('#asp-shared-key-state').text('🔓 已解鎖');
+                        $('#asp-shared-key-unlocked').css('display', 'flex');
+                    } else {
+                        alert('解鎖失敗：' + (res.data || ''));
+                    }
+                }).fail(function() {
+                    btn.prop('disabled', false).text('🔓 解鎖');
+                    alert('發生網路錯誤，請重試！');
+                });
+            });
+
+            // 密碼欄位按 Enter 等同按下解鎖
+            $(document).on('keydown', '#asp-shared-key-password', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('#asp-btn-shared-key-unlock').click();
+                }
+            });
+
+            // 編輯共用 Key Modal
             $(document).on('click', '#asp-btn-edit-apikey', function(e) {
                 e.preventDefault();
                 $('#asp_ai_api_key_modal_input').val(''); // 開啟時保持清空，防窺
+                $('#asp-apikey-pool').val($('#asp_ai_provider').val() || 'gemini');
+                renderPoolCount();
                 $('#asp-apikey-modal').css('display', 'flex');
             });
+
+            // 切換 Key 池時，把數跟著換成該池的數字
+            $(document).on('change', '#asp-apikey-pool', renderPoolCount);
             $(document).on('click', '#asp-apikey-close, #asp-apikey-cancel', function(e) {
                 e.preventDefault();
                 $('#asp-apikey-modal').hide();
             });
             $(document).on('click', '#asp-apikey-confirm', function(e) {
                 e.preventDefault();
+                var btn = $(this);
                 var newKeys = $('#asp_ai_api_key_modal_input').val().trim();
-                $('#asp_ai_api_key').val(newKeys);
-                $('#asp-apikey-modal').hide();
-                
-                var btn = $('#asp-btn-edit-apikey');
-                btn.text('✅ 已輸入，請記得按儲存').css({'color': 'green', 'border-color': 'green'});
-                setTimeout(function() { 
-                    btn.text('🔑 點此貼上多把 Key').css({'color': '', 'border-color': ''}); 
-                }, 3000);
+                if (!newKeys) { alert('請先貼上至少一把 Key'); return; }
+
+                btn.prop('disabled', true).text('儲存中...');
+                $.post(ajaxurl, {
+                    action: 'asp_ai_shared_key_save',
+                    nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                    unlock_token: sharedKeyToken,
+                    provider: $('#asp-apikey-pool').val(),
+                    keys: newKeys
+                }, function(res) {
+                    btn.prop('disabled', false).text('確定並儲存');
+                    if (res.success) {
+                        sharedKeyCounts = res.data.counts || {};
+                        renderPoolCount();
+                        $('#asp_ai_api_key_modal_input').val('');
+                        $('#asp-apikey-modal').hide();
+                        alert(res.data.message || '已儲存');
+                    } else {
+                        alert('儲存失敗：' + (res.data || ''));
+                    }
+                }).fail(function() {
+                    btn.prop('disabled', false).text('確定並儲存');
+                    alert('發生網路錯誤，請重試！');
+                });
+            });
+
+            // 設定 / 修改管理密碼 Modal
+            $(document).on('click', '#asp-btn-shared-key-password', function(e) {
+                e.preventDefault();
+                $('#asp-keypass-new').val('');
+                $('#asp-keypass-confirm').val('');
+                $('#asp-keypass-title').text($(this).text().indexOf('修改') > -1 ? '🔐 修改管理密碼' : '🔐 設定管理密碼');
+                $('#asp-keypass-modal').css('display', 'flex');
+            });
+            $(document).on('click', '#asp-keypass-close, #asp-keypass-cancel', function(e) {
+                e.preventDefault();
+                $('#asp-keypass-modal').hide();
+            });
+            $(document).on('click', '#asp-keypass-save', function(e) {
+                e.preventDefault();
+                var btn = $(this);
+                var newPass = $('#asp-keypass-new').val();
+                var confirmPass = $('#asp-keypass-confirm').val();
+                if (newPass.length < 6) { alert('密碼長度至少需要 6 個字元'); return; }
+                if (newPass !== confirmPass) { alert('兩次輸入的密碼不一致'); return; }
+
+                btn.prop('disabled', true).text('儲存中...');
+                $.post(ajaxurl, {
+                    action: 'asp_ai_shared_key_set_password',
+                    nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
+                    unlock_token: sharedKeyToken,
+                    new_password: newPass
+                }, function(res) {
+                    btn.prop('disabled', false).text('儲存密碼');
+                    if (res.success) {
+                        // 換發新通行證,讓同一個頁面可以繼續操作
+                        sharedKeyToken = res.data.token || '';
+                        $('#asp-keypass-new').val('');
+                        $('#asp-keypass-confirm').val('');
+                        $('#asp-keypass-modal').hide();
+                        $('#asp-btn-shared-key-password').text('🔐 修改密碼');
+                        alert(res.data.message || '密碼已更新');
+                    } else {
+                        alert('儲存失敗：' + (res.data || ''));
+                    }
+                }).fail(function() {
+                    btn.prop('disabled', false).text('儲存密碼');
+                    alert('發生網路錯誤，請重試！');
+                });
             });
 
             // 字典管理事件綁定
@@ -3788,7 +4003,6 @@ private function register_manga_fields(): void {
                     action: 'asp_shortcut_ai_save_user',
                     nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
                     provider: $('#asp_ai_provider').val(),
-                    api_key: $('#asp_ai_api_key').val(),
                     model: $('#asp_ai_model_name').val(),
                     pref_synopsis: pref_synopsis,
                     pref_faq: pref_faq,
@@ -3797,30 +4011,12 @@ private function register_manga_fields(): void {
                     btn.prop('disabled', false).text('💾 儲存 AI 設定');
                     if(res.success) {
                         $('#asp-ai-settings-msg').show().delay(2000).fadeOut();
-                        
-                        var inputVal = $('#asp_ai_api_key').val().trim();
-                        if (inputVal === 'CLEAR_ALL_KEYS') {
-                            $('#asp-key-count-display').hide();
-                        } else if (inputVal !== '') {
-                            var lines = inputVal.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l !== ''; });
-                            if (lines.length > 0) {
-                                $('#asp-key-count-display').text('(🔒 目前已儲存 ' + lines.length + ' 把)').show();
-                            }
-                        }
-                        $('#asp_ai_api_key').val(''); // 清空密碼欄位以符合盲寫安全設計，不需重新整理網頁
                     } else {
                         alert('儲存失敗: ' + (res.data || ''));
                     }
                 });
             });
 
-            // 清空所有 Key
-            $(document).on('click', '#asp-btn-ai-settings-clear', function(e) {
-                e.preventDefault();
-                if (!confirm('確定要清空所有已儲存的 API Key 嗎？')) return;
-                $('#asp_ai_api_key').val('CLEAR_ALL_KEYS');
-                $('#asp-btn-ai-settings-save').click();
-            });
 
             // 儲存文章區塊
             $(document).on('click', '#asp-btn-ai-save', function(e) {
@@ -3909,7 +4105,7 @@ private function register_manga_fields(): void {
                 charKeys.forEach(k => allItems.push({ type: 'char', key: k, text: uniqueChar[k] }));
                 vaKeys.forEach(k => allItems.push({ type: 'va', key: k, text: uniqueVa[k] }));
                 
-                var batchSize = 150;
+                var batchSize = 120;
                 var globalMapping = { va: {}, char: {} };
                 
                 var f_ori_name = acf.getField($('.acf-field[data-name="anime_title_native"]'));
@@ -4428,21 +4624,9 @@ private function register_manga_fields(): void {
         
         $user_id = get_current_user_id();
         update_user_meta( $user_id, 'asp_ai_provider', sanitize_text_field($_POST['provider']) );
-        
-        // 處理 API Key 盲寫與多行儲存
-        if ( isset( $_POST['api_key'] ) ) {
-            $input_keys = wp_unslash($_POST['api_key']);
-            if ( trim($input_keys) === 'CLEAR_ALL_KEYS' ) {
-                update_user_meta( $user_id, 'asp_ai_api_key', '' );
-                update_user_meta( $user_id, 'asp_ai_key_cursor', 0 );
-            } else if ( trim($input_keys) !== '' ) {
-                $lines = array_map('trim', explode("\n", $input_keys));
-                $lines = array_filter($lines); // 移除空白行
-                update_user_meta( $user_id, 'asp_ai_api_key', implode("\n", $lines) );
-            }
-            // 若為空字串，代表前端盲寫模式沒有輸入新 key，則維持原本的設定不覆蓋
-        }
 
+        // API Key 已改為全站共用,由 ajax_ai_shared_key_save() 另行處理(需管理員權限 + 管理密碼),
+        // 這裡只保留每位使用者各自的供應商、模型與生成偏好。
         update_user_meta( $user_id, 'asp_ai_model_name', sanitize_text_field($_POST['model']) );
         
         if ( isset($_POST['pref_synopsis']) ) update_user_meta( $user_id, 'asp_ai_pref_shortcut_ai_generate_synopsis', intval($_POST['pref_synopsis']) );
@@ -4482,7 +4666,8 @@ private function register_manga_fields(): void {
         $model    = get_user_meta( $user_id, 'asp_ai_model_name', true );
 
         // Key 清單為空(含內容只有空白)時會直接回錯,避免後續 % 0 造成 Fatal
-        $key_set     = $this->get_api_key_set( $user_id );
+        // 改用全站共用 Key,依供應商分池取用
+        $key_set     = $this->get_api_key_set( $provider );
         $current_key = $key_set['current'];
 
         $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
@@ -4514,21 +4699,19 @@ private function register_manga_fields(): void {
                 // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
                 $this->send_api_failure(
                     [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
-                    $key_set,
-                    $user_id
+                    $key_set
                 );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( $code === 200 && isset( $body['choices'][0]['message']['content'] ) ) {
                 $result_text = $body['choices'][0]['message']['content'];
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+                $this->advance_key_cursor( $key_set );
             } else {
                 // 依失敗類型決定要不要換 Key,避免請求層級錯誤或安全阻擋也白白輪完所有 Key
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'openai' ),
                     $key_set,
-                    $user_id,
                     $is_retry
                 );
             }
@@ -4554,21 +4737,19 @@ private function register_manga_fields(): void {
                 // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
                 $this->send_api_failure(
                     [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
-                    $key_set,
-                    $user_id
+                    $key_set
                 );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( $code === 200 && isset( $body['content'][0]['text'] ) ) {
                 $result_text = $body['content'][0]['text'];
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+                $this->advance_key_cursor( $key_set );
             } else {
                 // 依失敗類型決定要不要換 Key,避免請求層級錯誤或安全阻擋也白白輪完所有 Key
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'claude' ),
                     $key_set,
-                    $user_id,
                     $is_retry
                 );
             }
@@ -4598,22 +4779,20 @@ private function register_manga_fields(): void {
                 // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
                 $this->send_api_failure(
                     [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
-                    $key_set,
-                    $user_id
+                    $key_set
                 );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( $code === 200 && isset( $body['candidates'][0]['content']['parts'][0]['text'] ) ) {
                 $result_text = $body['candidates'][0]['content']['parts'][0]['text'];
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+                $this->advance_key_cursor( $key_set );
             } else {
                 // 依失敗類型決定要不要換 Key。Gemini 因題材敏感回 200 卻無內容時,
                 // 這裡會回 content 類型並帶出 finishReason,不再誤報成「Key 失敗: HTTP 200」
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'gemini' ),
                     $key_set,
-                    $user_id,
                     $is_retry
                 );
             }
@@ -4780,10 +4959,10 @@ private function register_manga_fields(): void {
 
         $user_id = get_current_user_id();
         $provider = get_user_meta( $user_id, 'asp_ai_provider', true ) ?: 'gemini';
-        $api_key  = get_user_meta( $user_id, 'asp_ai_api_key', true );
         $model    = get_user_meta( $user_id, 'asp_ai_model_name', true );
-        
-        if ( empty( $api_key ) ) wp_send_json_error( '未設定 API Key' );
+
+        // 沿用原本的提早防呆:共用池沒有任何 Key 就先擋下,不必等到後面才失敗
+        if ( empty( $this->get_shared_pool_keys( $provider ) ) ) wp_send_json_error( '未設定 API Key' );
 
         $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
         // 前端在 3 秒重試倒數後,會帶著此旗標重打同一把 Key,見 send_api_failure()
@@ -4899,8 +5078,8 @@ private function register_manga_fields(): void {
         // 3. 發送 API 請求
         $result_text = '';
 
-        // 同上:集中處理 Key 拆解與游標防呆
-        $key_set     = $this->get_api_key_set( $user_id );
+        // 同上:集中處理 Key 拆解與游標防呆(全站共用 Key,依供應商分池)
+        $key_set     = $this->get_api_key_set( $provider );
         $current_key = $key_set['current'];
 
         if ( $provider === 'openai' ) {
@@ -4921,8 +5100,7 @@ private function register_manga_fields(): void {
                 // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
                 $this->send_api_failure(
                     [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
-                    $key_set,
-                    $user_id
+                    $key_set
                 );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
@@ -4931,13 +5109,12 @@ private function register_manga_fields(): void {
                 $result_text = $body['choices'][0]['message']['content'];
                 $parsed = json_decode( $result_text, true );
                 if ( isset($parsed['result']) ) { $result_text = wp_json_encode( $parsed['result'], JSON_UNESCAPED_UNICODE ); }
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+                $this->advance_key_cursor( $key_set );
             } else {
                 // 依失敗類型決定要不要換 Key,避免請求層級錯誤或安全阻擋也白白輪完所有 Key
                 $this->send_api_failure(
                     $this->classify_api_failure( $code, $body, 'openai' ),
                     $key_set,
-                    $user_id,
                     $is_retry
                 );
             }
@@ -4958,22 +5135,20 @@ private function register_manga_fields(): void {
                     // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
                     $this->send_api_failure(
                         [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
-                        $key_set,
-                        $user_id
+                        $key_set
                     );
                 }
                 $code = (int) wp_remote_retrieve_response_code( $response );
                 $body = json_decode( wp_remote_retrieve_body( $response ), true );
                 if ( $code === 200 && isset( $body['content'][0]['text'] ) ) {
                     $result_text = $body['content'][0]['text'];
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+                    $this->advance_key_cursor( $key_set );
                 } else {
                     // 依失敗類型決定要不要換 Key。CAST 每批 150 筆容易超出 max_tokens,
                     // 分類後會明確回報「被長度上限截斷」而非誤報成 Key 失效
                     $this->send_api_failure(
                         $this->classify_api_failure( $code, $body, 'claude' ),
                         $key_set,
-                        $user_id,
                         $is_retry
                     );
                 }
@@ -4994,22 +5169,20 @@ private function register_manga_fields(): void {
                     // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
                     $this->send_api_failure(
                         [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
-                        $key_set,
-                        $user_id
+                        $key_set
                     );
                 }
                 $code = (int) wp_remote_retrieve_response_code( $response );
                 $body = json_decode( wp_remote_retrieve_body( $response ), true );
                 if ( $code === 200 && isset( $body['candidates'][0]['content']['parts'][0]['text'] ) ) {
                     $result_text = $body['candidates'][0]['content']['parts'][0]['text'];
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+                    $this->advance_key_cursor( $key_set );
                 } else {
                     // 依失敗類型決定要不要換 Key。Gemini 因題材敏感回 200 卻無內容時,
                     // 這裡會回 content 類型並帶出 finishReason,不再誤報成「Key 失敗: HTTP 200」
                     $this->send_api_failure(
                         $this->classify_api_failure( $code, $body, 'gemini' ),
                         $key_set,
-                        $user_id,
                         $is_retry
                     );
                 }
@@ -5069,7 +5242,65 @@ private function register_manga_fields(): void {
 
 
     /**
-     * 取得目前使用者的 API Key 清單與輪替游標。
+     * 支援的 AI 供應商(同時也是 Key 池的分池依據)。
+     *
+     * @return array<int,string>
+     */
+    private function get_supported_providers(): array {
+        return [ 'gemini', 'openai', 'claude' ];
+    }
+
+    /**
+     * 把外部傳入的供應商字串收斂到支援清單,未知值一律當成 gemini(與既有預設一致)。
+     */
+    private function normalize_provider( string $provider ): string {
+        return in_array( $provider, $this->get_supported_providers(), true ) ? $provider : 'gemini';
+    }
+
+    /**
+     * 供應商顯示名稱(給訊息與面板使用,與前端下拉選單文字一致)。
+     */
+    private function get_provider_label( string $provider ): string {
+        $labels = [
+            'gemini' => 'Google Gemini',
+            'openai' => 'OpenAI (ChatGPT)',
+            'claude' => 'Anthropic Claude',
+        ];
+        return $labels[ $provider ] ?? $provider;
+    }
+
+    /**
+     * 取得指定供應商的全站共用 Key 清單(已去除空白行)。
+     *
+     * @return array<int,string>
+     */
+    private function get_shared_pool_keys( string $provider ): array {
+        $stored = get_option( self::SHARED_KEYS_OPTION, [] );
+        if ( ! is_array( $stored ) ) {
+            $stored = [];
+        }
+
+        $provider = $this->normalize_provider( $provider );
+        $raw      = isset( $stored[ $provider ] ) ? (string) $stored[ $provider ] : '';
+
+        return array_values( array_filter( array_map( 'trim', explode( "\n", $raw ) ) ) );
+    }
+
+    /**
+     * 取得各池目前已儲存的 Key 把數。
+     *
+     * @return array<string,int>
+     */
+    private function get_shared_key_counts(): array {
+        $counts = [];
+        foreach ( $this->get_supported_providers() as $provider ) {
+            $counts[ $provider ] = count( $this->get_shared_pool_keys( $provider ) );
+        }
+        return $counts;
+    }
+
+    /**
+     * 取得指定供應商的共用 API Key 清單與輪替游標。
      *
      * 集中處理多把 Key 的拆解與防呆:
      * - Key 內容只剩空白時直接回錯,避免後續 `% 0` 造成 DivisionByZeroError(整個 AJAX 回 500)。
@@ -5077,30 +5308,204 @@ private function register_manga_fields(): void {
      *
      * 注意:Key 清單為空時本方法會直接輸出 JSON 錯誤並結束請求。
      *
-     * @param int $user_id 使用者 ID。
-     * @return array{keys:array<int,string>, count:int, cursor:int, index:int, current:string}
+     * @param string $provider gemini|openai|claude,決定要用哪一池。
+     * @return array{keys:array<int,string>, count:int, cursor:int, index:int, current:string, provider:string}
      */
-    private function get_api_key_set( int $user_id ): array {
-        $raw = (string) get_user_meta( $user_id, 'asp_ai_api_key', true );
+    private function get_api_key_set( string $provider ): array {
+        $provider = $this->normalize_provider( $provider );
 
-        $keys  = array_values( array_filter( array_map( 'trim', explode( "\n", $raw ) ) ) );
+        $keys  = $this->get_shared_pool_keys( $provider );
         $count = count( $keys );
 
         if ( 0 === $count ) {
-            wp_send_json_error( '未設定 API Key,或設定內容只有空白。請到「⚙️ AI 帳號設定面板」重新填入。' );
+            wp_send_json_error(
+                '尚未設定「' . $this->get_provider_label( $provider ) . '」的全站共用 API Key,'
+                . '或設定內容只有空白。請由網站管理員到「⚙️ AI 帳號設定面板」填入。'
+            );
         }
 
         // 游標可能因舊資料或併發而異常,先夾到合法範圍再取餘數
-        $cursor = max( 0, (int) get_user_meta( $user_id, 'asp_ai_key_cursor', true ) );
+        $cursors = get_option( self::SHARED_CURSOR_OPTION, [] );
+        if ( ! is_array( $cursors ) ) {
+            $cursors = [];
+        }
+        $cursor = max( 0, isset( $cursors[ $provider ] ) ? (int) $cursors[ $provider ] : 0 );
         $index  = $cursor % $count;
 
         return [
-            'keys'    => $keys,
-            'count'   => $count,
-            'cursor'  => $cursor,
-            'index'   => $index,
-            'current' => $keys[ $index ],
+            'keys'     => $keys,
+            'count'    => $count,
+            'cursor'   => $cursor,
+            'index'    => $index,
+            'current'  => $keys[ $index ],
+            'provider' => $provider,
         ];
+    }
+
+    /**
+     * 將該池的輪替游標前進一格。
+     *
+     * 原本 8 處(6 個成功路徑 + send_api_failure() 的 2 個換 Key 分支)各自重複這段運算,
+     * 改用共用池後集中在這裡,避免各池游標寫法不一致。
+     *
+     * @param array $key_set get_api_key_set() 的結果。
+     */
+    private function advance_key_cursor( array $key_set ): void {
+        if ( empty( $key_set['count'] ) ) {
+            return;
+        }
+
+        $provider = $this->normalize_provider( (string) ( $key_set['provider'] ?? 'gemini' ) );
+
+        $cursors = get_option( self::SHARED_CURSOR_OPTION, [] );
+        if ( ! is_array( $cursors ) ) {
+            $cursors = [];
+        }
+        $cursors[ $provider ] = ( (int) $key_set['cursor'] + 1 ) % (int) $key_set['count'];
+
+        update_option( self::SHARED_CURSOR_OPTION, $cursors, false );
+    }
+
+    /**
+     * 是否已設定共用 Key 的管理密碼。
+     *
+     * 回傳 false 代表「首次設定模式」:管理員可免密碼直接設定 Key 與密碼。
+     */
+    private function is_shared_key_password_set(): bool {
+        return '' !== (string) get_option( self::SHARED_PASSWORD_OPTION, '' );
+    }
+
+    /**
+     * 發給前端一張一次性解鎖通行證(存在短效 transient,不寫 Cookie)。
+     */
+    private function issue_unlock_token(): string {
+        $token = wp_generate_password( 32, false );
+        set_transient( self::UNLOCK_TRANSIENT_PREFIX . $token, get_current_user_id(), self::UNLOCK_TTL );
+        return $token;
+    }
+
+    /**
+     * 驗證解鎖通行證,並確認是發給同一位使用者的(避免 token 被轉用)。
+     */
+    private function verify_unlock_token( string $token ): bool {
+        if ( '' === $token ) {
+            return false;
+        }
+
+        $owner = get_transient( self::UNLOCK_TRANSIENT_PREFIX . $token );
+
+        return ( false !== $owner && (int) $owner === get_current_user_id() );
+    }
+
+    /**
+     * 共用 Key 寫入類操作的統一守門:管理員角色 + 有效解鎖通行證。
+     *
+     * 尚未設定管理密碼時為「首次設定模式」,只驗管理員角色,讓第一次可以順利設定。
+     * 本方法在不通過時會直接輸出 JSON 錯誤並結束請求。
+     */
+    private function require_shared_key_access(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( '權限不足:只有網站管理員可以檢視或修改全站共用 API Key。' );
+        }
+
+        // 首次設定模式:尚未設定密碼,不需要通行證
+        if ( ! $this->is_shared_key_password_set() ) {
+            return;
+        }
+
+        $token = isset( $_POST['unlock_token'] ) ? sanitize_text_field( wp_unslash( $_POST['unlock_token'] ) ) : '';
+
+        if ( ! $this->verify_unlock_token( $token ) ) {
+            wp_send_json_error( '解鎖狀態已失效,請重新輸入管理密碼後再試。' );
+        }
+    }
+
+    /**
+     * 驗證管理密碼並發給解鎖通行證。
+     *
+     * 尚未設定密碼時直接回報首次設定模式,讓面板開放操作。
+     */
+    public function ajax_ai_shared_key_unlock(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( '權限不足:只有網站管理員可以檢視或修改全站共用 API Key。' );
+        }
+
+        if ( ! $this->is_shared_key_password_set() ) {
+            wp_send_json_success( [
+                'first_time' => true,
+                'token'      => '',
+                'counts'     => $this->get_shared_key_counts(),
+            ] );
+        }
+
+        $password = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
+
+        if ( '' === $password || ! wp_check_password( $password, (string) get_option( self::SHARED_PASSWORD_OPTION, '' ) ) ) {
+            wp_send_json_error( '管理密碼錯誤。' );
+        }
+
+        wp_send_json_success( [
+            'first_time' => false,
+            'token'      => $this->issue_unlock_token(),
+            'counts'     => $this->get_shared_key_counts(),
+        ] );
+    }
+
+    /**
+     * 儲存指定供應商池的共用 Key 清單(整批覆蓋)。
+     *
+     * 沿用既有的盲寫設計:送出空字串代表沒有輸入新內容,維持原本設定不覆蓋。
+     */
+    public function ajax_ai_shared_key_save(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        $this->require_shared_key_access();
+
+        $provider = isset( $_POST['provider'] ) ? $this->normalize_provider( sanitize_text_field( wp_unslash( $_POST['provider'] ) ) ) : 'gemini';
+        $input    = isset( $_POST['keys'] ) ? (string) wp_unslash( $_POST['keys'] ) : '';
+
+        if ( '' === trim( $input ) ) {
+            wp_send_json_error( '沒有輸入任何 Key,已維持原本設定不變更。' );
+        }
+
+        $lines = array_values( array_filter( array_map( 'trim', explode( "\n", $input ) ) ) );
+
+        $stored = get_option( self::SHARED_KEYS_OPTION, [] );
+        if ( ! is_array( $stored ) ) {
+            $stored = [];
+        }
+        $stored[ $provider ] = implode( "\n", $lines );
+
+        update_option( self::SHARED_KEYS_OPTION, $stored, false );
+
+        wp_send_json_success( [
+            'counts'  => $this->get_shared_key_counts(),
+            'message' => '已更新「' . $this->get_provider_label( $provider ) . '」共用 Key,共 ' . count( $lines ) . ' 把。',
+        ] );
+    }
+
+    /**
+     * 設定或變更共用 Key 的管理密碼。
+     *
+     * 變更成功後會換發新的解鎖通行證,讓管理員在同一個頁面可以繼續操作。
+     */
+    public function ajax_ai_shared_key_set_password(): void {
+        check_ajax_referer( 'asp_ai_nonce', 'nonce' );
+        $this->require_shared_key_access();
+
+        $new_password = isset( $_POST['new_password'] ) ? (string) wp_unslash( $_POST['new_password'] ) : '';
+
+        if ( mb_strlen( $new_password ) < 6 ) {
+            wp_send_json_error( '密碼長度至少需要 6 個字元。' );
+        }
+
+        update_option( self::SHARED_PASSWORD_OPTION, wp_hash_password( $new_password ), false );
+
+        wp_send_json_success( [
+            'token'   => $this->issue_unlock_token(),
+            'message' => '管理密碼已更新,下次重新整理頁面後需要用新密碼解鎖。',
+        ] );
     }
 
     /**
@@ -5245,16 +5650,15 @@ private function register_manga_fields(): void {
      * retryable(5xx)則先讓前端原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才視同 Key 失效換下一把。
      *
      * @param array $failure  classify_api_failure() 的結果。
-     * @param array $key_set  get_api_key_set() 的結果。
-     * @param int   $user_id  使用者 ID。
+     * @param array $key_set  get_api_key_set() 的結果(內含 provider,游標由 advance_key_cursor() 依池推進)。
      * @param bool  $is_retry 是否為前端 3 秒後帶著 ai_retry_after_error 旗標送來的重試請求。
      * @return void 本方法一定會結束請求。
      */
-    private function send_api_failure( array $failure, array $key_set, int $user_id, bool $is_retry = false ): void {
+    private function send_api_failure( array $failure, array $key_set, bool $is_retry = false ): void {
         $key_no = $key_set['index'] + 1;
 
         if ( 'key' === $failure['type'] ) {
-            update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+            $this->advance_key_cursor( $key_set );
 
             wp_send_json_error( [
                 'type'       => 'key_failed',
@@ -5276,7 +5680,7 @@ private function register_manga_fields(): void {
                 ] );
             }
 
-            update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+            $this->advance_key_cursor( $key_set );
 
             wp_send_json_error( [
                 'type'       => 'key_failed',
