@@ -2991,7 +2991,7 @@ while ( have_posts() ) :
 
 				<div class="asd-hero-scores-new">
 					<?php if ( $score_anilist ) : ?>
-						<div class="asd-score-pill asd-score-pill--al">
+						<div class="asd-score-pill asd-score-pill--al" title="AniList－國際動漫評分資料庫">
 							<span class="asd-sp-dot" aria-hidden="true"></span>
 							<span class="asd-sp-val"><?php echo esc_html( $score_anilist ); ?></span>
 							<span class="asd-sp-label">AniList</span>
@@ -2999,7 +2999,7 @@ while ( have_posts() ) :
 					<?php endif; ?>
 
 					<?php if ( $score_mal ) : ?>
-						<div class="asd-score-pill asd-score-pill--mal">
+						<div class="asd-score-pill asd-score-pill--mal" title="MyAnimeList（MAL）－國際動漫評分資料庫">
 							<span class="asd-sp-dot" aria-hidden="true"></span>
 							<span class="asd-sp-val"><?php echo esc_html( $score_mal ); ?></span>
 							<span class="asd-sp-label">MAL</span>
@@ -3007,14 +3007,14 @@ while ( have_posts() ) :
 					<?php endif; ?>
 
 					<?php if ( $score_bangumi ) : ?>
-						<div class="asd-score-pill asd-score-pill--bgm">
+						<div class="asd-score-pill asd-score-pill--bgm" title="Bangumi（bgm.tv）－大陸地區動漫社群評分">
 							<span class="asd-sp-dot" aria-hidden="true"></span>
 							<span class="asd-sp-val"><?php echo esc_html( $score_bangumi ); ?></span>
 							<span class="asd-sp-label">Bangumi</span>
 						</div>
 					<?php endif; ?>
 
-					<div class="asd-score-pill asd-score-pill--site">
+					<div class="asd-score-pill asd-score-pill--site" title="本站會員評分">
 						<span class="asd-sp-dot" aria-hidden="true"></span>
 						<span class="asd-sp-val wacg-hero-score">
 							<?php
@@ -3023,7 +3023,7 @@ while ( have_posts() ) :
 								: '—';
 							?>
 						</span>
-						<span class="asd-sp-label">WeixiaoAcg</span>
+						<span class="asd-sp-label">本站</span>
 					</div>
 				</div>
 
@@ -3153,7 +3153,7 @@ while ( have_posts() ) :
 				<div class="asd-hside-title">評分</div>
 
 				<?php if ( $score_anilist ) : ?>
-					<div class="asd-hside-row">
+					<div class="asd-hside-row" title="AniList－國際動漫評分資料庫">
 						<span class="asd-hside-dot asd-hside-dot--al" aria-hidden="true"></span>
 						<span class="asd-hside-key">AniList</span>
 						<span class="asd-hside-val"><?php echo esc_html( $score_anilist ); ?></span>
@@ -3161,7 +3161,7 @@ while ( have_posts() ) :
 				<?php endif; ?>
 
 				<?php if ( $score_mal ) : ?>
-					<div class="asd-hside-row">
+					<div class="asd-hside-row" title="MyAnimeList（MAL）－國際動漫評分資料庫">
 						<span class="asd-hside-dot asd-hside-dot--mal" aria-hidden="true"></span>
 						<span class="asd-hside-key">MAL</span>
 						<span class="asd-hside-val"><?php echo esc_html( $score_mal ); ?></span>
@@ -3169,7 +3169,7 @@ while ( have_posts() ) :
 				<?php endif; ?>
 
 				<?php if ( $score_bangumi ) : ?>
-					<div class="asd-hside-row">
+					<div class="asd-hside-row" title="Bangumi（bgm.tv）－大陸地區動漫社群評分">
 						<span class="asd-hside-dot asd-hside-dot--bgm" aria-hidden="true"></span>
 						<span class="asd-hside-key">Bangumi</span>
 						<span class="asd-hside-val"><?php echo esc_html( $score_bangumi ); ?></span>
@@ -3179,9 +3179,9 @@ while ( have_posts() ) :
 				<div class="wacg-rating-divider"></div>
 
 				<div id="wacg-rating-stats" class="wacg-rating-stats">
-					<div class="wacg-score-row">
+					<div class="wacg-score-row" title="本站會員評分">
 						<span class="asd-hside-dot wacg-dot-site" aria-hidden="true"></span>
-						<span class="asd-hside-key">WeixiaoAcg</span>
+						<span class="asd-hside-key">本站</span>
 						<span class="asd-hside-val wacg-score-main">
 							<?php
 							echo $site_score > 0
