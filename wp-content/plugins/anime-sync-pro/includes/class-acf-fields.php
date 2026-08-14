@@ -67,23 +67,318 @@ class Anime_Sync_ACF_Fields {
     }
 
     /**
-     * 全人工模式：組出可餵給 AI 對話視窗的短評提示詞（含該作品繁中標題）。
+     * 全人工模式：從站上既有 ACF 資料自動組出【已查證資料】區塊的各欄位值。
      *
-     * @param string $title 作品繁中標題。
+     * 只填站上「結構化欄位已經有」的事實（原作來源、製作公司、STAFF／CAST JSON
+     * 解析出的監督與主要聲優、播出狀態）；台灣分級站上完全沒有對應欄位，
+     * 一律留空，交由 AI 走途徑 A 搜尋或編輯手動補上——避免把「猜的」當「查證過的」。
+     *
+     * @param int    $post_id 動畫文章 ID。
+     * @param string $title   作品繁中標題。
+     * @return array<string,string> 以【已查證資料】欄位名稱為 key。
+     */
+    private function gather_verified_facts( int $post_id, string $title ): array {
+        $facts = [
+            '作品名稱' => ( '' !== trim( $title ) )
+                ? trim( $title )
+                : '（尚未填寫，請先在旁邊「繁中標題」欄位輸入作品名稱）',
+            '原作出處' => '',
+            '製作公司' => '',
+            '監督'     => '',
+            '主要聲優' => '',
+            '台灣分級' => '', // 站上無此欄位，永遠留空由 AI 查證或人工補。
+            '播映狀態' => '',
+        ];
+
+        if ( $post_id <= 0 ) {
+            return $facts;
+        }
+
+        // 原作出處
+        $source_labels = [
+            'ORIGINAL'           => '原創',
+            'MANGA'              => '漫畫',
+            'LIGHT_NOVEL'        => '輕小說',
+            'VISUAL_NOVEL'       => '視覺小說',
+            'VIDEO_GAME'         => '電子遊戲',
+            'GAME'               => 'Comic Game（桌遊／卡牌）',
+            'NOVEL'              => '小說',
+            'WEB_NOVEL'          => '網路小說',
+            'WEB_MANGA'          => '網路漫畫',
+            'DOUJINSHI'          => '同人誌',
+            'ANIME'              => '動畫',
+            'COMIC'              => '歐美漫畫',
+            'LIVE_ACTION'        => '真人影視',
+            'MULTIMEDIA_PROJECT' => '多媒體企劃',
+            'PICTURE_BOOK'       => '繪本',
+            'OTHER'              => '其他',
+        ];
+        $source = strtoupper( trim( (string) get_post_meta( $post_id, 'anime_source', true ) ) );
+        if ( isset( $source_labels[ $source ] ) ) {
+            $facts['原作出處'] = $source_labels[ $source ];
+        }
+
+        // 製作公司（純文字，逗號分隔字串，直接沿用）
+        $studios = trim( (string) get_post_meta( $post_id, 'anime_studios', true ) );
+        if ( '' !== $studios ) {
+            $facts['製作公司'] = $studios;
+        }
+
+        // 監督：從 STAFF JSON 篩出「監督／導演」角色（排除副導演、作畫監督等子職位）
+        $staff_list = json_decode( (string) get_post_meta( $post_id, 'anime_staff_json', true ), true );
+        if ( is_array( $staff_list ) ) {
+            $directors = [];
+            foreach ( $staff_list as $staff_item ) {
+                if ( ! is_array( $staff_item ) ) {
+                    continue;
+                }
+                $role = trim( (string) ( $staff_item['role'] ?? '' ) );
+                $name = trim( (string) ( $staff_item['name'] ?? '' ) );
+                if ( '' === $role || '' === $name ) {
+                    continue;
+                }
+                if ( $this->is_editorial_director_role( $role ) ) {
+                    $directors[] = $name;
+                }
+            }
+            $directors = array_values( array_unique( $directors ) );
+            if ( ! empty( $directors ) ) {
+                $facts['監督'] = implode( '、', $directors );
+            }
+        }
+
+        // 主要聲優：CAST JSON 中角色欄位為「主角」或 MAIN 的第一位聲優
+        $cast_list = json_decode( (string) get_post_meta( $post_id, 'anime_cast_json', true ), true );
+        if ( is_array( $cast_list ) ) {
+            $actors = [];
+            foreach ( $cast_list as $cast_item ) {
+                if ( ! is_array( $cast_item ) ) {
+                    continue;
+                }
+                $cast_role = trim( (string) ( $cast_item['role'] ?? '' ) );
+                if ( '主角' !== $cast_role && 'MAIN' !== strtoupper( $cast_role ) ) {
+                    continue;
+                }
+                $voice_actors = ( ! empty( $cast_item['voice_actors'] ) && is_array( $cast_item['voice_actors'] ) )
+                    ? $cast_item['voice_actors']
+                    : [];
+                $voice_actor = is_array( $voice_actors[0] ?? null ) ? $voice_actors[0] : [];
+                $va_name     = trim( (string) ( $voice_actor['name'] ?? '' ) );
+                if ( '' !== $va_name ) {
+                    $actors[] = $va_name;
+                }
+            }
+            $actors = array_values( array_unique( $actors ) );
+            if ( ! empty( $actors ) ) {
+                $facts['主要聲優'] = implode( '、', array_slice( $actors, 0, 6 ) );
+            }
+        }
+
+        // 播映狀態
+        $status_labels = [
+            'FINISHED'         => '已完結',
+            'RELEASING'        => '連載中',
+            'NOT_YET_RELEASED' => '尚未播出',
+            'CANCELLED'        => '已取消',
+            'HIATUS'           => '休播中',
+        ];
+        $status = strtoupper( trim( (string) get_post_meta( $post_id, 'anime_status', true ) ) );
+        if ( isset( $status_labels[ $status ] ) ) {
+            $facts['播映狀態'] = $status_labels[ $status ];
+        }
+
+        return $facts;
+    }
+
+    /**
+     * 判斷 STAFF JSON 的 role 字串是否為「監督／總導演」本人，排除副導演、
+     * 作畫監督、音響監督等子職位。邏輯與前台 single-anime.php 的
+     * $is_main_director_role 一致，避免把子職位誤認為監督寫進短評提示詞。
+     *
+     * @param string $role STAFF 項目的職位字串。
+     * @return bool
+     */
+    private function is_editorial_director_role( string $role ): bool {
+        $role = trim( wp_strip_all_tags( $role ) );
+
+        if ( '' === $role ) {
+            return false;
+        }
+
+        $excluded_pattern =
+            '/副導演|副导演|助理導演|助理导演|助監督|助监督|'
+            . '副監督|副监督|監督補佐|监督补佐|'
+            . '作畫監督|作画監督|動畫監督|动画監督|'
+            . '美術監督|美术監督|攝影監督|摄影監督|'
+            . '音響監督|音响監督|音樂監督|音乐監督|'
+            . '3D監督|3D监督|CG監督|CG监督|'
+            . 'アニメーション監督|エピソードディレクター|'
+            . 'episode\s*director|assistant\s*director|'
+            . 'animation\s*director|art\s*director|'
+            . 'sound\s*director|music\s*director|'
+            . 'director\s+of\s+photography|'
+            . 'photography\s*director/iu';
+
+        if ( preg_match( $excluded_pattern, $role ) ) {
+            return false;
+        }
+
+        $director_pattern =
+            '/(?:^|[\s\/／、,，;；・])'
+            . '(?:總導演|总导演|導演|导演|'
+            . '總監督|总监督|総監督|監督|'
+            . 'director|series\s*director|chief\s*director)'
+            . '(?=$|[\s\/／、,，;；・])/iu';
+
+        return (bool) preg_match( $director_pattern, $role );
+    }
+
+    /**
+     * 全人工模式：組出可餵給 AI 對話視窗的短評提示詞。
+     *
+     * 【已查證資料】區塊的欄位值來自 gather_verified_facts()：站上已有結構化
+     * 資料的欄位（作品名稱／原作出處／製作公司／監督／主要聲優／播映狀態）
+     * 自動帶入，讓貼到不具搜尋能力的 AI（如未開啟 Grounding 的 Gemini）也能
+     * 直接查證撰寫；台灣分級站上無資料，一律留白交由 AI 走途徑 A 搜尋
+     * 或編輯走途徑 B 人工填入。
+     *
+     * @param array<string,string> $facts gather_verified_facts() 回傳的欄位值。
      * @return string
      */
-    private function build_editorial_ai_prompt( string $title ): string {
-        $title = trim( $title );
-        $name  = ( '' !== $title ) ? '《' . $title . '》' : '本作品';
+    private function build_editorial_ai_prompt( array $facts ): string {
+        $prompt = <<<'EOT'
+【已查證資料】
+作品名稱:
+原作出處:
+製作公司:
+監督:
+主要聲優:
+台灣分級:
+播映狀態:
+其他(角色年齡、集數、年份等具體數字):
+(以上為人工查證結果,視同已查證。此處未列出的事實一律不得寫入短評。)
 
-        return "請為動畫{$name}撰寫一段 120～160 字的繁體中文原創推薦短評，用於動漫資訊網站的編輯短評。\n"
-            . "① 先查證真實資料（原作、製作公司、監督、聲優、劇情走向），嚴禁杜撰不存在的角色、聲優、製作人或獎項。\n"
-            . "② 只有在確認台灣有合法上架時才寫出確切平台名；無法確認就完全不提平台，禁止「各大串流」「其他合法平台」等籠統說法。\n"
-            . "③ 提供具體、不劇透的觀點，不要照抄官方簡介。\n"
-            . "④ 語氣自然口語、有觀點但不誇大，使用台灣慣用詞（聲優、追番、新番、劇場版）。\n"
-            . "⑤ 題材若涉及成人／敏感內容，語氣客觀中性、只做分級提醒、不做推薦。\n"
-            . "⑥ 避免罐頭套語：「高品質作畫」「光影處理」「細膩」「值得一看」「不自覺期待」。\n"
-            . "⑦ 只輸出短評本文，不加標題、引號或說明。";
+【角色】
+你是動漫資料庫網站「微笑動漫」的編輯,負責撰寫作品頁的「編輯短評」
+(ACF 欄位:anime_editor_summary)。
+
+【執行順序|必須依序完成,不得跳步】
+第一步:確認事實來源。有兩種合法途徑,擇一:
+  (A) 使用搜尋工具查證下列項目:原作出處、製作公司、監督、主要聲優、
+      台灣分級、播映狀態。
+  (B) 若本環境無搜尋工具,改用【已查證資料】區塊提供的資料。該區塊內容
+      視同已查證,查證清單的來源欄位填「使用者提供」。區塊未提供的項目
+      一律不得寫入短評。
+  若兩者皆無,直接輸出「無可用事實來源,任務中止」並停止,不撰寫短評。
+第二步:根據第一步結果撰寫短評本文。
+第三步:計算字元數。
+第四步:整理待人工確認事項。
+
+【頁面脈絡|決定你該寫什麼】
+本頁已有下列自動同步區塊,會獨立顯示,短評不得複述:
+- 基本資訊:製作公司、原作來源、集數、時長、播出季度、台灣代理、
+  播出頻道、配音版本、資料更新日
+- STAFF:監督及各職位人員
+- CAST:角色與聲優
+- 劇情簡介:官方簡介全文
+- 合法串流平台:台灣上架平台(隨授權異動更新)
+- 側欄標籤:製作公司、季度、類型
+
+短評是本頁唯一的人工原創內容,價值只在結構化資料寫不出來的部分:
+觀點、質感判斷、適合與不適合的族群。
+
+【硬性禁止】
+1. 嚴禁寫出任何串流平台名稱或上架狀態。平台資訊由串流區塊負責,
+   寫進短評會產生無法同步的過期副本,授權異動後兩處互相矛盾。
+2. 嚴禁以「改編自◯◯」「由◯◯製作、◯◯執導」這類 credit 列名開場。
+   人名與公司名僅在「作為論點依據」時可提及——例如某位聲優的表現如何、
+   某段落看得出該工作室的一貫取向;不得只是列名。
+
+【字數|硬性】
+- 純文字長度(含標點,等同 mb_strlen(wp_strip_all_tags()))須為 170～220。
+- 低於 150 會被系統判定 thin content 並自動 noindex。
+- 【字元數】欄位不得留空。若無法計算,須寫出「無法計算」並說明原因。
+
+【查證規則|最高優先】
+1. 查不到、或【已查證資料】未提供的項目,一律整項不寫,不得推測、
+   不得以同類作品的常見答案填補、不得改用模糊描述帶過。
+2. 嚴禁杜撰角色、聲優、製作人員、獎項、集數、播映日期。
+3. 短評中出現的任何具體數字(角色年齡、集數、年份、話數)都必須列入
+   查證清單;未列入者一律不得寫入短評——包含在對話中出現、但不在
+   【已查證資料】區塊內的數字。對話中提過不等於已查證。
+4. 走途徑 (A) 時,每筆 URL 必須是該項目內容的實際出處,且為文章完整
+   網址,不得只寫網域首頁。若手邊 URL 的內容與項目不符,該項目移入
+   「查無資料而省略」,不得填入相近但無關的連結。留白是被允許的,
+   填錯不被允許。
+5. 走途徑 (A) 時,URL 須為原始文章網址,不得使用搜尋引擎跳轉網址、
+   重新導向連結或任何 vertexaisearch / grounding-api 類型的中介網址。
+6. 未播出作品(status = NOT_YET_RELEASED)不得寫任何觀後感,改以
+   「可期待/需觀望的點」撰寫,並明確標示為播出前預期。
+
+【內容規範|EEAT】
+- Experience:至少一項看過才寫得出來的具體觀察(節奏處理、笑點型態、
+  聲線表現、分鏡習慣等),不得劇透關鍵轉折或結局。
+- Expertise:至少一項類型脈絡判斷(與同類型作品的差異、漫改取捨、
+  該製作公司的一貫風格是否延續),不得複述官方簡介或維基句式。
+- Trustworthiness:須明確寫出台灣分級,必要時做內容警示(吸菸、飲酒、
+  暴力、性暗示)。須包含一句「可能不合胃口的點」或「不適合誰」,
+  不得通篇正面。
+
+【SEO】
+- 主關鍵詞為作品中文標題,自然出現 1～2 次,首次盡量在前 40 字內。
+- 可帶入 1 個長尾變體(如「◯◯◯ 好看嗎」「◯◯◯ 值得追嗎」),
+  但不得為塞詞破壞語句通順。
+
+【格式】
+- 繁體中文(台灣用語):聲優、追番、新番、劇場版、跟播、監督。
+- 全形標點,句號用「。」不用「.」,引號用「「」」。
+- 純文字。輸出經 wpautop() 處理,可用空行分段,但不得使用 markdown
+  標記(#、*、-、**)或 HTML 標籤,會原樣顯示。
+- 自然口語,有觀點但不誇大,不使用行銷式吹捧。
+- 題材涉及成人或敏感內容時轉為客觀中性,只做分級提醒、不做推薦。
+
+【禁用套語】
+高品質作畫、光影處理、細膩、細緻、值得一看、不自覺期待、必看、神作、
+療癒人心、值得細細品味、不容錯過、堪稱一絕、令人動容、
+讓人欲罷不能、後勁十足。
+
+【輸出格式|嚴格遵守,不得增加額外段落或說明文字】
+
+【短評本文】
+(純文字,直接可貼入 anime_editor_summary。此區塊內只放短評,
+不得附加來源標記、註腳或補充說明。)
+
+【字元數】
+(數字;不得留空)
+
+【查證清單】
+(純文字,禁止使用 markdown 連結語法。每筆獨立一行,格式為
+「項目(內容) | 來源」。走途徑 A 時來源填完整 URL,URL 後不得接任何
+文字,行末即結束;走途徑 B 時來源填「使用者提供」。)
+原作出處(◯◯◯) |
+製作公司(◯◯◯) |
+監督(◯◯◯) |
+主要聲優(◯◯◯) |
+台灣分級(◯◯◯) |
+播映狀態(◯◯◯) |
+
+查無資料而省略:(逐項列出,無則寫「無」)
+
+【待人工確認】
+(列出填寫 anime_editorial_author 前應覆核的具體事項)
+EOT;
+
+        foreach ( $facts as $label => $value ) {
+            $value = trim( (string) $value );
+
+            if ( '' === $value ) {
+                continue;
+            }
+
+            $prompt = str_replace( $label . ":\n", $label . ':' . $value . "\n", $prompt );
+        }
+
+        return $prompt;
     }
 
     /**
@@ -108,18 +403,15 @@ class Anime_Sync_ACF_Fields {
             }
         }
 
-        $prompt      = $this->build_editorial_ai_prompt( $title );
+        $facts       = $this->gather_verified_facts( $post_id, $title );
+        $prompt      = $this->build_editorial_ai_prompt( $facts );
         $title_label = ( '' !== $title ) ? esc_html( $title ) : '（尚未填繁中標題）';
 
         $field['message'] =
             '<div class="asp-ai-prompt-helper" style="background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:10px 12px;">'
             . '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
-            . '<button type="button" class="button button-primary" '
-            . 'onclick="var t=this.parentNode.parentNode.querySelector(\'.asp-prompt-text\');t.focus();t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand(\'copy\');}this.textContent=\'✅ 已複製\';setTimeout(function(b){return function(){b.textContent=\'📋 複製提示詞\';};}(this),1500);">'
+            . '<button type="button" class="button button-primary asp-copy-prompt-btn">'
             . '📋 複製提示詞</button>'
-            . '<button type="button" class="button" '
-            . 'onclick="var t=this.parentNode.parentNode.querySelector(\'.asp-prompt-title\');if(t){t.focus();t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand(\'copy\');}this.textContent=\'✅ 已複製標題\';setTimeout(function(b){return function(){b.textContent=\'📋 複製繁中標題\';};}(this),1500);}">'
-            . '📋 複製繁中標題</button>'
             . '<strong>🤖 丟給 AI 找資料的提示詞</strong>'
             . '<span style="color:#50575e;">作品：<strong>' . $title_label . '</strong></span>'
             . '</div>'
@@ -2618,6 +2910,34 @@ private function register_manga_fields(): void {
                 acf.addAction('ready', injectButton);
             }
 
+            // 「📋 複製提示詞」按鈕：ACF message 欄位內容會被 wp_kses 過濾，
+            // inline onclick 屬性不在允許清單內會被剔除，改用委派事件綁定。
+            $(document).on('click', '.asp-copy-prompt-btn', function(e) {
+                e.preventDefault();
+
+                var $btn = $(this);
+                var $textarea = $btn.closest('.asp-ai-prompt-helper').find('.asp-prompt-text');
+                if (!$textarea.length) return;
+
+                var text = $textarea.val();
+                var showCopied = function() {
+                    $btn.text('✅ 已複製');
+                    setTimeout(function() { $btn.text('📋 複製提示詞'); }, 1500);
+                };
+                var fallbackCopy = function() {
+                    $textarea[0].focus();
+                    $textarea[0].select();
+                    document.execCommand('copy');
+                    showCopied();
+                };
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(showCopied).catch(fallbackCopy);
+                } else {
+                    fallbackCopy();
+                }
+            });
+
             $(document).on('click', '#asp-btn-save-sync', function(e) {
                 e.preventDefault();
                 if (typeof acf === 'undefined') return;
@@ -2704,6 +3024,11 @@ private function register_manga_fields(): void {
                 update_post_meta( $post_id, '_' . $real_key, 'field_' . $real_key );
             }
         }
+
+        // 捷徑盒走 AJAX 不會呼叫 wp_update_post()，post_modified 不會刷新，
+        // 前端「資料更新日」（get_the_modified_date()）因此不會變動。
+        // 補呼叫一次讓它跟按原生「更新」按鈕的行為一致。
+        wp_update_post( [ 'ID' => $post_id ] );
 
         // 捷徑盒走 AJAX 不會觸發 acf/save_post，這裡手動補上「貼短評即自動指定審核者」。
         $this->auto_assign_editorial_reviewer( $post_id );
