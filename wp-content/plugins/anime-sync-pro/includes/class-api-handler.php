@@ -45,6 +45,7 @@ class Anime_Sync_API_Handler {
 
     const ANILIST_ENDPOINT  = 'https://graphql.anilist.co';
     const BGM_SUBJECT_URL   = 'https://api.bgm.tv/v0/subjects/';
+    const BGM_LEGACY_SUBJECT_URL = 'https://api.bgm.tv/subject/';
     const BGM_EPISODES_URL  = 'https://api.bgm.tv/v0/episodes';
     const ANIMETHEMES_URL   = 'https://api.animethemes.moe/anime';
     const WIKI_ZH_API       = 'https://zh.wikipedia.org/w/api.php';
@@ -1841,6 +1842,68 @@ class Anime_Sync_API_Handler {
         $cached    = get_transient( $cache_key );
         if ( $cached !== false ) return (array) $cached;
 
+        $chars = $this->get_bgm_chars_legacy( $bangumi_id );
+        if ( empty( $chars ) ) {
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $chars = $this->get_bgm_chars_v0( $bangumi_id );
+        }
+
+        if ( ! empty( $chars ) ) {
+            set_transient( $cache_key, $chars, 12 * HOUR_IN_SECONDS );
+        }
+
+        return $chars;
+    }
+
+    /**
+     * 走 Bangumi 舊版 API(responseGroup=large)。
+     * 這個端點的 actors 陣列會依官網「CV 在前、其他語言配音在後」的順序回傳
+     * (對應官網頁面 attr-rlt-primary 標記)，voice_actors[0] 才是真正的原版聲優；
+     * 其餘（中配/英配等）保留在陣列後面，不丟棄，留給日後多語言功能使用。
+     * role_name === '闲角'（モブキャラクター等背景角色集合）也完整保留，
+     * 是否顯示交給前台樣板決定，這裡只負責把 Bangumi 的資料原樣存好。
+     */
+    private function get_bgm_chars_legacy( int $bangumi_id ): array {
+        $response = wp_remote_get( self::BGM_LEGACY_SUBJECT_URL . $bangumi_id . '?responseGroup=large', [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
+
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $data ) || ! isset( $data['crt'] ) || ! is_array( $data['crt'] ) ) return [];
+
+        $chars = [];
+        foreach ( $data['crt'] as $c ) {
+            $role = $c['role_name'] ?? '';
+
+            $va = [];
+            foreach ( $c['actors'] ?? [] as $a ) {
+                $va[] = [
+                    'id'    => $a['id']             ?? 0,
+                    'name'  => Anime_Sync_CN_Converter::static_convert( $a['name'] ?? '' ),
+                    'image' => $a['images']['large'] ?? '',
+                ];
+            }
+            $chars[] = [
+                'id'           => $c['id']             ?? 0,
+                'name'         => Anime_Sync_CN_Converter::static_convert( $c['name'] ?? '' ),
+                'role'         => $role,
+                'image'        => $c['images']['large'] ?? $c['images']['medium'] ?? '',
+                'voice_actors' => $va,
+                'source'       => 'bangumi',
+            ];
+        }
+
+        return $chars;
+    }
+
+    /**
+     * Fallback：v0 新版 API。actors 陣列未排序、無語言標記，voice_actors[0]
+     * 不保證是原版聲優，只在舊版 API 打不通時使用。
+     */
+    private function get_bgm_chars_v0( int $bangumi_id ): array {
         $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id . '/characters', [
             'timeout' => 10,
             'headers' => [ 'User-Agent' => self::USER_AGENT ],
@@ -1871,7 +1934,6 @@ class Anime_Sync_API_Handler {
             ];
         }
 
-        set_transient( $cache_key, $chars, 12 * HOUR_IN_SECONDS );
         return $chars;
     }
 
