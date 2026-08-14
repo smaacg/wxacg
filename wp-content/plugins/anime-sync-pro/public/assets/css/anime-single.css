@@ -2261,7 +2261,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 .asd-stream-disclaimer {
-  margin: 12px 0 0;
+  margin: 24px 0 0;
   color: var(--asd-text-muted);
   font-size: 12px;
   line-height: 1.7;

@@ -829,10 +829,23 @@ while ( have_posts() ) :
 		$dub_items_mandarin
 	);
 
+	/* Anime_Sync_Streaming_Registry 裡 YouTube 的 match 陣列刻意留空
+	 * (避免 AniList 自動同步時把一般 YouTube 連結誤收進台灣/海外平台清單)，
+	 * 但配音區塊(dub_items_all)本來就是後台手動指定的 YouTube 連結，
+	 * 這裡單獨判斷網域來解析圖示/標籤，不動 registry、不影響同步行為。 */
+	$is_youtube_host = static function ( $url ) {
+		$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+		return $host === 'youtube.com'
+			|| $host === 'youtu.be'
+			|| str_ends_with( $host, '.youtube.com' )
+			|| str_ends_with( $host, '.youtu.be' );
+	};
+
 	$resolve_dub_platform = static function ( $url ) use (
 		$has_streaming_registry,
 		$provider_icon_map,
-		$provider_icon_base
+		$provider_icon_base,
+		$is_youtube_host
 	) {
 		if (
 			! $has_streaming_registry
@@ -848,6 +861,10 @@ while ( have_posts() ) :
 			'',
 			$url
 		);
+
+		if ( ! $matched_key && $is_youtube_host( $url ) ) {
+			$matched_key = 'youtube';
+		}
 
 		if ( ! $matched_key ) {
 			return [
@@ -890,13 +907,18 @@ while ( have_posts() ) :
 		$has_streaming_registry,
 		$provider_icon_map,
 		$provider_icon_base,
-		$strtolower_safe
+		$strtolower_safe,
+		$is_youtube_host
 	) {
 		if ( $has_streaming_registry && $url ) {
 			$matched_key = Anime_Sync_Streaming_Registry::match_site(
 				$label,
 				$url
 			);
+
+			if ( ! $matched_key && $is_youtube_host( $url ) ) {
+				$matched_key = 'youtube';
+			}
 
 			if (
 				$matched_key
@@ -4950,7 +4972,15 @@ while ( have_posts() ) :
 												continue;
 											}
 
-											$overseas_key = strtolower( $overseas_site );
+											/* 優先用登錄表的 match_site() 模糊比對(跟 AniList 自動同步
+											 * 用的是同一套邏輯)，涵蓋後台手動輸入跟正式 label 不完全一致
+											 * 的寫法(例如「Disney Plus」對正式 label「Disney+」)；
+											 * 比對不到才退回直接用 label 小寫查表。 */
+											$overseas_platform_key = $has_streaming_registry
+												? Anime_Sync_Streaming_Registry::match_site( $overseas_site, $overseas_url )
+												: null;
+
+											$overseas_key = $overseas_platform_key ?? strtolower( $overseas_site );
 
 											$overseas_icon =
 												isset( $provider_icon_map[ $overseas_key ] )
