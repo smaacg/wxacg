@@ -1978,9 +1978,22 @@ nav.asd-tabs a.asd-tab.is-active::after {
   margin-bottom: 8px;
   padding: 12px 14px;
   border: 1px solid var(--glass-border);
+  border-left: 3px solid transparent;
   border-radius: var(--asd-radius-md);
   background: var(--glass-bg);
   box-shadow: var(--asd-shadow-sm);
+}
+
+.asd-music-card-v2:has(.asd-music-type-badge--op) {
+  border-color: rgba(109, 174, 255, .22);
+  border-left-color: rgba(109, 174, 255, .55);
+  background: linear-gradient(135deg, rgba(109, 174, 255, .09), var(--glass-bg) 55%);
+}
+
+.asd-music-card-v2:has(.asd-music-type-badge--ed) {
+  border-color: rgba(143, 107, 255, .22);
+  border-left-color: rgba(143, 107, 255, .55);
+  background: linear-gradient(135deg, rgba(143, 107, 255, .09), var(--glass-bg) 55%);
 }
 
 .asd-music-type-badge {
@@ -2117,6 +2130,21 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-primary);
   font-size: 11px;
   font-weight: 700;
+}
+
+/* ED 播放器改用與 --ed 徽章一致的紫色系，與 OP 做出區分 */
+.asd-music-card-v2:has(.asd-music-type-badge--ed) .asd-music-play-btn {
+  color: #c4b5fd;
+  border-color: rgba(143, 107, 255, .4);
+  background: rgba(143, 107, 255, .12);
+}
+
+.asd-music-card-v2:has(.asd-music-type-badge--ed) .asd-music-progress-bar {
+  background: linear-gradient(90deg, #8f6bff, #c4b5fd);
+}
+
+.asd-music-card-v2:has(.asd-music-type-badge--ed) .asd-music-open-link {
+  color: #c4b5fd;
 }
 
 /* ================================================================
