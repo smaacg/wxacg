@@ -114,19 +114,19 @@ class Anime_Sync_ACF_Fields {
         $field['message'] =
             '<div class="asp-ai-prompt-helper" style="background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:10px 12px;">'
             . '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
-            . '<strong>🤖 丟給 AI 找資料的提示詞</strong>'
-            . '<span style="color:#50575e;">作品：<strong>' . $title_label . '</strong></span>'
             . '<button type="button" class="button button-primary" '
             . 'onclick="var t=this.parentNode.parentNode.querySelector(\'.asp-prompt-text\');t.focus();t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand(\'copy\');}this.textContent=\'✅ 已複製\';setTimeout(function(b){return function(){b.textContent=\'📋 複製提示詞\';};}(this),1500);">'
             . '📋 複製提示詞</button>'
             . '<button type="button" class="button" '
             . 'onclick="var t=this.parentNode.parentNode.querySelector(\'.asp-prompt-title\');if(t){t.focus();t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand(\'copy\');}this.textContent=\'✅ 已複製標題\';setTimeout(function(b){return function(){b.textContent=\'📋 複製繁中標題\';};}(this),1500);}">'
             . '📋 複製繁中標題</button>'
+            . '<strong>🤖 丟給 AI 找資料的提示詞</strong>'
+            . '<span style="color:#50575e;">作品：<strong>' . $title_label . '</strong></span>'
             . '</div>'
             . '<input type="text" class="asp-prompt-title" readonly value="' . esc_attr( $title ) . '" '
             . 'style="width:100%;margin-bottom:6px;font-family:monospace;" onclick="this.select();">'
-            . '<textarea class="asp-prompt-text" readonly rows="9" '
-            . 'style="width:100%;font-family:monospace;font-size:12px;line-height:1.6;" onclick="this.select();">'
+            . '<textarea class="asp-prompt-text" readonly rows="8" '
+            . 'style="width:100%;font-family:monospace;font-size:12px;line-height:1.6;resize:none;" onclick="this.select();">'
             . esc_textarea( $prompt )
             . '</textarea>'
             . '</div>';
@@ -2432,7 +2432,37 @@ private function register_manga_fields(): void {
                 font-weight: normal;
                 font-size: 11px;
             }
+
+            /* 壓縮「編輯短評與 AI 提示詞」摺疊面板高度 */
+            .acf-field-accordion[data-key="field_shortcut_anime_editorial_accordion"] {
+                margin-top: 0 !important;
+                padding-top: 0 !important;
+            }
+            .acf-field-accordion[data-key="field_shortcut_anime_editorial_accordion"] .acf-accordion-title {
+                padding: 5px 12px !important;
+                min-height: auto !important;
+                display: flex !important;
+                align-items: center !important;
+            }
+            .acf-field-accordion[data-key="field_shortcut_anime_editorial_accordion"] .acf-accordion-title label {
+                margin: 0 !important;
+                padding: 0 !important;
+                font-size: 13px !important;
+            }
         </style>
+        <script>
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                var acc = document.querySelector('.acf-field-accordion[data-key="field_shortcut_anime_editorial_accordion"]');
+                if (acc && acc.classList.contains('-open')) {
+                    var title = acc.querySelector('.acf-accordion-title');
+                    if (title) {
+                        title.click();
+                    }
+                }
+            }, 500);
+        });
+        </script>
         <?php
     }
     // =========================================================================
@@ -2740,26 +2770,6 @@ private function register_manga_fields(): void {
             'title'                 => '🚀 編輯捷徑方塊',
             'fields'                => [
                 [
-                    'key'       => 'field_shortcut_anime_prompt_helper',
-                    'label'     => '',
-                    'name'      => '',
-                    'type'      => 'message',
-                    // 訊息由 acf/prepare_field 動態填入（含繁中標題）。
-                    'message'   => '',
-                    'new_lines' => '',
-                    'esc_html'  => 0,
-                    'wrapper'   => [ 'width' => '100' ],
-                ],
-                [
-                    'key'          => 'field_shortcut_anime_editor_summary',
-                    'label'        => '編輯推薦短評（貼上後按「儲存捷徑變更」）',
-                    'name'         => 'shortcut_anime_editor_summary',
-                    'type'         => 'textarea',
-                    'instructions' => '貼上查證過的繁中原創短評；儲存後自動指定審核者/日期並標記已發布。',
-                    'rows'         => 5,
-                    'wrapper'      => [ 'width' => '100' ],
-                ],
-                [
                     'key'     => 'field_shortcut_anime_title_chinese',
                     'label'   => '中文標題 (台灣繁體)',
                     'name'    => 'shortcut_anime_title_chinese',
@@ -2859,6 +2869,35 @@ private function register_manga_fields(): void {
                     'name'          => 'shortcut_anime_tw_distributor_custom',
                     'type'          => 'text',
                     'wrapper'       => [ 'width' => '25' ],
+                ],
+                [
+                    'key'          => 'field_shortcut_anime_editorial_accordion',
+                    'label'        => '📝 人工短評與 AI 提示詞',
+                    'name'         => '',
+                    'type'         => 'accordion',
+                    'open'         => 0,
+                    'multi_expand' => 1,
+                    'endpoint'     => 0,
+                ],
+                [
+                    'key'          => 'field_shortcut_anime_editor_summary',
+                    'label'        => '編輯推薦短評（貼上後按「儲存捷徑變更」）',
+                    'name'         => 'shortcut_anime_editor_summary',
+                    'type'         => 'textarea',
+                    'instructions' => '貼上查證過的繁中原創短評；儲存後自動指定審核者/日期並標記已發布。',
+                    'rows'         => 9,
+                    'wrapper'      => [ 'width' => '45' ],
+                ],
+                [
+                    'key'       => 'field_shortcut_anime_prompt_helper',
+                    'label'     => '',
+                    'name'      => '',
+                    'type'      => 'message',
+                    // 訊息由 acf/prepare_field 動態填入（含繁中標題）。
+                    'message'   => '',
+                    'new_lines' => '',
+                    'esc_html'  => 0,
+                    'wrapper'   => [ 'width' => '55' ],
                 ],
             ],
             'location'              => [
@@ -3263,6 +3302,8 @@ private function register_manga_fields(): void {
 
             // 字典管理事件綁定
             var fullDictData = { va: {}, char: {} };
+            // 記錄載入字典當下的版本,儲存時回傳後端比對,偵測其他管理員的併發修改
+            var dictBaseVersion = '';
             
             function renderDictList(filter = '') {
                 var $list = $('#asp-dict-list');
@@ -3326,6 +3367,9 @@ private function register_manga_fields(): void {
                 }, function(res) {
                     if (res.success) {
                         fullDictData = res.data || { va: {}, char: {} };
+                        // 取出版本後移除,避免被當成字典項目渲染或寫回檔案
+                        dictBaseVersion = fullDictData._version || '';
+                        delete fullDictData._version;
                         renderDictList();
                     } else {
                         $('#asp-dict-list').html('<div style="color:red; text-align:center; padding:20px;">載入失敗：' + res.data + '</div>');
@@ -3360,14 +3404,28 @@ private function register_manga_fields(): void {
                 $.post(ajaxurl, {
                     action: 'asp_cast_dict_save',
                     nonce: '<?php echo wp_create_nonce("asp_ai_nonce"); ?>',
-                    dict_data: JSON.stringify(fullDictData)
+                    base_version: dictBaseVersion,
+                    dict_data: JSON.stringify({ va: fullDictData.va || {}, char: fullDictData.char || {} })
                 }, function(res) {
                     $btn.prop('disabled', false).text('💾 儲存修改');
+
                     if (res.success) {
+                        // 更新版本,讓使用者不需重新載入就能連續儲存
+                        if (res.data && res.data.version) dictBaseVersion = res.data.version;
                         alert('字典已成功儲存！');
-                    } else {
-                        alert('儲存失敗：' + res.data);
+                        return;
                     }
+
+                    // 併發衝突：不自動丟棄使用者目前的編輯,交由使用者決定
+                    if (res.data && res.data.type === 'conflict') {
+                        if (confirm('⚠️ ' + res.data.message + '\n\n按「確定」重新載入最新字典（你目前尚未儲存的修改將會遺失）。\n按「取消」保留目前畫面，可先自行複製需要保留的內容再處理。')) {
+                            $('#asp-btn-manage-dict').trigger('click');
+                        }
+                        return;
+                    }
+
+                    var failMsg = (res.data && res.data.message) ? res.data.message : (res.data || '未知錯誤');
+                    alert('儲存失敗：' + failMsg);
                 });
             });
 
@@ -3544,6 +3602,12 @@ private function register_manga_fields(): void {
                 logAI(`▶️ [CAST] 開始分批查證 (每批 ${batchSize} 筆)...`);
                 
                 for (var i = 0; i < allItems.length; i += batchSize) {
+                    // 停止任務：每批送出前確認中斷旗標,避免按下停止後仍跑完剩餘批次
+                    if (window.asp_ai_abort) {
+                        logAI(`🛑 [CAST] 已中止,剩餘批次不再送出。已完成的譯名已寫入字典,重新執行時會直接命中快取。`, true);
+                        return;
+                    }
+
                     var batch = allItems.slice(i, i + batchSize);
                     var batchNum = Math.floor(i / batchSize) + 1;
                     var totalBatches = Math.ceil(allItems.length / batchSize);
@@ -3558,6 +3622,12 @@ private function register_manga_fields(): void {
                     
                     // Fix 2: 改用 while(!success && retries <= 2)，消除初始 maxKeys=1 的歧義
                     while (!success && retries <= 2) {
+                        // 停止任務：重試與換 Key 的迴圈同樣要能中斷
+                        if (window.asp_ai_abort) {
+                            logAI(`🛑 [CAST] 已中止,停止本批次的重試。`, true);
+                            return;
+                        }
+
                         try {
                             // Debug 模式：印出本批次即將送出的完整名單
                             if (isDebug && retries === 0) {
@@ -3577,7 +3647,13 @@ private function register_manga_fields(): void {
                                 items: JSON.stringify(batch),
                                 debug: isDebug ? 1 : 0
                             });
-                            
+
+                            // 停止任務：請求回來後立即確認,避免繼續處理與進入冷卻等待
+                            if (window.asp_ai_abort) {
+                                logAI(`🛑 [CAST] 已中止,本批次結果不再寫入欄位。`, true);
+                                return;
+                            }
+
                             if (res.success && res.data && res.data.mapping) {
                                 if (res.data.stats) {
                                     logAI(`▶️ [CAST] 批次 ${batchNum} 完成：快取命中 ${res.data.stats.cached} 筆，實際交由 AI 翻譯 ${res.data.stats.api} 筆。`);
@@ -3624,6 +3700,14 @@ private function register_manga_fields(): void {
                                     }
                                     continue; // Try again with next key without incrementing `retries`
                                 }
+
+                                // 非 Key 層級的失敗(內容被安全機制擋下、請求本身有誤)重試也不會變好,直接停止
+                                if (res.data && (res.data.type === 'content' || res.data.type === 'request')) {
+                                    logAI(`❌ [CAST] ${res.data.message}`, true);
+                                    logAI(`ℹ️ [CAST] 已完成批次的譯名已寫入字典,修正後重新執行會直接命中快取。`);
+                                    return;
+                                }
+
                                 var errMsg = '未知錯誤';
                                 if (res.data) {
                                     errMsg = typeof res.data === 'string' ? res.data : (res.data.message || '未知錯誤');
@@ -3803,8 +3887,8 @@ private function register_manga_fields(): void {
                             if (task === 'cast') {
                                 await processCastTranslation(userPrompt, title, targetField);
                                 
-                                // 若 CAST 後還有其他任務，也要經過冷卻，以免觸發 429
-                                if (i < tasks.length - 1) {
+                                // 若 CAST 後還有其他任務，也要經過冷卻，以免觸發 429(已中止則不需等待)
+                                if (!window.asp_ai_abort && i < tasks.length - 1) {
                                     logAI(`⏳ 避免請求過密，等待冷卻 2 秒後繼續下一個任務...`);
                                     await new Promise(resolve => setTimeout(resolve, 2000));
                                 }
@@ -3962,7 +4046,12 @@ private function register_manga_fields(): void {
                         }
                     }
                     
-                    logAI('🎉 所有選定項目生成工作流已結束！確認無誤後記得按右邊的儲存喔！');
+                    // CAST 是最後一個任務,中止後仍會走到這裡,需依旗標分別回報,避免誤報「已完成」
+                    if (window.asp_ai_abort) {
+                        logAI('🛑 任務已由使用者手動終止,未完成的項目沒有寫入。', true);
+                    } else {
+                        logAI('🎉 所有選定項目生成工作流已結束！確認無誤後記得按右邊的儲存喔！');
+                    }
                 } finally {
                     // 不論任何情況（正常完成、提早 return、未預期例外）都確保按鈕被解鎖
                     btn.prop('disabled', false).text('✨ 執行 AI 輔助生成').show();
@@ -4030,25 +4119,18 @@ private function register_manga_fields(): void {
 
         $user_id = get_current_user_id();
         $provider = get_user_meta( $user_id, 'asp_ai_provider', true ) ?: 'gemini';
-        $api_key  = get_user_meta( $user_id, 'asp_ai_api_key', true );
         $model    = get_user_meta( $user_id, 'asp_ai_model_name', true );
-        
-        if ( empty( $api_key ) ) {
-            wp_send_json_error( '未設定 API Key' );
-        }
-        
-        $api_keys = array_filter( array_map( 'trim', explode( "\n", $api_key ) ) );
-        $api_keys = array_values( $api_keys ); // 重新索引
-        $key_count = count( $api_keys );
-        $cursor = (int) get_user_meta( $user_id, 'asp_ai_key_cursor', true );
+
+        // Key 清單為空(含內容只有空白)時會直接回錯,避免後續 % 0 造成 Fatal
+        $key_set     = $this->get_api_key_set( $user_id );
+        $current_key = $key_set['current'];
 
         $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
-        
+
         $system_prompt = isset( $_POST['system_prompt'] ) ? wp_unslash( $_POST['system_prompt'] ) : '';
         $user_prompt   = isset( $_POST['user_prompt'] ) ? wp_unslash( $_POST['user_prompt'] ) : '';
 
         $result_text = '';
-        $current_key = $api_keys[ $cursor % $key_count ];
 
         if ( $provider === 'openai' ) {
             if ( empty( $model ) ) $model = 'gpt-4o';
@@ -4066,23 +4148,26 @@ private function register_manga_fields(): void {
                     ],
                 ] ),
             ] );
-            if ( is_wp_error( $response ) ) { 
-                $last_error = $response->get_error_message(); 
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 網路失敗: {$last_error}，自動切換下一把 Key..."; 
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+            if ( is_wp_error( $response ) ) {
+                // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
+                $this->send_api_failure(
+                    [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
+                    $key_set,
+                    $user_id
+                );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( $code === 200 && isset( $body['choices'][0]['message']['content'] ) ) {
                 $result_text = $body['choices'][0]['message']['content'];
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
+                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
             } else {
-                $last_error = isset( $body['error'] ) ? $body['error']['message'] : "HTTP $code";
-                $translated = $this->translate_api_error( $last_error );
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 失敗: {$translated}" . ($code ? " ({$code})" : "") . "，自動切換下一把 Key...";
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                // 依失敗類型決定要不要換 Key,避免請求層級錯誤或安全阻擋也白白輪完所有 Key
+                $this->send_api_failure(
+                    $this->classify_api_failure( $code, $body, 'openai' ),
+                    $key_set,
+                    $user_id
+                );
             }
         } elseif ( $provider === 'claude' ) {
             if ( empty( $model ) ) $model = 'claude-3-5-sonnet-20240620';
@@ -4102,23 +4187,26 @@ private function register_manga_fields(): void {
                     ],
                 ] ),
             ] );
-            if ( is_wp_error( $response ) ) { 
-                $last_error = $response->get_error_message(); 
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 網路失敗: {$last_error}，自動切換下一把 Key..."; 
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+            if ( is_wp_error( $response ) ) {
+                // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
+                $this->send_api_failure(
+                    [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
+                    $key_set,
+                    $user_id
+                );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( $code === 200 && isset( $body['content'][0]['text'] ) ) {
                 $result_text = $body['content'][0]['text'];
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
+                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
             } else {
-                $last_error = isset( $body['error']['message'] ) ? $body['error']['message'] : (isset($body['error']) ? json_encode($body['error']) : "HTTP $code");
-                $translated = $this->translate_api_error( $last_error );
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 失敗: {$translated}" . ($code ? " ({$code})" : "") . "，自動切換下一把 Key...";
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                // 依失敗類型決定要不要換 Key,避免請求層級錯誤或安全阻擋也白白輪完所有 Key
+                $this->send_api_failure(
+                    $this->classify_api_failure( $code, $body, 'claude' ),
+                    $key_set,
+                    $user_id
+                );
             }
         } else {
             // 預設 Gemini
@@ -4142,23 +4230,27 @@ private function register_manga_fields(): void {
                 'headers' => [ 'Content-Type' => 'application/json' ],
                 'body'    => wp_json_encode( $payload ),
             ] );
-            if ( is_wp_error( $response ) ) { 
-                $last_error = $response->get_error_message(); 
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 網路失敗: {$last_error}，自動切換下一把 Key..."; 
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+            if ( is_wp_error( $response ) ) {
+                // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
+                $this->send_api_failure(
+                    [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
+                    $key_set,
+                    $user_id
+                );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( $code === 200 && isset( $body['candidates'][0]['content']['parts'][0]['text'] ) ) {
                 $result_text = $body['candidates'][0]['content']['parts'][0]['text'];
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
+                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
             } else {
-                $last_error = isset( $body['error'] ) ? $body['error']['message'] : "HTTP $code";
-                $translated = $this->translate_api_error( $last_error );
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 失敗: {$translated}" . ($code ? " ({$code})" : "") . "，自動切換下一把 Key...";
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                // 依失敗類型決定要不要換 Key。Gemini 因題材敏感回 200 卻無內容時,
+                // 這裡會回 content 類型並帶出 finishReason,不再誤報成「Key 失敗: HTTP 200」
+                $this->send_api_failure(
+                    $this->classify_api_failure( $code, $body, 'gemini' ),
+                    $key_set,
+                    $user_id
+                );
             }
         }
 
@@ -4179,6 +4271,55 @@ private function register_manga_fields(): void {
     private function get_cast_dict_path(): string {
         $upload_dir = wp_upload_dir();
         return $upload_dir['basedir'] . '/asp_cast_cache.json';
+    }
+
+    /**
+     * 字典備份檔路徑(保留寫入前的上一版)。
+     *
+     * @return string
+     */
+    private function get_cast_dict_backup_path(): string {
+        $upload_dir = wp_upload_dir();
+        return $upload_dir['basedir'] . '/asp_cast_cache.bak.json';
+    }
+
+    /**
+     * 取得字典目前的版本識別碼(以檔案內容 hash 為準)。
+     *
+     * 供多管理員同時編輯時偵測衝突:載入時記下版本,儲存時比對,
+     * 不一致即代表期間已被他人寫入,必須擋下,避免整份覆蓋掉對方的修改。
+     *
+     * @return string 檔案不存在時回傳空字串。
+     */
+    private function get_cast_dict_version(): string {
+        $file = $this->get_cast_dict_path();
+
+        if ( ! file_exists( $file ) ) {
+            return '';
+        }
+
+        $hash = md5_file( $file );
+
+        return ( false === $hash ) ? '' : $hash;
+    }
+
+    /**
+     * 寫入前備份現有字典,讓誤覆蓋或誤清除(🧹 清除 A=A)有機會還原。
+     *
+     * 備份失敗只記錄 Log 不中斷寫入,避免因備份問題導致正常的字典更新失效。
+     *
+     * @return void
+     */
+    private function backup_cast_dict(): void {
+        $file = $this->get_cast_dict_path();
+
+        if ( ! file_exists( $file ) ) {
+            return;
+        }
+
+        if ( ! copy( $file, $this->get_cast_dict_backup_path() ) ) {
+            error_log( 'asp_cast_cache.json 備份失敗,仍繼續寫入。' );
+        }
     }
 
     private function get_cast_dict(): array {
@@ -4212,6 +4353,16 @@ private function register_manga_fields(): void {
             error_log( 'asp_cast_cache.json encode failed: ' . json_last_error_msg() );
             return;
         }
+        /*
+         * 僅「整份覆蓋」時備份。
+         *
+         * merge 模式(CAST 生成)只會新增不會刪除,備份價值低;
+         * 若連 merge 也備份,例行的 CAST 生成會很快把備份沖成「誤操作後的狀態」,
+         * 反而讓備份失去意義。因此只保留手動儲存/清除 A=A 之前的版本。
+         */
+        if ( ! $merge ) {
+            $this->backup_cast_dict();
+        }
         file_put_contents( $file, $json, LOCK_EX );
         error_log( 'asp_cast_cache.json updated. va: ' . count($data_to_save['va']) . ', char: ' . count($data_to_save['char']) );
     }
@@ -4219,19 +4370,43 @@ private function register_manga_fields(): void {
     public function ajax_cast_dict_load(): void {
         check_ajax_referer( 'asp_ai_nonce', 'nonce' );
         if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
-        wp_send_json_success( $this->get_cast_dict() );
+
+        $dict = $this->get_cast_dict();
+        // 一併回傳載入當下的版本,前端記住後於儲存時比對(併發保護)。
+        $dict['_version'] = $this->get_cast_dict_version();
+
+        wp_send_json_success( $dict );
     }
 
     public function ajax_cast_dict_save(): void {
         check_ajax_referer( 'asp_ai_nonce', 'nonce' );
         if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
-        
+
         $json = isset( $_POST['dict_data'] ) ? wp_unslash( $_POST['dict_data'] ) : '';
         $data = json_decode( $json, true );
         if ( ! is_array( $data ) ) wp_send_json_error( '格式錯誤' );
-        
+
+        /*
+         * 多管理員併發保護。
+         *
+         * 本端點是「整份覆蓋」,若 A 開啟字典後 B 也開啟並先儲存,
+         * A 再儲存就會用自己的舊快照蓋掉 B 的修改且雙方都不會察覺。
+         * 因此比對前端載入當下的版本,不一致就擋下並要求重新載入。
+         */
+        $base_version    = isset( $_POST['base_version'] ) ? sanitize_text_field( wp_unslash( $_POST['base_version'] ) ) : '';
+        $current_version = $this->get_cast_dict_version();
+
+        if ( $base_version !== $current_version ) {
+            wp_send_json_error( [
+                'type'    => 'conflict',
+                'message' => '字典在你編輯期間已被其他人修改,為避免覆蓋掉對方的修改,本次儲存已被擋下。',
+            ] );
+        }
+
         $this->update_cast_dict( $data, false ); // 完全覆蓋
-        wp_send_json_success();
+
+        // 回傳寫入後的新版本,讓前端可以連續儲存而不需重新載入。
+        wp_send_json_success( [ 'version' => $this->get_cast_dict_version() ] );
     }
 
     public function ajax_shortcut_ai_cast_translate(): void {
@@ -4357,12 +4532,9 @@ private function register_manga_fields(): void {
         // 3. 發送 API 請求
         $result_text = '';
 
-        $api_keys = array_filter( array_map( 'trim', explode( "\n", $api_key ) ) );
-        $api_keys = array_values( $api_keys );
-        $key_count = count( $api_keys );
-        $cursor = (int) get_user_meta( $user_id, 'asp_ai_key_cursor', true );
-        
-        $current_key = $api_keys[ $cursor % $key_count ];
+        // 同上:集中處理 Key 拆解與游標防呆
+        $key_set     = $this->get_api_key_set( $user_id );
+        $current_key = $key_set['current'];
 
         if ( $provider === 'openai' ) {
             if ( empty( $model ) ) $model = 'gpt-4o';
@@ -4378,11 +4550,13 @@ private function register_manga_fields(): void {
                     ],
                 ] ),
             ] );
-            if ( is_wp_error( $response ) ) { 
-                $last_error = $response->get_error_message(); 
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 網路失敗: {$last_error}，自動切換下一把 Key..."; 
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+            if ( is_wp_error( $response ) ) {
+                // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
+                $this->send_api_failure(
+                    [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
+                    $key_set,
+                    $user_id
+                );
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -4390,13 +4564,14 @@ private function register_manga_fields(): void {
                 $result_text = $body['choices'][0]['message']['content'];
                 $parsed = json_decode( $result_text, true );
                 if ( isset($parsed['result']) ) { $result_text = wp_json_encode( $parsed['result'], JSON_UNESCAPED_UNICODE ); }
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
+                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
             } else {
-                $last_error = isset( $body['error'] ) ? $body['error']['message'] : "HTTP $code";
-                $translated = $this->translate_api_error( $last_error );
-                $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 失敗: {$translated}" . ($code ? " ({$code})" : "") . "，自動切換下一把 Key...";
-                update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                // 依失敗類型決定要不要換 Key,避免請求層級錯誤或安全阻擋也白白輪完所有 Key
+                $this->send_api_failure(
+                    $this->classify_api_failure( $code, $body, 'openai' ),
+                    $key_set,
+                    $user_id
+                );
             }
 
         } elseif ( $provider === 'claude' ) {
@@ -4411,23 +4586,27 @@ private function register_manga_fields(): void {
                         'messages' => [ [ 'role' => 'user', 'content' => $user_prompt ] ],
                     ] ),
                 ] );
-                if ( is_wp_error( $response ) ) { 
-                    $last_error = $response->get_error_message(); 
-                    $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 網路失敗: {$last_error}，自動切換下一把 Key..."; 
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                    wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                if ( is_wp_error( $response ) ) {
+                    // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
+                    $this->send_api_failure(
+                        [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
+                        $key_set,
+                        $user_id
+                    );
                 }
                 $code = (int) wp_remote_retrieve_response_code( $response );
                 $body = json_decode( wp_remote_retrieve_body( $response ), true );
                 if ( $code === 200 && isset( $body['content'][0]['text'] ) ) {
                     $result_text = $body['content'][0]['text'];
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
+                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
                 } else {
-                    $last_error = isset( $body['error']['message'] ) ? $body['error']['message'] : (isset($body['error']) ? json_encode($body['error']) : "HTTP $code");
-                    $translated = $this->translate_api_error( $last_error );
-                    $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 失敗: {$translated}" . ($code ? " ({$code})" : "") . "，自動切換下一把 Key...";
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                    wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                    // 依失敗類型決定要不要換 Key。CAST 每批 150 筆容易超出 max_tokens,
+                    // 分類後會明確回報「被長度上限截斷」而非誤報成 Key 失效
+                    $this->send_api_failure(
+                        $this->classify_api_failure( $code, $body, 'claude' ),
+                        $key_set,
+                        $user_id
+                    );
                 }
 
         } else {
@@ -4442,23 +4621,27 @@ private function register_manga_fields(): void {
                     'headers' => [ 'Content-Type' => 'application/json' ],
                     'body'    => wp_json_encode( $payload ),
                 ] );
-                if ( is_wp_error( $response ) ) { 
-                    $last_error = $response->get_error_message(); 
-                    $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 網路失敗: {$last_error}，自動切換下一把 Key..."; 
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                    wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                if ( is_wp_error( $response ) ) {
+                    // 網路層失敗:換一把 Key 重試仍可能成功,維持原本的輪替行為
+                    $this->send_api_failure(
+                        [ 'type' => 'key', 'message' => '網路連線失敗: ' . $response->get_error_message() ],
+                        $key_set,
+                        $user_id
+                    );
                 }
                 $code = (int) wp_remote_retrieve_response_code( $response );
                 $body = json_decode( wp_remote_retrieve_body( $response ), true );
                 if ( $code === 200 && isset( $body['candidates'][0]['content']['parts'][0]['text'] ) ) {
                     $result_text = $body['candidates'][0]['content']['parts'][0]['text'];
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
+                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
                 } else {
-                    $last_error = isset( $body['error'] ) ? $body['error']['message'] : "HTTP $code";
-                    $translated = $this->translate_api_error( $last_error );
-                    $warn = "⚠️ 第 " . (($cursor % $key_count) + 1) . " 把 Key 失敗: {$translated}" . ($code ? " ({$code})" : "") . "，自動切換下一把 Key...";
-                    update_user_meta( $user_id, 'asp_ai_key_cursor', ( $cursor + 1 ) % $key_count );
-                    wp_send_json_error(['type' => 'key_failed', 'message' => $warn, 'retry' => true, 'total_keys' => $key_count]);
+                    // 依失敗類型決定要不要換 Key。Gemini 因題材敏感回 200 卻無內容時,
+                    // 這裡會回 content 類型並帶出 finishReason,不再誤報成「Key 失敗: HTTP 200」
+                    $this->send_api_failure(
+                        $this->classify_api_failure( $code, $body, 'gemini' ),
+                        $key_set,
+                        $user_id
+                    );
                 }
             }
 
@@ -4514,6 +4697,207 @@ private function register_manga_fields(): void {
         wp_send_json_success( $response_data );
     }
 
+
+    /**
+     * 取得目前使用者的 API Key 清單與輪替游標。
+     *
+     * 集中處理多把 Key 的拆解與防呆:
+     * - Key 內容只剩空白時直接回錯,避免後續 `% 0` 造成 DivisionByZeroError(整個 AJAX 回 500)。
+     * - 游標若為負數(異常資料)會被歸零,避免取到不存在的陣列索引。
+     *
+     * 注意:Key 清單為空時本方法會直接輸出 JSON 錯誤並結束請求。
+     *
+     * @param int $user_id 使用者 ID。
+     * @return array{keys:array<int,string>, count:int, cursor:int, index:int, current:string}
+     */
+    private function get_api_key_set( int $user_id ): array {
+        $raw = (string) get_user_meta( $user_id, 'asp_ai_api_key', true );
+
+        $keys  = array_values( array_filter( array_map( 'trim', explode( "\n", $raw ) ) ) );
+        $count = count( $keys );
+
+        if ( 0 === $count ) {
+            wp_send_json_error( '未設定 API Key,或設定內容只有空白。請到「⚙️ AI 帳號設定面板」重新填入。' );
+        }
+
+        // 游標可能因舊資料或併發而異常,先夾到合法範圍再取餘數
+        $cursor = max( 0, (int) get_user_meta( $user_id, 'asp_ai_key_cursor', true ) );
+        $index  = $cursor % $count;
+
+        return [
+            'keys'    => $keys,
+            'count'   => $count,
+            'cursor'  => $cursor,
+            'index'   => $index,
+            'current' => $keys[ $index ],
+        ];
+    }
+
+    /**
+     * 判斷 API 呼叫失敗屬於哪一類,決定要不要換下一把 Key。
+     *
+     * 原本所有失敗一律當成「Key 失效」並輪換,造成兩個問題:
+     * - 模型名稱打錯、內容超長等請求層級錯誤,換 Key 也沒用,卻仍把每把 Key 都試一遍。
+     * - HTTP 200 但被安全機制阻擋時,訊息顯示成「Key 失敗: HTTP 200」,真正原因被蓋掉。
+     *
+     * @param int    $code     HTTP 狀態碼。
+     * @param mixed  $body     已解碼的回應內容。
+     * @param string $provider gemini|openai|claude。
+     * @return array{type:string, message:string}
+     *         type:key=換下一把 Key / request=請求本身有問題 / content=有回應但沒有可用內容
+     */
+    private function classify_api_failure( int $code, $body, string $provider ): array {
+        // 先取出 API 回傳的錯誤訊息(各家結構不同)
+        $raw_error = '';
+
+        if ( is_array( $body ) && isset( $body['error'] ) ) {
+            if ( is_array( $body['error'] ) && isset( $body['error']['message'] ) ) {
+                $raw_error = (string) $body['error']['message'];
+            } else {
+                $raw_error = is_string( $body['error'] )
+                    ? $body['error']
+                    : (string) wp_json_encode( $body['error'] );
+            }
+        }
+
+        // HTTP 200 卻取不到內容:被安全機制擋下或被長度截斷,換 Key 不會變好
+        if ( 200 === $code ) {
+            return [
+                'type'    => 'content',
+                'message' => $this->detect_empty_result_reason( $body, $provider ),
+            ];
+        }
+
+        if ( 401 === $code || 403 === $code ) {
+            return [ 'type' => 'key', 'message' => 'API 金鑰無效或未授權' ];
+        }
+
+        if ( 429 === $code ) {
+            return [ 'type' => 'key', 'message' => 'API 額度耗盡或頻率過高' ];
+        }
+
+        if ( 400 === $code || 404 === $code ) {
+            return [
+                'type'    => 'request',
+                'message' => ( '' !== $raw_error )
+                    ? $this->translate_api_error( $raw_error )
+                    : '請求內容或模型名稱有誤',
+            ];
+        }
+
+        if ( $code >= 500 ) {
+            return [
+                'type'    => 'request',
+                'message' => "AI 服務暫時無法回應(HTTP {$code}),請稍後再試",
+            ];
+        }
+
+        // 其餘狀況:回退到既有的錯誤字串判斷,含金鑰或額度關鍵字才視為 Key 問題
+        $lower        = strtolower( $raw_error );
+        $is_key_issue = ( false !== strpos( $lower, 'api key' ) )
+            || ( false !== strpos( $lower, 'quota' ) )
+            || ( false !== strpos( $lower, 'rate limit' ) );
+
+        return [
+            'type'    => $is_key_issue ? 'key' : 'request',
+            'message' => $this->translate_api_error( ( '' !== $raw_error ) ? $raw_error : "HTTP {$code}" ),
+        ];
+    }
+
+    /**
+     * HTTP 200 卻取不到文字內容時,找出真正原因。
+     *
+     * 這類情形最常見於 Gemini 因題材敏感而阻擋(SAFETY),
+     * 以及單批資料太多導致回應被長度上限截斷(MAX_TOKENS)。
+     *
+     * @param mixed  $body     已解碼的回應內容。
+     * @param string $provider gemini|openai|claude。
+     * @return string 給編輯看的中文原因說明。
+     */
+    private function detect_empty_result_reason( $body, string $provider ): string {
+        if ( ! is_array( $body ) ) {
+            return 'AI 回應格式無法解析';
+        }
+
+        if ( 'openai' === $provider ) {
+            $finish = isset( $body['choices'][0]['finish_reason'] ) ? (string) $body['choices'][0]['finish_reason'] : '';
+
+            if ( 'length' === $finish ) {
+                return '回應因長度上限被截斷(finish_reason: length),請縮小單次處理的份量';
+            }
+            if ( 'content_filter' === $finish ) {
+                return '內容被 OpenAI 安全機制阻擋(finish_reason: content_filter)';
+            }
+
+            return ( '' !== $finish ) ? "AI 未回傳內容(finish_reason: {$finish})" : 'AI 未回傳任何內容';
+        }
+
+        if ( 'claude' === $provider ) {
+            $stop = isset( $body['stop_reason'] ) ? (string) $body['stop_reason'] : '';
+
+            if ( 'max_tokens' === $stop ) {
+                return '回應因 max_tokens 上限被截斷,請縮小單次處理的份量';
+            }
+
+            return ( '' !== $stop ) ? "AI 未回傳內容(stop_reason: {$stop})" : 'AI 未回傳任何內容';
+        }
+
+        // Gemini:先看送出的內容是否在輸入階段就被擋下
+        $block = isset( $body['promptFeedback']['blockReason'] ) ? (string) $body['promptFeedback']['blockReason'] : '';
+
+        if ( '' !== $block ) {
+            return "送出的內容被 Gemini 安全機制阻擋(blockReason: {$block}),請調整提示詞或原文內容";
+        }
+
+        $finish = isset( $body['candidates'][0]['finishReason'] ) ? (string) $body['candidates'][0]['finishReason'] : '';
+
+        switch ( $finish ) {
+            case 'SAFETY':
+                return '回應被 Gemini 安全機制阻擋(finishReason: SAFETY),常見於成人或敏感題材,建議改用人工填寫';
+            case 'RECITATION':
+                return '回應因疑似重製受著作權保護的內容而被中止(finishReason: RECITATION)';
+            case 'MAX_TOKENS':
+                return '回應因長度上限被截斷(finishReason: MAX_TOKENS),請縮小單次處理的份量';
+            case '':
+                return 'AI 未回傳任何內容';
+            default:
+                return "AI 未回傳內容(finishReason: {$finish})";
+        }
+    }
+
+    /**
+     * 依失敗分類回應前端。
+     *
+     * 只有 Key 層級的問題才推進游標並要求前端換下一把 Key;
+     * 請求層級與內容層級的失敗換 Key 也沒用,直接回不可重試,讓前端停止該項任務。
+     *
+     * @param array $failure classify_api_failure() 的結果。
+     * @param array $key_set get_api_key_set() 的結果。
+     * @param int   $user_id 使用者 ID。
+     * @return void 本方法一定會結束請求。
+     */
+    private function send_api_failure( array $failure, array $key_set, int $user_id ): void {
+        $key_no = $key_set['index'] + 1;
+
+        if ( 'key' === $failure['type'] ) {
+            update_user_meta( $user_id, 'asp_ai_key_cursor', ( $key_set['cursor'] + 1 ) % $key_set['count'] );
+
+            wp_send_json_error( [
+                'type'       => 'key_failed',
+                'message'    => "⚠️ 第 {$key_no} 把 Key 失敗: {$failure['message']}，自動切換下一把 Key...",
+                'retry'      => true,
+                'total_keys' => $key_set['count'],
+            ] );
+        }
+
+        $label = ( 'content' === $failure['type'] ) ? 'AI 沒有產生可用內容' : '請求無法完成';
+
+        wp_send_json_error( [
+            'type'    => $failure['type'],
+            'message' => "{$label}：{$failure['message']}（換 Key 無法解決,已停止本項任務）",
+            'retry'   => false,
+        ] );
+    }
 
     private function translate_api_error( $error_msg ) {
         if (!is_string($error_msg)) $error_msg = json_encode($error_msg);
