@@ -368,8 +368,8 @@ class Anime_Sync_Entity_Migrator {
 			if ( $key === '别名' || $key === '別名' ) {
 				if ( is_array( $value ) ) {
 					foreach ( $value as $alias ) {
-						$k = trim( (string) ( $alias['k'] ?? '' ) );
-						$v = trim( (string) ( $alias['v'] ?? '' ) );
+						$k = $convert( (string) ( $alias['k'] ?? '' ) );
+						$v = $convert( (string) ( $alias['v'] ?? '' ) );
 						if ( $v === '' ) {
 							continue;
 						}
@@ -711,8 +711,8 @@ class Anime_Sync_Entity_Migrator {
 			if ( $key === '别名' || $key === '別名' ) {
 				if ( is_array( $value ) ) {
 					foreach ( $value as $alias ) {
-						$k = trim( (string) ( $alias['k'] ?? '' ) );
-						$v = trim( (string) ( $alias['v'] ?? '' ) );
+						$k = $convert( (string) ( $alias['k'] ?? '' ) );
+						$v = $convert( (string) ( $alias['v'] ?? '' ) );
 						if ( $v === '' ) {
 							continue;
 						}
@@ -895,6 +895,83 @@ class Anime_Sync_Entity_Migrator {
 			'role'             => $role,
 		] );
 	}
+
+	/**
+	 * 就地把 wp_anime_characters / wp_anime_persons 已存在的
+	 * aliases_json / infobox_json 用 Anime_Sync_CN_Converter 重新跑一次簡轉繁。
+	 * 純文字轉換，不打 Bangumi API，不動其他欄位。
+	 */
+	public function convert_legacy_cn( array $args = [] ): array {
+		global $wpdb;
+
+		$dry_run = ! empty( $args['dry_run'] );
+		$table   = $args['table'] ?? 'all';
+
+		$targets = [];
+		if ( $table === 'all' || $table === 'characters' ) {
+			$targets['characters'] = $this->t_char;
+		}
+		if ( $table === 'all' || $table === 'persons' ) {
+			$targets['persons'] = $this->t_person;
+		}
+
+		$has_opencc = class_exists( 'Anime_Sync_CN_Converter' );
+		$convert    = static function ( string $s ) use ( $has_opencc ): string {
+			$s = trim( $s );
+			if ( $s === '' ) {
+				return '';
+			}
+			return $has_opencc ? Anime_Sync_CN_Converter::static_convert( $s ) : $s;
+		};
+
+		$convert_json_field = static function ( ?string $json ) use ( $convert ): ?string {
+			if ( $json === null || trim( $json ) === '' ) {
+				return null;
+			}
+			$data = json_decode( $json, true );
+			if ( ! is_array( $data ) ) {
+				return null;
+			}
+			$out = [];
+			foreach ( $data as $k => $v ) {
+				$out[ $convert( (string) $k ) ] = is_string( $v ) ? $convert( $v ) : $v;
+			}
+			$new_json = wp_json_encode( $out, JSON_UNESCAPED_UNICODE );
+			return $new_json !== $json ? $new_json : null;
+		};
+
+		$stats = [];
+		foreach ( $targets as $label => $tbl ) {
+			$stats[ $label ] = [ 'scanned' => 0, 'changed' => 0, 'unchanged' => 0 ];
+
+			$rows = $wpdb->get_results( "SELECT id, aliases_json, infobox_json FROM {$tbl}", ARRAY_A );
+			foreach ( $rows as $row ) {
+				$stats[ $label ]['scanned']++;
+
+				$set         = [];
+				$new_aliases = $convert_json_field( $row['aliases_json'] ?? null );
+				if ( $new_aliases !== null ) {
+					$set['aliases_json'] = $new_aliases;
+				}
+				$new_infobox = $convert_json_field( $row['infobox_json'] ?? null );
+				if ( $new_infobox !== null ) {
+					$set['infobox_json'] = $new_infobox;
+				}
+
+				if ( empty( $set ) ) {
+					$stats[ $label ]['unchanged']++;
+					continue;
+				}
+
+				$stats[ $label ]['changed']++;
+				if ( ! $dry_run ) {
+					$wpdb->update( $tbl, $set, [ 'id' => (int) $row['id'] ] );
+				}
+			}
+		}
+
+		return $stats;
+	}
 }
 
 /**
@@ -980,5 +1057,33 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '無變更      : ' . $stats['no_change'] );
 		WP_CLI::log( '抓取失敗    : ' . $stats['failed'] );
 		WP_CLI::success( '回填完成' );
+	} );
+
+	WP_CLI::add_command( 'anime convert-legacy-cn', function ( $args, $assoc_args ) {
+		$dry_run = isset( $assoc_args['dry-run'] );
+		$table   = $assoc_args['table'] ?? 'all';
+
+		if ( ! in_array( $table, [ 'all', 'characters', 'persons' ], true ) ) {
+			WP_CLI::error( '--table 只能是 all / characters / persons' );
+			return;
+		}
+
+		$migrator = new Anime_Sync_Entity_Migrator();
+
+		WP_CLI::log( '=== 就地簡轉繁:重跑已存在的 aliases_json / infobox_json(不打 Bangumi API)===' );
+		WP_CLI::log( $dry_run ? '模式:--dry-run(只統計，不寫入)' : '模式:正式寫入' );
+
+		$stats = $migrator->convert_legacy_cn( [
+			'dry_run' => $dry_run,
+			'table'   => $table,
+		] );
+
+		foreach ( $stats as $label => $s ) {
+			WP_CLI::log( '─────────────────────────────' );
+			WP_CLI::log( $label . ' 掃描筆數 : ' . $s['scanned'] );
+			WP_CLI::log( $label . ' 需變更   : ' . $s['changed'] );
+			WP_CLI::log( $label . ' 無變化   : ' . $s['unchanged'] );
+		}
+		WP_CLI::success( $dry_run ? 'Dry run 完成(未寫入)' : '轉換完成' );
 	} );
 }
