@@ -133,9 +133,9 @@ if ( null === $person ) {
     return;
 }
 
-$works       = $repo->get_person_works( $person_bgm_id ); // 預設只回 cast
-$works_count = count( $works );
 $is_cv       = ( $person['type'] === 'cv' );
+$works       = $repo->get_person_works( $person_bgm_id, $is_cv ); // CV 只回 cast；staff 類人物回全部(含 staff 紀錄)
+$works_count = count( $works );
 $role_label  = $is_cv ? '聲優' : '製作人員';
 
 /* ── 姓名縮寫 fallback（無大頭照時使用） ── */
@@ -447,15 +447,17 @@ get_header();
                                     <span class="asa-work-title"><?php echo esc_html( $w_title ); ?></span>
                                 </a>
 
-                                <?php if ( ! empty( $w['character_name'] ) ) : ?>
+                                <?php if ( ! empty( $w['character_name'] ) || trim( (string) $w['role'] ) !== '' ) : ?>
                                     <p class="asa-work-character">
-                                        <?php if ( (int) $w['character_bgm_id'] > 0 ) : ?>
-                                            飾
-                                            <a href="<?php echo esc_url( $repo->get_character( (int) $w['character_bgm_id'] )['url'] ?? '#' ); ?>">
-                                                <?php echo esc_html( $w['character_name'] ); ?>
-                                            </a>
-                                        <?php else : ?>
-                                            飾 <?php echo esc_html( $w['character_name'] ); ?>
+                                        <?php if ( ! empty( $w['character_name'] ) ) : ?>
+                                            <?php if ( (int) $w['character_bgm_id'] > 0 ) : ?>
+                                                飾
+                                                <a href="<?php echo esc_url( $repo->get_character( (int) $w['character_bgm_id'] )['url'] ?? '#' ); ?>">
+                                                    <?php echo esc_html( $w['character_name'] ); ?>
+                                                </a>
+                                            <?php else : ?>
+                                                飾 <?php echo esc_html( $w['character_name'] ); ?>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                         <?php if ( trim( (string) $w['role'] ) !== '' ) : ?>
                                             <span class="asa-role-badge"><?php echo esc_html( trim( $w['role'] ) ); ?></span>
