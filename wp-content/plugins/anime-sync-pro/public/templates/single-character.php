@@ -406,6 +406,110 @@ get_header();
                 </div>
             </header>
 
+            <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                <?php
+                $ase_nonce = wp_create_nonce( 'asp_entity_edit' );
+                $ase_ajax  = esc_url( admin_url( 'admin-ajax.php' ) );
+                ?>
+                <div class="asp-entity-edit-block" style="margin:12px 0;padding:10px 14px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;">
+                    <button type="button" class="asp-entity-edit-toggle button" style="cursor:pointer;">✏️ 修正資料（僅管理員可見）</button>
+                    <div class="asp-entity-edit-form" hidden style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+                        <label style="display:block;">姓名<br>
+                            <input type="text" class="ase-f-name" value="<?php echo esc_attr( $character['name'] ); ?>" style="width:100%;max-width:400px;">
+                        </label>
+                        <label style="display:block;">角色介紹<br>
+                            <textarea class="ase-f-summary" rows="6" style="width:100%;max-width:600px;font-family:inherit;"><?php echo esc_textarea( $character['summary'] ?? '' ); ?></textarea><br>
+                            <button type="button" class="asp-entity-deepl-btn button" style="margin-top:4px;">🌐 DeepL 翻譯建議</button>
+                        </label>
+                        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                            <label>性別 <input type="text" class="ase-f-gender" value="<?php echo esc_attr( $character['gender'] ?? '' ); ?>" style="width:80px;"></label>
+                            <label>生日 <input type="text" class="ase-f-birthday" value="<?php echo esc_attr( $character['birthday'] ?? '' ); ?>" style="width:120px;"></label>
+                            <label>血型 <input type="text" class="ase-f-bloodtype" value="<?php echo esc_attr( $character['bloodtype'] ?? '' ); ?>" style="width:60px;"></label>
+                            <label>身高 <input type="text" class="ase-f-height" value="<?php echo esc_attr( $character['height'] ?? '' ); ?>" style="width:80px;"></label>
+                            <label>體重 <input type="text" class="ase-f-weight" value="<?php echo esc_attr( $character['weight'] ?? '' ); ?>" style="width:80px;"></label>
+                        </div>
+                        <div>
+                            <button type="button" class="asp-entity-save-btn button button-primary">💾 儲存</button>
+                            <span class="asp-entity-edit-status" style="margin-left:8px;font-size:12px;color:#666;"></span>
+                        </div>
+                    </div>
+                </div>
+                <script>
+                (function () {
+                    'use strict';
+                    var block = document.querySelector('.asp-entity-edit-block');
+                    if (!block) return;
+
+                    var toggle = block.querySelector('.asp-entity-edit-toggle');
+                    var form   = block.querySelector('.asp-entity-edit-form');
+                    var status = block.querySelector('.asp-entity-edit-status');
+                    var ajaxUrl = <?php echo wp_json_encode( $ase_ajax ); ?>;
+                    var nonce   = <?php echo wp_json_encode( $ase_nonce ); ?>;
+                    var bgmId   = <?php echo (int) $character_bgm_id; ?>;
+
+                    toggle.addEventListener('click', function () {
+                        form.hidden = !form.hidden;
+                    });
+
+                    block.querySelector('.asp-entity-deepl-btn').addEventListener('click', function () {
+                        var btn = this;
+                        var ta  = block.querySelector('.ase-f-summary');
+                        var text = ta.value.trim();
+                        if (!text) { status.textContent = '角色介紹是空的，沒東西可翻'; return; }
+                        btn.disabled = true;
+                        status.textContent = '翻譯中…';
+                        var body = new URLSearchParams();
+                        body.set('action', 'asp_entity_deepl_suggest');
+                        body.set('nonce', nonce);
+                        body.set('text', text);
+                        fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+                            .then(function (r) { return r.json(); })
+                            .then(function (res) {
+                                btn.disabled = false;
+                                if (res.success) {
+                                    ta.value = res.data.translated;
+                                    status.textContent = '✅ 已填入翻譯建議，記得按下方「儲存」才會存檔';
+                                } else {
+                                    status.textContent = '❌ ' + (res.data || '翻譯失敗');
+                                }
+                            })
+                            .catch(function () {
+                                btn.disabled = false;
+                                status.textContent = '❌ 網路錯誤';
+                            });
+                    });
+
+                    block.querySelector('.asp-entity-save-btn').addEventListener('click', function () {
+                        var btn = this;
+                        btn.disabled = true;
+                        status.textContent = '儲存中…';
+                        var body = new URLSearchParams();
+                        body.set('action', 'asp_entity_save_edit');
+                        body.set('nonce', nonce);
+                        body.set('entity_type', 'character');
+                        body.set('bgm_id', String(bgmId));
+                        body.set('name', block.querySelector('.ase-f-name').value);
+                        body.set('summary', block.querySelector('.ase-f-summary').value);
+                        body.set('gender', block.querySelector('.ase-f-gender').value);
+                        body.set('birthday', block.querySelector('.ase-f-birthday').value);
+                        body.set('bloodtype', block.querySelector('.ase-f-bloodtype').value);
+                        body.set('height', block.querySelector('.ase-f-height').value);
+                        body.set('weight', block.querySelector('.ase-f-weight').value);
+                        fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+                            .then(function (r) { return r.json(); })
+                            .then(function (res) {
+                                btn.disabled = false;
+                                status.textContent = res.success ? '✅ 已儲存，重新整理頁面可看到最新內容' : '❌ ' + (res.data || '儲存失敗');
+                            })
+                            .catch(function () {
+                                btn.disabled = false;
+                                status.textContent = '❌ 網路錯誤';
+                            });
+                    });
+                })();
+                </script>
+            <?php endif; ?>
+
                   <?php if ( $character_summary !== '' ) : ?>
                 <section class="asa-entity-summary">
                     <h2 class="asa-section-title">角色介紹</h2>

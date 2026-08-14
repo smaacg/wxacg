@@ -205,7 +205,7 @@ class Anime_Sync_Entity_Migrator {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT id, summary, gender, birthday, bloodtype, name_original, name_cn,
+				"SELECT id, name, image, summary, gender, birthday, bloodtype, name_original, name_cn,
 				        aliases_json, height, weight, infobox_json
 				 FROM {$this->t_char} WHERE bgm_id = %d",
 				$bgm_id
@@ -232,8 +232,22 @@ class Anime_Sync_Entity_Migrator {
 
 		if ( $row ) {
 			$set = [];
-			if ( $name !== '' )  { $set['name']  = $name; }
-			if ( $image !== '' ) { $set['image'] = $image; }
+			// ★ name／image 比照其他欄位,已有值就不覆蓋,避免蓋掉後台人工修正的結果。
+			if ( $name !== '' && trim( (string) ( $row['name'] ?? '' ) ) === '' ) {
+				$set['name'] = $name;
+			}
+			if ( $image !== '' && trim( (string) ( $row['image'] ?? '' ) ) === '' ) {
+				$set['image'] = $image;
+			}
+
+			// ★ 只在這次真的重新打了 Bangumi detail API 時才更新快照。
+			if ( $needs_detail && ! empty( $detail ) ) {
+				$set['bgm_snapshot_json'] = wp_json_encode( [
+					'name'      => $name,
+					'summary'   => $detail['summary'] ?? '',
+					'synced_at' => current_time( 'mysql' ),
+				], JSON_UNESCAPED_UNICODE );
+			}
 
 			if ( ! empty( $detail ) ) {
 				if ( trim( (string) ( $row['name_original'] ?? '' ) ) === '' && $detail['name_original'] !== '' ) {
@@ -286,6 +300,11 @@ class Anime_Sync_Entity_Migrator {
 				'weight'        => $detail['weight']        ?? '',
 				'summary'       => $detail['summary']       ?? '',
 				'infobox_json'  => $infobox_json,
+				'bgm_snapshot_json' => wp_json_encode( [
+					'name'      => $name,
+					'summary'   => $detail['summary'] ?? '',
+					'synced_at' => current_time( 'mysql' ),
+				], JSON_UNESCAPED_UNICODE ),
 			] );
 		}
 	}
@@ -456,6 +475,283 @@ class Anime_Sync_Entity_Migrator {
 		];
 	}
 
+	/* =====================================================================
+	 * DeepL 翻譯（角色/聲優簡介：日文 → 繁體中文）
+	 *
+	 * 只處理「還是日文」的簡介，已經是中文（不論簡繁）的一律跳過、
+	 * 交給既有的 Anime_Sync_CN_Converter 做簡轉繁就好，不消耗 DeepL 額度。
+	 * 判斷依據：內文含平假名／片假名 → 視為日文；純漢字（無假名）→ 視為中文。
+	 * ===================================================================== */
+
+	/**
+	 * 是否含平假名／片假名。中文（簡體或繁體）不會出現假名，這是可靠的日文判斷依據。
+	 */
+	private function is_japanese_text( string $text ): bool {
+		return (bool) preg_match( '/[\x{3040}-\x{309F}\x{30A0}\x{30FF}]/u', $text );
+	}
+
+	private function get_deepl_api_key(): string {
+		return trim( (string) get_option( 'anime_sync_deepl_api_key', '' ) );
+	}
+
+	/**
+	 * 查 DeepL /v2/usage 目前剩餘額度（字元數）。查不到（沒金鑰／連線失敗）回傳 null，
+	 * 呼叫端遇到 null 應視為「無法確認額度」，不應貿然當作還有額度可用。
+	 */
+	private function get_deepl_remaining_quota(): ?int {
+		$api_key = $this->get_deepl_api_key();
+		if ( $api_key === '' ) {
+			return null;
+		}
+
+		$is_free = str_ends_with( $api_key, ':fx' );
+		$base    = $is_free ? 'https://api-free.deepl.com' : 'https://api.deepl.com';
+
+		$response = wp_remote_get( $base . '/v2/usage', [
+			'timeout' => 10,
+			'headers' => [ 'Authorization' => 'DeepL-Auth-Key ' . $api_key ],
+		] );
+
+		if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+			return null;
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) || ! isset( $body['character_count'], $body['character_limit'] ) ) {
+			return null;
+		}
+
+		return max( 0, (int) $body['character_limit'] - (int) $body['character_count'] );
+	}
+
+	/**
+	 * 呼叫 DeepL 把日文文字翻成繁體中文。翻譯結果再過一次 OpenCC，
+	 * 不管 DeepL 那端實際吐簡體還繁體都保證最終是台灣正體，雙重保險。
+	 * 失敗（沒金鑰／額度不足／連線錯誤）一律回傳空字串，呼叫端不應覆蓋既有資料。
+	 */
+	private function translate_via_deepl( string $text ): string {
+		$text = trim( $text );
+		if ( $text === '' ) {
+			return '';
+		}
+
+		$api_key = $this->get_deepl_api_key();
+		if ( $api_key === '' ) {
+			return '';
+		}
+
+		$is_free = str_ends_with( $api_key, ':fx' );
+		$base    = $is_free ? 'https://api-free.deepl.com' : 'https://api.deepl.com';
+
+		if ( $this->rate_limiter ) {
+			$this->rate_limiter->wait_if_needed( 'deepl' );
+		}
+
+		$response = wp_remote_post( $base . '/v2/translate', [
+			'timeout' => 15,
+			'headers' => [
+				'Authorization' => 'DeepL-Auth-Key ' . $api_key,
+				'Content-Type'  => 'application/x-www-form-urlencoded',
+			],
+			'body'    => [
+				'text'        => $text,
+				'source_lang' => 'JA',
+				'target_lang' => 'ZH-HANT',
+			],
+		] );
+
+		if ( is_wp_error( $response ) ) {
+			return '';
+		}
+
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		if ( $code === 456 ) {
+			// 額度用完。上層批次流程應該停止，不要繼續打。
+			return '';
+		}
+		if ( $code !== 200 ) {
+			return '';
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		$translated = $body['translations'][0]['text'] ?? '';
+		if ( $translated === '' ) {
+			return '';
+		}
+
+		return Anime_Sync_CN_Converter::static_convert( $translated );
+	}
+
+	/**
+	 * 給前台「🌐 DeepL 翻譯建議」按鈕用的公開入口。已經是中文的文字直接走
+	 * OpenCC 簡轉繁、不呼叫 DeepL（不消耗額度）；日文才真的送去 DeepL。
+	 * 不檢查/扣額度安全緩衝——單筆手動點擊，用量遠小於批次工作，
+	 * 真的沒額度時 translate_via_deepl() 本身會因 456 回傳空字串。
+	 */
+	public function translate_text_public( string $text ): string {
+		$text = trim( $text );
+		if ( $text === '' ) {
+			return '';
+		}
+
+		if ( ! $this->is_japanese_text( $text ) ) {
+			return Anime_Sync_CN_Converter::static_convert( $text );
+		}
+
+		return $this->translate_via_deepl( $text );
+	}
+
+	/**
+	 * 批次把角色簡介還是日文的翻成繁體中文。已經是中文的不會呼叫 DeepL
+	 * （改走 OpenCC 簡轉繁，不消耗額度）。開跑前與過程中都會查即時剩餘額度，
+	 * 低於安全緩衝就自動停止，不會硬跑到被 DeepL 用 456 擋下來。
+	 *
+	 * @param array $args ['limit' => int, 'bgm_id' => int, 'safety_margin' => int]
+	 */
+	public function translate_character_summaries( array $args = [] ): array {
+		global $wpdb;
+
+		$one_id        = (int) ( $args['bgm_id'] ?? 0 );
+		$limit         = (int) ( $args['limit'] ?? 0 );
+		$safety_margin = (int) ( $args['safety_margin'] ?? 5000 );
+
+		$stats = [ 'total' => 0, 'translated' => 0, 'already_chinese' => 0, 'skipped_quota' => 0, 'failed' => 0 ];
+
+		if ( $this->get_deepl_api_key() === '' ) {
+			$stats['error'] = '未設定 DeepL API 金鑰';
+			return $stats;
+		}
+
+		$remaining = $this->get_deepl_remaining_quota();
+		if ( $remaining === null ) {
+			$stats['error'] = '無法確認 DeepL 剩餘額度，為安全起見中止';
+			return $stats;
+		}
+
+		if ( $one_id > 0 ) {
+			$ids = [ $one_id ];
+		} else {
+			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_char} WHERE bgm_id > 0 AND summary IS NOT NULL AND summary != ''" );
+		}
+
+		if ( $limit > 0 && count( $ids ) > $limit ) {
+			$ids = array_slice( $ids, 0, $limit );
+		}
+
+		foreach ( $ids as $bgm_id ) {
+			$bgm_id = (int) $bgm_id;
+			$stats['total']++;
+
+			$summary = (string) $wpdb->get_var( $wpdb->prepare( "SELECT summary FROM {$this->t_char} WHERE bgm_id = %d", $bgm_id ) );
+			$summary = trim( $summary );
+
+			if ( $summary === '' ) {
+				continue;
+			}
+
+			if ( ! $this->is_japanese_text( $summary ) ) {
+				// 已經是中文，走 OpenCC 簡轉繁即可，不用 DeepL。
+				$converted = Anime_Sync_CN_Converter::static_convert( $summary );
+				if ( $converted !== $summary ) {
+					$wpdb->update( $this->t_char, [ 'summary' => $converted ], [ 'bgm_id' => $bgm_id ] );
+				}
+				$stats['already_chinese']++;
+				continue;
+			}
+
+			if ( $remaining < $safety_margin ) {
+				$stats['skipped_quota']++;
+				continue;
+			}
+
+			$translated = $this->translate_via_deepl( $summary );
+			if ( $translated === '' ) {
+				$stats['failed']++;
+				continue;
+			}
+
+			$wpdb->update( $this->t_char, [ 'summary' => $translated ], [ 'bgm_id' => $bgm_id ] );
+			$remaining -= mb_strlen( $summary, 'UTF-8' );
+			$stats['translated']++;
+		}
+
+		$stats['remaining_quota'] = $remaining;
+		return $stats;
+	}
+
+	/**
+	 * 同上，人物/聲優版本。
+	 */
+	public function translate_person_summaries( array $args = [] ): array {
+		global $wpdb;
+
+		$one_id        = (int) ( $args['bgm_id'] ?? 0 );
+		$limit         = (int) ( $args['limit'] ?? 0 );
+		$safety_margin = (int) ( $args['safety_margin'] ?? 5000 );
+
+		$stats = [ 'total' => 0, 'translated' => 0, 'already_chinese' => 0, 'skipped_quota' => 0, 'failed' => 0 ];
+
+		if ( $this->get_deepl_api_key() === '' ) {
+			$stats['error'] = '未設定 DeepL API 金鑰';
+			return $stats;
+		}
+
+		$remaining = $this->get_deepl_remaining_quota();
+		if ( $remaining === null ) {
+			$stats['error'] = '無法確認 DeepL 剩餘額度，為安全起見中止';
+			return $stats;
+		}
+
+		if ( $one_id > 0 ) {
+			$ids = [ $one_id ];
+		} else {
+			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_person} WHERE bgm_id > 0 AND summary IS NOT NULL AND summary != ''" );
+		}
+
+		if ( $limit > 0 && count( $ids ) > $limit ) {
+			$ids = array_slice( $ids, 0, $limit );
+		}
+
+		foreach ( $ids as $bgm_id ) {
+			$bgm_id = (int) $bgm_id;
+			$stats['total']++;
+
+			$summary = (string) $wpdb->get_var( $wpdb->prepare( "SELECT summary FROM {$this->t_person} WHERE bgm_id = %d", $bgm_id ) );
+			$summary = trim( $summary );
+
+			if ( $summary === '' ) {
+				continue;
+			}
+
+			if ( ! $this->is_japanese_text( $summary ) ) {
+				$converted = Anime_Sync_CN_Converter::static_convert( $summary );
+				if ( $converted !== $summary ) {
+					$wpdb->update( $this->t_person, [ 'summary' => $converted ], [ 'bgm_id' => $bgm_id ] );
+				}
+				$stats['already_chinese']++;
+				continue;
+			}
+
+			if ( $remaining < $safety_margin ) {
+				$stats['skipped_quota']++;
+				continue;
+			}
+
+			$translated = $this->translate_via_deepl( $summary );
+			if ( $translated === '' ) {
+				$stats['failed']++;
+				continue;
+			}
+
+			$wpdb->update( $this->t_person, [ 'summary' => $translated ], [ 'bgm_id' => $bgm_id ] );
+			$remaining -= mb_strlen( $summary, 'UTF-8' );
+			$stats['translated']++;
+		}
+
+		$stats['remaining_quota'] = $remaining;
+		return $stats;
+	}
+
 	/**
 	 * 批次回填角色。
 	 */
@@ -583,10 +879,26 @@ class Anime_Sync_Entity_Migrator {
 
 		if ( $row ) {
 			$set = [];
-			if ( $name !== '' )  { $set['name']  = $name; }
-			if ( $image !== '' ) { $set['image'] = $image; }
+			// ★ name／image 比照其他欄位,已有值就不覆蓋,避免蓋掉後台人工修正的結果。
+			if ( $name !== '' && trim( (string) ( $row['name'] ?? '' ) ) === '' ) {
+				$set['name'] = $name;
+			}
+			if ( $image !== '' && trim( (string) ( $row['image'] ?? '' ) ) === '' ) {
+				$set['image'] = $image;
+			}
 			if ( $set_type && ( $row['type'] ?? '' ) !== 'cv' ) {
 				$set['type'] = $type;
+			}
+
+			// ★ 只在這次真的重新打了 Bangumi detail API 時才更新快照,
+			//   避免用「沒抓新資料」的情況覆蓋掉快照裡原本有意義的內容。
+			//   跟人工修正結果（存在 name／summary 等欄位）分開存放、互不影響。
+			if ( $needs_detail && ! empty( $detail ) ) {
+				$set['bgm_snapshot_json'] = wp_json_encode( [
+					'name'      => $name,
+					'summary'   => $detail['summary'] ?? '',
+					'synced_at' => current_time( 'mysql' ),
+				], JSON_UNESCAPED_UNICODE );
 			}
 
 			if ( ! empty( $detail ) ) {
@@ -633,6 +945,11 @@ class Anime_Sync_Entity_Migrator {
 				'summary'       => $detail['summary']       ?? '',
 				'aliases_json'  => $aliases_json,
 				'infobox_json'  => $infobox_json,
+				'bgm_snapshot_json' => wp_json_encode( [
+					'name'      => $name,
+					'summary'   => $detail['summary'] ?? '',
+					'synced_at' => current_time( 'mysql' ),
+				], JSON_UNESCAPED_UNICODE ),
 			] );
 		}
 	}
@@ -1059,6 +1376,62 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '無變更      : ' . $stats['no_change'] );
 		WP_CLI::log( '抓取失敗    : ' . $stats['failed'] );
 		WP_CLI::success( '回填完成' );
+	} );
+
+	WP_CLI::add_command( 'anime translate-summaries', function ( $args, $assoc_args ) {
+		$type          = $assoc_args['type'] ?? 'all';
+		$bgm_id        = isset( $assoc_args['id'] ) ? (int) $assoc_args['id'] : 0;
+		$limit         = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0;
+		$safety_margin = isset( $assoc_args['safety-margin'] ) ? (int) $assoc_args['safety-margin'] : 5000;
+
+		if ( ! in_array( $type, [ 'all', 'characters', 'persons' ], true ) ) {
+			WP_CLI::error( '--type 只能是 all / characters / persons' );
+			return;
+		}
+
+		$migrator = new Anime_Sync_Entity_Migrator();
+
+		WP_CLI::log( '=== 角色/聲優簡介翻譯：日文用 DeepL 翻繁中，已是中文的走 OpenCC 簡轉繁（不耗 DeepL 額度）===' );
+		if ( $limit > 0 ) {
+			WP_CLI::log( '本批上限:--limit=' . $limit );
+		}
+		WP_CLI::log( '額度安全緩衝:--safety-margin=' . $safety_margin . ' 字元' );
+
+		$job_args = [ 'bgm_id' => $bgm_id, 'limit' => $limit, 'safety_margin' => $safety_margin ];
+
+		if ( $type === 'all' || $type === 'characters' ) {
+			$stats = $migrator->translate_character_summaries( $job_args );
+			WP_CLI::log( '─────────────────────────────' );
+			WP_CLI::log( '【角色】' );
+			if ( isset( $stats['error'] ) ) {
+				WP_CLI::warning( $stats['error'] );
+			} else {
+				WP_CLI::log( '掃描筆數     : ' . $stats['total'] );
+				WP_CLI::log( '已翻譯(DeepL): ' . $stats['translated'] );
+				WP_CLI::log( '本來就是中文 : ' . $stats['already_chinese'] );
+				WP_CLI::log( '額度不足跳過 : ' . $stats['skipped_quota'] );
+				WP_CLI::log( '翻譯失敗     : ' . $stats['failed'] );
+				WP_CLI::log( '剩餘額度     : ' . ( $stats['remaining_quota'] ?? '未知' ) );
+			}
+		}
+
+		if ( $type === 'all' || $type === 'persons' ) {
+			$stats = $migrator->translate_person_summaries( $job_args );
+			WP_CLI::log( '─────────────────────────────' );
+			WP_CLI::log( '【聲優/人物】' );
+			if ( isset( $stats['error'] ) ) {
+				WP_CLI::warning( $stats['error'] );
+			} else {
+				WP_CLI::log( '掃描筆數     : ' . $stats['total'] );
+				WP_CLI::log( '已翻譯(DeepL): ' . $stats['translated'] );
+				WP_CLI::log( '本來就是中文 : ' . $stats['already_chinese'] );
+				WP_CLI::log( '額度不足跳過 : ' . $stats['skipped_quota'] );
+				WP_CLI::log( '翻譯失敗     : ' . $stats['failed'] );
+				WP_CLI::log( '剩餘額度     : ' . ( $stats['remaining_quota'] ?? '未知' ) );
+			}
+		}
+
+		WP_CLI::success( '翻譯批次執行完成' );
 	} );
 
 	WP_CLI::add_command( 'anime convert-legacy-cn', function ( $args, $assoc_args ) {

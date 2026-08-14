@@ -68,6 +68,97 @@ class Anime_Sync_Frontend {
         add_filter( 'posts_join',     [ $this, 'filter_anime_search_join' ],      10, 2 );
         add_filter( 'posts_where',    [ $this, 'filter_anime_search_where' ],     10, 2 );
         add_filter( 'posts_distinct', [ $this, 'filter_anime_search_distinct' ],  10, 2 );
+
+        // 角色/聲優頁「✏️ 修正資料」快速編輯（僅管理員可見/可用）。
+        add_action( 'wp_ajax_asp_entity_save_edit',     [ $this, 'ajax_entity_save_edit' ] );
+        add_action( 'wp_ajax_asp_entity_deepl_suggest', [ $this, 'ajax_entity_deepl_suggest' ] );
+    }
+
+    /**
+     * 儲存角色/聲優的人工修正。直接寫回 wp_anime_characters / wp_anime_persons，
+     * 這兩張表不是 wp_posts，沒有 ACF/一般文章編輯畫面，只能走這支 AJAX。
+     * 寫入後，Anime_Sync_Entity_Migrator 的 upsert 邏輯（name/image 已有值不覆蓋，
+     * 其餘欄位本來就是如此）會保護這裡填的內容不被下次同步蓋掉。
+     */
+    public function ajax_entity_save_edit(): void {
+        check_ajax_referer( 'asp_entity_edit', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( '權限不足' );
+        }
+
+        $entity_type = isset( $_POST['entity_type'] ) ? sanitize_key( wp_unslash( $_POST['entity_type'] ) ) : '';
+        $bgm_id      = isset( $_POST['bgm_id'] ) ? (int) $_POST['bgm_id'] : 0;
+
+        if ( ! in_array( $entity_type, [ 'character', 'person' ], true ) || $bgm_id <= 0 ) {
+            wp_send_json_error( '參數錯誤' );
+        }
+
+        global $wpdb;
+        $table = $entity_type === 'character' ? $wpdb->prefix . 'anime_characters' : $wpdb->prefix . 'anime_persons';
+
+        $fields = [
+            'name'      => isset( $_POST['name'] )      ? sanitize_text_field( wp_unslash( $_POST['name'] ) )      : null,
+            'summary'   => isset( $_POST['summary'] )   ? sanitize_textarea_field( wp_unslash( $_POST['summary'] ) ) : null,
+            'gender'    => isset( $_POST['gender'] )    ? sanitize_text_field( wp_unslash( $_POST['gender'] ) )    : null,
+            'birthday'  => isset( $_POST['birthday'] )  ? sanitize_text_field( wp_unslash( $_POST['birthday'] ) )  : null,
+            'bloodtype' => isset( $_POST['bloodtype'] ) ? sanitize_text_field( wp_unslash( $_POST['bloodtype'] ) ) : null,
+            'height'    => isset( $_POST['height'] )    ? sanitize_text_field( wp_unslash( $_POST['height'] ) )    : null,
+        ];
+
+        // wp_anime_persons 沒有 weight 欄位，只有角色表才有，避免 $wpdb->update() 打到不存在的欄位。
+        if ( $entity_type === 'character' && isset( $_POST['weight'] ) ) {
+            $fields['weight'] = sanitize_text_field( wp_unslash( $_POST['weight'] ) );
+        }
+
+        // 只更新真的有送過來的欄位，未出現在表單裡的欄位維持原樣。
+        $set = array_filter( $fields, static function ( $v ) {
+            return $v !== null;
+        } );
+
+        if ( empty( $set ) ) {
+            wp_send_json_error( '沒有可更新的欄位' );
+        }
+
+        $updated = $wpdb->update( $table, $set, [ 'bgm_id' => $bgm_id ] );
+
+        if ( $updated === false ) {
+            wp_send_json_error( '資料庫寫入失敗' );
+        }
+
+        wp_send_json_success( [ 'message' => '已儲存' ] );
+    }
+
+    /**
+     * 「🌐 DeepL 翻譯建議」按鈕：只回傳翻譯結果給前端填入表單當草稿，
+     * 不會直接寫入資料庫，還是要走上面 ajax_entity_save_edit 才會真的存檔。
+     */
+    public function ajax_entity_deepl_suggest(): void {
+        check_ajax_referer( 'asp_entity_edit', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( '權限不足' );
+        }
+
+        $text = isset( $_POST['text'] ) ? sanitize_textarea_field( wp_unslash( $_POST['text'] ) ) : '';
+        $text = trim( $text );
+
+        if ( $text === '' ) {
+            wp_send_json_error( '沒有內容可翻譯' );
+        }
+
+        if ( ! class_exists( 'Anime_Sync_Entity_Migrator' ) ) {
+            wp_send_json_error( '翻譯模組尚未載入' );
+        }
+
+        $migrator   = new Anime_Sync_Entity_Migrator();
+        $translated = $migrator->translate_text_public( $text );
+
+        if ( $translated === '' ) {
+            wp_send_json_error( '翻譯失敗（可能未設定 DeepL 金鑰、額度不足，或內容已經是中文）' );
+        }
+
+        wp_send_json_success( [ 'translated' => $translated ] );
     }
 
     // =========================================================
@@ -191,6 +282,9 @@ class Anime_Sync_Frontend {
             'ratingRestUrl' => esc_url_raw( rest_url( 'weixiaoacg/v1/' ) ),
             'nonce'         => wp_create_nonce( 'wp_rest' ),
             'debug'         => defined( 'WP_DEBUG' ) && WP_DEBUG,
+            // 角色/聲優頁「✏️ 修正資料」用（僅管理員看得到對應 UI，一般訪客不受影響）
+            'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+            'entityEditNonce' => wp_create_nonce( 'asp_entity_edit' ),
         ] );
     }
 

@@ -132,12 +132,21 @@ if (
         ? max( 1, min( 365, (int) $_POST['anime_sync_log_retention_days'] ) ) : 30;
     $new_debug_mode    = isset( $_POST['anime_sync_debug_mode'] ) ? 1 : 0;
 
+    // ✅ 角色/聲優簡介翻譯：DeepL API 金鑰（Free 版金鑰結尾是 :fx）。
+    // 空字串代表「不變更」，避免每次存檔沒填就把已存的金鑰清空。
+    $new_deepl_key_raw = isset( $_POST['anime_sync_deepl_api_key'] )
+        ? trim( sanitize_text_field( wp_unslash( $_POST['anime_sync_deepl_api_key'] ) ) ) : '';
+
     update_option( 'anime_sync_site_name',          $new_site_name );
     update_option( 'anime_sync_site_url',           $new_site_url );
     update_option( 'anime_sync_daily_hour',         $new_daily_hour_utc );
     update_option( 'anime_sync_batch_size',         $new_batch_size );
     update_option( 'anime_sync_log_retention_days', $new_log_retention );
     update_option( 'anime_sync_debug_mode',         $new_debug_mode );
+
+    if ( $new_deepl_key_raw !== '' ) {
+        update_option( 'anime_sync_deepl_api_key', $new_deepl_key_raw );
+    }
 
     // ✅ [5.4.0] 角色/聲優回補（autoload 不影響前台，量小直接 update_option 即可）
     update_option( 'anime_sync_entity_backfill_mode',  $new_backfill_mode );
@@ -171,6 +180,11 @@ $daily_hour_local = $utc_to_local_hour( $daily_hour_utc );
 $batch_size       = (int) get_option( 'anime_sync_batch_size',        15 );
 $log_retention    = (int) get_option( 'anime_sync_log_retention_days', 30 );
 $debug_mode       = (int) get_option( 'anime_sync_debug_mode',          0 );
+
+// ✅ 角色/聲優簡介翻譯：DeepL 金鑰只顯示狀態，絕不把已存的金鑰值印回頁面原始碼。
+$deepl_key_current  = trim( (string) get_option( 'anime_sync_deepl_api_key', '' ) );
+$deepl_key_is_set   = $deepl_key_current !== '';
+$deepl_key_is_free  = $deepl_key_is_set && str_ends_with( $deepl_key_current, ':fx' );
 
 // ✅ [5.4.0] 角色/聲優回補目前狀態
 $backfill_mode  = (string) get_option( 'anime_sync_entity_backfill_mode', 'off' );
@@ -318,6 +332,44 @@ $cron_rows = array(
                                 esc_html__( '產生的 UA：%s', 'anime-sync-pro' ),
                                 '<code class="asc-ua-code">' . esc_html( $site_name . '/' . $plugin_version . ' (' . $site_url_opt . ')' ) . '</code>'
                             ); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- ───────────────── DeepL 翻譯 ───────────────── -->
+        <div class="asc-card">
+            <h2 class="asc-card-title">
+                <span class="dashicons dashicons-translation"></span>
+                <?php esc_html_e( '角色/聲優簡介翻譯（DeepL）', 'anime-sync-pro' ); ?>
+            </h2>
+            <p class="description asc-card-desc">
+                <?php esc_html_e( '僅用於把角色/聲優簡介裡還是日文的部分翻成繁體中文；已經是中文的一律走 OpenCC 簡轉繁，不會消耗 DeepL 額度。姓名翻譯仍走既有的 CAST 字典（AI provider），跟這裡是分開的兩件事。', 'anime-sync-pro' ); ?>
+            </p>
+            <table class="form-table asc-form-table">
+                <tr>
+                    <th scope="row">
+                        <label for="anime_sync_deepl_api_key"><?php esc_html_e( 'DeepL API 金鑰', 'anime-sync-pro' ); ?></label>
+                    </th>
+                    <td>
+                        <input type="password" id="anime_sync_deepl_api_key" name="anime_sync_deepl_api_key"
+                               value="" autocomplete="off"
+                               placeholder="<?php echo esc_attr( $deepl_key_is_set ? '●●●●●●●●●●●●（已設定，留空表示不變更）' : '例如：342ebdc3-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx' ); ?>"
+                               class="regular-text asc-full-input" />
+                        <p class="description">
+                            <?php if ( $deepl_key_is_set ) : ?>
+                                ✅ <?php echo esc_html( $deepl_key_is_free
+                                    ? __( '目前已設定金鑰（Free 版）。', 'anime-sync-pro' )
+                                    : __( '目前已設定金鑰（Pro 版）。', 'anime-sync-pro' ) ); ?>
+                            <?php else : ?>
+                                <?php esc_html_e( '尚未設定。免費版金鑰結尾會是「:fx」，每月 50 萬字元額度；沒設定金鑰時，翻譯排程會自動跳過，不影響其他排程任務。', 'anime-sync-pro' ); ?>
+                            <?php endif; ?>
+                            <?php esc_html_e( '欄位留空並儲存＝維持原本設定，不會被清空。', 'anime-sync-pro' ); ?>
+                        </p>
+                        <p class="description">
+                            <?php esc_html_e( '批次翻譯每週三凌晨 3 點自動執行一次（每次上限 300 筆），也可以用 WP-CLI 手動跑：', 'anime-sync-pro' ); ?>
+                            <code>wp anime translate-summaries --type=all --limit=300</code>
                         </p>
                     </td>
                 </tr>

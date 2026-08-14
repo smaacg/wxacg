@@ -76,6 +76,7 @@ class Anime_Sync_Cron_Manager {
     const HOOK_SEASON_IMPORT          = 'anime_sync_season_auto_import';
     const HOOK_UPDATE_MAP             = 'anime_sync_update_anime_map';
     const HOOK_THEMES_EPISODES_UPDATE = 'anime_sync_themes_episodes_update';
+    const HOOK_TRANSLATE_SUMMARIES    = 'anime_sync_translate_summaries';
 
     const LOCK_TTL_DAILY           = 1800;
     const LOCK_TTL_SEASON          = 3600;
@@ -145,6 +146,7 @@ class Anime_Sync_Cron_Manager {
         add_action( self::HOOK_SEASON_IMPORT,          [ $this, 'run_season_auto_import' ], 10, 2 );
         add_action( self::HOOK_THEMES_EPISODES_UPDATE, [ $this, 'run_themes_episodes_update' ] );
         add_action( self::HOOK_ENTITY_BACKFILL,        [ $this, 'run_entity_backfill' ] );
+        add_action( self::HOOK_TRANSLATE_SUMMARIES,    [ $this, 'run_translate_summaries' ] );
     }
 
     // =========================================================================
@@ -235,6 +237,16 @@ class Anime_Sync_Cron_Manager {
             wp_schedule_event( time() + 60, 'anime_sync_five_min', self::HOOK_ENTITY_BACKFILL );
         }
 
+        // 角色/聲優簡介翻譯：日文用 DeepL 翻繁中，已是中文的走 OpenCC。
+        // 沒設定 DeepL 金鑰時 run_translate_summaries() 會直接跳過，不影響其他排程。
+        if ( ! wp_next_scheduled( self::HOOK_TRANSLATE_SUMMARIES ) ) {
+            wp_schedule_event(
+                strtotime( 'next wednesday 03:00:00' ),
+                'anime_sync_weekly',
+                self::HOOK_TRANSLATE_SUMMARIES
+            );
+        }
+
         self::maybe_migrate_legacy_backfill_options();
     }
 
@@ -246,6 +258,7 @@ class Anime_Sync_Cron_Manager {
             self::HOOK_UPDATE_MAP,
             self::HOOK_THEMES_EPISODES_UPDATE,
             self::HOOK_ENTITY_BACKFILL,
+            self::HOOK_TRANSLATE_SUMMARIES,
         ];
         foreach ( $hooks as $hook ) {
             $timestamp = wp_next_scheduled( $hook );
@@ -1211,6 +1224,50 @@ class Anime_Sync_Cron_Manager {
 
         $this->logger->log( 'info', '每週清理完成' );
         self::update_cron_option( 'anime_sync_last_weekly_cleanup', current_time( 'mysql' ) );
+    }
+
+    // =========================================================================
+    // 任務：角色/聲優簡介翻譯（日文→繁中，DeepL；已是中文則走 OpenCC）
+    // =========================================================================
+
+    /**
+     * 每次執行有上限（--limit 概念，這裡固定 300），避免單次排程就把整月
+     * DeepL 免費額度用光；新角色/聲優也是靠這個排程逐週撿到，不用另外掛
+     * 同步時即時翻譯的 hook。沒設定 DeepL 金鑰時，migrator 內部方法會直接
+     * 回傳 error 訊息，這裡記錄一筆 log 就跳過，不影響其他排程。
+     */
+    public function run_translate_summaries(): void {
+        if ( get_transient( 'anime_sync_lock_translate_summaries' ) ) {
+            return;
+        }
+        // 沿用季度匯入同一顆鎖 TTL（1 小時）：這個工作跟季度匯入一樣是
+        // 逐筆迴圈＋rate limit，5 分鐘的 ENTITY_BACKFILL 鎖對它太短。
+        set_transient( 'anime_sync_lock_translate_summaries', 1, self::LOCK_TTL_SEASON );
+
+        try {
+            if ( ! class_exists( 'Anime_Sync_Entity_Migrator' ) ) {
+                return;
+            }
+
+            $migrator    = new Anime_Sync_Entity_Migrator( $this->rate_limiter );
+            $batch_limit = 300;
+
+            $char_stats = $migrator->translate_character_summaries( [ 'limit' => $batch_limit ] );
+            if ( isset( $char_stats['error'] ) ) {
+                $this->logger->log( 'info', '角色簡介翻譯：' . $char_stats['error'] );
+            } else {
+                $this->logger->log( 'info', '角色簡介翻譯完成', $char_stats );
+            }
+
+            $person_stats = $migrator->translate_person_summaries( [ 'limit' => $batch_limit ] );
+            if ( isset( $person_stats['error'] ) ) {
+                $this->logger->log( 'info', '人物簡介翻譯：' . $person_stats['error'] );
+            } else {
+                $this->logger->log( 'info', '人物簡介翻譯完成', $person_stats );
+            }
+        } finally {
+            delete_transient( 'anime_sync_lock_translate_summaries' );
+        }
     }
 
     // =========================================================================
