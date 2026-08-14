@@ -43,6 +43,12 @@ class Anime_Sync_ACF_Fields {
     /** 解鎖 token 有效秒數(僅為 transient 上限,實際重整頁面就要重新解鎖) */
     const UNLOCK_TTL = 1800;
 
+    /**
+     * 儲存前記下的短評舊值,供 auto_assign_editorial_reviewer() 判斷這次存檔短評是否真的有變動。
+     * 結構:[ post_id => 舊短評文字 ]
+     */
+    private $editor_summary_before_save = [];
+
     public function __construct() {
         add_action( 'acf/init',         [ $this, 'register_all_field_groups' ] );
         add_action( 'add_meta_boxes',   [ $this, 'register_resync_metabox' ] );
@@ -85,6 +91,8 @@ class Anime_Sync_ACF_Fields {
         // 全人工短評：可複製提示詞盒（含繁中標題）＋ 儲存時自動指定審核者。
         add_filter( 'acf/prepare_field/key=field_anime_editorial_prompt_helper', [ $this, 'render_editorial_prompt_helper' ] );
         add_filter( 'acf/prepare_field/key=field_shortcut_anime_prompt_helper', [ $this, 'render_editorial_prompt_helper' ] );
+        // 優先權 5:搶在 ACF 核心存欄位(_acf_do_save_post,優先權 10)之前先記下短評舊值。
+        add_action( 'acf/save_post', [ $this, 'capture_editor_summary_before_save' ], 5 );
         add_action( 'acf/save_post', [ $this, 'auto_assign_editorial_reviewer' ], 20 );
 
         $this->register_mirror_hooks();
@@ -476,6 +484,12 @@ EOT;
             return;
         }
 
+        // 短評內容這次存檔沒有真的變動(例如只改了其他欄位),不重新蓋審核者/審核日期/已發布狀態。
+        if ( array_key_exists( $post_id, $this->editor_summary_before_save )
+            && trim( (string) $this->editor_summary_before_save[ $post_id ] ) === $summary ) {
+            return;
+        }
+
         $user_id = get_current_user_id();
 
         if ( $user_id <= 0 || ! current_user_can( 'edit_post', $post_id ) ) {
@@ -502,6 +516,28 @@ EOT;
         if ( function_exists( 'wxacg_schedule_thin_rebuild' ) ) {
             wxacg_schedule_thin_rebuild();
         }
+    }
+
+    /**
+     * 搶在 ACF 核心把欄位寫入資料庫之前,先記下短評舊值。
+     *
+     * auto_assign_editorial_reviewer() 靠這個舊值判斷「這次存檔短評文字是否真的有變」,
+     * 避免只是儲存了其他無關欄位,也把審核者/審核日期蓋成這次操作的人與今天。
+     *
+     * @param mixed $post_id ACF 傳入的 post id（options 頁為字串）。
+     */
+    public function capture_editor_summary_before_save( $post_id ): void {
+        if ( ! is_numeric( $post_id ) ) {
+            return;
+        }
+
+        $post_id = (int) $post_id;
+
+        if ( $post_id <= 0 || 'anime' !== get_post_type( $post_id ) ) {
+            return;
+        }
+
+        $this->editor_summary_before_save[ $post_id ] = get_post_meta( $post_id, 'anime_editor_summary', true );
     }
 
     private function register_mirror_hooks(): void {
@@ -3041,6 +3077,10 @@ private function register_manga_fields(): void {
         $old_yt_url = get_post_meta( $post_id, 'anime_yt_playlist_url', true );
         $new_yt_url = isset( $fields['shortcut_anime_yt_playlist_url'] ) ? $fields['shortcut_anime_yt_playlist_url'] : '';
 
+        // 捷徑盒走 AJAX 不會觸發 acf/save_post,這裡手動記下短評舊值,
+        // 讓等一下手動呼叫的 auto_assign_editorial_reviewer() 也能判斷短評是否真的有變。
+        $this->editor_summary_before_save[ $post_id ] = get_post_meta( $post_id, 'anime_editor_summary', true );
+
         // 儲存一般 Post Meta(同步補寫 ACF 參考鍵,與 auto_assign_editorial_reviewer() 的寫法一致)
         foreach ( $mapping as $shortcut => $real_key ) {
             if ( isset( $fields[$shortcut] ) ) {
@@ -4350,6 +4390,7 @@ private function register_manga_fields(): void {
                                         logAI(`🛑 [CAST] 已中止,停止重試。`, true);
                                         return;
                                     }
+                                    logAI(`🔄 [CAST] 正在使用同一把 Key 重試...`);
                                     retryAfterError = true;
                                     continue;
                                 }
@@ -4594,6 +4635,7 @@ private function register_manga_fields(): void {
                                     logAI(res.data.message, true);
                                     await new Promise(function (resolve) { setTimeout(resolve, 3000); });
                                     if (window.asp_ai_abort) return;
+                                    logAI(`🔄 正在使用同一把 Key 重試...`);
                                     retryAfterError = true;
                                     // continue: 不需要寫，while 迴圈會自然進入下一圈
                                 } else {
@@ -4781,6 +4823,10 @@ private function register_manga_fields(): void {
         $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
         // 前端在 3 秒重試倒數後,會帶著此旗標重打同一把 Key,見 send_api_failure()
         $is_retry = ! empty( $_POST['ai_retry_after_error'] );
+
+        if ( $is_retry ) {
+            error_log( "ASP AI Retry: 收到 3 秒重試請求 (provider={$provider}, 第 " . ( $key_set['index'] + 1 ) . " 把 Key, endpoint=ajax_shortcut_ai_generate)" );
+        }
 
         $system_prompt = isset( $_POST['system_prompt'] ) ? wp_unslash( $_POST['system_prompt'] ) : '';
         $user_prompt   = isset( $_POST['user_prompt'] ) ? wp_unslash( $_POST['user_prompt'] ) : '';
@@ -5092,6 +5138,10 @@ private function register_manga_fields(): void {
         $debug = ! empty( $_POST['debug'] ) && intval( $_POST['debug'] ) === 1;
         // 前端在 3 秒重試倒數後,會帶著此旗標重打同一把 Key,見 send_api_failure()
         $is_retry = ! empty( $_POST['ai_retry_after_error'] );
+
+        if ( $is_retry ) {
+            error_log( "ASP AI Retry: 收到 3 秒重試請求 (provider={$provider}, endpoint=ajax_shortcut_ai_cast_translate)" );
+        }
 
         $title   = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
         $context = isset( $_POST['context'] ) ? sanitize_text_field( wp_unslash( $_POST['context'] ) ) : '';
@@ -5677,11 +5727,26 @@ private function register_manga_fields(): void {
         }
 
         if ( 400 === $code || 404 === $code ) {
+            $message = ( '' !== $raw_error )
+                ? $this->translate_api_error( $raw_error )
+                : '請求內容或模型名稱有誤';
+
+            // Gemini 等服務金鑰失效時是用 HTTP 400(而非 401/403)回報,
+            // 訊息含金鑰/額度關鍵字就該換 Key,不能一律當成請求本身有誤而中止整個任務。
+            if ( 400 === $code ) {
+                $lower        = strtolower( $raw_error );
+                $is_key_issue = ( false !== strpos( $lower, 'api key' ) )
+                    || ( false !== strpos( $lower, 'quota' ) )
+                    || ( false !== strpos( $lower, 'rate limit' ) );
+
+                if ( $is_key_issue ) {
+                    return [ 'type' => 'key', 'message' => $message ];
+                }
+            }
+
             return [
                 'type'    => 'request',
-                'message' => ( '' !== $raw_error )
-                    ? $this->translate_api_error( $raw_error )
-                    : '請求內容或模型名稱有誤',
+                'message' => $message,
             ];
         }
 
