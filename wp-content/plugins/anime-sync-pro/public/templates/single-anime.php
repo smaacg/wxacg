@@ -3202,53 +3202,55 @@ while ( have_posts() ) :
 						?>
 					</div>
 
-					<div class="wacg-cats">
-						<?php
-						$rating_categories = [
-							'story'     => [
-								'label' => '劇情',
-								'value' => $site_story,
-							],
-							'music'     => [
-								'label' => '音樂',
-								'value' => $site_music,
-							],
-							'animation' => [
-								'label' => '作畫',
-								'value' => $site_animation,
-							],
-							'voice'     => [
-								'label' => '聲優',
-								'value' => $site_voice,
-							],
-						];
+					<?php if ( $site_count > 0 ) : ?>
+						<div class="wacg-cats">
+							<?php
+							$rating_categories = [
+								'story'     => [
+									'label' => '劇情',
+									'value' => $site_story,
+								],
+								'music'     => [
+									'label' => '音樂',
+									'value' => $site_music,
+								],
+								'animation' => [
+									'label' => '作畫',
+									'value' => $site_animation,
+								],
+								'voice'     => [
+									'label' => '聲優',
+									'value' => $site_voice,
+								],
+							];
 
-						foreach ( $rating_categories as $rating_key => $rating_category ) :
-							?>
-							<div class="wacg-cat-row">
-								<span class="wacg-cat-label">
-									<?php echo esc_html( $rating_category['label'] ); ?>
-								</span>
-								<span class="wacg-cat-val wacg-cat-<?php echo esc_attr( $rating_key ); ?>">
-									<?php
-									echo $rating_category['value'] > 0
-										? esc_html(
-											number_format(
-												(float) $rating_category['value'],
-												1
+							foreach ( $rating_categories as $rating_key => $rating_category ) :
+								?>
+								<div class="wacg-cat-row">
+									<span class="wacg-cat-label">
+										<?php echo esc_html( $rating_category['label'] ); ?>
+									</span>
+									<span class="wacg-cat-val wacg-cat-<?php echo esc_attr( $rating_key ); ?>">
+										<?php
+										echo $rating_category['value'] > 0
+											? esc_html(
+												number_format(
+													(float) $rating_category['value'],
+													1
+												)
 											)
-										)
-										: '—';
-									?>
-								</span>
-							</div>
-						<?php endforeach; ?>
-					</div>
+											: '—';
+										?>
+									</span>
+								</div>
+							<?php endforeach; ?>
+						</div>
+					<?php endif; ?>
 				</div>
 
 				<?php if ( $site_count <= 0 ) : ?>
 					<p class="wacg-be-first">
-						✨ 尚無評分，歡迎分享你的看法。
+						✨ 尚無評分，歡迎分享你的看法：
 					</p>
 				<?php endif; ?>
 
