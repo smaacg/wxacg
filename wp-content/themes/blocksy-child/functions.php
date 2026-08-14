@@ -1228,8 +1228,10 @@ add_action( 'wp_footer', 'wxacg_output_adblock_notice', 90 );
  * ============================================================ */
 
 function wxacg_random_anime_redirect(): void {
-	$excluded_ids = wxacg_get_thin_anime_ids();
-
+	// 注意：不套用 wxacg_get_thin_anime_ids() 排除清單。
+	// 那份清單是給「要不要顯示 AdSense 廣告 / SEO noindex」用的，
+	// 跟「值不值得被隨機抽到」是兩回事；套用會讓可抽池子被收得過窄
+	// （曾經只剩 32 / 1374 篇，導致一直抽到類似結果）。
 	$args = [
 		'post_type'        => 'anime',
 		'post_status'      => 'publish',
@@ -1239,10 +1241,6 @@ function wxacg_random_anime_redirect(): void {
 		'no_found_rows'    => true,
 		'suppress_filters' => true,
 	];
-
-	if ( ! empty( $excluded_ids ) ) {
-		$args['post__not_in'] = array_map( 'intval', $excluded_ids );
-	}
 
 	$ids = get_posts( $args );
 
