@@ -1206,6 +1206,18 @@ EOT,
 			return true;
 		}
 
+		/*
+		 * WP-Cron：自動同步在此執行。目前的匯入流程全程只用 update_post_meta()、
+		 * 沒有呼叫任何 ACF 函式，所以就算不註冊也不會壞；但仍然保留，理由有二：
+		 *   1. 與外掛他處的既有慣例一致（主檔實例化核心用的就是
+		 *      is_admin() || DOING_CRON || WP_CLI）。
+		 *   2. 日後同步流程只要多一行 update_field()，少了這條就會在 cron 下
+		 *      靜默失效——那種錯誤極難追。cron 執行頻率低，成本可忽略。
+		 */
+		if ( defined( 'DOING_CRON' ) && DOING_CRON ) {
+			return true;
+		}
+
 		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
 			return true;
 		}
