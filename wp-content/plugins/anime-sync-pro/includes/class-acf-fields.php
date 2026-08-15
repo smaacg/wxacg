@@ -49,6 +49,16 @@ class Anime_Sync_ACF_Fields {
      */
     private $editor_summary_before_save = [];
 
+    /**
+     * 本次請求中,捷徑欄位已經鏡像寫入過的真欄位值。
+     * 結構:[ post_id => [ real_key => 已寫入的值 ] ]
+     *
+     * 用途見 register_mirror_field_filters() 的說明:
+     * 捷徑群組(menu_order 0)先存、真欄位群組(menu_order 35)後存,
+     * 後者會拿表單上的舊值把前者剛寫入的內容蓋掉。
+     */
+    private $mirror_written = [];
+
     public function __construct() {
         add_action( 'acf/init',         [ $this, 'register_all_field_groups' ] );
         add_action( 'add_meta_boxes',   [ $this, 'register_resync_metabox' ] );
@@ -663,15 +673,57 @@ EOT;
             }, 10, 3 );
         }
 
+        /*
+         * 捷徑欄位鏡像。
+         *
+         * ⚠ 覆寫順序問題（2026-08-15 修正）
+         * 捷徑群組 group_anime_shortcuts 的 menu_order 為 0、真欄位所在的
+         * group_anime_editorial_quality 等群組為 35，按原生「更新」時 ACF 會
+         * 依序儲存兩邊：捷徑先把貼上的內容鏡像寫入真欄位，接著真欄位再用
+         * 「表單上的舊值」存一次，把剛寫入的內容整個蓋掉。
+         *
+         * 使用者只在捷徑格貼上、沒動真欄位時，真欄位表單值通常為空，
+         * 結果就是儲存後內容消失，而且沒有任何錯誤訊息（靜默清空）。
+         * 走「儲存捷徑變更」按鈕不會有此問題，因為 AJAX 路徑只做鏡像寫入、
+         * 不會觸發真欄位的表單儲存。
+         *
+         * 修法：捷徑寫入時記錄到 $mirror_written，真欄位隨後儲存時，
+         * 只有在「自己收到空值、而捷徑剛寫入非空值」的情況才改用捷徑的值。
+         * 真欄位本身有填內容時一律以它為準，維持直接編輯真欄位的既有行為。
+         *
+         * 附帶影響：要清空欄位時，捷徑格與真欄位需一起清空
+         * （兩者顯示的是同一份資料，實務上不會只清其中一邊）。
+         */
         foreach ( $mirror_fields as $shortcut => $real_key ) {
             add_filter( "acf/load_value/name={$shortcut}", function( $value, $post_id, $field ) use ( $real_key ) {
                 return get_post_meta( $post_id, $real_key, true );
             }, 10, 3 );
-            
+
             add_filter( "acf/update_value/name={$shortcut}", function( $value, $post_id, $field ) use ( $real_key ) {
                 update_post_meta( $post_id, $real_key, $value );
+
+                // 記下本次寫入值，供同一輪儲存中的真欄位比對。
+                $this->mirror_written[ $post_id ][ $real_key ] = $value;
+
                 return null;
             }, 10, 3 );
+
+            // 真欄位：擋掉「空值蓋掉捷徑剛寫入內容」的情形。
+            add_filter( "acf/update_value/name={$real_key}", function( $value, $post_id, $field ) use ( $real_key ) {
+                $incoming_empty = ( $value === '' || $value === null || $value === [] );
+
+                if ( ! $incoming_empty ) {
+                    return $value;
+                }
+
+                $mirrored = $this->mirror_written[ $post_id ][ $real_key ] ?? null;
+
+                if ( $mirrored === null || $mirrored === '' || $mirrored === [] ) {
+                    return $value;
+                }
+
+                return $mirrored;
+            }, 20, 3 );
         }
 
         // 處理 Taxonomy 鏡像 (純文字框版)
