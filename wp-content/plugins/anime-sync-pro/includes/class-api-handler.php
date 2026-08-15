@@ -765,7 +765,8 @@ class Anime_Sync_API_Handler {
             $raw = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
             if ( $raw !== null ) $score_bangumi = (int) round( (float) $raw * 10 );
         }
-        $score_mal = ( $mal_id && $mal_id > 0 ) ? $this->fetch_mal_score( $mal_id ) : 0;   // ★ 新增
+        // 漫畫必須走 MAL 的 manga 端點，用 anime 端點會撈到同號的無關動畫。
+        $score_mal = ( $mal_id && $mal_id > 0 ) ? $this->fetch_mal_score( $mal_id, 'manga' ) : 0;
 
 
         $bgm_author = $bgm_data ? $this->extract_manga_author( $bgm_data['infobox'] ?? [] ) : '';
@@ -1522,10 +1523,22 @@ class Anime_Sync_API_Handler {
     //   wp-config.php 常數 MAL_CLIENT_ID。節流/統計標籤沿用 'jikan' 不變。
     // =========================================================================
 
-    private function fetch_mal_score( ?int $mal_id ): int {
+    /**
+     * 取得 MAL 平均分（0–100）。
+     *
+     * @param int|null $mal_id
+     * @param string   $type   'anime' 或 'manga'。
+     *                         MAL 的動畫與漫畫是兩套獨立的 ID 空間，端點也不同；
+     *                         拿漫畫 ID 去查 /v2/anime/ 不是查無資料，就是撈到
+     *                         另一部剛好同號的無關動畫，寫進去就是錯的分數。
+     */
+    private function fetch_mal_score( ?int $mal_id, string $type = 'anime' ): int {
         if ( ! $mal_id || $mal_id <= 0 ) return 0;
 
-        $cache_key = 'anime_sync_mal_score_' . $mal_id;
+        $type = ( 'manga' === $type ) ? 'manga' : 'anime';
+
+        // 快取鍵帶上 type：動畫與漫畫的 ID 會重號，共用鍵會互相污染。
+        $cache_key = 'anime_sync_mal_score_' . $type . '_' . $mal_id;
         $cached    = get_transient( $cache_key );
         if ( $cached !== false ) return (int) $cached;
 
@@ -1549,7 +1562,7 @@ class Anime_Sync_API_Handler {
             $this->rate_limiter->wait_if_needed( 'mal' );
 
             // ✅ [v1.4.8] 官方 API v2：?fields=mean 只取平均分，回傳最精簡
-            $url = 'https://api.myanimelist.net/v2/anime/' . $mal_id . '?fields=mean';
+            $url = 'https://api.myanimelist.net/v2/' . $type . '/' . $mal_id . '?fields=mean';
             $ch  = curl_init();
             curl_setopt_array( $ch, [
                 CURLOPT_URL            => $url,

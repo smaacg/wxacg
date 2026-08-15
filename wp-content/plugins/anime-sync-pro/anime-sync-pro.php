@@ -332,7 +332,7 @@ function anime_sync_get_status_filter_map(): array {
 }
 
 add_filter( 'query_vars', function( array $vars ): array {
-	foreach ( [ 'anime_status', 'anime_format' ] as $var ) {
+	foreach ( [ 'anime_status', 'anime_format', 'genre' ] as $var ) {
 		if ( ! in_array( $var, $vars, true ) ) {
 			$vars[] = $var;
 		}
@@ -388,15 +388,32 @@ add_action( 'pre_get_posts', function( WP_Query $q ): void {
 		];
 	}
 
-	if ( empty( $meta_query ) ) {
-		return;
+	if ( ! empty( $meta_query ) ) {
+		if ( count( $meta_query ) > 1 ) {
+			$meta_query['relation'] = 'AND';
+		}
+
+		$q->set( 'meta_query', $meta_query );
 	}
 
-	if ( count( $meta_query ) > 1 ) {
-		$meta_query['relation'] = 'AND';
-	}
+	/*
+	 * 類型：genre 分類法只註冊給 anime，/genre/{slug}/ 是動畫專屬歸檔。
+	 * 漫畫雖然也被寫入 genre 詞彙，但不能共用那個歸檔頁（標題語意與模板路由
+	 * 都會壞掉），因此改在漫畫列表頁以 tax_query 篩選，範圍限定在漫畫。
+	 */
+	if ( $q->is_post_type_archive( 'manga' ) ) {
+		$genre_slug = sanitize_title( (string) $q->get( 'genre' ) );
 
-	$q->set( 'meta_query', $meta_query );
+		if ( $genre_slug !== '' ) {
+			$q->set( 'tax_query', [
+				[
+					'taxonomy' => 'genre',
+					'field'    => 'slug',
+					'terms'    => $genre_slug,
+				],
+			] );
+		}
+	}
 }, 1 );
 
 function anime_sync_register_post_types(): void {
@@ -500,6 +517,15 @@ function anime_sync_register_hidden_cpt(
 
 function anime_sync_register_taxonomies(): void {
 
+	/*
+	 * genre 刻意只註冊給 anime。
+	 *
+	 * 漫畫匯入本來就會寫入 genre 詞彙（wp_set_post_terms 不檢查 object type），
+	 * 但若把 manga 也列為 object type，/genre/{slug}/ 會變成動畫與漫畫混雜——
+	 * 該頁標題是「◯◯動畫」、模板選擇又是靠 get_post_type() 猜的，混進漫畫會
+	 * 同時弄壞標題語意與模板路由。
+	 * 漫畫的類型瀏覽改走 /manga/?genre={slug}（見 §3.5），範圍乾淨且不影響動畫。
+	 */
 	register_taxonomy( 'genre', [ 'anime' ], [
 		'labels' => [
 			'name'          => '類型',

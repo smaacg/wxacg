@@ -604,12 +604,55 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
 
             <div class="asd-hero-badges">
                 <?php
-                if ( $status_label ) echo '<span class="asd-hbadge' . ( $status_class ? ' asd-hbadge--' . esc_attr( $status_class ) : '' ) . '">' . esc_html( $status_label ) . '</span>';
-                if ( $format_label ) echo '<span class="asd-hbadge">' . esc_html( $format_label ) . '</span>';
+                /*
+                 * 連載狀態與格式連到 /manga/ 的篩選檢視，類型連到 genre 歸檔。
+                 * 卷數與話數不是分類維度，維持純文字。
+                 * 取不到連結時一律退回 <span>，不產生壞連結。
+                 */
+                $mg_archive = get_post_type_archive_link( 'manga' ) ?: home_url( '/manga/' );
+
+                if ( $status_label ) {
+                    $mg_status_url = '';
+
+                    if ( function_exists( 'anime_sync_get_status_filter_map' ) ) {
+                        foreach ( anime_sync_get_status_filter_map() as $mg_s_slug => $mg_s_info ) {
+                            if ( $mg_s_info['code'] === $status ) {
+                                $mg_status_url = add_query_arg( 'anime_status', $mg_s_slug, $mg_archive );
+                                break;
+                            }
+                        }
+                    }
+
+                    $mg_cls = 'asd-hbadge' . ( $status_class ? ' asd-hbadge--' . $status_class : '' );
+
+                    echo $mg_status_url
+                        ? '<a href="' . esc_url( $mg_status_url ) . '" class="' . esc_attr( $mg_cls ) . ' asd-hbadge--link" title="' . esc_attr( '查看所有' . $status_label . '的漫畫' ) . '">' . esc_html( $status_label ) . '</a>'
+                        : '<span class="' . esc_attr( $mg_cls ) . '">' . esc_html( $status_label ) . '</span>';
+                }
+
+                if ( $format_label ) {
+                    $mg_fmt_slug = strtolower( str_replace( '_', '-', (string) $format ) );
+                    $mg_fmt_url  = $mg_fmt_slug !== ''
+                        ? add_query_arg( 'anime_format', $mg_fmt_slug, $mg_archive )
+                        : '';
+
+                    echo $mg_fmt_url
+                        ? '<a href="' . esc_url( $mg_fmt_url ) . '" class="asd-hbadge asd-hbadge--link" title="' . esc_attr( '查看更多 ' . $format_label ) . '">' . esc_html( $format_label ) . '</a>'
+                        : '<span class="asd-hbadge">' . esc_html( $format_label ) . '</span>';
+                }
+
                 if ( $volumes_str )  echo '<span class="asd-hbadge">' . esc_html( $volumes_str ) . '</span>';
                 if ( $chapters_str ) echo '<span class="asd-hbadge">' . esc_html( $chapters_str ) . '</span>';
+
+                /*
+                 * 類型連到 /manga/?genre=，不用 get_term_link()。
+                 * genre 分類法只註冊給 anime，term link 會指向「◯◯動畫」歸檔頁，
+                 * 從漫畫頁點過去會跳到一整頁動畫，對讀者是錯的去向。
+                 */
                 foreach ( array_slice( $genre_terms, 0, 3 ) as $gt ) {
-                    echo '<span class="asd-hbadge asd-hbadge--genre">' . esc_html( $gt->name ) . '</span>';
+                    $mg_genre_url = add_query_arg( 'genre', $gt->slug, $mg_archive );
+
+                    echo '<a href="' . esc_url( $mg_genre_url ) . '" class="asd-hbadge asd-hbadge--genre asd-hbadge--link" title="' . esc_attr( '查看更多 ' . $gt->name . ' 漫畫' ) . '">' . esc_html( $gt->name ) . '</a>';
                 }
                 ?>
             </div>
@@ -746,12 +789,23 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
             <div class="wacg-rating-divider"></div>
 
             <?php
+            /*
+             * 欄位順序以「台灣讀者最先想知道的事」排列：
+             * 買不買得到（台灣出版社／台版發售日）→ 誰畫的 → 連載概況 → 其他。
+             *
+             * 台版資訊原本只出現在頁面下方的區塊，但那正是繁中讀者最關心的資訊，
+             * 放在 Hero 側欄才看得到；「原作來源」這類欄位對漫畫讀者價值低，移到最後。
+             */
             $meta_rows = [
+                '台灣出版社' => $tw_publisher,
+                '台版發售日' => $tw_release_date,
+                '譯者'       => $tw_translator,
+                '作者'       => $author,
+                '作畫'       => ( $artist && $artist !== $author ) ? $artist : '',
+                '連載雜誌'   => $magazine,
                 '連載狀態'   => $status_label,
                 '話數'       => $chapters_str,
                 '卷數(日版)' => $volumes_str,
-                '作者'       => $author,
-                '作畫'       => ( $artist && $artist !== $author ) ? $artist : '',
                 '開始連載'   => $start_effective,
                 '完結日期'   => ( $end_date && $status === 'FINISHED' ) ? $end_date : '',
                 '原作來源'   => $source_label,

@@ -46,6 +46,7 @@ $genre_terms = get_terms( [
    等作品累積出多樣性後篩選列會自動出現，不需要再改這支模板。 */
 $mg_active_status = sanitize_key( (string) get_query_var( 'anime_status' ) );
 $mg_active_format = sanitize_key( (string) get_query_var( 'anime_format' ) );
+$mg_active_genre  = sanitize_title( (string) get_query_var( 'genre' ) );
 
 $mg_status_map = function_exists( 'anime_sync_get_status_filter_map' )
     ? anime_sync_get_status_filter_map()
@@ -91,7 +92,7 @@ $canonical_url = ( $is_genre && $current_term )
 /* ── [v1.2.0] Thin Content 防護：noindex 判斷（在 get_header 之前）── */
 add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
     $is_search, $current_term, $total_posts, $archive_desc,
-    $mg_active_status, $mg_active_format
+    $mg_active_status, $mg_active_format, $mg_active_genre
 ) {
     if ( $is_search ) {
         $robots['index']  = 'noindex';
@@ -101,7 +102,7 @@ add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
     }
     /* 狀態／格式篩選是帶參數的檢視，內容與主歸檔重疊，
        給它索引只會製造重複內容；follow 保留讓權重仍流向作品頁。 */
-    if ( $mg_active_status !== '' || $mg_active_format !== '' ) {
+    if ( $mg_active_status !== '' || $mg_active_format !== '' || $mg_active_genre !== '' ) {
         $robots['index']  = 'noindex';
         $robots['follow'] = 'follow';
         unset( $robots['noarchive'], $robots['nosnippet'] );
@@ -283,15 +284,23 @@ if ( $list_elements ) {
     </div>
     <?php endif; ?>
 
+    <?php
+    /*
+     * 類型連到 /manga/?genre=，不用 get_term_link()。
+     * genre 分類法只註冊給 anime，term link 會指向「◯◯動畫」歸檔頁——
+     * 在漫畫列表點類型卻跳到一整頁動畫，是原本就存在的錯配。
+     */
+    $mg_genre_active = $active_genre !== '' ? $active_genre : $mg_active_genre;
+    ?>
     <?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
     <div class="aaa-filter-group">
         <div class="aaa-filter-label">🏷️ 漫畫類型</div>
         <div class="aaa-filter-row">
             <a href="<?php echo esc_url( home_url( '/manga/' ) ); ?>"
-               class="aaa-filter-btn <?php echo ! $active_genre ? 'active' : ''; ?>">全部</a>
+               class="aaa-filter-btn <?php echo ! $mg_genre_active ? 'active' : ''; ?>">全部</a>
             <?php foreach ( $genre_terms as $gt ) : ?>
-            <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>"
-               class="aaa-filter-btn <?php echo ( $gt->slug === $active_genre ) ? 'active' : ''; ?>">
+            <a href="<?php echo esc_url( add_query_arg( 'genre', $gt->slug, home_url( '/manga/' ) ) ); ?>"
+               class="aaa-filter-btn <?php echo ( $gt->slug === $mg_genre_active ) ? 'active' : ''; ?>">
                 <?php echo esc_html( $gt->name ); ?>
             </a>
             <?php endforeach; ?>
