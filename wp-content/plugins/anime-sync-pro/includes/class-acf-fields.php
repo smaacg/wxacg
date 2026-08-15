@@ -59,6 +59,15 @@ class Anime_Sync_ACF_Fields {
      */
     private $mirror_written = [];
 
+    /**
+     * 本次請求開始時,各鏡像真欄位在資料庫中的原值。
+     * 結構:[ post_id => [ real_key => 原值 ] ]
+     *
+     * 捷徑格與真欄位載入時顯示的都是這個值,
+     * 因此拿它比對就能判斷使用者實際編輯的是哪一格。
+     */
+    private $mirror_original = [];
+
     public function __construct() {
         add_action( 'acf/init',         [ $this, 'register_all_field_groups' ] );
         add_action( 'add_meta_boxes',   [ $this, 'register_resync_metabox' ] );
@@ -687,43 +696,78 @@ EOT;
          * 走「儲存捷徑變更」按鈕不會有此問題，因為 AJAX 路徑只做鏡像寫入、
          * 不會觸發真欄位的表單儲存。
          *
-         * 修法：捷徑寫入時記錄到 $mirror_written，真欄位隨後儲存時，
-         * 只有在「自己收到空值、而捷徑剛寫入非空值」的情況才改用捷徑的值。
-         * 真欄位本身有填內容時一律以它為準，維持直接編輯真欄位的既有行為。
+         * 修法：兩個欄位載入時顯示的是同一份資料，因此只要記下「載入當下
+         * 資料庫的原值」，就能判斷使用者實際動的是哪一格：
+         *   – 值與原值不同 → 這一格被編輯過，以它為準
+         *   – 值與原值相同 → 這一格沒動，不得用它去覆蓋另一格的修改
+         * 清空同樣適用（空字串也是一種「與原值不同」），因此只清捷徑格
+         * 就能清空欄位，不需要兩邊都清。
          *
-         * 附帶影響：要清空欄位時，捷徑格與真欄位需一起清空
-         * （兩者顯示的是同一份資料，實務上不會只清其中一邊）。
+         * 兩格都被改成不同內容時（實務上極罕見），以真欄位為準。
          */
+        $mirror_normalize = static function ( $value ): string {
+            if ( is_array( $value ) || is_object( $value ) ) {
+                return (string) wp_json_encode( $value );
+            }
+
+            return (string) $value;
+        };
+
         foreach ( $mirror_fields as $shortcut => $real_key ) {
             add_filter( "acf/load_value/name={$shortcut}", function( $value, $post_id, $field ) use ( $real_key ) {
                 return get_post_meta( $post_id, $real_key, true );
             }, 10, 3 );
 
-            add_filter( "acf/update_value/name={$shortcut}", function( $value, $post_id, $field ) use ( $real_key ) {
-                update_post_meta( $post_id, $real_key, $value );
+            add_filter(
+                "acf/update_value/name={$shortcut}",
+                function ( $value, $post_id, $field ) use ( $real_key, $mirror_normalize ) {
+                    // 必須在任何寫入之前取得原值（此時捷徑群組尚未動過資料庫）。
+                    if ( ! isset( $this->mirror_original[ $post_id ][ $real_key ] ) ) {
+                        $this->mirror_original[ $post_id ][ $real_key ] =
+                            get_post_meta( $post_id, $real_key, true );
+                    }
 
-                // 記下本次寫入值，供同一輪儲存中的真欄位比對。
-                $this->mirror_written[ $post_id ][ $real_key ] = $value;
+                    $original = $this->mirror_original[ $post_id ][ $real_key ];
 
-                return null;
-            }, 10, 3 );
+                    // 捷徑格沒被動過就不要寫入，交給真欄位決定。
+                    if ( $mirror_normalize( $value ) !== $mirror_normalize( $original ) ) {
+                        update_post_meta( $post_id, $real_key, $value );
+                        $this->mirror_written[ $post_id ][ $real_key ] = $value;
+                    }
 
-            // 真欄位：擋掉「空值蓋掉捷徑剛寫入內容」的情形。
-            add_filter( "acf/update_value/name={$real_key}", function( $value, $post_id, $field ) use ( $real_key ) {
-                $incoming_empty = ( $value === '' || $value === null || $value === [] );
+                    return null;
+                },
+                10,
+                3
+            );
 
-                if ( ! $incoming_empty ) {
+            add_filter(
+                "acf/update_value/name={$real_key}",
+                function ( $value, $post_id, $field ) use ( $real_key, $mirror_normalize ) {
+                    /*
+                     * 取原值：捷徑欄位存在時已於上面記錄；
+                     * 若此畫面沒有捷徑欄位（filter 未跑過），此時資料庫尚未被本輪寫入，
+                     * 直接讀取即為原值。
+                     */
+                    $original = $this->mirror_original[ $post_id ][ $real_key ]
+                        ?? get_post_meta( $post_id, $real_key, true );
+
+                    // 真欄位被編輯過 → 以它為準。
+                    if ( $mirror_normalize( $value ) !== $mirror_normalize( $original ) ) {
+                        return $value;
+                    }
+
+                    // 真欄位沒動：捷徑格這輪若有改動就沿用它（含清空）。
+                    if ( isset( $this->mirror_written[ $post_id ] )
+                        && array_key_exists( $real_key, $this->mirror_written[ $post_id ] ) ) {
+                        return $this->mirror_written[ $post_id ][ $real_key ];
+                    }
+
                     return $value;
-                }
-
-                $mirrored = $this->mirror_written[ $post_id ][ $real_key ] ?? null;
-
-                if ( $mirrored === null || $mirrored === '' || $mirrored === [] ) {
-                    return $value;
-                }
-
-                return $mirrored;
-            }, 20, 3 );
+                },
+                20,
+                3
+            );
         }
 
         // 處理 Taxonomy 鏡像 (純文字框版)
