@@ -17,7 +17,7 @@
  *     → { platform, period, updated, items: [...] }
  *
  * 快取：
- *   transient wxacg_rank_{platform}_{period} = { items: [...], time: 時間戳 }
+ *   transient wxacg_rank_v{版本}_{platform}_{period} = { items: [...], time: 時間戳 }
  *   - 未滿 WXACG_RANKING_TTL 直接用
  *   - 過期則重新抓取；抓取失敗時回傳上一份舊資料（stale-while-error），
  *     避免外部 API 暫時故障就讓整頁空白
@@ -29,6 +29,19 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+/**
+ * 快取結構版本。
+ *
+ * 只要項目欄位或正規化／在地化邏輯有異動就 +1，
+ * 讓舊格式的快取因為鍵名不同而自動失效。
+ *
+ * 沒有這個版本號的話，改完邏輯得等舊快取自然過期（最長一週）才看得到效果，
+ * v1.0.0 上線後補上在地化時就踩過這個坑。
+ *
+ * 2 — 加入繁中在地化（titleZh 換站內標題、url 改站內連結、新增 extId/internal）
+ */
+const WXACG_RANKING_CACHE_VER = 2;
 
 /** 資料視為新鮮的秒數 */
 const WXACG_RANKING_TTL = HOUR_IN_SECONDS;
@@ -73,6 +86,15 @@ function wxacg_ranking_norm_period( $period ): string {
  * ============================================================ */
 
 /**
+ * 快取鍵：帶結構版本，邏輯改版時舊資料自動失效。
+ */
+function wxacg_ranking_cache_key( string $platform, string $period ): string {
+	return 'wxacg_rank_v' . WXACG_RANKING_CACHE_VER
+		. '_' . wxacg_ranking_norm_platform( $platform )
+		. '_' . wxacg_ranking_norm_period( $period );
+}
+
+/**
  * @param string $platform anilist | mal | bangumi
  * @param string $period   daily | weekly | monthly | all
  * @param bool   $force    true 時忽略新鮮度強制重抓（供 Cron 預熱用）
@@ -82,7 +104,7 @@ function wxacg_ranking_get( string $platform, string $period, bool $force = fals
 	$platform = wxacg_ranking_norm_platform( $platform );
 	$period   = wxacg_ranking_norm_period( $period );
 
-	$key    = 'wxacg_rank_' . $platform . '_' . $period;
+	$key    = wxacg_ranking_cache_key( $platform, $period );
 	$stored = get_transient( $key );
 
 	$has_stored = is_array( $stored ) && ! empty( $stored['items'] );
@@ -123,9 +145,7 @@ function wxacg_ranking_get( string $platform, string $period, bool $force = fals
  * 取得該筆快取的更新時間（給前端顯示「最後更新」）。
  */
 function wxacg_ranking_updated_at( string $platform, string $period ): int {
-	$key    = 'wxacg_rank_' . wxacg_ranking_norm_platform( $platform )
-		. '_' . wxacg_ranking_norm_period( $period );
-	$stored = get_transient( $key );
+	$stored = get_transient( wxacg_ranking_cache_key( $platform, $period ) );
 
 	return is_array( $stored ) ? (int) ( $stored['time'] ?? 0 ) : 0;
 }
