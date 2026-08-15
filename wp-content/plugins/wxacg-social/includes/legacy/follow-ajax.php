@@ -8,7 +8,6 @@
  * Endpoints:
  * - wp_ajax_wxacg_follow            登入：追蹤
  * - wp_ajax_smacg_unfollow          登入：取消追蹤
- * - wp_ajax_smacg_check_follow      登入：查詢狀態（單筆）
  * - wp_ajax_nopriv_wxacg_follow     未登入：回傳需登入
  * - wp_ajax_nopriv_smacg_unfollow   未登入：回傳需登入
  *
@@ -33,7 +32,6 @@ function wxacg_follow_ajax_require_login() {
 }
 add_action( 'wp_ajax_nopriv_wxacg_follow',       'wxacg_follow_ajax_require_login' );
 add_action( 'wp_ajax_nopriv_smacg_unfollow',     'wxacg_follow_ajax_require_login' );
-add_action( 'wp_ajax_nopriv_smacg_check_follow', 'wxacg_follow_ajax_require_login' );
 
 /* ============================================================
    共用：驗證 + 取得 target_id
@@ -103,14 +101,9 @@ add_action( 'wp_ajax_smacg_unfollow', function () {
 } );
 
 /* ============================================================
-   查詢狀態（單筆，供前端 SPA 切換頁面時 re-check）
+   已移除：smacg_check_follow（查詢單筆追蹤狀態）
+   ------------------------------------------------------------
+   原設計供「前端 SPA 切換頁面時 re-check」，但本站未採用 SPA，
+   追蹤狀態一律由伺服器端渲染時直接帶出，前端從未呼叫過這支。
+   同檔的 wxacg_follow / smacg_unfollow 仍在使用中，不受影響。
    ============================================================ */
-add_action( 'wp_ajax_smacg_check_follow', function () {
-	$target_id   = wxacg_follow_ajax_validate();
-	$follower_id = get_current_user_id();
-
-	wp_send_json_success( [
-		'is_following'    => wxacg_is_following( $follower_id, $target_id ),
-		'followers_count' => smacg_get_followers_count( $target_id ),
-	] );
-} );

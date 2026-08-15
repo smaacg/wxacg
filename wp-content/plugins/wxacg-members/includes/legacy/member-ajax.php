@@ -36,106 +36,20 @@ add_action( 'wp_ajax_smacg_read_article', function () {
 } );
 
 /* ============================================================
-   AJAX：提交詳細評分（5 維）
+   已移除：評分 / 收藏 / 進度的舊 admin-ajax 端點
+   ------------------------------------------------------------
+   以下端點在改走 REST 後就沒有任何呼叫端，屬於遷移殘留：
+     - smacg_submit_rating_detail  → weixiaoacg/v1/ratings（class-rating-manager.php）
+     - weixiaoacg_submit_rating    → 同上
+     - weixiaoacg_toggle_favorite  → weixiaoacg/v1/user-status（class-user-status-manager.php）
+     - weixiaoacg_update_progress  → 同上
+     - weixiaoacg_resync_bangumi   → Anime_Sync_API_Handler 後台介面
+     - smacg_get_my_rating         → weixiaoacg/v1/ratings/{postId}（見 anime-rating.js v1.5）
+
+   舊版寫入的 smacg_site_score_* post meta 仍保留在資料庫中，
+   由 wxacg_is_thin_anime_page() 當作歷史資料的 fallback 讀取
+   （現行寫入者為 class-rating-manager.php 的 anime_score_site_count）。
    ============================================================ */
-add_action( 'wp_ajax_smacg_submit_rating_detail', function () {
-    check_ajax_referer( 'smacg_nonce', 'nonce' );
-    $uid = get_current_user_id();
-    if ( ! $uid ) wp_send_json_error( [ 'msg' => '請先登入才能評分' ], 401 );
-
-    $pid = (int) ( $_POST['post_id'] ?? 0 );
-    if ( ! $pid || get_post_type( $pid ) !== 'anime' ) {
-        wp_send_json_error( [ 'msg' => '無效的動漫 ID' ], 400 );
-    }
-
-    $keys   = [ 'story', 'music', 'animation', 'voice' ];
-    $scores = [];
-    foreach ( $keys as $k ) {
-        $v = isset( $_POST[ $k ] ) ? (float) $_POST[ $k ] : null;
-        if ( $v === null || $v < 1 || $v > 10 ) {
-            wp_send_json_error( [ 'msg' => "「{$k}」分數無效，應介於 1–10" ], 400 );
-        }
-        $scores[ $k ] = round( $v, 1 );
-    }
-
-    $avg = round( array_sum( $scores ) / count( $scores ), 2 );
-    update_user_meta( $uid, "smacg_rating_detail_{$pid}", array_merge( $scores, [ 'avg' => $avg, 'time' => time() ] ) );
-
-    global $wpdb;
-    $mk  = "smacg_rating_detail_{$pid}";
-    $all = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->usermeta} WHERE meta_key=%s", $mk ) );
-
-    $tot = array_fill_keys( $keys, 0 );
-    $cnt = 0;
-    foreach ( $all as $raw ) {
-        $r = maybe_unserialize( $raw );
-        if ( ! is_array( $r ) ) continue;
-        foreach ( $keys as $k ) $tot[ $k ] += (float) ( $r[ $k ] ?? 0 );
-        $cnt++;
-    }
-
-    if ( $cnt > 0 ) {
-        $s = [];
-        foreach ( $keys as $k ) $s[ $k ] = round( $tot[ $k ] / $cnt, 1 );
-        $sa = round( array_sum( $s ) / count( $s ), 1 );
-
-        $post_meta = [
-            'smacg_site_score'           => $sa,
-            'smacg_site_score_story'     => $s['story'],
-            'smacg_site_score_music'     => $s['music'],
-            'smacg_site_score_animation' => $s['animation'],
-            'smacg_site_score_voice'     => $s['voice'],
-            'smacg_site_score_count'     => $cnt,
-        ];
-        foreach ( $post_meta as $mk2 => $val ) {
-            update_post_meta( $pid, $mk2, $val );
-        }
-
-        wp_send_json_success( [ 'msg' => '評分成功，感謝你的評價！', 'avg' => $sa ] + $s + [ 'count' => $cnt ] );
-    }
-
-    wp_send_json_success( [ 'msg' => '評分成功！', 'avg' => $avg ] + $scores + [ 'count' => 1 ] );
-} );
-
-/* ============================================================
-   AJAX：收藏切換
-   ============================================================ */
-add_action( 'wp_ajax_weixiaoacg_toggle_favorite', function () {
-    check_ajax_referer( 'weixiaoacg_nonce', 'nonce' );
-    $pid = (int) ( $_POST['post_id'] ?? 0 );
-    $uid = get_current_user_id();
-    if ( ! $pid || ! $uid ) wp_send_json_error( [ 'msg' => '無效請求' ] );
-
-    $favs = get_user_meta( $uid, 'weixiaoacg_favorites', true ) ?: [];
-    $k    = array_search( $pid, $favs, true );
-    if ( $k !== false ) {
-        unset( $favs[ $k ] );
-        $act = 'removed';
-    } else {
-        $favs[] = $pid;
-        $act = 'added';
-    }
-    update_user_meta( $uid, 'weixiaoacg_favorites', array_values( $favs ) );
-    wp_send_json_success( [ 'action' => $act, 'count' => count( $favs ) ] );
-} );
-
-/* ============================================================
-   AJAX：進度更新
-   ============================================================ */
-add_action( 'wp_ajax_weixiaoacg_update_progress', function () {
-    check_ajax_referer( 'weixiaoacg_nonce', 'nonce' );
-    $pid = (int) ( $_POST['post_id'] ?? 0 );
-    $uid = get_current_user_id();
-    if ( ! $pid || ! $uid ) wp_send_json_error( [ 'msg' => '無效請求' ] );
-
-    $d = [
-        'progress'     => (int) ( $_POST['progress'] ?? 0 ),
-        'watch_status' => sanitize_text_field( $_POST['watch_status'] ?? '' ),
-        'updated_at'   => time(),
-    ];
-    update_user_meta( $uid, "weixiaoacg_progress_{$pid}", $d );
-    wp_send_json_success( $d );
-} );
 
 /* ============================================================
    AJAX：站內搜尋
@@ -175,35 +89,6 @@ function weixiaoacg_ajax_search() {
     wp_reset_postdata();
     wp_send_json_success( $res );
 }
-
-/* ============================================================
-   AJAX：簡易評分
-   ============================================================ */
-add_action( 'wp_ajax_weixiaoacg_submit_rating', function () {
-    check_ajax_referer( 'weixiaoacg_nonce', 'nonce' );
-    $pid   = (int) ( $_POST['post_id'] ?? 0 );
-    $score = (float) ( $_POST['score'] ?? 0 );
-    $uid   = get_current_user_id();
-    if ( ! $pid || ! $uid ) wp_send_json_error( [ 'msg' => '請先登入' ] );
-    if ( $score < 1 || $score > 10 ) wp_send_json_error( [ 'msg' => '評分範圍 1–10' ] );
-
-    if ( function_exists( 'yasr_save_visitor_vote' ) ) {
-        wp_send_json_success( [ 'msg' => '評分成功', 'yasr' => yasr_save_visitor_vote( $pid, $score ) ] );
-    }
-    update_user_meta( $uid, "weixiaoacg_rating_{$pid}", $score );
-    wp_send_json_success( [ 'msg' => '評分成功' ] );
-} );
-
-/* ============================================================
-   AJAX：管理員重新同步 Bangumi
-   ============================================================ */
-add_action( 'wp_ajax_weixiaoacg_resync_bangumi', function () {
-    check_ajax_referer( 'weixiaoacg_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'msg' => '權限不足' ] );
-    class_exists( 'Anime_Sync_API_Handler' )
-        ? ( new Anime_Sync_API_Handler() )->ajax_resync_bangumi()
-        : wp_send_json_error( [ 'msg' => 'API Handler 類別未載入' ] );
-} );
 
 /* ============================================================
    AJAX：訪客 → AJAX 登入（v2.6.0 業界強化版）
@@ -621,28 +506,6 @@ add_action( 'smacg_cleanup_unverified_users', function () {
 register_deactivation_hook( __FILE__, function () {
     $ts = wp_next_scheduled( 'smacg_cleanup_unverified_users' );
     if ( $ts ) wp_unschedule_event( $ts, 'smacg_cleanup_unverified_users' );
-} );
-
-/* ============================================================
-   AJAX：查詢我的評分
-   ============================================================ */
-add_action( 'wp_ajax_smacg_get_my_rating', function () {
-    $post_id = isset( $_REQUEST['post_id'] ) ? absint( $_REQUEST['post_id'] ) : 0;
-    if ( $post_id <= 0 ) wp_send_json_error( [ 'msg' => 'invalid post_id' ], 400 );
-    $uid = get_current_user_id();
-    if ( ! $uid ) wp_send_json_error( [ 'msg' => 'not logged in' ], 401 );
-
-    $detail = get_user_meta( $uid, "smacg_rating_detail_{$post_id}", true );
-    if ( ! is_array( $detail ) ) wp_send_json_success( [ 'rated' => false ] );
-
-    wp_send_json_success( [
-        'rated'     => true,
-        'story'     => (float) ( $detail['story']     ?? 5 ),
-        'music'     => (float) ( $detail['music']     ?? 5 ),
-        'animation' => (float) ( $detail['animation'] ?? 5 ),
-        'voice'     => (float) ( $detail['voice']     ?? 5 ),
-        'avg'       => (float) ( $detail['avg']       ?? 5 ),
-    ] );
 } );
 
 /* ============================================================
