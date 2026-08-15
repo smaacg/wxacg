@@ -1649,62 +1649,47 @@ if ( ! empty( $news_tabs['all']['query']->posts ) ) {
 /* ============================================================
  * 會員 CTA
  * ============================================================ */
-$member_tiers = [
-    [
-        'tier' => 1,
-        'key' => 'rookie',
-        'title' => '新進會員',
-        'icon' => '🌱',
-        'min_level' => 1,
-        'min_exp' => 5,
-        'tag' => 'tag-cyan',
-    ],
-    [
-        'tier' => 2,
-        'key' => 'newcomer',
-        'title' => '新客',
-        'icon' => '🌿',
-        'min_level' => 10,
-        'min_exp' => 500,
-        'tag' => 'tag-green',
-    ],
-    [
-        'tier' => 3,
-        'key' => 'regular',
-        'title' => '常客',
-        'icon' => '📺',
-        'min_level' => 30,
-        'min_exp' => 4500,
-        'tag' => 'tag-blue',
-    ],
-    [
-        'tier' => 4,
-        'key' => 'expert',
-        'title' => '熟客',
-        'icon' => '🎬',
-        'min_level' => 70,
-        'min_exp' => 24500,
-        'tag' => 'tag-purple',
-    ],
-    [
-        'tier' => 5,
-        'key' => 'vip',
-        'title' => 'VIP',
-        'icon' => '👑',
-        'min_level' => 120,
-        'min_exp' => 72000,
-        'tag' => 'tag-orange',
-    ],
-    [
-        'tier' => 6,
-        'key' => 'black',
-        'title' => '黑卡會員',
-        'icon' => '💎',
-        'min_level' => 200,
-        'min_exp' => 200000,
-        'tag' => 'tag-locked',
-    ],
+/*
+ * 6 階等級表以 Level_System::get_all_tiers() 為唯一來源
+ * （透過 legacy wrapper smacg_get_all_member_tiers() 取得）。
+ *
+ * 原本這裡是一份寫死的副本，但 v2.7.0 等級公式的 DIVISOR 由 5 改為 50 後
+ * 沒有同步更新，導致首頁顯示的 EXP 門檻全部只有實際值的十分之一
+ * （例如 VIP 顯示 72,000，實際需要 720,000）。
+ * 改讀權威來源後，日後調整等級曲線不需要再手動同步這份清單。
+ *
+ * 樣式標籤（tag-*）純屬前台呈現、等級系統不提供，因此仍留在這裡對應。
+ */
+$member_tier_tags = [
+    'rookie'   => 'tag-cyan',
+    'newcomer' => 'tag-green',
+    'regular'  => 'tag-blue',
+    'expert'   => 'tag-purple',
+    'vip'      => 'tag-orange',
+    'black'    => 'tag-locked',
 ];
+
+$member_tiers = [];
+
+if ( function_exists( 'smacg_get_all_member_tiers' ) ) {
+    foreach ( (array) smacg_get_all_member_tiers() as $member_tier_row ) {
+        if ( ! is_array( $member_tier_row ) ) {
+            continue;
+        }
+
+        $member_tier_row_key = (string) ( $member_tier_row['key'] ?? '' );
+
+        $member_tiers[] = [
+            'tier'      => (int) ( $member_tier_row['tier'] ?? 0 ),
+            'key'       => $member_tier_row_key,
+            'title'     => (string) ( $member_tier_row['title'] ?? '' ),
+            'icon'      => (string) ( $member_tier_row['icon'] ?? '' ),
+            'min_level' => (int) ( $member_tier_row['min_level'] ?? 0 ),
+            'min_exp'   => (int) ( $member_tier_row['min_exp'] ?? 0 ),
+            'tag'       => $member_tier_tags[ $member_tier_row_key ] ?? 'tag-cyan',
+        ];
+    }
+}
 
 $member_info = null;
 
@@ -1846,6 +1831,7 @@ $member_percent = min(
                     </div>
                 <?php endif; ?>
 
+                <?php if ( ! empty( $member_tiers ) ) : ?>
                 <div class="member-level-title">
                     <?php echo $member_info ? '會員成長路徑' : '6 階會員成長路徑'; ?>
                 </div>
@@ -1926,6 +1912,7 @@ $member_percent = min(
                         </div>
                     <?php endforeach; ?>
                 </div>
+                <?php endif; ?>
 
                 <a
                     href="<?php echo esc_url( home_url( '/level-guide/' ) ); ?>"

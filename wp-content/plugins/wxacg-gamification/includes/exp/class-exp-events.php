@@ -185,18 +185,23 @@ class Exp_Events {
         }
 
         // 1c：daily cap
+        //
+        // 名額必須在發 EXP「之前」就原子搶下。
+        // 舊寫法是先讀計數判斷、發完 EXP 才 update_user_meta 寫回，
+        // 兩個並發請求會同時讀到未達上限的舊值、雙雙通過檢查而超發
+        // （各動作有自己的 dedupe_key，擋不住彼此）。
         $daily_meta = null;
-        $daily_cur  = 0;
-        $daily_max  = 1;
         if ( $rule['cap_type'] === 'daily' && $rule['cap_key'] ) {
-            $today      = current_time( 'Ymd' );
-            $daily_meta = 'smacg_exp_daily_' . $rule['cap_key'] . '_' . $today;
-            $daily_cur  = (int) get_user_meta( $uid, $daily_meta, true );
-            $daily_max  = (int) ( $rule['daily_max'] ?? 1 );
-            if ( $daily_cur >= $daily_max ) {
+            $today     = current_time( 'Ymd' );
+            $meta_key  = 'smacg_exp_daily_' . $rule['cap_key'] . '_' . $today;
+            $daily_max = (int) ( $rule['daily_max'] ?? 1 );
+
+            if ( ! self::claim_daily_slot( $uid, $meta_key, $daily_max ) ) {
                 self::rollback_locks( $uid, $acquired_locks );
                 return false;
             }
+
+            $daily_meta = $meta_key;
         }
 
         $before = function_exists( 'smacg_calc_level_from_exp' )
@@ -208,11 +213,13 @@ class Exp_Events {
         $ok = Gamipress_Bridge::award_exp( $uid, $amount, $reason, $extra_args );
         if ( ! $ok ) {
             self::rollback_locks( $uid, $acquired_locks );
-            return false;
-        }
 
-        if ( $daily_meta ) {
-            update_user_meta( $uid, $daily_meta, $daily_cur + 1 );
+            // 發放失敗就把先前搶下的名額還回去，不佔用今日額度。
+            if ( $daily_meta ) {
+                self::release_daily_slot( $uid, $daily_meta );
+            }
+
+            return false;
         }
 
         $season_score = isset( $rule['season_score'] ) ? (int) $rule['season_score'] : $amount;
@@ -229,6 +236,79 @@ class Exp_Events {
         }
 
         return true;
+    }
+
+    /**
+     * 原子搶下今日名額。
+     *
+     * 與同函式裡 dedupe_key / once cap 使用 add_user_meta( ..., true )
+     * 唯一插入的精神一致，只是每日上限允許多次，所以改用
+     * 「條件式 UPDATE + rows_affected」當作原子鎖
+     * （與 class-event-tracker.php::settle_one() 的作法相同）。
+     *
+     * @return bool 搶到名額為 true；已達上限為 false。
+     */
+    private static function claim_daily_slot( $uid, $meta_key, $max ) {
+        $uid = (int) $uid;
+        $max = (int) $max;
+
+        if ( $uid <= 0 || $max < 1 || $meta_key === '' ) {
+            return false;
+        }
+
+        // 今天第一次：唯一插入成功就等於搶到第 1 個名額。
+        // 兩個並發請求只會有一個插入成功，另一個往下走 UPDATE 路徑。
+        if ( add_user_meta( $uid, $meta_key, '1', true ) ) {
+            return true;
+        }
+
+        global $wpdb;
+
+        // 已有計數：把「未達上限」寫進 WHERE，
+        // 由資料庫保證同一列同時只有一個請求能加成功。
+        $rows = $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->usermeta}
+             SET meta_value = CAST( meta_value AS UNSIGNED ) + 1
+             WHERE user_id = %d
+               AND meta_key = %s
+               AND CAST( meta_value AS UNSIGNED ) < %d",
+            $uid,
+            $meta_key,
+            $max
+        ) );
+
+        if ( $rows > 0 ) {
+            // 繞過 WP API 直接改 DB，必須自行清掉 user meta 快取。
+            wp_cache_delete( $uid, 'user_meta' );
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 歸還今日名額（EXP 發放失敗時回滾用）。
+     */
+    private static function release_daily_slot( $uid, $meta_key ) {
+        $uid = (int) $uid;
+
+        if ( $uid <= 0 || $meta_key === '' ) {
+            return;
+        }
+
+        global $wpdb;
+
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->usermeta}
+             SET meta_value = CAST( meta_value AS UNSIGNED ) - 1
+             WHERE user_id = %d
+               AND meta_key = %s
+               AND CAST( meta_value AS UNSIGNED ) > 0",
+            $uid,
+            $meta_key
+        ) );
+
+        wp_cache_delete( $uid, 'user_meta' );
     }
 
     private static function rollback_locks( $uid, array $meta_keys ) {

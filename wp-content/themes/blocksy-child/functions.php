@@ -246,7 +246,7 @@ add_action( 'pre_get_posts', 'wxacg_filter_search_post_types' );
 function smacg_get_anime_articles_count( int $anime_post_id, string $category ): int {
 	if (
 		$anime_post_id <= 0 ||
-		! in_array( $category, [ 'review', 'feature' ], true )
+		! in_array( $category, WEIXIAOACG_LLM_CATS, true )
 	) {
 		return 0;
 	}
@@ -339,7 +339,7 @@ function wxacg_filter_related_anime_articles( WP_Query $query ): void {
 
 	$category = (string) $query->get( 'category_name' );
 
-	if ( ! in_array( $category, [ 'feature', 'review' ], true ) ) {
+	if ( ! in_array( $category, WEIXIAOACG_LLM_CATS, true ) ) {
 		return;
 	}
 

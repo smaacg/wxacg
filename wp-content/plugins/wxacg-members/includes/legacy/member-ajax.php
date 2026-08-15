@@ -879,7 +879,16 @@ add_action( 'wp_ajax_smacg_upload_avatar', function () {
     }
 
     $allowed = [ 'image/jpeg', 'image/png', 'image/webp' ];
-    $mime    = wp_check_filetype( $file['name'] )['type'] ?? @mime_content_type( $file['tmp_name'] );
+
+    // wp_check_filetype() 副檔名不認識時回傳的是 type => false（鍵存在），
+    // 所以 ?? 永遠不會觸發後面的 fallback。改用明確判斷，
+    // 否則像 .jfif 這種合法 JPEG 會因副檔名不在 WP 白名單而被誤擋。
+    $mime = wp_check_filetype( $file['name'] )['type'];
+
+    if ( ! $mime ) {
+        $mime = @mime_content_type( $file['tmp_name'] ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+    }
+
     if ( ! in_array( $mime, $allowed, true ) ) {
         wp_send_json_error( [ 'msg' => '僅支援 JPG / PNG / WEBP' ], 400 );
     }
