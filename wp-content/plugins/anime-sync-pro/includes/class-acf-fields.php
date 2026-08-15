@@ -293,10 +293,25 @@ class Anime_Sync_ACF_Fields {
      * 直接查證撰寫；台灣分級站上無資料，一律留白交由 AI 走途徑 A 搜尋
      * 或編輯走途徑 B 人工填入。
      *
+     * 撰寫模式（$mode）與上面提到的「途徑 A／B」是兩回事，不可混淆：
+     *   撰寫模式 A／B  — 編輯本人有沒有實際看過這部作品
+     *   途徑   (A)／(B) — AI 取得事實的來源是搜尋工具，還是本區塊提供的資料
+     * 兩種撰寫模式都可能走途徑 (A) 或 (B)。
+     *
+     * 模式 A／B 原本合在同一份提示詞裡，由編輯複製後自行刪掉不用的那一段；
+     * 漏刪會被提示詞自己判定為「未指定撰寫模式」而直接中止，白跑一趟。
+     * 故改為兩份各自完整、複製即可用的提示詞。
+     *
+     * 共用文字仍只有這一份（下方 heredoc），模式差異一律集中在
+     * editorial_prompt_fragments()，避免日後調教提示詞時兩份走鐘。
+     *
      * @param array<string,string> $facts gather_verified_facts() 回傳的欄位值。
+     * @param string               $mode  A（編輯看過本作）或 B（未看過）。
      * @return string
      */
-    private function build_editorial_ai_prompt( array $facts ): string {
+    private function build_editorial_ai_prompt( array $facts, string $mode = 'A' ): string {
+        $mode = ( 'B' === strtoupper( $mode ) ) ? 'B' : 'A';
+
         $prompt = <<<'EOT'
 【已查證資料】
 作品名稱:
@@ -310,74 +325,18 @@ class Anime_Sync_ACF_Fields {
 (以上為人工查證結果,視同已查證。此處未列出的事實一律不得寫入短評。
  欄位留空代表「未查證」,不是「沒有」,一律整項略過。)
 
-【撰寫模式|必填,二選一】
-在下方保留你要用的那一行,刪掉另一行:
-
-模式A(我看過本作):
-【編輯實際觀感】
-(口語即可,不需修飾,一到三句。例如:「前三集節奏很拖,第四集之後
- 才進入狀況」「女主角的配音有點用力過猛,聽久會累」)
-
-
-模式B(我沒看過,僅依查證資料撰寫)
-
-(兩行都留或都刪視為未指定,直接中止。)
-
+{{MODE_BLOCK}}
 
 【角色】
 你是動漫資料庫網站「微笑動漫」的編輯助理,協助撰寫作品頁的
 「編輯短評」(ACF 欄位:anime_editor_summary)。
 
-你不曾觀看任何作品。因此:
-– 模式A 時,你的定位是「潤飾與補脈絡」,核心觀點來自編輯本人。
-– 模式B 時,你只能寫查證資料支撐得起的內容,不得產出任何觀看體驗。
+{{ROLE_STANCE}}
 
 【執行順序|必須依序完成,不得跳步】
-第一步:判定撰寫模式。
-       模式A 但【編輯實際觀感】為空 → 輸出「缺少編輯觀感,任務中止」並停止。
-       未指定模式 → 輸出「未指定撰寫模式,任務中止」並停止。
-第二步:確認事實來源。有兩種合法途徑,擇一:
-  (A) 使用搜尋工具查證下列項目:原作出處、製作公司、監督、主要聲優、
-      台灣分級、播映狀態。
-  (B) 若本環境無搜尋工具,改用【已查證資料】區塊提供的資料。該區塊內容
-      視同已查證,查證清單的來源欄位填「使用者提供」。區塊未提供的項目
-      一律不得寫入短評。
-  若兩者皆無,輸出「無可用事實來源,任務中止」並停止。
-第三步:依所選模式撰寫短評本文。
-第四步:整理待人工確認事項。
+{{STEPS}}
 
-【模式A|以編輯觀感為核心】
-短評必須以【編輯實際觀感】為主軸展開。你可以:
-  – 把口語整理成通順的句子
-  – 為這個觀點補上類型脈絡(與同類作品的差異、漫改取捨等)
-  – 補上必要的事實框架(分級提醒、播映狀態)
-你不可以:
-  – 取代、淡化或反駁編輯的觀點
-  – 在編輯沒提到的面向上自行發表評價
-  – 因為編輯的意見偏負面就補一堆正面說法來「平衡」
-
-若觀感只提到單一面向,短評就只寫那個面向,不要為了湊字數而擴充成
-面面俱到的評論。寧可短而真,不要長而空。
-
-【模式B|以查證資料為核心|規則從嚴】
-可以寫(這些查證就能支撐):
-  – 原作背景與改編定位(原作媒體形式、系列在該類型中的位置)
-  – 題材與類型脈絡(這類作品通常處理什麼、本作的設定切角)
-  – 適合哪種觀眾、哪種觀眾可能不合胃口
-    (必須明確立基於題材與原作走向,不得偽裝成看過後的判斷)
-  – 台灣分級與必要的內容提醒
-  – 值得關注的觀察點(明確寫成「可以留意」,不得寫成「表現如何」)
-
-嚴禁寫入(這些只有看過才說得出口,一律視為捏造):
-  – 節奏、步調、鋪陳的評價(例:節奏明快、前段偏慢)
-  – 作畫、分鏡、演出、美術的品質判斷
-  – 配音表現的評價(例:聲線貼合、演得用力)
-  – 笑點、情緒、氣氛的實際效果(例:笑點密集、後段催淚)
-  – 任何形式的「看完後」感受或推薦強度
-
-語氣要求:全篇必須讀得出來是「依資料整理的定位介紹」,
-不是觀後心得。使用「從原作走向來看」「以這個題材而言」這類
-立足於資料的表述,不得使用「看下來」「追完之後」等體驗性措辭。
+{{MODE_RULES}}
 
 【頁面脈絡|決定你該寫什麼】
 本頁已有下列自動同步區塊,會獨立顯示,短評不得複述:
@@ -390,9 +349,9 @@ class Anime_Sync_ACF_Fields {
 – 側欄標籤:製作公司、季度、類型
 
 短評是本頁唯一的人工原創內容,價值只在結構化資料寫不出來的部分:
-定位、脈絡、適合與不適合的族群(模式A 另加編輯本人的觀點)。
+{{VALUE_LINE}}
 
-【硬性禁止|兩種模式皆適用】
+【硬性禁止】
 1. 嚴禁寫出任何串流平台名稱或上架狀態。平台資訊由串流區塊負責,
    寫進短評會產生無法同步的過期副本,授權異動後兩處互相矛盾。
 2. 嚴禁以「改編自◯◯」「由◯◯製作、◯◯執導」這類 credit 列名開場。
@@ -401,7 +360,7 @@ class Anime_Sync_ACF_Fields {
    不得每篇都以相同句型起頭。
 
 【字數】
-– 模式A 目標 180～260 字;模式B 目標 150～220 字。
+{{WORD_COUNT}}
 – 系統的 thin content 門檻為 120 字,低於此值會被自動 noindex。
 – 不要為了達標而灌水。可寫的素材有限時,寫到 150 字左右就收尾,
   並在【待人工確認】註明原因。
@@ -415,30 +374,23 @@ class Anime_Sync_ACF_Fields {
 3. 短評中出現的任何具體數字(角色年齡、集數、年份、話數)都必須列入
    查證清單;未列入者一律不得寫入短評——包含在對話中出現、但不在
    【已查證資料】區塊內的數字。對話中提過不等於已查證。
-4. 【編輯實際觀感】屬於主觀意見,不需查證,但其中若含具體數字
-   (例如「第四集之後」),該數字仍須列入查證清單,來源填「編輯觀看紀錄」。
-5. 走途徑 (A) 時,每筆 URL 必須是該項目內容的實際出處,且為文章完整
+{{VERIFY_OBSERVATION}}走途徑 (A) 時,每筆 URL 必須是該項目內容的實際出處,且為文章完整
    網址,不得只寫網域首頁。若手邊 URL 的內容與項目不符,該項目移入
    「查無資料而省略」,不得填入相近但無關的連結。留白是被允許的,
    填錯不被允許。
-6. 走途徑 (A) 時,URL 須為原始文章網址,不得使用搜尋引擎跳轉網址、
+{{VERIFY_URL_NO}}. 走途徑 (A) 時,URL 須為原始文章網址,不得使用搜尋引擎跳轉網址、
    重新導向連結或任何 vertexaisearch / grounding-api 類型的中介網址。
-7. 未播出作品(status = NOT_YET_RELEASED)一律走模式B,
-   並明確標示所述為播出前預期。
+{{VERIFY_UNAIRED}}
 
 【內容規範|EEAT】
-– Experience:
-  · 模式A:短評必須包含【編輯實際觀感】中那項看過才寫得出來的具體觀察。
-  · 模式B:本項不適用,不得以任何方式偽造。
-  兩種模式皆不得劇透關鍵轉折或結局。
+{{EEAT_EXPERIENCE}}
 – Expertise:至少一項類型脈絡判斷(與同類型作品的差異、漫改取捨、
   該製作公司的一貫取向),不得複述官方簡介或維基句式。
 – Trustworthiness:
   · 【已查證資料】有提供台灣分級時,必須明確寫出;
     未提供時整項略過,並在【待人工確認】列出「待補台灣分級」。
   · 必要時做內容警示(吸菸、飲酒、暴力、性暗示)。
-  · 須包含一句「可能不合胃口的點」或「不適合誰」,不得通篇正面。
-    模式B 的此項須立基於題材與原作走向,不得寫成品質評價。
+{{EEAT_BALANCE}}
 
 【SEO】
 – 主關鍵詞為作品中文標題,自然出現 1～2 次,首次盡量在前 40 字內。
@@ -462,7 +414,7 @@ class Anime_Sync_ACF_Fields {
 【輸出格式|嚴格遵守,不得增加額外段落或說明文字】
 
 【撰寫模式】
-(填 A 或 B)
+{{OUTPUT_MODE}}
 
 【短評本文】
 (純文字,直接可貼入 anime_editor_summary。此區塊內只放短評,
@@ -483,9 +435,13 @@ class Anime_Sync_ACF_Fields {
 查無資料而省略:(逐項列出,無則寫「無」)
 
 【待人工確認】
-(列出填寫 anime_editorial_author 前應覆核的具體事項。
- 若為模式B,固定列出一項:「本篇未經實際觀看,內容僅依查證資料撰寫」。)
+(列出填寫 anime_editorial_author 前應覆核的具體事項。{{MANUAL_CHECK}})
 EOT;
+
+        // 先填模式差異，再填已查證資料：差異片段內不含「欄位名:」格式，兩者互不干擾。
+        foreach ( $this->editorial_prompt_fragments( $mode ) as $token => $text ) {
+            $prompt = str_replace( $token, $text, $prompt );
+        }
 
         foreach ( $facts as $label => $value ) {
             $value = trim( (string) $value );
@@ -501,7 +457,154 @@ EOT;
     }
 
     /**
-     * 動態填入提示詞盒的訊息內容（含繁中標題與「📋 複製提示詞」按鈕）。
+     * 撰寫模式 A／B 的差異片段。
+     *
+     * 提示詞的共用部分只存在 build_editorial_ai_prompt() 的 heredoc 一份，
+     * 兩種模式不同的地方全部集中在這裡，方便左右對照、也避免日後調教時
+     * 只改到其中一份造成兩邊行為不一致。
+     *
+     * 注意：模式 A／B 指「編輯有沒有看過本作」，與提示詞內【執行順序】
+     * 第二步的「途徑 (A)／(B)」（事實來源是搜尋工具還是使用者提供）無關，
+     * 兩種模式都可能走任一途徑。
+     *
+     * @param string $mode A 或 B。
+     * @return array<string,string> 佔位符 => 取代文字。
+     */
+    private function editorial_prompt_fragments( string $mode ): array {
+        if ( 'B' === $mode ) {
+            return [
+                '{{MODE_BLOCK}}' => <<<'EOT'
+【撰寫模式|本份提示詞固定為模式B】
+模式B(我沒看過本作,僅依查證資料撰寫)
+
+(本份已指定模式,不需再做任何選擇或刪改。
+ 若你實際看過本作、想帶入自己的觀點,請改用 A 模式的提示詞。)
+EOT,
+
+                '{{ROLE_STANCE}}' => '你不曾觀看任何作品,本次編輯本人也沒有看過。' . "\n"
+                    . '因此你只能寫查證資料支撐得起的內容,不得產出任何觀看體驗。',
+
+                '{{STEPS}}' => <<<'EOT'
+第一步:確認事實來源。有兩種合法途徑,擇一:
+  (A) 使用搜尋工具查證下列項目:原作出處、製作公司、監督、主要聲優、
+      台灣分級、播映狀態。
+  (B) 若本環境無搜尋工具,改用【已查證資料】區塊提供的資料。該區塊內容
+      視同已查證,查證清單的來源欄位填「使用者提供」。區塊未提供的項目
+      一律不得寫入短評。
+  若兩者皆無,輸出「無可用事實來源,任務中止」並停止。
+第二步:依下列規則撰寫短評本文。
+第三步:整理待人工確認事項。
+EOT,
+
+                '{{MODE_RULES}}' => <<<'EOT'
+【撰寫規則|以查證資料為核心|規則從嚴】
+可以寫(這些查證就能支撐):
+  – 原作背景與改編定位(原作媒體形式、系列在該類型中的位置)
+  – 題材與類型脈絡(這類作品通常處理什麼、本作的設定切角)
+  – 適合哪種觀眾、哪種觀眾可能不合胃口
+    (必須明確立基於題材與原作走向,不得偽裝成看過後的判斷)
+  – 台灣分級與必要的內容提醒
+  – 值得關注的觀察點(明確寫成「可以留意」,不得寫成「表現如何」)
+
+嚴禁寫入(這些只有看過才說得出口,一律視為捏造):
+  – 節奏、步調、鋪陳的評價(例:節奏明快、前段偏慢)
+  – 作畫、分鏡、演出、美術的品質判斷
+  – 配音表現的評價(例:聲線貼合、演得用力)
+  – 笑點、情緒、氣氛的實際效果(例:笑點密集、後段催淚)
+  – 任何形式的「看完後」感受或推薦強度
+
+語氣要求:全篇必須讀得出來是「依資料整理的定位介紹」,
+不是觀後心得。使用「從原作走向來看」「以這個題材而言」這類
+立足於資料的表述,不得使用「看下來」「追完之後」等體驗性措辭。
+EOT,
+
+                '{{VALUE_LINE}}'   => '定位、脈絡、適合與不適合的族群。',
+                '{{WORD_COUNT}}'   => '– 目標 150～220 字。',
+
+                // B 模式沒有【編輯實際觀感】，查證規則少一條，其後編號往前遞補。
+                '{{VERIFY_OBSERVATION}}' => '4. ',
+                '{{VERIFY_URL_NO}}'      => '5',
+                '{{VERIFY_UNAIRED}}'     => '6. 未播出作品(status = NOT_YET_RELEASED)須明確標示所述為播出前預期。',
+
+                '{{EEAT_EXPERIENCE}}' => '– Experience:本項不適用,不得以任何方式偽造觀看體驗。' . "\n"
+                    . '  不得劇透關鍵轉折或結局。',
+
+                '{{EEAT_BALANCE}}' => '  · 須包含一句「可能不合胃口的點」或「不適合誰」,不得通篇正面。' . "\n"
+                    . '    此項須立基於題材與原作走向,不得寫成品質評價。',
+
+                '{{OUTPUT_MODE}}' => 'B',
+                '{{MANUAL_CHECK}}' => "\n" . ' 固定列出一項:「本篇未經實際觀看,內容僅依查證資料撰寫」。',
+            ];
+        }
+
+        return [
+            '{{MODE_BLOCK}}' => <<<'EOT'
+【撰寫模式|本份提示詞固定為模式A】
+模式A(我看過本作)
+
+【編輯實際觀感|必填】
+(口語即可,不需修飾,一到三句。例如:「前三集節奏很拖,第四集之後
+ 才進入狀況」「女主角的配音有點用力過猛,聽久會累」)
+
+
+(本份已指定模式,不需再做任何選擇或刪改,只要把上面的觀感填上即可。
+ 若你其實沒看過本作,請改用 B 模式的提示詞,不要在此虛構觀感。)
+EOT,
+
+            '{{ROLE_STANCE}}' => '你不曾觀看任何作品,但本次編輯本人看過。' . "\n"
+                . '因此你的定位是「潤飾與補脈絡」,核心觀點來自編輯本人。',
+
+            '{{STEPS}}' => <<<'EOT'
+第一步:確認【編輯實際觀感】已填寫。
+       為空 → 輸出「缺少編輯觀感,任務中止」並停止。
+第二步:確認事實來源。有兩種合法途徑,擇一:
+  (A) 使用搜尋工具查證下列項目:原作出處、製作公司、監督、主要聲優、
+      台灣分級、播映狀態。
+  (B) 若本環境無搜尋工具,改用【已查證資料】區塊提供的資料。該區塊內容
+      視同已查證,查證清單的來源欄位填「使用者提供」。區塊未提供的項目
+      一律不得寫入短評。
+  若兩者皆無,輸出「無可用事實來源,任務中止」並停止。
+第三步:依下列規則撰寫短評本文。
+第四步:整理待人工確認事項。
+EOT,
+
+            '{{MODE_RULES}}' => <<<'EOT'
+【撰寫規則|以編輯觀感為核心】
+短評必須以【編輯實際觀感】為主軸展開。你可以:
+  – 把口語整理成通順的句子
+  – 為這個觀點補上類型脈絡(與同類作品的差異、漫改取捨等)
+  – 補上必要的事實框架(分級提醒、播映狀態)
+你不可以:
+  – 取代、淡化或反駁編輯的觀點
+  – 在編輯沒提到的面向上自行發表評價
+  – 因為編輯的意見偏負面就補一堆正面說法來「平衡」
+
+若觀感只提到單一面向,短評就只寫那個面向,不要為了湊字數而擴充成
+面面俱到的評論。寧可短而真,不要長而空。
+EOT,
+
+            '{{VALUE_LINE}}' => '定位、脈絡、適合與不適合的族群,以及編輯本人的觀點。',
+            '{{WORD_COUNT}}' => '– 目標 180～260 字。',
+
+            '{{VERIFY_OBSERVATION}}' => '4. 【編輯實際觀感】屬於主觀意見,不需查證,但其中若含具體數字' . "\n"
+                . '   (例如「第四集之後」),該數字仍須列入查證清單,來源填「編輯觀看紀錄」。' . "\n"
+                . '5. ',
+            '{{VERIFY_URL_NO}}'  => '6',
+            '{{VERIFY_UNAIRED}}' => '7. 未播出作品(status = NOT_YET_RELEASED)不適用本模式——尚未播出' . "\n"
+                . '   代表不可能看過。請改用 B 模式的提示詞重新產生。',
+
+            '{{EEAT_EXPERIENCE}}' => '– Experience:短評必須包含【編輯實際觀感】中那項看過才寫得出來的' . "\n"
+                . '  具體觀察。不得劇透關鍵轉折或結局。',
+
+            '{{EEAT_BALANCE}}' => '  · 須包含一句「可能不合胃口的點」或「不適合誰」,不得通篇正面。',
+
+            '{{OUTPUT_MODE}}'  => 'A',
+            '{{MANUAL_CHECK}}' => '',
+        ];
+    }
+
+    /**
+     * 動態填入提示詞盒的訊息內容（含繁中標題與 A／B 兩種模式的複製按鈕）。
      *
      * @param array|false $field ACF 欄位。
      * @return array|false
@@ -523,7 +626,8 @@ EOT;
         }
 
         $facts       = $this->gather_verified_facts( $post_id, $title );
-        $prompt      = $this->build_editorial_ai_prompt( $facts );
+        $prompt_a    = $this->build_editorial_ai_prompt( $facts, 'A' );
+        $prompt_b    = $this->build_editorial_ai_prompt( $facts, 'B' );
         $title_label = ( '' !== $title ) ? esc_html( $title ) : '（尚未填繁中標題）';
 
         $field['message'] =
@@ -531,21 +635,28 @@ EOT;
 
             // ── 標題列 ──
             . '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
-            . '<button type="button" class="button button-primary asp-copy-prompt-btn">'
-            . '📋 複製提示詞</button>'
             . '<strong>🤖 產生編輯短評</strong>'
             . '<span style="color:#50575e;">作品：<strong>' . $title_label . '</strong></span>'
             . '</div>'
 
-            // ── 操作步驟：提示詞需要先選模式才能用，不講清楚會直接被 AI 中止 ──
+            // ── 兩種模式各自一顆按鈕：複製出來就是完整可用的提示詞，不需再刪改 ──
+            . '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
+            . '<button type="button" class="button button-primary asp-copy-prompt-btn" '
+            . 'data-target="a" data-label="📋 複製 A 模式（我看過）">'
+            . '📋 複製 A 模式（我看過）</button>'
+            . '<button type="button" class="button asp-copy-prompt-btn" '
+            . 'data-target="b" data-label="📋 複製 B 模式（沒看過）">'
+            . '📋 複製 B 模式（沒看過）</button>'
+            . '</div>'
+
+            // ── 操作步驟 ──
             . '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;'
             . 'padding:8px 12px;margin-bottom:8px;font-size:12px;line-height:1.9;">'
             . '<strong>使用步驟</strong><br>'
-            . '1. 按「複製提示詞」，貼到 AI 對話視窗（建議開啟搜尋功能）<br>'
-            . '2. <strong>在【撰寫模式】二選一，刪掉不用的那行</strong>'
-            . '　　<span style="color:#d63638;">未選會直接中止，不會產出</span><br>'
-            . '　　<strong>模式 A</strong>：你追過這部 → 填一句自己的真實感想<br>'
-            . '　　<strong>模式 B</strong>：你沒看過 → 只寫查證得到的定位與脈絡<br>'
+            . '1. 依你有沒有看過這部，按對應的複製鈕<br>'
+            . '　　<strong>A 模式</strong>：你追過這部 → 貼上後補一句自己的真實感想<br>'
+            . '　　<strong>B 模式</strong>：你沒看過 → 貼上即可，只寫查證得到的定位與脈絡<br>'
+            . '2. 貼到 AI 對話視窗（建議開啟搜尋功能）<br>'
             . '3. 把產出的【短評本文】貼回下方欄位<br>'
             . '4. 對照【查證清單】抽查，確認沒有杜撰'
             . '</div>'
@@ -560,9 +671,19 @@ EOT;
 
             . '<input type="text" class="asp-prompt-title" readonly value="' . esc_attr( $title ) . '" '
             . 'style="width:100%;margin-bottom:6px;font-family:monospace;" onclick="this.select();">'
-            . '<textarea class="asp-prompt-text" readonly rows="8" '
+
+            /*
+             * 兩份提示詞各自完整。預設顯示 A，切換由上方按鈕控制；
+             * B 先隱藏而不是省略，是為了讓複製走的仍是 textarea 取值，
+             * clipboard API 不可用時的 execCommand 退路才有東西可選取。
+             */
+            . '<textarea class="asp-prompt-text" data-mode="a" readonly rows="8" '
             . 'style="width:100%;font-family:monospace;font-size:12px;line-height:1.6;resize:none;" onclick="this.select();">'
-            . esc_textarea( $prompt )
+            . esc_textarea( $prompt_a )
+            . '</textarea>'
+            . '<textarea class="asp-prompt-text" data-mode="b" readonly rows="8" '
+            . 'style="width:100%;font-family:monospace;font-size:12px;line-height:1.6;resize:none;display:none;" onclick="this.select();">'
+            . esc_textarea( $prompt_b )
             . '</textarea>'
             . '</div>';
 
@@ -1032,7 +1153,7 @@ EOT;
 						'name'      => '',
 						'type'      => 'message',
 						'message'   => '<strong>全人工模式：</strong>'
-							. '用上方「📋 複製提示詞」貼到 AI 對話視窗產出短評，'
+							. '依你有沒有看過本作，用上方「📋 複製 A／B 模式」貼到 AI 對話視窗產出短評，'
 							. '自己<strong>查證修改</strong>後貼回上面欄位並儲存即可——'
 							. '系統會自動指定審核者、審核日期與「已發布」狀態。'
 							. '品質分數、搜尋引擎索引與廣告資格一律由網站共用品質函式判定。',
@@ -3169,19 +3290,29 @@ private function register_manga_fields(): void {
                 acf.addAction('ready', injectButton);
             }
 
-            // 「📋 複製提示詞」按鈕：ACF message 欄位內容會被 wp_kses 過濾，
+            // A／B 模式的「📋 複製」按鈕：ACF message 欄位內容會被 wp_kses 過濾，
             // inline onclick 屬性不在允許清單內會被剔除，改用委派事件綁定。
             $(document).on('click', '.asp-copy-prompt-btn', function(e) {
                 e.preventDefault();
 
-                var $btn = $(this);
-                var $textarea = $btn.closest('.asp-ai-prompt-helper').find('.asp-prompt-text');
+                var $btn  = $(this);
+                var $box  = $btn.closest('.asp-ai-prompt-helper');
+                var mode  = $btn.data('target') || 'a';
+
+                // A／B 各有一個 textarea，依按鈕的 data-target 取對應那份
+                var $textarea = $box.find('.asp-prompt-text[data-mode="' + mode + '"]');
                 if (!$textarea.length) return;
+
+                // 讓下方顯示的內容跟著剛複製的模式走，方便直接核對複製到什麼
+                $box.find('.asp-prompt-text').hide();
+                $textarea.show();
 
                 var text = $textarea.val();
                 var showCopied = function() {
+                    // 還原文字用各自按鈕的 data-label，避免兩顆鈕互相蓋掉標籤
+                    var label = $btn.data('label') || '📋 複製提示詞';
                     $btn.text('✅ 已複製');
-                    setTimeout(function() { $btn.text('📋 複製提示詞'); }, 1500);
+                    setTimeout(function() { $btn.text(label); }, 1500);
                 };
                 var fallbackCopy = function() {
                     $textarea[0].focus();
