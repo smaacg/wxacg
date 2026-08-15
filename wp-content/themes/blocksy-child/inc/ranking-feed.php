@@ -294,12 +294,20 @@ function wxacg_ranking_fetch_anilist( string $period ): array {
  * 優先讀 wp-config.php 的常數（該檔已被 .gitignore 排除，不會進版控），
  * 其次讀 option，兩者皆無則回空字串 → 自動退回 Jikan，不會壞掉。
  *
- * wp-config.php 設定方式：
+ * wp-config.php 設定方式（兩種名稱皆可，優先用有前綴的）：
  *   define( 'WXACG_MAL_CLIENT_ID', '你的 Client ID' );
+ *   define( 'MAL_CLIENT_ID',       '你的 Client ID' );
+ *
+ * 之所以兩種都接受：無前綴的 MAL_CLIENT_ID 比較直覺、實務上已經有人這樣設，
+ * 但通用名稱有和其他外掛撞名的風險，故仍以有前綴者為準。
  */
 function wxacg_ranking_mal_client_id(): string {
 	if ( defined( 'WXACG_MAL_CLIENT_ID' ) && WXACG_MAL_CLIENT_ID ) {
 		return trim( (string) WXACG_MAL_CLIENT_ID );
+	}
+
+	if ( defined( 'MAL_CLIENT_ID' ) && MAL_CLIENT_ID ) {
+		return trim( (string) MAL_CLIENT_ID );
 	}
 
 	return trim( (string) get_option( 'wxacg_mal_client_id', '' ) );
