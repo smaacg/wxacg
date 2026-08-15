@@ -150,6 +150,33 @@ $format_terms = get_terms( [ 'taxonomy' => 'anime_format_tax', 'orderby' => 'cou
 $genre_terms  = get_terms( [ 'taxonomy' => 'genre', 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'number' => 20 ] );
 $source_terms = get_terms( [ 'taxonomy' => 'anime_source_tax', 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true ] );
 
+/* ── 播映狀態：直接統計 meta ──
+   狀態會隨時間變動（連載中 → 已完結），沒有對應分類法可用 get_terms 取數量，
+   因此掃 postmeta 統計。快取一小時，避免每次載入列表頁都跑一次群組查詢。
+   只有真的有作品的狀態才會顯示，避免出現點進去是空的篩選鈕。 */
+$status_counts = get_transient( 'wxacg_anime_status_counts' );
+
+if ( false === $status_counts ) {
+    $status_rows = $GLOBALS['wpdb']->get_results(
+        "SELECT pm.meta_value AS code, COUNT(*) AS n
+         FROM {$GLOBALS['wpdb']->postmeta} pm
+         JOIN {$GLOBALS['wpdb']->posts} p ON p.ID = pm.post_id
+         WHERE pm.meta_key = 'anime_status'
+           AND p.post_type = 'anime'
+           AND p.post_status = 'publish'
+         GROUP BY pm.meta_value",
+        ARRAY_A
+    );
+
+    $status_counts = [];
+
+    foreach ( (array) $status_rows as $status_row ) {
+        $status_counts[ (string) $status_row['code'] ] = (int) $status_row['n'];
+    }
+
+    set_transient( 'wxacg_anime_status_counts', $status_counts, HOUR_IN_SECONDS );
+}
+
 /* ── Schema canonical ── */
 $canonical_url = ( $is_genre || $is_season || $is_format || $is_source ) && $current_term
     ? get_term_link( $current_term )
@@ -308,6 +335,29 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
         <?php endforeach; ?>
         </div>
     </div>
+
+    <?php if ( ! empty( $status_filter_map ) && ! empty( $status_counts ) ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">📺 播映狀態</div>
+        <div class="aaa-filter-row">
+            <a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>"
+               class="aaa-filter-btn <?php echo ! $status_filter_slug ? 'active' : ''; ?>">全部</a>
+            <?php foreach ( $status_filter_map as $st_slug => $st_info ) :
+                $st_count = $status_counts[ $st_info['code'] ] ?? 0;
+
+                // 沒有作品的狀態不顯示，避免點進去是空清單
+                if ( $st_count < 1 ) {
+                    continue;
+                }
+                ?>
+            <a href="<?php echo esc_url( add_query_arg( 'anime_status', $st_slug, home_url( '/anime/' ) ) ); ?>"
+               class="aaa-filter-btn <?php echo ( $st_slug === $status_filter_slug ) ? 'active' : ''; ?>">
+                <?php echo esc_html( $st_info['label'] ); ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <?php if ( ! is_wp_error( $format_terms ) && $format_terms ) : ?>
     <div class="aaa-filter-group">
