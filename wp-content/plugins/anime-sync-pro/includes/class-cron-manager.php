@@ -86,6 +86,13 @@ class Anime_Sync_Cron_Manager {
     const DAILY_QUEUE_OPTION = 'anime_sync_daily_queue';
     const DAILY_BATCH_SIZE   = 20;
 
+    /**
+     * 每日動態更新的熔斷門檻：同一批內連續失敗達此數量即中止本批。
+     * 用於上游整個不可用時（例如 AniList 全站回 403）避免逐筆空打，
+     * 未處理項目會退回佇列由下批重試。
+     */
+    const DAILY_ABORT_AFTER_FAILURES = 5;
+
     const THEMES_QUEUE_OPTION = 'anime_sync_themes_episodes_queue';
     const THEMES_BATCH_SIZE   = 20;
 
@@ -427,8 +434,27 @@ class Anime_Sync_Cron_Manager {
         $skipped = (int) get_option( 'anime_sync_daily_round_skipped', 0 );
         $failed  = (int) get_option( 'anime_sync_daily_round_failed',  0 );
 
-        foreach ( $batch as $post_id ) {
+        /*
+         * 熔斷：連續失敗達門檻就中止本批。
+         *
+         * 上游整個掛掉時（例如 AniList 曾以 HTTP 403 回覆
+         * "The AniList API has been temporarily disabled"），原本會把整批
+         * 逐筆打完，每筆各記一行警告。實際上第一筆就足以判斷「服務不可用」，
+         * 後續請求純屬浪費，且會把真正需要處理的警告洗掉。
+         *
+         * 中止時未處理的項目會退回佇列，下批（下一次排程）照常重試，
+         * 因此上游恢復後會自動復原，不需人工介入。
+         */
+        $consecutive_failures = 0;
+        $aborted_at           = null;
+
+        foreach ( $batch as $index => $post_id ) {
             $post_id = (int) $post_id;
+
+            if ( $consecutive_failures >= self::DAILY_ABORT_AFTER_FAILURES ) {
+                $aborted_at = $index;
+                break;
+            }
 
             if ( get_post_status( $post_id ) !== 'publish' ) {
                 continue;
@@ -458,8 +484,10 @@ class Anime_Sync_Cron_Manager {
                         'anilist_id' => $anilist_id,
                     ] );
                     $this->purge_post_cache( $post_id );
+                    $consecutive_failures = 0; // 兜底成功，視為服務仍可用
                 } else {
                     $failed++;
+                    $consecutive_failures++;
                     $this->logger->log( 'warning', "每日動態更新〔{$post_title}〕：失敗", [
                         'post_id'    => $post_id,
                         'anilist_id' => $anilist_id,
@@ -467,13 +495,30 @@ class Anime_Sync_Cron_Manager {
                 }
             } elseif ( $result === 'skipped' ) {
                 $skipped++;
+                $consecutive_failures = 0;
                 $this->logger->log( 'info', "每日動態更新〔{$post_title}〕：無變動" );
             } else {
                 $updated++;
+                $consecutive_failures = 0;
                 $detail = str_contains( $result, ':' ) ? '（' . explode( ':', $result, 2 )[1] . '）' : '';
                 $this->logger->log( 'info', "每日動態更新〔{$post_title}〕：已更新{$detail}" );
                 $this->purge_post_cache( $post_id );
             }
+        }
+
+        /*
+         * 熔斷後：把本批未處理的項目退回佇列最前面，下批重試。
+         * 不動已累計的統計數字，本輪結算仍照實反映。
+         */
+        if ( $aborted_at !== null ) {
+            $unprocessed = array_slice( $batch, $aborted_at );
+            $remaining   = array_merge( $unprocessed, $remaining );
+
+            $this->logger->log( 'warning', sprintf(
+                '每日動態更新：連續 %d 筆失敗，判定上游暫時不可用，本批提前中止（%d 部退回佇列，下批重試）',
+                self::DAILY_ABORT_AFTER_FAILURES,
+                count( $unprocessed )
+            ) );
         }
 
         self::update_cron_option( self::DAILY_QUEUE_OPTION, array_values( $remaining ) );

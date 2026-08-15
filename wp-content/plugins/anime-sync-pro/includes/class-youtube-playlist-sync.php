@@ -367,8 +367,30 @@ class Anime_Sync_YouTube_Playlist_Sync {
         $playlist_id  = $this->extract_playlist_id( $playlist_url );
         if ( ! $playlist_id ) {
             $result['msg'] = '播放清單網址無效';
-            $this->write_log( $post_id, $result['msg'], 'warning' );
+
+            /*
+             * 網址無效屬於「資料本身有問題」，不修好就每一輪都會再發生。
+             * 原本每輪都記一筆 warning，同一筆壞資料一天可洗掉數十行 log，
+             * 把真正需要處理的警告淹沒。
+             *
+             * 改為只在「這個壞網址第一次被發現」時記錄：
+             * 已回報過的網址存進 post meta，相同值就不再重複記。
+             * 網址一被修改（不論改好或改成另一個壞值）就會與紀錄不同，
+             * 屆時再記一次，因此不會漏掉新的問題。
+             */
+            $reported = (string) get_post_meta( $post_id, '_asp_yt_bad_url_reported', true );
+
+            if ( $reported !== $playlist_url ) {
+                update_post_meta( $post_id, '_asp_yt_bad_url_reported', $playlist_url );
+                $this->write_log( $post_id, $result['msg'], 'warning' );
+            }
+
             return $result;
+        }
+
+        // 網址有效：清掉「壞網址」紀錄，日後若再變壞才會重新回報。
+        if ( '' !== (string) get_post_meta( $post_id, '_asp_yt_bad_url_reported', true ) ) {
+            delete_post_meta( $post_id, '_asp_yt_bad_url_reported' );
         }
 
         $videos = $this->fetch_playlist_items( $playlist_id );
