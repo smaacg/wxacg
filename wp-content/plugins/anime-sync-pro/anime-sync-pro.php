@@ -164,6 +164,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	$anime_sync_cli_files = [
 		ANIME_SYNC_PRO_DIR . 'includes/class-entity-migrator.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-source-tax-backfill.php',
+		ANIME_SYNC_PRO_DIR . 'includes/class-upcoming-drift-check.php',
 	];
 	foreach ( $anime_sync_cli_files as $anime_sync_cli_file ) {
 		if ( file_exists( $anime_sync_cli_file ) ) {
