@@ -23,20 +23,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /* ============================================================
-   通用 AJAX：閱讀文章加分
-   ============================================================ */
-add_action( 'wp_ajax_smacg_read_article', function () {
-    check_ajax_referer( 'smacg_nonce', 'nonce' );
-    $uid = (int) get_current_user_id();
-    $pid = (int) ( $_POST['post_id'] ?? 0 );
-    if ( $uid && $pid && smacg_check_cooldown( $uid, 'read', $pid ) ) {
-        smacg_add_points( $uid, SMACG_POINT_READ, "read:{$pid}" );
-    }
-    wp_send_json_success();
-} );
-
-/* ============================================================
-   已移除：評分 / 收藏 / 進度的舊 admin-ajax 端點
+   已移除：評分 / 收藏 / 進度 / 閱讀加分的舊 admin-ajax 端點
    ------------------------------------------------------------
    以下端點在改走 REST 後就沒有任何呼叫端，屬於遷移殘留：
      - smacg_submit_rating_detail  → weixiaoacg/v1/ratings（class-rating-manager.php）
@@ -45,6 +32,9 @@ add_action( 'wp_ajax_smacg_read_article', function () {
      - weixiaoacg_update_progress  → 同上
      - weixiaoacg_resync_bangumi   → Anime_Sync_API_Handler 後台介面
      - smacg_get_my_rating         → weixiaoacg/v1/ratings/{postId}（見 anime-rating.js v1.5）
+     - smacg_read_article          → 舊版 anime_total_points 加分，寫入後無任何前台讀取
+                                      端；文章閱讀已改由 wxacg-gamification 的
+                                      smacg_post_read（class-read-tracker.php）發 EXP
 
    舊版寫入的 smacg_site_score_* post meta 仍保留在資料庫中，
    由 wxacg_is_thin_anime_page() 當作歷史資料的 fallback 讀取

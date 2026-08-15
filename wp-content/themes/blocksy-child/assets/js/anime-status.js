@@ -350,16 +350,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    /* ── 閱讀積分（3 秒後）── */
-    if (loggedIn && cfg.ajaxUrl && cfg.ajaxNonce) {
-        setTimeout(function () {
-            fetch(cfg.ajaxUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ action: 'smacg_read_article', nonce: cfg.ajaxNonce, post_id: postId }),
-            }).catch(function () {});
-        }, 3000);
-    }
+    /* ── 閱讀積分：已移除 ──
+       原本 3 秒後呼叫 smacg_read_article，寫入舊版 anime_total_points，
+       該 meta 已無任何前台顯示或讀取端，屬遷移殘留，故移除呼叫。
+       ── */
 
 }); /* END DOMContentLoaded — 追蹤列 */
 

@@ -62,34 +62,6 @@ if ( ! defined( 'weixiaoacg_THEME_DIR' ) ) {
 	define( 'weixiaoacg_THEME_DIR', get_stylesheet_directory() );
 }
 
-if ( ! defined( 'SMACG_POINT_FAVORITE' ) ) {
-	define( 'SMACG_POINT_FAVORITE', 5 );
-}
-if ( ! defined( 'SMACG_POINT_WANT' ) ) {
-	define( 'SMACG_POINT_WANT', 1 );
-}
-if ( ! defined( 'SMACG_POINT_WATCHING' ) ) {
-	define( 'SMACG_POINT_WATCHING', 3 );
-}
-if ( ! defined( 'SMACG_POINT_COMPLETED' ) ) {
-	define( 'SMACG_POINT_COMPLETED', 8 );
-}
-if ( ! defined( 'SMACG_POINT_FULLCLEAR' ) ) {
-	define( 'SMACG_POINT_FULLCLEAR', 10 );
-}
-if ( ! defined( 'SMACG_POINT_EPISODE' ) ) {
-	define( 'SMACG_POINT_EPISODE', 1 );
-}
-if ( ! defined( 'SMACG_POINT_READ' ) ) {
-	define( 'SMACG_POINT_READ', 2 );
-}
-if ( ! defined( 'SMACG_POINT_COMMENT' ) ) {
-	define( 'SMACG_POINT_COMMENT', 3 );
-}
-if ( ! defined( 'SMACG_POINT_LOGIN' ) ) {
-	define( 'SMACG_POINT_LOGIN', 1 );
-}
-
 if ( ! defined( 'WXACG_FOLLOW_DAILY_LIMIT' ) ) {
 	define( 'WXACG_FOLLOW_DAILY_LIMIT', 200 );
 }
