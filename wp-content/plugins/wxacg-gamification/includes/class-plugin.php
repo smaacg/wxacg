@@ -86,8 +86,11 @@ class Plugin {
         Ranking_System::instance();
         require_once $base . 'ranking/class-ranking-cron.php';
         Ranking_Cron::instance();
-        require_once $base . 'ranking/class-ranking-privacy.php';
-        Ranking_Privacy::instance();
+        // Ranking_Privacy 已移除：只註冊了一支沒有呼叫端的 AJAX 切換與
+        // 一份沒有消費者的 localize，前端切換按鈕從未實作。
+        // 排行榜仍會排除 WXACG_RANKING_META_KEY 為 '0' 的使用者
+        // （見 Ranking_System::excluded_user_ids()），該過濾邏輯直接讀 meta，
+        // 不依賴此類別，日後要重做開關時後端不必重寫。
         require_once $base . 'ranking/class-leaderboard-ajax.php';
         Leaderboard_Ajax::instance();
         require_once $base . 'ranking/class-leaderboard-widget.php';
