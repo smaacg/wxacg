@@ -3592,11 +3592,59 @@ while ( have_posts() ) :
 						)
 						: '';
 
+					/*
+					 * 人物頁的配對條件很嚴（STAFF 需同時職位含製作類字樣且名稱完全相同），
+					 * 多數作品配不到就變純文字。退回 anime_studio_tax 的歸檔頁，
+					 * 與側欄標籤區連的是同一個地方。
+					 */
+					if ( $studio_url === '' ) {
+						$studio_tax_terms = get_the_terms( $post_id, 'anime_studio_tax' );
+
+						if ( is_array( $studio_tax_terms ) ) {
+							foreach ( $studio_tax_terms as $studio_tax_term ) {
+								// 只認名稱相同者：連錯製作公司比不能點更糟。
+								if ( trim( $studio_tax_term->name ) !== trim( $studio ) ) {
+									continue;
+								}
+
+								$resolved_studio_url = get_term_link( $studio_tax_term );
+
+								if ( ! is_wp_error( $resolved_studio_url ) ) {
+									$studio_url = $resolved_studio_url;
+								}
+
+								break;
+							}
+						}
+					}
+
 					$studio_html = $studio_url !== ''
 						? '<a href="' . esc_url( $studio_url ) . '">'
 							. esc_html( $studio )
 							. '</a>'
 						: esc_html( $studio );
+				}
+
+				/* 原作類型 → anime_source_tax 歸檔頁 */
+				$source_html = '';
+
+				if ( $source_label !== '' ) {
+					$source_url       = '';
+					$source_tax_terms = get_the_terms( $post_id, 'anime_source_tax' );
+
+					if ( is_array( $source_tax_terms ) && ! empty( $source_tax_terms ) ) {
+						$resolved_source_url = get_term_link( $source_tax_terms[0] );
+
+						if ( ! is_wp_error( $resolved_source_url ) ) {
+							$source_url = $resolved_source_url;
+						}
+					}
+
+					$source_html = $source_url !== ''
+						? '<a href="' . esc_url( $source_url ) . '">'
+							. esc_html( $source_label )
+							. '</a>'
+						: esc_html( $source_label );
 				}
 
 				$hero_meta_rows = [
@@ -3607,8 +3655,8 @@ while ( have_posts() ) :
 					],
 					[
 						'key'  => '原作類型',
-						'val'  => $source_label,
-						'html' => false,
+						'val'  => $source_html,
+						'html' => true,
 					],
 					[
 						'key'  => '製作公司',

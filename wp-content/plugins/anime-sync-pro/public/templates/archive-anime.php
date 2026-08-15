@@ -21,8 +21,9 @@ $is_archive   = is_post_type_archive( 'anime' );
 $is_genre     = is_tax( 'genre' );
 $is_season    = is_tax( 'anime_season_tax' );
 $is_format    = is_tax( 'anime_format_tax' );
+$is_source    = is_tax( 'anime_source_tax' );
 $is_search    = is_search() && get_query_var( 'post_type' ) === 'anime';
-$current_term = ( $is_genre || $is_season || $is_format ) ? get_queried_object() : null;
+$current_term = ( $is_genre || $is_season || $is_format || $is_source ) ? get_queried_object() : null;
 
 $archive_title = '動漫列表';
 $archive_desc  = '';
@@ -55,6 +56,7 @@ $show_banner  = $is_archive && ! $current_term && ! $is_search && $current_page 
 $active_genre  = $is_genre  ? $current_term->slug : '';
 $active_season = $is_season ? $current_term->slug : '';
 $active_format = $is_format ? $current_term->slug : '';
+$active_source = $is_source ? $current_term->slug : '';
 
 /* ── [v2.6] Thin Content 防護：noindex 判斷（在 get_header 之前）── */
 add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
@@ -67,7 +69,7 @@ add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
         unset( $robots['noarchive'], $robots['nosnippet'] );
         return $robots;
     }
-    // Taxonomy 頁（genre/season/format）文章數過少且無描述 → noindex
+    // Taxonomy 頁（genre/season/format/source）文章數過少且無描述 → noindex
     if ( $current_term instanceof WP_Term ) {
         $desc = trim( strip_tags( (string) $archive_desc ) );
         if ( $total_posts < 3 && $desc === '' ) {
@@ -127,9 +129,10 @@ if ( ! $active_season_year && ! empty( $season_children ) ) {
 
 $format_terms = get_terms( [ 'taxonomy' => 'anime_format_tax', 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true ] );
 $genre_terms  = get_terms( [ 'taxonomy' => 'genre', 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'number' => 20 ] );
+$source_terms = get_terms( [ 'taxonomy' => 'anime_source_tax', 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true ] );
 
 /* ── Schema canonical ── */
-$canonical_url = ( $is_genre || $is_season || $is_format ) && $current_term
+$canonical_url = ( $is_genre || $is_season || $is_format || $is_source ) && $current_term
     ? get_term_link( $current_term )
     : get_post_type_archive_link( 'anime' );
 
@@ -297,6 +300,20 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
             <a href="<?php echo esc_url( get_term_link( $ft ) ); ?>"
                class="aaa-filter-btn <?php echo ( $ft->slug === $active_format ) ? 'active' : ''; ?>">
                 <?php echo esc_html( $format_labels[ $ft->name ] ?? $ft->name ); ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ( ! is_wp_error( $source_terms ) && $source_terms ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">📖 原作類型</div>
+        <div class="aaa-filter-row">
+            <?php foreach ( $source_terms as $st ) : ?>
+            <a href="<?php echo esc_url( get_term_link( $st ) ); ?>"
+               class="aaa-filter-btn <?php echo ( $st->slug === $active_source ) ? 'active' : ''; ?>">
+                <?php echo esc_html( $st->name ); ?>
             </a>
             <?php endforeach; ?>
         </div>

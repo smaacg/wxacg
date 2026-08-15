@@ -2,12 +2,18 @@
 /**
  * Plugin Name: Anime Sync Pro
  * Description: 從 AniList、Bangumi 自動同步動畫資料，並支援多媒體形式（動畫/漫畫/小說/遊戲/音樂）的作品系列聚合。
- * Version:     1.5.1
+ * Version:     1.6.0
  * Author:      weixiaoacg
  * Requires PHP: 8.0
  * Text Domain: anime-sync-pro
  *
  * 完整 Changelog 請見 CHANGELOG.md
+ *
+ * 1.6.0 — 新增原作類型分類法 anime_source_tax（2026-08-16）
+ *         作品頁的「原作類型」與「製作公司」改為可點。
+ *         版本號提升會觸發 init priority 99 的 flush_rewrite_rules()，
+ *         /source/{slug}/ 的網址需要它才會生效，不可省略。
+ *         既有作品的詞彙補寫見 `wp anime backfill-source-tax`。
  *
  * 1.5.1 — 角色/聲優頁自動攤平（2026-07-29）
  *   - [新增] enrich_anime_data() 成功後，自動排程獨立的
@@ -74,7 +80,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /* ============================================================
  * 1. 常數定義
  * ============================================================ */
-define( 'ANIME_SYNC_PRO_VERSION',  '1.5.1' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.6.0' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -157,6 +163,7 @@ spl_autoload_register( function ( string $class ): void {
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	$anime_sync_cli_files = [
 		ANIME_SYNC_PRO_DIR . 'includes/class-entity-migrator.php',
+		ANIME_SYNC_PRO_DIR . 'includes/class-source-tax-backfill.php',
 	];
 	foreach ( $anime_sync_cli_files as $anime_sync_cli_file ) {
 		if ( file_exists( $anime_sync_cli_file ) ) {
@@ -458,6 +465,25 @@ function anime_sync_register_taxonomies(): void {
 		],
 	] );
 
+	register_taxonomy( 'anime_source_tax', [ 'anime' ], [
+		'labels' => [
+			'name'          => '原作類型',
+			'singular_name' => '原作類型',
+			'search_items'  => '搜尋原作類型',
+			'all_items'     => '所有原作類型',
+			'edit_item'     => '編輯原作類型',
+			'add_new_item'  => '新增原作類型',
+		],
+		'hierarchical'      => true,
+		'show_in_rest'      => true,
+		'show_in_nav_menus' => true,
+		'show_admin_column' => true,
+		'rewrite'           => [
+			'slug'       => 'source',
+			'with_front' => false,
+		],
+	] );
+
 	register_taxonomy(
 		'anime_series_tax',
 		explode( ',', ANIME_SYNC_PRO_CPTS ),
@@ -503,6 +529,40 @@ function anime_sync_register_taxonomies(): void {
 			'with_front' => false,
 		],
 	] );
+}
+
+/**
+ * 原作類型（anime_source meta）→ anime_source_tax 詞彙的對照表。
+ *
+ * 這是本站原作類型「代碼 → 中文名稱 + slug」的唯一來源，供以下三處共用：
+ *   - class-installer.php   種子詞建立
+ *   - class-import-manager.php 匯入／同步時指派詞彙
+ *   - CLI 回填指令（includes/class-source-tax-backfill.php）
+ *
+ * 名稱以既有的 wxacg_source_label()（ai-editorial-tool.php）為基準，
+ * 讓分類頁標題與站內其他地方顯示的字樣一致。
+ *
+ * @return array<string,array{name:string,slug:string}>
+ */
+function anime_sync_get_source_tax_map(): array {
+	return [
+		'ORIGINAL'           => [ 'name' => '原創',           'slug' => 'original'           ],
+		'MANGA'              => [ 'name' => '漫畫改編',       'slug' => 'manga'              ],
+		'LIGHT_NOVEL'        => [ 'name' => '輕小說改編',     'slug' => 'light-novel'        ],
+		'VISUAL_NOVEL'       => [ 'name' => '視覺小說改編',   'slug' => 'visual-novel'       ],
+		'VIDEO_GAME'         => [ 'name' => '電子遊戲改編',   'slug' => 'video-game'         ],
+		'GAME'               => [ 'name' => '桌遊卡牌改編',   'slug' => 'game'               ],
+		'NOVEL'              => [ 'name' => '小說改編',       'slug' => 'novel'              ],
+		'WEB_NOVEL'          => [ 'name' => '網路小說改編',   'slug' => 'web-novel'          ],
+		'WEB_MANGA'          => [ 'name' => '網路漫畫改編',   'slug' => 'web-manga'          ],
+		'DOUJINSHI'          => [ 'name' => '同人誌改編',     'slug' => 'doujinshi'          ],
+		'ANIME'              => [ 'name' => '動畫改編',       'slug' => 'anime-source'       ],
+		'COMIC'              => [ 'name' => '歐美漫畫改編',   'slug' => 'comic'              ],
+		'LIVE_ACTION'        => [ 'name' => '真人影視改編',   'slug' => 'live-action'        ],
+		'MULTIMEDIA_PROJECT' => [ 'name' => '多媒體企劃',     'slug' => 'multimedia-project' ],
+		'PICTURE_BOOK'       => [ 'name' => '繪本改編',       'slug' => 'picture-book'       ],
+		'OTHER'              => [ 'name' => '其他',           'slug' => 'other'              ],
+	];
 }
 
 /* ============================================================

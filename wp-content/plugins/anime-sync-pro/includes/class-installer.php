@@ -269,6 +269,18 @@ class Anime_Sync_Installer {
 			foreach ( $formats as [ $name, $slug ] ) {
 				$this->upsert_term( $name, 'anime_format_tax', [ 'slug' => $slug ], $stats );
 			}
+
+			// 4.5 anime_source_tax（名稱／slug 取自 anime_sync_get_source_tax_map()）
+			if ( function_exists( 'anime_sync_get_source_tax_map' ) ) {
+				foreach ( anime_sync_get_source_tax_map() as $source ) {
+					$this->upsert_term(
+						$source['name'],
+						'anime_source_tax',
+						[ 'slug' => $source['slug'] ],
+						$stats
+					);
+				}
+			}
 		}
 
 		// ─────────────────────────────────────────────

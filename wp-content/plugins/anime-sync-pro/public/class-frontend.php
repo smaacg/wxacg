@@ -173,6 +173,7 @@ class Anime_Sync_Frontend {
         $is_anime_tax     = is_tax( 'genre' )
                          || is_tax( 'anime_season_tax' )
                          || is_tax( 'anime_format_tax' )
+                         || is_tax( 'anime_source_tax' )
                          || is_tax( 'anime_series_tax' )
                          || is_tax( 'anime_studio_tax' );
         $is_anime_search  = is_search() && get_query_var( 'post_type' ) === 'anime';
@@ -352,6 +353,7 @@ class Anime_Sync_Frontend {
             || is_tax( 'genre' )
             || is_tax( 'anime_season_tax' )
             || is_tax( 'anime_format_tax' )
+            || is_tax( 'anime_source_tax' )
             || is_tax( 'anime_series_tax' )
             || is_tax( 'anime_studio_tax' )
             || $is_anime_search

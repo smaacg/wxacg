@@ -831,6 +831,47 @@ class Anime_Sync_Import_Manager {
 			}
 		}
 
+		/*
+		 * 原作類型 → anime_source_tax
+		 * 比照上方 format 的做法：以 slug 為準找詞彙，缺的就建。
+		 * 對照表見 anime_sync_get_source_tax_map()（anime-sync-pro.php）。
+		 * 既有作品的補寫由 `wp anime-sync backfill-source-tax` 處理。
+		 */
+		$source = $data['anime_source'] ?? '';
+
+		if ( $source !== '' && function_exists( 'anime_sync_get_source_tax_map' ) ) {
+			$source_map  = anime_sync_get_source_tax_map();
+			$source_key  = strtoupper( trim( (string) $source ) );
+			$source_name = $source_map[ $source_key ]['name'] ?? '';
+			$source_slug = $source_map[ $source_key ]['slug'] ?? '';
+
+			// 對照表沒有的代碼不建詞彙：寧可少一個連結，也不要生出一堆髒詞彙。
+			if ( $source_name !== '' && $source_slug !== '' ) {
+				$source_tid  = 0;
+				$source_term = get_term_by( 'slug', $source_slug, 'anime_source_tax' );
+
+				if ( ! $source_term ) {
+					$source_result = wp_insert_term(
+						$source_name,
+						'anime_source_tax',
+						[ 'slug' => $source_slug ]
+					);
+
+					if ( ! is_wp_error( $source_result ) ) {
+						$source_tid = (int) $source_result['term_id'];
+					} elseif ( $source_result->get_error_code() === 'term_exists' ) {
+						$source_tid = (int) ( $source_result->get_error_data() ?: 0 );
+					}
+				} else {
+					$source_tid = (int) $source_term->term_id;
+				}
+
+				if ( $source_tid > 0 ) {
+					wp_set_post_terms( $post_id, [ $source_tid ], 'anime_source_tax' );
+				}
+			}
+		}
+
 		if ( ! empty( $data['anime_tags'] ) && is_array( $data['anime_tags'] ) ) {
 			$tag_ids = [];
 			foreach ( $data['anime_tags'] as $tag_name ) {
