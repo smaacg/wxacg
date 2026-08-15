@@ -55,6 +55,18 @@ class Anime_Sync_Source_Tax_Backfill {
 		$paged     = 1;
 		$hit_limit = false;
 
+		/*
+		 * 延後詞彙計數：每次 wp_set_post_terms() 都即時重算 count 很慢，
+		 * 而且本迴圈為了控制記憶體會定期清物件快取，兩者相加會讓 count 算錯
+		 * （首次上線時就發生過：實際 1412 筆卻只記到 968，得事後手動 recount）。
+		 *
+		 * wp_defer_term_counting() 把待算的 term 收在 PHP 全域變數裡，不受
+		 * 物件快取清除影響；迴圈結束後關閉時，WordPress 會一次補算完畢。
+		 */
+		if ( ! $dry_run ) {
+			wp_defer_term_counting( true );
+		}
+
 		while ( ! $hit_limit ) {
 			$query = new WP_Query( [
 				'post_type'              => 'anime',
@@ -129,12 +141,51 @@ class Anime_Sync_Source_Tax_Backfill {
 				}
 			}
 
-			// 記憶體控制：長跑時 WP 的物件快取會持續膨脹
-			wp_cache_flush();
+			/*
+			 * 記憶體控制：長跑時 WP 的物件快取會持續膨脹。
+			 *
+			 * 不用 wp_cache_flush()：站上裝了物件快取 drop-in，在 WP-CLI 下
+			 * 每次呼叫都會印出一行「全部快取已成功清除」，把指令輸出洗掉；
+			 * 而且它會連同其他無關快取一起清，代價過高。
+			 * 這裡只清掉本迴圈真正會累積的 post／meta／term 三組快取。
+			 */
+			$this->flush_loop_caches();
 			$paged++;
 		}
 
+		if ( ! $dry_run ) {
+			// 關閉延後計數 → WordPress 於此處一次補算所有受影響的 term count
+			wp_defer_term_counting( false );
+		}
+
 		return $stats;
+	}
+
+	/**
+	 * 清掉本迴圈累積的快取，取代整站 wp_cache_flush()。
+	 *
+	 * 只針對真正會膨脹的群組；wp_cache_flush_group() 需要物件快取支援，
+	 * 不支援時退回重設內建 runtime cache，兩者都不會產生 CLI 輸出。
+	 */
+	private function flush_loop_caches(): void {
+		$groups = [ 'posts', 'post_meta', 'terms', 'term_relationships' ];
+
+		if ( function_exists( 'wp_cache_supports' ) && wp_cache_supports( 'flush_group' ) ) {
+			foreach ( $groups as $group ) {
+				wp_cache_flush_group( $group );
+			}
+
+			return;
+		}
+
+		// 沒有 flush_group 支援時，直接重設 WP 內建物件快取的 runtime 陣列。
+		global $wp_object_cache;
+
+		if ( is_object( $wp_object_cache ) && isset( $wp_object_cache->cache ) && is_array( $wp_object_cache->cache ) ) {
+			foreach ( $groups as $group ) {
+				unset( $wp_object_cache->cache[ $group ] );
+			}
+		}
 	}
 
 	/**
