@@ -288,12 +288,44 @@ function wxacg_ranking_fetch_anilist( string $period ): array {
  * ============================================================ */
 
 function wxacg_ranking_fetch_mal( string $period ): array {
-	$endpoint = 'https://api.jikan.moe/v4/top/anime?limit=' . WXACG_RANKING_LIMIT;
+	$filter = '';
 
 	if ( $period === 'daily' || $period === 'weekly' ) {
-		$endpoint .= '&filter=airing';
+		$filter = 'airing';
 	} elseif ( $period === 'monthly' ) {
-		$endpoint .= '&filter=bypopularity';
+		$filter = 'bypopularity';
+	}
+
+	$items = wxacg_ranking_fetch_mal_request( $filter );
+
+	/*
+	 * Jikan 對「有帶 filter」的請求會回源 MyAnimeList，
+	 * MAL 不穩時整批回 504（實測連 page=1 這種參數都會失敗），
+	 * 但不帶參數的總榜有快取、通常仍可用。
+	 * 與其讓整個頁籤空白，不如退而求其次顯示總榜。
+	 */
+	if ( empty( $items ) && $filter !== '' ) {
+		wxacg_ranking_log_error(
+			'mal',
+			sprintf( 'filter=%s 取得失敗，降級為不帶 filter 的總榜', $filter )
+		);
+
+		$items = wxacg_ranking_fetch_mal_request( '' );
+	}
+
+	return $items;
+}
+
+/**
+ * 實際送出 Jikan 請求。
+ *
+ * @param string $filter airing | bypopularity | 空字串（總榜）
+ */
+function wxacg_ranking_fetch_mal_request( string $filter ): array {
+	$endpoint = 'https://api.jikan.moe/v4/top/anime?limit=' . WXACG_RANKING_LIMIT;
+
+	if ( $filter !== '' ) {
+		$endpoint .= '&filter=' . rawurlencode( $filter );
 	}
 
 	$response = wp_remote_get( $endpoint, [
