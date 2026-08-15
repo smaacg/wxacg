@@ -175,9 +175,16 @@ add_action( 'init', 'anime_sync_register_taxonomies', 10 );
 /* ============================================================
  * 3.1. /upcoming-anime/ — Rank Math SEO 覆蓋
  * ============================================================ */
+/*
+ * 標題不再寫死年份。
+ *
+ * 原本是「⋯作品 2026」，但本頁同時收錄 2026 秋季到 2027 秋季、
+ * 以及尚未定檔期的作品，寫死單一年份既不準確，隔年也會過期。
+ * 改為不帶年份的常青寫法，年份資訊交由各作品卡片自己呈現。
+ */
 add_filter( 'rank_math/frontend/title', function( string $title ): string {
 	if ( get_query_var( 'anime_upcoming' ) ) {
-		return '動畫化確定・製作進行中作品 2026 - 微笑動漫';
+		return '動畫化確定作品一覽｜製作中新番、續作與改編企劃 - 微笑動漫';
 	}
 
 	return $title;
@@ -185,7 +192,9 @@ add_filter( 'rank_math/frontend/title', function( string $title ): string {
 
 add_filter( 'rank_math/frontend/description', function( string $desc ): string {
 	if ( get_query_var( 'anime_upcoming' ) ) {
-		return '整理目前已宣布動畫化決定、製作確定但尚未播出的日本動畫作品，涵蓋漫畫動畫化、輕小說改編、第二季製作決定等情報，持續同步最新資訊。';
+		return '彙整已宣布動畫化決定、企劃進行中與製作中的日本動畫，'
+			. '包含漫畫與輕小說改編、續季製作決定等情報，'
+			. '並附播出季度、製作公司與原作出處，資料持續同步更新。';
 	}
 
 	return $desc;
