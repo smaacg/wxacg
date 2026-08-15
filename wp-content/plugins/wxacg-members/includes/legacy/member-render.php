@@ -47,6 +47,7 @@ function smacg_render_anime_card( $pid, $extra = [] ) {
     $status_label = [
         'watching'  => '追番中', 'completed' => '已看完', 'want' => '想看',
         'dropped'   => '棄番',   'favorited' => '收藏',
+        'paused'    => '暫停',
     ];
     ?>
     <article class="mc-anime-card"
@@ -129,6 +130,7 @@ function smacg_render_dashboard( $watchlist, $stats, $recent_cmt, $points_log, $
                 <li><span class="mc-dot mc-dot--want"></span>想看 <b><?php echo (int) $stats['counts']['want']; ?></b></li>
                 <li><span class="mc-dot mc-dot--favorited"></span>收藏 <b><?php echo (int) $stats['counts']['favorited']; ?></b></li>
                 <li><span class="mc-dot mc-dot--dropped"></span>棄番 <b><?php echo (int) $stats['counts']['dropped']; ?></b></li>
+                <li><span class="mc-dot mc-dot--paused"></span>暫停 <b><?php echo (int) ( $stats['counts']['paused'] ?? 0 ); ?></b></li>
             </ul>
             <div class="mc-watchtime">
                 <span>累計觀看</span>
@@ -234,6 +236,7 @@ function smacg_render_watchlist( $watchlist, $counts ) {
             <button class="mc-filter-btn" data-filter="completed">已看完 (<?php echo (int) $counts['completed']; ?>)</button>
             <button class="mc-filter-btn" data-filter="want">想看 (<?php echo (int) $counts['want']; ?>)</button>
             <button class="mc-filter-btn" data-filter="favorited">收藏 (<?php echo (int) $counts['favorited']; ?>)</button>
+            <button class="mc-filter-btn" data-filter="paused">暫停 (<?php echo (int) ( $counts['paused'] ?? 0 ); ?>)</button>
             <button class="mc-filter-btn" data-filter="dropped">棄番 (<?php echo (int) $counts['dropped']; ?>)</button>
         </div>
         <div class="mc-list-tools">
@@ -282,7 +285,9 @@ function smacg_render_stats( $s ) {
         </div>
 
         <?php if ( $completion_rate !== null ):
-            $denom = (int) $s['counts']['completed'] + (int) $s['counts']['dropped'] + (int) $s['counts']['watching'];
+            // 暫停也是「開始了但還沒完成」，計入分母才不會讓完成率虛高
+            $denom = (int) $s['counts']['completed'] + (int) $s['counts']['dropped']
+                + (int) $s['counts']['watching'] + (int) ( $s['counts']['paused'] ?? 0 );
             [ $emoji, $remark ] = match ( true ) {
                 $completion_rate >= 80 => [ '🏆', '超強毅力，幾乎部部追完！' ],
                 $completion_rate >= 60 => [ '✨', '完成率不錯，繼續保持！' ],

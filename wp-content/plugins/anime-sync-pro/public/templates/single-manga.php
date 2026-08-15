@@ -869,10 +869,12 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                 <?php /* 狀態按鈕群(want / watching / completed / dropped)*/ ?>
                 <div class="smacg-status-group">
                     <?php
+                    /* 暫停：等下一卷、放著之後再追，與棄坑的差別是「還想繼續」。 */
                     $status_buttons = [
                         'want'      => [ 'label' => '想看', 'ico' => '📌' ],
                         'watching'  => [ 'label' => '在看', 'ico' => '📖' ],
                         'completed' => [ 'label' => '看完', 'ico' => '✅' ],
+                        'paused'    => [ 'label' => '暫停', 'ico' => '⏸' ],
                         'dropped'   => [ 'label' => '棄坑', 'ico' => '🚫' ],
                     ];
                     foreach ( $status_buttons as $st_key => $st ) :

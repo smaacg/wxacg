@@ -107,13 +107,14 @@ class Anime_Sync_User_Status_Cron {
         $sql = "
             INSERT INTO {$stats_table}
                 (anime_id, want_count, watching_count, completed_count,
-                 dropped_count, favorited_count, total_count)
+                 dropped_count, paused_count, favorited_count, total_count)
             SELECT
                 anime_id,
                 SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) AS want_count,
                 SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS watching_count,
                 SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END) AS completed_count,
                 SUM(CASE WHEN status = 3 THEN 1 ELSE 0 END) AS dropped_count,
+                SUM(CASE WHEN status = 4 THEN 1 ELSE 0 END) AS paused_count,
                 SUM(favorited)                               AS favorited_count,
                 COUNT(*)                                     AS total_count
             FROM {$main_table}
@@ -123,6 +124,7 @@ class Anime_Sync_User_Status_Cron {
                 watching_count  = VALUES(watching_count),
                 completed_count = VALUES(completed_count),
                 dropped_count   = VALUES(dropped_count),
+                paused_count    = VALUES(paused_count),
                 favorited_count = VALUES(favorited_count),
                 total_count     = VALUES(total_count)
         ";

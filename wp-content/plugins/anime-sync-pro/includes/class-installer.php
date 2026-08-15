@@ -49,7 +49,11 @@ class Anime_Sync_Installer {
 	 * activate()/maybe_upgrade() 會寫入 option 'anime_sync_db_version'，
 	 * dashboard 系統資訊即可正確顯示，不再 fallback 成「—」。
 	 */
-	private const DB_VERSION = '1.2';
+	/*
+	 * 1.3 — anime_user_status_stats 新增 paused_count（暫停狀態）。
+	 *       主表 anime_user_status 不需異動：status 是 tinyint，新增值 4 即可。
+	 */
+	private const DB_VERSION = '1.3';
 
 	/**
 	 * 季度 seed：往前 N 年 + 當年 + 當年+1 的範圍
@@ -462,6 +466,7 @@ class Anime_Sync_Installer {
 			watching_count  INT UNSIGNED NOT NULL DEFAULT 0,
 			completed_count INT UNSIGNED NOT NULL DEFAULT 0,
 			dropped_count   INT UNSIGNED NOT NULL DEFAULT 0,
+			paused_count    INT UNSIGNED NOT NULL DEFAULT 0,
 			favorited_count INT UNSIGNED NOT NULL DEFAULT 0,
 			total_count     INT UNSIGNED NOT NULL DEFAULT 0,
 			updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

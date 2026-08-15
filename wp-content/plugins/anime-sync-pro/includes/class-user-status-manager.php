@@ -41,12 +41,19 @@ class Anime_Sync_User_Status_Manager {
     const STATUS_WATCHING  = 1;
     const STATUS_COMPLETED = 2;
     const STATUS_DROPPED   = 3;
+    /*
+     * 暫停：看到一半停著，之後可能會回來（等下一季、等單行本、單純沒空）。
+     * 與棄坑的差別在「還想繼續」，因此偏好推算時仍視為喜歡，不像棄坑要排除。
+     * status 欄位是 tinyint，新增值 4 不需要改主表結構。
+     */
+    const STATUS_PAUSED    = 4;
 
     private const STATUS_MAP = [
         'want'      => self::STATUS_WANT,
         'watching'  => self::STATUS_WATCHING,
         'completed' => self::STATUS_COMPLETED,
         'dropped'   => self::STATUS_DROPPED,
+        'paused'    => self::STATUS_PAUSED,
     ];
 
     private const STATUS_REVERSE = [
@@ -54,6 +61,7 @@ class Anime_Sync_User_Status_Manager {
         self::STATUS_WATCHING  => 'watching',
         self::STATUS_COMPLETED => 'completed',
         self::STATUS_DROPPED   => 'dropped',
+        self::STATUS_PAUSED    => 'paused',
     ];
 
     private const RATE_LIMIT_MAX    = 30;
@@ -564,7 +572,7 @@ class Anime_Sync_User_Status_Manager {
     }
 
     public function get_ranking( string $type = 'favorited', int $limit = 20 ): array {
-        $allow = [ 'favorited', 'watching', 'completed', 'want', 'dropped', 'total' ];
+        $allow = [ 'favorited', 'watching', 'completed', 'want', 'dropped', 'paused', 'total' ];
         if ( ! in_array( $type, $allow, true ) ) $type = 'favorited';
 
         $limit = max( 1, min( 100, $limit ) );
@@ -604,6 +612,7 @@ class Anime_Sync_User_Status_Manager {
             'watching'  => 0,
             'completed' => 0,
             'dropped'   => 0,
+            'paused'    => 0,
             'favorited' => 0,
             'total'     => 0,
         ];
@@ -619,7 +628,7 @@ class Anime_Sync_User_Status_Manager {
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
             "SELECT want_count, watching_count, completed_count,
-                    dropped_count, favorited_count, total_count
+                    dropped_count, paused_count, favorited_count, total_count
              FROM {$wpdb->prefix}anime_user_status_stats
              WHERE anime_id = %d",
             $anime_id
@@ -631,6 +640,7 @@ class Anime_Sync_User_Status_Manager {
                 'watching'  => (int) $row['watching_count'],
                 'completed' => (int) $row['completed_count'],
                 'dropped'   => (int) $row['dropped_count'],
+                'paused'    => (int) $row['paused_count'],
                 'favorited' => (int) $row['favorited_count'],
                 'total'     => (int) $row['total_count'],
             ]

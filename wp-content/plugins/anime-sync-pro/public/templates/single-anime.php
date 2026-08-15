@@ -3826,6 +3826,13 @@ while ( have_posts() ) :
 							'label'    => '已看完',
 							'disabled' => $is_not_aired,
 						],
+						/* 暫停：看到一半停著、之後還想回來（等下一季、沒空追）。
+						   與棄坑的差別是「還想繼續」，偏好推算仍算喜歡。 */
+						'paused' => [
+							'icon'     => '⏸',
+							'label'    => '暫停',
+							'disabled' => $is_not_aired,
+						],
 						'dropped' => [
 							'icon'     => '✕',
 							'label'    => '棄坑',

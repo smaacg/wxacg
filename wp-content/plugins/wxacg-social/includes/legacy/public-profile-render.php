@@ -417,7 +417,7 @@ function smacg_pp_render_watchlist( $watchlist ) {
         return;
     }
 
-    $counts = [ 'all' => 0, 'watching' => 0, 'completed' => 0, 'favorited' => 0, 'want' => 0, 'dropped' => 0 ];
+    $counts = [ 'all' => 0, 'watching' => 0, 'completed' => 0, 'favorited' => 0, 'want' => 0, 'dropped' => 0, 'paused' => 0 ];
     foreach ( $watchlist as $w ) {
         $counts['all']++;
         $s = is_array( $w ) ? ( $w['status'] ?? '' ) : '';
@@ -664,6 +664,7 @@ function smacg_pp_render_anime_card( $pid, $extra = [] ) {
         'completed' => '✅ 已完結',
         'favorited' => '❤️ 收藏',
         'want'      => '📌 想看',
+        'paused'    => '⏸ 暫停',
         'dropped'   => '⛔ 棄追',
     ];
     $status_label = $status_labels[ $status ] ?? '';

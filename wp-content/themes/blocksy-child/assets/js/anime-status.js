@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const nonce    = cfg.nonce   || '';
 
     /* 允許的狀態值（與後端 Anime_Sync_User_Status_Manager 對應） */
-    const VALID_STATUS = ['want', 'watching', 'completed', 'dropped'];
+    const VALID_STATUS = ['want', 'watching', 'completed', 'dropped', 'paused'];
 
     /* ── 未登入彈出 Modal ── */
     function requireLogin() {
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
     renderFav(state.favorited);
     renderClear(state.fullcleared);
 
-    /* ── 狀態按鈕（4 顆互斥：want / watching / completed / dropped）── */
+    /* ── 狀態按鈕（互斥：want / watching / completed / paused / dropped）── */
     statusBtns.forEach(function (btn) {
         btn.addEventListener('click', function () {
             if (!loggedIn) { requireLogin(); return; }

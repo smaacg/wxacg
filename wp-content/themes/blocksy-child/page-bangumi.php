@@ -186,7 +186,7 @@ if ( $has_status_table && $current_uid > 0 && $rows ) {
             $current_uid
         ), ARRAY_A );
         $us_map = [];
-        $status_map_int = [ 0 => 'want', 1 => 'watching', 2 => 'completed', 3 => 'dropped' ];
+        $status_map_int = [ 0 => 'want', 1 => 'watching', 2 => 'completed', 3 => 'dropped', 4 => 'paused' ];
         foreach ( (array) $us_rows as $u ) {
             $aid = (int) $u['anime_id'];
             $st  = $u['status'];
@@ -742,6 +742,7 @@ get_header();
                 <option value="want">想看</option>
                 <option value="watching">追番中</option>
                 <option value="completed">已完結</option>
+                <option value="paused">暫停</option>
                 <option value="dropped">已棄</option>
                 <option value="__none__">尚未追蹤</option>
             </select>
@@ -899,6 +900,7 @@ function bgm_render_card( $p, $tw_platform_labels, $weekday_zh ) {
         'watching'  => '追番中',
         'want'      => '想看',
         'completed' => '已完結',
+        'paused'    => '暫停',
         'dropped'   => '已棄',
     ];
     $is_hot       = ( $p['score'] !== null && $p['score'] >= 80 );

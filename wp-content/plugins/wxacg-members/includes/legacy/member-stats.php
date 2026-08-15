@@ -211,7 +211,7 @@ function smacg_calc_member_stats($watchlist, $ratings, $uid = 0) {
     }
 
     // ---- 計數 ----
-    $counts = ['all'=>0,'watching'=>0,'completed'=>0,'want'=>0,'favorited'=>0,'dropped'=>0];
+    $counts = ['all'=>0,'watching'=>0,'completed'=>0,'want'=>0,'favorited'=>0,'dropped'=>0,'paused'=>0];
     $genre_map = $studio_map = $year_map = [];
     $total_min = 0;
 
@@ -253,9 +253,11 @@ function smacg_calc_member_stats($watchlist, $ratings, $uid = 0) {
     }
 
     // ---- 完成率（v2.0.3 新增）----
-    // 公式:completed / (completed + dropped + watching) × 100
+    // 公式:completed / (completed + dropped + watching + paused) × 100
     // 排除「想看」與純收藏,因為這些還沒開始追,不該影響完成率
-    $denominator = $counts['completed'] + $counts['dropped'] + $counts['watching'];
+    // 暫停屬於「已開始但未完成」,與 watching 同理計入分母
+    $denominator = $counts['completed'] + $counts['dropped']
+        + $counts['watching'] + $counts['paused'];
     $completion_rate = $denominator > 0
         ? round($counts['completed'] / $denominator * 100, 1)
         : 0;
@@ -385,6 +387,7 @@ function smacg_get_recent_activity( $uid, $limit = 20 ) {
                 'completed' => [ '看完了', '✅', 'completed' ],
                 'watching'  => [ '開始追', '👀', 'watching' ],
                 'want'      => [ '加入想看', '⭐', 'want' ],
+                'paused'    => [ '暫停追看', '⏸', 'paused' ],
                 'dropped'   => [ '棄番了', '😴', 'dropped' ],
             ];
             foreach ( $rows as $r ) {
