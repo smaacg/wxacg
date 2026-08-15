@@ -656,11 +656,40 @@ class Anime_Sync_User_Status_Manager {
      * @return int[] 作品 post ID 陣列
      * ────────────────────────────────────────────── */
 
-    public function get_recommendations( int $user_id, int $exclude_id = 0, int $limit = 6 ): array {
-        if ( ! $user_id ) return [];
+    /**
+     * 取得推薦作品 ID。
+     *
+     * 兩段式：優先用使用者自己的追番偏好；沒有追番紀錄（或未登入）時，
+     * 退回「與當前這部作品類型相近」的作品。
+     *
+     * 之所以要這層退路：追番清單為空就直接回空陣列的話，整個推薦區塊
+     * 對「還沒開始追番的人」與訪客完全不出現——而那正是最需要被推坑的族群。
+     * 推薦區塊只出現在作品頁上，當前作品的類型本身就是免費且精準的訊號，
+     * 不需要額外蒐集任何使用者資料。
+     *
+     * @param int    $user_id    0 代表未登入。
+     * @param int    $exclude_id 當前作品 ID，會從結果排除，同時作為相似推薦的依據。
+     * @param int    $limit      取幾筆。
+     * @param string $source     out：實際採用的來源，watchlist | similar | ''。
+     * @return int[]
+     */
+    public function get_recommendations( int $user_id, int $exclude_id = 0, int $limit = 6, string &$source = '' ): array {
+        $limit  = max( 1, min( self::RECO_POOL_MAX, $limit ) );
+        $source = '';
 
-        $limit = max( 1, min( self::RECO_POOL_MAX, $limit ) );
-        $pool  = $this->get_recommendation_pool( $user_id );
+        $pool = $user_id > 0
+            ? $this->get_recommendation_pool( $user_id )
+            : [];
+
+        if ( ! empty( $pool ) ) {
+            $source = 'watchlist';
+        } elseif ( $exclude_id > 0 ) {
+            $pool = $this->get_similar_pool( (int) $exclude_id );
+
+            if ( ! empty( $pool ) ) {
+                $source = 'similar';
+            }
+        }
 
         if ( empty( $pool ) ) return [];
 
@@ -669,6 +698,65 @@ class Anime_Sync_User_Status_Manager {
         }
 
         return array_slice( $pool, 0, $limit );
+    }
+
+    /**
+     * 相似作品候選池：與指定作品共享類型的其他作品。
+     *
+     * 快取以「作品」為單位（非使用者），因此同一部作品的所有訪客共用一份，
+     * 比逐使用者計算便宜很多。
+     *
+     * @return int[]
+     */
+    private function get_similar_pool( int $post_id ): array {
+        $key    = "asp_reco_similar_{$post_id}";
+        $cached = get_transient( $key );
+
+        if ( is_array( $cached ) ) return $cached;
+
+        $pool = $this->build_similar_pool( $post_id );
+
+        set_transient( $key, $pool, self::CACHE_TTL_RECO );
+
+        return $pool;
+    }
+
+    /**
+     * @return int[]
+     */
+    private function build_similar_pool( int $post_id ): array {
+        $terms = get_the_terms( $post_id, 'genre' );
+
+        if ( ! is_array( $terms ) || empty( $terms ) ) return [];
+
+        // 類型太多時只取前幾個，避免 tax_query 命中範圍過寬失去相似性。
+        $genre_ids = array_slice(
+            array_map( static fn( $t ) => (int) $t->term_id, $terms ),
+            0,
+            self::RECO_GENRE_MAX
+        );
+
+        $ids = get_posts( [
+            'post_type'              => 'anime',
+            'post_status'            => 'publish',
+            'posts_per_page'         => self::RECO_POOL_MAX,
+            'fields'                 => 'ids',
+            'orderby'                => 'rand',
+            'post__not_in'           => [ $post_id ],
+            'no_found_rows'          => true,
+            'ignore_sticky_posts'    => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'tax_query'              => [
+                [
+                    'taxonomy' => 'genre',
+                    'field'    => 'term_id',
+                    'terms'    => $genre_ids,
+                ],
+            ],
+        ] );
+
+        return array_map( 'intval', (array) $ids );
     }
 
     /**

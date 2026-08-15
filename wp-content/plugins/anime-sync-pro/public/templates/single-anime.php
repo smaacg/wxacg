@@ -2790,25 +2790,30 @@ while ( have_posts() ) :
 	}
 
 	/*
-	 * 個人化推薦（僅登入者本人可見）。
+	 * 推薦區塊，兩種來源（見 class-user-status-manager.php 的 get_recommendations）：
 	 *
-	 * 依使用者自己的追蹤紀錄推算偏好類型，
-	 * 找出同類型、但他還沒追過的作品。
+	 *   watchlist — 依使用者自己的追蹤紀錄推算偏好類型，找出同類型、
+	 *               但他還沒追過的作品。屬個人化內容。
+	 *   similar   — 追番清單為空或未登入時的退路，改推「與當前作品類型相近」
+	 *               的其他作品。依作品而非依人，內容對所有訪客都相同。
 	 *
-	 * 登入者在本站有獨立的 LSCache 分區，
-	 * 不會與訪客或其他使用者共用這段輸出。
+	 * 快取安全性：
+	 *   登入者在本站有獨立的 LSCache 分區，個人化那份不會與訪客或其他
+	 *   使用者共用。similar 那份本來就不含任何使用者資料，訪客之間共用
+	 *   同一份輸出是正確的，也讓這段內容可以正常被快取。
 	 */
-	$reco_items = [];
+	$reco_items  = [];
+	$reco_source = '';
 
 	if (
-		$user_id
-		&& isset( $stats_manager )
+		isset( $stats_manager )
 		&& method_exists( $stats_manager, 'get_recommendations' )
 	) {
 		$reco_ids = $stats_manager->get_recommendations(
 			(int) $user_id,
 			(int) $post_id,
-			6
+			6,
+			$reco_source
 		);
 
 		foreach ( $reco_ids as $reco_id ) {
@@ -5748,11 +5753,15 @@ while ( have_posts() ) :
 					<?php if ( ! empty( $reco_items ) ) : ?>
 						<div class="asd-side-section">
 							<div class="asd-side-section__head">
-								<h3>✨ 為你推薦</h3>
+								<h3><?php echo $reco_source === 'watchlist' ? '✨ 為你推薦' : '✨ 類似作品'; ?></h3>
 							</div>
 
 							<p class="asd-side-note">
-								依你追過的作品類型推算，只有你看得到。
+								<?php
+								echo $reco_source === 'watchlist'
+									? '依你追過的作品類型推算，只有你看得到。'
+									: '與這部作品類型相近的其他作品。';
+								?>
 							</p>
 
 							<div class="asd-side-cards">
