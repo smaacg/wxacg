@@ -291,20 +291,29 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
 </header>
 
 <?php if ( ! $is_upcoming ) : ?>
-<div class="aaa-search-wrap">
-    <form role="search" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>">
-        <div class="aaa-search-inner">
-            <span class="aaa-search-icon">🔍</span>
-            <input class="aaa-search-input" type="search" name="s"
-                   placeholder="搜尋動漫名稱…"
-                   value="<?php echo esc_attr( get_search_query() ); ?>">
-            <input type="hidden" name="post_type" value="anime">
-            <button class="aaa-search-btn" type="submit">搜尋</button>
-        </div>
-    </form>
-</div>
-
 <div class="aaa-filter-wrap">
+    <?php
+    /*
+     * 搜尋框放在篩選卡片內的第一列。
+     * 它做的事是「把這份清單縮小」，與下方季度／狀態／格式／類型同一類操作；
+     * 原本擺在卡片外、外觀又與頁首的全站搜尋幾乎相同，兩個框相隔不到一屏，
+     * 使用者無從分辨範圍差異（頁首是全站即時搜尋，這裡只搜動漫）。
+     */
+    ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">🔍 搜尋名稱</div>
+        <form role="search" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>">
+            <div class="aaa-search-inner">
+                <span class="aaa-search-icon">🔍</span>
+                <input class="aaa-search-input" type="search" name="s"
+                       placeholder="在動漫列表中搜尋…"
+                       value="<?php echo esc_attr( get_search_query() ); ?>">
+                <input type="hidden" name="post_type" value="anime">
+                <button class="aaa-search-btn" type="submit">搜尋</button>
+            </div>
+        </form>
+    </div>
+
     <div class="aaa-filter-group">
         <div class="aaa-filter-label">📅 播出季度</div>
         <div class="aaa-year-accordion">
@@ -519,7 +528,8 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
 .aaa-desc{color:var(--muted);margin:0 0 6px;font-size:.9rem;line-height:1.6;}
 .aaa-count{color:var(--faint);font-size:13px;margin:0 0 4px;}
 .aaa-count strong{color:var(--p2);font-weight:700;}
-.aaa-search-wrap{max-width:620px;margin:0 auto 32px;}
+/* 搜尋框已移入 .aaa-filter-wrap 內，寬度與間距交由 filter-group 控制，
+   原本的 .aaa-search-wrap 置中容器不再需要。 */
 .aaa-search-inner{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:var(--pill);background:var(--surf);border:1px solid var(--bd);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);transition:border-color var(--tr),box-shadow var(--tr);}
 .aaa-search-inner:focus-within{border-color:rgba(124,92,255,.55);box-shadow:0 0 0 3px rgba(124,92,255,.14);}
 .aaa-search-icon{font-size:16px;flex-shrink:0;opacity:.7;}
