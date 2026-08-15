@@ -611,6 +611,71 @@ function wxacg_is_thin_anime_page( int $post_id ): bool {
 		$has_faq ||
 		( $has_rich_synopsis && $has_community );
 
+	/*
+	 * v2.31.0：未播出作品的專屬解除條件。
+	 *
+	 * 上面五個條件，未播出作品幾乎必然一個都碰不到——
+	 * 台灣授權還沒宣布、資訊太少寫不出 FAQ、沒播無從撰寫短評、
+	 * 沒人評分因此沒有社群訊號、官方簡介初期也通常很短。
+	 * 結果是新番在「觀眾正開始搜尋」的宣傳期完全不被索引，
+	 * 等資料補齊解除 noindex 時排名早已被別人拿走。
+	 *
+	 * 但也不能無條件放行：只有標題、其餘皆空的頁面收錄了也沒有意義。
+	 * 因此改以「對想查這部新番的人有沒有實質資訊」為準，
+	 * 下列皆為查證得到的事實、不需要看過作品：
+	 *   · 確定的播出季度或首播日期
+	 *   · 製作公司
+	 *   · STAFF 或 CAST 名單
+	 *   · PV 預告片
+	 * 滿足其中三項即視為具查詢價值。
+	 *
+	 * ⚠ 這裡只放寬「索引」。廣告資格由 wxacg_is_anime_adsense_eligible()
+	 *   另外把關（需短評 180 字＋審核者、或內文 500 字、或站內原創文章），
+	 *   未播出頁面因此會被 Google 收錄，但不會顯示廣告。
+	 *
+	 * 作品開播後 anime_status 改變，判定自動回到上面五條，
+	 * 該補的資訊仍然要補。
+	 */
+	if ( ! $is_valuable ) {
+		$status = wxacg_plain_text( get_post_meta( $post_id, 'anime_status', true ) );
+
+		if ( 'NOT_YET_RELEASED' === $status ) {
+			$upcoming_signals = 0;
+
+			// 1. 播出時程：季度或首播日期任一即可
+			$season_year = (int) get_post_meta( $post_id, 'anime_season_year', true );
+			$start_date  = wxacg_plain_text( get_post_meta( $post_id, 'anime_start_date', true ) );
+
+			if ( $season_year > 0 || '' !== $start_date ) {
+				$upcoming_signals++;
+			}
+
+			// 2. 製作公司
+			if ( '' !== wxacg_plain_text( get_post_meta( $post_id, 'anime_studios', true ) ) ) {
+				$upcoming_signals++;
+			}
+
+			// 3. STAFF 或 CAST 名單（任一有資料即可）
+			foreach ( [ 'anime_staff_json', 'anime_cast_json' ] as $list_key ) {
+				$decoded = json_decode( (string) get_post_meta( $post_id, $list_key, true ), true );
+
+				if ( is_array( $decoded ) && ! empty( $decoded ) ) {
+					$upcoming_signals++;
+					break;
+				}
+			}
+
+			// 4. PV 預告片
+			if ( '' !== wxacg_plain_text( get_post_meta( $post_id, 'anime_trailer_url', true ) ) ) {
+				$upcoming_signals++;
+			}
+
+			if ( $upcoming_signals >= 3 ) {
+				$is_valuable = true;
+			}
+		}
+	}
+
 	return ! $is_valuable;
 }
 
