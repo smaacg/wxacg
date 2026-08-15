@@ -167,8 +167,12 @@ class Anime_Sync_Manga_Wiki_Cron {
 			}
 			// ★v1.4.0 維基網址:使用者「沒有」手填時才用 Wikidata 值;
 			//   手填時完全不碰 manga_wikipedia_url,保留人工指定。
-			if ( ! empty( $wd_raw['wikipedia_url'] ) && ! $had_manual_url ) {
-				$data['manga_wikipedia_url'] = $wd_raw['wikipedia_url'];
+			//
+			// ★修正:鍵名原本寫成 $wd_raw['wikipedia_url'],但 fetch_entity()
+			//   回傳的鍵一律帶 manga_ 前綴（見 class-wikidata-fetcher.php），
+			//   條件永遠為 false，Wikidata 查到的維基網址從來沒被寫入過。
+			if ( ! empty( $wd_raw['manga_wikipedia_url'] ) && ! $had_manual_url ) {
+				$data['manga_wikipedia_url'] = $wd_raw['manga_wikipedia_url'];
 			}
 		}
 

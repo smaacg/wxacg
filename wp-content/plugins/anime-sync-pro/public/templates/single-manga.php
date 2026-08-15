@@ -288,9 +288,19 @@ while ( have_posts() ) :
         $user_anime_entry = $status_mgr->get_entry( get_current_user_id(), $post_id );
     }
 
+    /*
+     * 卷數(日版):維基 manga_volumes_jp 優先,AniList manga_volumes fallback。
+     * 提前到這裡計算,因為下方的追蹤列進度上限也要用同一個值——
+     * 原本追蹤列只讀 AniList 的 manga_volumes,那個欄位常常是空的,
+     * 導致頁面標籤顯示「9 卷」但追蹤列卻抓不到總數、退回「話」且進度永遠 0%。
+     */
+    $volumes_effective = ( $volumes_jp !== '' && (int) $volumes_jp > 0 )
+        ? (int) $volumes_jp
+        : (int) $volumes;
+
     // 進度上限與單位:話優先,卷次之
     $manga_chapters_int = ( $chapters !== '' && (int) $chapters > 0 ) ? (int) $chapters : 0;
-    $manga_volumes_int  = ( $volumes  !== '' && (int) $volumes  > 0 ) ? (int) $volumes  : 0;
+    $manga_volumes_int  = $volumes_effective > 0 ? $volumes_effective : 0;
     if ( $manga_chapters_int > 0 ) {
         $manga_total_units = $manga_chapters_int;
         $manga_unit_label  = '話';
@@ -356,8 +366,7 @@ while ( have_posts() ) :
     $status_class = $status_classes[ $status ] ?? '';
     $source_label = $source_labels[ $source ] ?? $source;
 
-    // 卷數(日版):維基 manga_volumes_jp 優先,AniList manga_volumes fallback
-    $volumes_effective = ( $volumes_jp !== '' && (int) $volumes_jp > 0 ) ? (int) $volumes_jp : (int) $volumes;
+    // $volumes_effective 已於上方追蹤列區塊計算（兩處需共用同一個值）
     $volumes_str  = ( $volumes_effective > 0 ) ? $volumes_effective . ' 卷' : '';
     $chapters_str = ( $chapters !== '' && (int) $chapters > 0 ) ? (int) $chapters . ' 話' : '';
 
