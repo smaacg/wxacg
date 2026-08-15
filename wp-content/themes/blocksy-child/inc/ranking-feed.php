@@ -96,6 +96,7 @@ function wxacg_ranking_get( string $platform, string $period, bool $force = fals
 	}
 
 	$items = wxacg_ranking_fetch( $platform, $period );
+	$items = wxacg_ranking_localize( $items, $platform );
 
 	if ( ! empty( $items ) ) {
 		set_transient(
@@ -253,6 +254,7 @@ function wxacg_ranking_fetch_anilist( string $period ): array {
 			'genres'    => array_slice( (array) ( $m['genres'] ?? [] ), 0, 3 ),
 			'year'      => trim( $year ),
 			'anilistId' => (int) ( $m['id'] ?? 0 ),
+			'extId'     => (int) ( $m['id'] ?? 0 ),
 			'isSite'    => false,
 			'url'       => 'https://anilist.co/anime/' . (int) ( $m['id'] ?? 0 ),
 		];
@@ -329,6 +331,7 @@ function wxacg_ranking_fetch_mal( string $period ): array {
 			'genres'    => $genres,
 			'year'      => ! empty( $m['year'] ) ? (string) $m['year'] : '',
 			'anilistId' => null,
+			'extId'     => (int) ( $m['mal_id'] ?? 0 ),
 			'isSite'    => false,
 			'url'       => (string) (
 				$m['url'] ?? 'https://myanimelist.net/anime/' . (int) ( $m['mal_id'] ?? 0 )
@@ -398,10 +401,141 @@ function wxacg_ranking_fetch_bangumi( string $period ): array {
 			'genres'    => $tags,
 			'year'      => ! empty( $m['date'] ) ? substr( (string) $m['date'], 0, 4 ) : '',
 			'anilistId' => null,
+			'extId'     => (int) ( $m['id'] ?? 0 ),
 			'isSite'    => false,
 			'url'       => 'https://bgm.tv/subject/' . (int) ( $m['id'] ?? 0 ),
 		];
 	}
+
+	return $items;
+}
+
+/* ============================================================
+ * 在地化：外部排行 → 站內資料
+ * ------------------------------------------------------------
+ * 外部三個平台回傳的都不是繁體中文：
+ *   AniList  userPreferred 實際上是羅馬字（Tensei Shitara Slime...）
+ *   MAL      title 為英文／羅馬字
+ *   Bangumi  name_cn 是簡體
+ *
+ * 這裡用各平台的 ID 去對應站內已收錄的作品，命中就換成：
+ *   - 站內的繁體標題（anime_title_chinese）
+ *   - 站內的封面
+ *   - 站內的網址（原本每張卡片都連往站外，等於把權重送出去；
+ *     改為內部連結後既留住使用者，也強化站內連結結構）
+ *
+ * 沒收錄的作品：Bangumi 走 OpenCC 簡轉繁，其餘維持原標題。
+ * ============================================================ */
+
+/** 各平台對應的站內 post meta 鍵 */
+function wxacg_ranking_id_meta_key( string $platform ): string {
+	$map = [
+		'anilist' => 'anime_anilist_id',
+		'mal'     => 'anime_mal_id',
+		'bangumi' => 'anime_bangumi_id',
+	];
+
+	return $map[ $platform ] ?? '';
+}
+
+/**
+ * 從排行項目取出該平台的外部 ID。
+ *
+ * 各抓取函式都會把原生 ID 存進 extId，不從網址反推——
+ * Jikan 回傳的 url 常帶 slug（/anime/52991/Sousou_no_Frieren），
+ * 用尾端數字比對會抓不到。
+ */
+function wxacg_ranking_extract_id( array $item, string $platform ): int {
+	return (int) ( $item['extId'] ?? 0 );
+}
+
+/**
+ * @param array  $items    抓取後的原始項目
+ * @param string $platform anilist | mal | bangumi
+ * @return array 已在地化的項目
+ */
+function wxacg_ranking_localize( array $items, string $platform ): array {
+	if ( empty( $items ) ) {
+		return $items;
+	}
+
+	$meta_key = wxacg_ranking_id_meta_key( $platform );
+
+	// 先蒐集這批的外部 ID，一次查詢對應的站內作品（避免逐筆 N+1）。
+	$ids = [];
+	foreach ( $items as $item ) {
+		$id = wxacg_ranking_extract_id( $item, $platform );
+		if ( $id > 0 ) {
+			$ids[] = $id;
+		}
+	}
+
+	$matched = [];
+
+	if ( $meta_key !== '' && ! empty( $ids ) ) {
+		$posts = get_posts( [
+			'post_type'              => 'anime',
+			'post_status'            => 'publish',
+			'posts_per_page'         => -1,
+			'no_found_rows'          => true,
+			'update_post_term_cache' => false,
+			'meta_query'             => [
+				[
+					'key'     => $meta_key,
+					'value'   => array_values( array_unique( $ids ) ),
+					'compare' => 'IN',
+					'type'    => 'NUMERIC',
+				],
+			],
+		] );
+
+		foreach ( $posts as $post ) {
+			$ext_id = (int) get_post_meta( $post->ID, $meta_key, true );
+
+			if ( $ext_id > 0 && ! isset( $matched[ $ext_id ] ) ) {
+				$matched[ $ext_id ] = $post;
+			}
+		}
+	}
+
+	$has_converter = class_exists( 'Anime_Sync_CN_Converter' );
+
+	foreach ( $items as &$item ) {
+		$ext_id = wxacg_ranking_extract_id( $item, $platform );
+		$post   = $ext_id > 0 ? ( $matched[ $ext_id ] ?? null ) : null;
+
+		if ( $post ) {
+			$zh = trim( (string) get_post_meta( $post->ID, 'anime_title_chinese', true ) );
+
+			if ( $zh !== '' ) {
+				// 原標題退居副標，維持「繁中主標 + 原文副標」的既有版面。
+				if ( empty( $item['titleJp'] ) ) {
+					$item['titleJp'] = $item['titleZh'];
+				}
+
+				$item['titleZh'] = $zh;
+			}
+
+			$cover = trim( (string) get_post_meta( $post->ID, 'anime_cover_image', true ) );
+
+			if ( $cover !== '' ) {
+				$item['cover'] = $cover;
+			}
+
+			$item['url']      = get_permalink( $post );
+			$item['internal'] = true;
+
+			continue;
+		}
+
+		// 站內沒收錄：Bangumi 的簡體標題至少轉成繁體。
+		if ( $platform === 'bangumi' && $has_converter && ! empty( $item['titleZh'] ) ) {
+			$item['titleZh'] = Anime_Sync_CN_Converter::static_convert( (string) $item['titleZh'] );
+		}
+
+		$item['internal'] = false;
+	}
+	unset( $item );
 
 	return $items;
 }
@@ -484,8 +618,11 @@ function wxacg_ranking_render_cards( array $items, string $platform ): string {
 				. esc_attr( $title_zh ) . '" loading="lazy" decoding="async">'
 			: '<div class="rank-card__cover-fb">🎬</div>';
 
+		// 已對應到站內作品的連內部頁面（同分頁開啟），其餘才開新視窗連往站外。
+		$is_internal = ! empty( $item['internal'] );
+
 		$html .= '<a class="rank-card" href="' . esc_url( $item['url'] ?? '#' ) . '"'
-			. ' target="_blank" rel="noopener noreferrer">'
+			. ( $is_internal ? '' : ' target="_blank" rel="noopener noreferrer"' ) . '>'
 			. '<div class="rank-card__rank">'
 			. ( $rank === 1 ? '<span class="rank-card__crown">👑</span>' : '' )
 			. '<div class="rank-card__num ' . esc_attr( $num_class ) . '">' . $rank . '</div>'

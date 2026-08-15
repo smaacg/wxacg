@@ -446,8 +446,13 @@ function rankRenderList(items) {
          </div>`
       : '';
 
-    const href   = item.url || '#';
-    const target = item.isSite ? '' : 'target="_blank" rel="noopener noreferrer"';
+    const href = item.url || '#';
+
+    /* v1.4.0：item.internal 代表這筆外部排行已對應到站內作品，
+       網址是本站頁面，因此與站內榜一樣同分頁開啟。 */
+    const target = (item.isSite || item.internal)
+      ? ''
+      : 'target="_blank" rel="noopener noreferrer"';
 
     return `
     <a class="rank-card" href="${href}" ${target}>
