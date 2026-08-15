@@ -4708,8 +4708,8 @@ private function register_manga_fields(): void {
 
                 btn.hide();
                 $('#asp-btn-ai-stop').show().prop('disabled', false).text('⏹️ 停止任務');
-                logAI('🚀 開始執行 AI 生成工作流...');
-                
+                logAI(`🚀 開始執行 AI 生成工作流...（目前使用：${$('#asp_ai_provider').val() || 'gemini'} / ${$('#asp_ai_model_name').val() || '(未選擇)'}）`);
+
                 try {
                     for(var i=0; i<tasks.length; i++) {
                         if (window.asp_ai_abort) {
