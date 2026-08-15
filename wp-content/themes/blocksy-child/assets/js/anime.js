@@ -139,7 +139,7 @@ async function loadAnimePage(anilistId, presetBgmId = null) {
       ]);
       jikanData = jRes.status === 'fulfilled' ? jRes.value : null;
     } else {
-      // getBangumiId 使用獨立 fetch（不走 Jikan queue）→ 可与 getAnimeById 真正並行
+      // getBangumiId 使用獨立 fetch（不走 Jikan queue）→ 可與 getAnimeById 真正並行
       const [jikanRes, bgmIdRes] = await Promise.allSettled([
         malId ? JikanAPI.getAnimeById(malId)  : Promise.resolve(null),
         malId ? JikanAPI.getBangumiId(malId)  : Promise.resolve(null),
