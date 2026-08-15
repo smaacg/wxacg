@@ -84,7 +84,18 @@ $join_form_message = '';
 $join_form_status  = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_submit'])) {
-    if (
+    // 防灌水：honeypot 欄位一般使用者看不到也不會填，機器人常會自動填入。
+    $is_honeypot_filled = !empty($_POST['applicant_website']);
+
+    // 防灌水：表單載入到送出間隔太短（<3 秒）視為機器人自動送出。
+    $loaded_at        = isset($_POST['weixiao_join_loaded_at']) ? (int) $_POST['weixiao_join_loaded_at'] : 0;
+    $is_submit_too_fast = $loaded_at > 0 && (time() - $loaded_at) < 3;
+
+    if ($is_honeypot_filled || $is_submit_too_fast) {
+        // 靜默視為成功，不告知機器人被擋下，避免對方調整策略再試。
+        $join_form_status  = 'success';
+        $join_form_message = '已收到你的申請！我們會閱讀內容後再與你聯繫。';
+    } elseif (
         !isset($_POST['weixiao_join_nonce']) ||
         !wp_verify_nonce($_POST['weixiao_join_nonce'], 'weixiao_join_form_action')
     ) {
@@ -903,7 +914,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
                             <?php endif; ?>
 
                             <div class="join-team-link">
-                                <a href="<?php echo esc_url($member['profile_url']); ?>" target="_blank" rel="noopener">
+                                <a href="<?php echo esc_url($member['profile_url']); ?>" target="_blank" rel="noopener author">
                                     查看個人頁
                                     <span aria-hidden="true">↗</span>
                                 </a>
@@ -1063,6 +1074,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
 
             <form class="join-form" method="post" action="#join-form">
                 <?php wp_nonce_field('weixiao_join_form_action', 'weixiao_join_nonce'); ?>
+                <input type="hidden" name="weixiao_join_loaded_at" value="<?php echo esc_attr(time()); ?>">
+
+                <div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
+                    <label for="applicant_website">網站（請勿填寫）</label>
+                    <input type="text" id="applicant_website" name="applicant_website" tabindex="-1" autocomplete="off">
+                </div>
 
                 <div class="join-form-grid">
                     <div class="join-field">
@@ -1149,6 +1166,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
                     <div class="join-form-help">沒有也沒關係，可以空白。</div>
                 </div>
 
+                <p class="join-form-help">
+                    送出申請即表示同意我們依
+                    <a href="<?php echo esc_url(home_url('/privacy-policy/')); ?>" target="_blank" rel="noopener" style="color:var(--join-blue-bright);">隱私政策</a>
+                    使用你填寫的聯絡資訊，僅用於招募聯繫，不會公開或作其他用途。
+                </p>
+
                 <button class="join-submit" type="submit" name="weixiao_join_form_submit" value="1">
                     送出申請 🚀
                 </button>
@@ -1158,6 +1181,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
         <div class="join-footer-note">
             微笑動漫是一個以 ACG 內容分享為核心的平台。<br>
             我們期待和喜歡動漫、願意一起行動的夥伴，把更多好作品介紹給更多人。
+            <br><br>
+            <a href="<?php echo esc_url(home_url('/about/')); ?>" style="color:var(--join-muted-2);">關於微笑動漫</a>
+            ・
+            <a href="<?php echo esc_url(home_url('/contact/')); ?>" style="color:var(--join-muted-2);">聯絡／合作</a>
+            ・
+            <a href="<?php echo esc_url(home_url('/terms/')); ?>" style="color:var(--join-muted-2);">服務條款</a>
+            ・
+            <a href="<?php echo esc_url(home_url('/privacy-policy/')); ?>" style="color:var(--join-muted-2);">隱私政策</a>
         </div>
 
     </div>
