@@ -147,12 +147,68 @@ class Anime_Sync_Upcoming_Drift_Check {
 					$local_cast,
 					$row['bgm_cast']
 				);
+
+				if ( ! empty( $args['apply'] ) ) {
+					$row['applied'] = $this->apply_one( $id, $bgm_id, $local_staff, $local_cast );
+				}
 			}
 
 			$rows[] = $row;
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * 實際補寫單一作品的 staff / cast。
+	 *
+	 * 只增不減：僅在上游筆數較多時覆寫該欄位，另一欄若沒變多就完全不動。
+	 * 理由見 class-api-handler.php 的同名護欄——續季條目常常只先建
+	 * 「原作／動畫製作」兩筆，而手動修正過 Bangumi ID 的作品，本地留著的
+	 * 舊班底資料多半仍然正確，覆蓋等於製造資訊損失。
+	 *
+	 * @return string[] 實際更新了哪些欄位
+	 */
+	private function apply_one( int $post_id, int $bgm_id, int $local_staff, int $local_cast ): array {
+		if ( ! class_exists( 'Anime_Sync_API_Handler' ) ) {
+			return [];
+		}
+
+		$locked = (array) get_post_meta( $post_id, 'anime_locked_fields', true );
+		$api    = new Anime_Sync_API_Handler();
+		$done   = [];
+
+		if ( ! in_array( 'anime_staff_json', $locked, true ) ) {
+			$staff = $api->get_bgm_staff_public( $bgm_id );
+
+			if ( count( $staff ) > $local_staff ) {
+				update_post_meta(
+					$post_id,
+					'anime_staff_json',
+					wp_json_encode( $staff, JSON_UNESCAPED_UNICODE )
+				);
+				$done[] = 'staff';
+			}
+		}
+
+		if ( ! in_array( 'anime_cast_json', $locked, true ) ) {
+			$cast = $api->get_bgm_chars_public( $bgm_id );
+
+			if ( count( $cast ) > $local_cast ) {
+				update_post_meta(
+					$post_id,
+					'anime_cast_json',
+					wp_json_encode( $cast, JSON_UNESCAPED_UNICODE )
+				);
+				$done[] = 'cast';
+			}
+		}
+
+		if ( ! empty( $done ) ) {
+			update_post_meta( $post_id, 'anime_upcoming_filled_at', current_time( 'mysql' ) );
+		}
+
+		return $done;
 	}
 
 	/**
@@ -220,9 +276,12 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 	WP_CLI::add_command( 'anime check-upcoming-drift', function ( $args, $assoc_args ) {
 		$show_all = isset( $assoc_args['all'] );
+		$apply    = isset( $assoc_args['apply'] );
 		$limit    = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0;
 
-		WP_CLI::log( '=== 未播出作品：上游資料落差檢查（唯讀）===' );
+		WP_CLI::log( $apply
+			? '=== 未播出作品：補齊上游資料（會寫入）==='
+			: '=== 未播出作品：上游資料落差檢查（唯讀）===' );
 		if ( $limit > 0 ) {
 			WP_CLI::log( '本次上限：--limit=' . $limit );
 		}
@@ -230,7 +289,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '' );
 
 		$checker = new Anime_Sync_Upcoming_Drift_Check();
-		$rows    = $checker->run( [ 'limit' => $limit ] );
+		$rows    = $checker->run( [ 'limit' => $limit, 'apply' => $apply ] );
 
 		$drift = array_values( array_filter( $rows, static fn( $r ) => $r['drift'] ) );
 		$notes = array_values( array_filter(
@@ -247,7 +306,15 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 					mb_strimwidth( (string) $r['title'], 0, 30, '…' ),
 					$r['note']
 				) );
-				WP_CLI::log( sprintf( '          https://bgm.tv/subject/%d', $r['bgm_id'] ) );
+				WP_CLI::log( sprintf(
+					'          https://bgm.tv/subject/%d%s',
+					$r['bgm_id'],
+					isset( $r['applied'] )
+						? ( empty( $r['applied'] )
+							? '   → 未更新（上游未較多或欄位已鎖定）'
+							: '   → 已更新 ' . implode( '/', $r['applied'] ) )
+						: ''
+				) );
 			}
 			WP_CLI::log( '' );
 		}
@@ -269,6 +336,13 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '檢查作品數  : ' . count( $rows ) );
 		WP_CLI::log( '有落差      : ' . count( $drift ) );
 		WP_CLI::log( '其他狀況    : ' . count( $notes ) . '（加 --all 可列出）' );
-		WP_CLI::success( '檢查完成（未寫入任何資料）' );
+
+		if ( $apply ) {
+			$applied = array_filter( $drift, static fn( $r ) => ! empty( $r['applied'] ) );
+			WP_CLI::log( '實際更新    : ' . count( $applied ) );
+			WP_CLI::success( '補齊完成' );
+		} else {
+			WP_CLI::success( '檢查完成（未寫入任何資料）。加 --apply 可實際補齊。' );
+		}
 	} );
 }

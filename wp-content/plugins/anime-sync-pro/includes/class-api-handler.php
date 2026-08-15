@@ -332,11 +332,38 @@ class Anime_Sync_API_Handler {
             $bgm_chars = $this->get_bgm_chars( $bangumi_id );
 
 
-            // ACF 修正：Bangumi 直接取代 AniList，不合併
-            if ( ! empty( $bgm_staff ) ) {
+            /*
+             * ACF 修正：Bangumi 直接取代 AniList，不合併。
+             *
+             * ★ 護欄：上游筆數比現有少時不覆蓋（只增不減）。
+             *
+             * 情境一 — 續季條目尚未建完：
+             *   Bangumi 對新一季常常只先建「原作／動畫製作」兩筆，主要班底
+             *   要等一段時間才補。此時覆蓋等於把完整資料換成殘缺資料。
+             *
+             * 情境二 — 手動修正過 Bangumi ID：
+             *   mapper 早期可能配到第一季，匯入了完整 staff；之後人工把 ID
+             *   改成正確的續季條目，但 staff JSON 沒重抓。這種「舊資料」其實
+             *   多半仍然正確（同系列班底不變），重新同步反而會洗掉它。
+             *   實例：post 2590 判處勇者刑第二季，本地 10 筆 vs 上游 2 筆。
+             *
+             * 上游較多才更新，是唯一不會造成資訊損失的方向。
+             */
+            $keep_if_fewer = function ( string $meta_key, array $incoming ) use ( $post_id ): bool {
+                if ( empty( $incoming ) ) {
+                    return false;
+                }
+
+                $current = json_decode( (string) get_post_meta( $post_id, $meta_key, true ), true );
+                $current = is_array( $current ) ? $current : [];
+
+                return count( $incoming ) >= count( $current );
+            };
+
+            if ( $keep_if_fewer( 'anime_staff_json', $bgm_staff ) ) {
                 $enriched['anime_staff_json'] = wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE );
             }
-            if ( ! empty( $bgm_chars ) ) {
+            if ( $keep_if_fewer( 'anime_cast_json', $bgm_chars ) ) {
                 $enriched['anime_cast_json'] = wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE );
             }
 
