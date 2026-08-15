@@ -38,6 +38,31 @@ class Anime_Sync_Upcoming_Drift_Check {
 	private const UA = 'weixiaoacg-Project/1.0 (https://weixiaoacg.com)';
 
 	/**
+	 * 主要職位白名單。
+	 *
+	 * 必須與 class-api-handler.php 的 get_bgm_staff() 完全一致——匯入端只收
+	 * 這些職位，Bangumi 原始清單則包含原画／動画／制作進行等上百筆細項。
+	 * 不套用同一份過濾就會拿「過濾後的本地」比「未過濾的上游」，
+	 * 幾乎每部都會被誤判成有落差（初版就踩過：180 部報出 112 部）。
+	 */
+	private const MAIN_ROLES = [
+		'导演',
+		'原作',
+		'系列构成',
+		'脚本',
+		'人物原案',
+		'角色设计',
+		'人物设定',
+		'音乐',
+		'音響監督',
+		'音响监督',
+		'主题歌演出',
+		'主题歌作词',
+		'主题歌作曲',
+		'动画制作',
+	];
+
+	/**
 	 * 掃描未播出作品，回報上游與本地的筆數落差。
 	 *
 	 * @param array{limit?:int} $args
@@ -165,7 +190,19 @@ class Anime_Sync_Upcoming_Drift_Check {
 
 		$data = json_decode( wp_remote_retrieve_body( $res ), true );
 
-		return is_array( $data ) ? count( $data ) : null;
+		if ( ! is_array( $data ) ) {
+			return null;
+		}
+
+		// 製作人員套用與匯入端相同的主要職位過濾；角色沒有這層過濾，全數計入。
+		if ( 'persons' === $kind ) {
+			$data = array_filter(
+				$data,
+				static fn( $p ) => in_array( $p['relation'] ?? '', self::MAIN_ROLES, true )
+			);
+		}
+
+		return count( $data );
 	}
 
 	/** JSON 陣列筆數；格式不對一律當 0 */
