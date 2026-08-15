@@ -40,8 +40,9 @@ defined( 'ABSPATH' ) || exit;
  * v1.0.0 上線後補上在地化時就踩過這個坑。
  *
  * 2 — 加入繁中在地化（titleZh 換站內標題、url 改站內連結、新增 extId/internal）
+ * 3 — MAL 改走官方 API（api.myanimelist.net），Jikan 降為備援
  */
-const WXACG_RANKING_CACHE_VER = 2;
+const WXACG_RANKING_CACHE_VER = 3;
 
 /** 資料視為新鮮的秒數 */
 const WXACG_RANKING_TTL = HOUR_IN_SECONDS;
@@ -287,7 +288,35 @@ function wxacg_ranking_fetch_anilist( string $period ): array {
  * MyAnimeList（Jikan v4）
  * ============================================================ */
 
+/**
+ * MAL 官方 API 的 Client ID。
+ *
+ * 優先讀 wp-config.php 的常數（該檔已被 .gitignore 排除，不會進版控），
+ * 其次讀 option，兩者皆無則回空字串 → 自動退回 Jikan，不會壞掉。
+ *
+ * wp-config.php 設定方式：
+ *   define( 'WXACG_MAL_CLIENT_ID', '你的 Client ID' );
+ */
+function wxacg_ranking_mal_client_id(): string {
+	if ( defined( 'WXACG_MAL_CLIENT_ID' ) && WXACG_MAL_CLIENT_ID ) {
+		return trim( (string) WXACG_MAL_CLIENT_ID );
+	}
+
+	return trim( (string) get_option( 'wxacg_mal_client_id', '' ) );
+}
+
 function wxacg_ranking_fetch_mal( string $period ): array {
+	// 有設定 Client ID 就走官方 API。
+	if ( wxacg_ranking_mal_client_id() !== '' ) {
+		$items = wxacg_ranking_fetch_mal_official( $period );
+
+		if ( ! empty( $items ) ) {
+			return $items;
+		}
+
+		wxacg_ranking_log_error( 'mal', '官方 API 取得失敗，改用 Jikan' );
+	}
+
 	$filter = '';
 
 	if ( $period === 'daily' || $period === 'weekly' ) {
@@ -317,7 +346,127 @@ function wxacg_ranking_fetch_mal( string $period ): array {
 }
 
 /**
- * 實際送出 Jikan 請求。
+ * MyAnimeList 官方 API（api.myanimelist.net/v2）。
+ *
+ * 公開排行只需要 X-MAL-CLIENT-ID 標頭，不必跑 OAuth 流程。
+ * 相較 Jikan 少一層非官方轉送，穩定度較好。
+ *
+ * ranking_type 對應：
+ *   daily / weekly → airing        （放送中）
+ *   monthly        → bypopularity  （人氣）
+ *   all            → all           （總榜）
+ */
+function wxacg_ranking_fetch_mal_official( string $period ): array {
+	$client_id = wxacg_ranking_mal_client_id();
+
+	if ( $client_id === '' ) {
+		return [];
+	}
+
+	$ranking_type = 'all';
+
+	if ( $period === 'daily' || $period === 'weekly' ) {
+		$ranking_type = 'airing';
+	} elseif ( $period === 'monthly' ) {
+		$ranking_type = 'bypopularity';
+	}
+
+	$endpoint = add_query_arg(
+		[
+			'ranking_type' => $ranking_type,
+			'limit'        => WXACG_RANKING_LIMIT,
+			'fields'       => 'id,title,main_picture,mean,num_scoring_users,'
+				. 'start_season,genres,alternative_titles',
+		],
+		'https://api.myanimelist.net/v2/anime/ranking'
+	);
+
+	$response = wp_remote_get( $endpoint, [
+		'timeout'    => 10,
+		'user-agent' => WXACG_RANKING_UA,
+		'headers'    => [
+			'X-MAL-CLIENT-ID' => $client_id,
+			'Accept'          => 'application/json',
+		],
+	] );
+
+	if ( is_wp_error( $response ) ) {
+		wxacg_ranking_log_error( 'mal-official', $response->get_error_message() );
+		return [];
+	}
+
+	$code = (int) wp_remote_retrieve_response_code( $response );
+
+	if ( $code !== 200 ) {
+		wxacg_ranking_log_error( 'mal-official', 'HTTP ' . $code );
+		return [];
+	}
+
+	$json = json_decode( wp_remote_retrieve_body( $response ), true );
+	$list = $json['data'] ?? [];
+
+	if ( ! is_array( $list ) ) {
+		return [];
+	}
+
+	$season_map = [
+		'winter' => '冬季',
+		'spring' => '春季',
+		'summer' => '夏季',
+		'fall'   => '秋季',
+	];
+
+	$items = [];
+
+	foreach ( $list as $row ) {
+		$m = $row['node'] ?? null;
+
+		if ( ! is_array( $m ) ) {
+			continue;
+		}
+
+		$genres = [];
+		foreach ( array_slice( (array) ( $m['genres'] ?? [] ), 0, 3 ) as $g ) {
+			if ( ! empty( $g['name'] ) ) {
+				$genres[] = (string) $g['name'];
+			}
+		}
+
+		$year = '';
+		if ( ! empty( $m['start_season']['year'] ) ) {
+			$season = strtolower( (string) ( $m['start_season']['season'] ?? '' ) );
+			$year   = $season
+				? $m['start_season']['year'] . ' ' . ( $season_map[ $season ] ?? '' )
+				: (string) $m['start_season']['year'];
+		}
+
+		$mal_id = (int) ( $m['id'] ?? 0 );
+
+		$items[] = [
+			'rank'      => count( $items ) + 1,
+			'titleZh'   => (string) ( $m['title'] ?? '' ),
+			'titleJp'   => (string) ( $m['alternative_titles']['ja'] ?? '' ),
+			'cover'     => (string) (
+				$m['main_picture']['large'] ?? $m['main_picture']['medium'] ?? ''
+			),
+			'score'     => ! empty( $m['mean'] )
+				? number_format( (float) $m['mean'], 1 )
+				: null,
+			'scoredBy'  => (int) ( $m['num_scoring_users'] ?? 0 ),
+			'genres'    => $genres,
+			'year'      => trim( $year ),
+			'anilistId' => null,
+			'extId'     => $mal_id,
+			'isSite'    => false,
+			'url'       => 'https://myanimelist.net/anime/' . $mal_id,
+		];
+	}
+
+	return $items;
+}
+
+/**
+ * 實際送出 Jikan 請求（官方 API 未設定或失敗時的備援）。
  *
  * @param string $filter airing | bypopularity | 空字串（總榜）
  */

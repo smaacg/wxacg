@@ -22,7 +22,7 @@
    ============================================================ */
 const PLATFORMS = {
   site: {
-    label: 'weixiaoacg+', icon: '⭐', color: '#6c63ff',
+    label: '微笑動漫', icon: '⭐', color: '#6c63ff',
     desc: '來自本站會員的真實評分，採用貝葉斯加權公式，確保評分公平可信',
     tags: ['本站真實數據', '貝葉斯加權', '四維度評分'],
     link: null
@@ -34,7 +34,7 @@ const PLATFORMS = {
     link: 'https://anilist.co'
   },
   mal: {
-    label: 'MAL / Jikan', icon: '📊', color: '#2e51a2',
+    label: 'MyAnimeList', icon: '📊', color: '#2e51a2',
     desc: '來自 MyAnimeList，全球最大動漫資料庫，歷史資料最完整',
     tags: ['全球最大', '歷史最完整', '用戶最多'],
     link: 'https://myanimelist.net'
@@ -511,7 +511,7 @@ function updateCountInfo(count) {
     let label = '評分排行';
     if (rankType === 'favorites') label = '收藏排行';
     else if (rankType === 'views') label = `${periodLabels[period] || '本月'}瀏覽排行`;
-    countEl.textContent = `weixiaoacg+ ${label} · Top ${count}`;
+    countEl.textContent = `微笑動漫 ${label} · Top ${count}`;
   } else {
     countEl.textContent = `${periodLabels[period] || '本週'} ${p?.label || ''} 排行 · Top ${count}`;
   }

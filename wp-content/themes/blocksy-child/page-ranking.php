@@ -114,7 +114,7 @@ $smacg_brand = '微笑動漫';
               🌐 AniList
             </button>
             <button type="button" class="rank-platform-tab" data-platform="mal" role="tab" aria-selected="false">
-              📊 MAL / Jikan
+              📊 MyAnimeList
             </button>
             <button type="button" class="rank-platform-tab" data-platform="bangumi" role="tab" aria-selected="false">
               🎯 Bangumi
@@ -264,7 +264,7 @@ $smacg_brand = '微笑動漫';
             <div class="pg-item">
               <span class="pg-icon" style="background:rgba(46,81,162,0.15);color:#4d7fff;">📊</span>
               <div class="pg-info">
-                <div class="pg-name">MAL / Jikan</div>
+                <div class="pg-name">MyAnimeList</div>
                 <div class="pg-desc"><?php echo esc_html__( '全球最大・歷史最完整', 'weixiaoacg' ); ?></div>
               </div>
             </div>
