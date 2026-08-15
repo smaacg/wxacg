@@ -509,12 +509,36 @@ EOT;
 
         $field['message'] =
             '<div class="asp-ai-prompt-helper" style="background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:10px 12px;">'
-            . '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
+
+            // ── 標題列 ──
+            . '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
             . '<button type="button" class="button button-primary asp-copy-prompt-btn">'
             . '📋 複製提示詞</button>'
-            . '<strong>🤖 丟給 AI 找資料的提示詞</strong>'
+            . '<strong>🤖 產生編輯短評</strong>'
             . '<span style="color:#50575e;">作品：<strong>' . $title_label . '</strong></span>'
             . '</div>'
+
+            // ── 操作步驟：提示詞需要先選模式才能用，不講清楚會直接被 AI 中止 ──
+            . '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;'
+            . 'padding:8px 12px;margin-bottom:8px;font-size:12px;line-height:1.9;">'
+            . '<strong>使用步驟</strong><br>'
+            . '1. 按「複製提示詞」，貼到 AI 對話視窗（建議開啟搜尋功能）<br>'
+            . '2. <strong>在【撰寫模式】二選一，刪掉不用的那行</strong>'
+            . '　　<span style="color:#d63638;">未選會直接中止，不會產出</span><br>'
+            . '　　<strong>模式 A</strong>：你追過這部 → 填一句自己的真實感想<br>'
+            . '　　<strong>模式 B</strong>：你沒看過 → 只寫查證得到的定位與脈絡<br>'
+            . '3. 把產出的【短評本文】貼回下方欄位<br>'
+            . '4. 對照【查證清單】抽查，確認沒有杜撰'
+            . '</div>'
+
+            // ── 後果提醒：貼上即自動指定審核者，等同為內容背書 ──
+            . '<div style="background:#fcf9e8;border-left:3px solid #dba617;'
+            . 'padding:8px 12px;margin-bottom:8px;font-size:12px;line-height:1.8;">'
+            . '<strong>⚠ 貼上並儲存後，系統會自動把你設為審核者</strong><br>'
+            . '這頁會因此解除 noindex 並開始顯示廣告，等於你為內容背書。'
+            . '請先確認短評沒有你無法負責的敘述再儲存。'
+            . '</div>'
+
             . '<input type="text" class="asp-prompt-title" readonly value="' . esc_attr( $title ) . '" '
             . 'style="width:100%;margin-bottom:6px;font-family:monospace;" onclick="this.select();">'
             . '<textarea class="asp-prompt-text" readonly rows="8" '
