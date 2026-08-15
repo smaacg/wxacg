@@ -78,7 +78,9 @@ class Leaderboard_Widget {
                 </ol>
             <?php endif; ?>
             <?php if ( $show_more ) : ?>
-                <a href="<?php echo esc_url( home_url( '/ranking-users/?type=' . rawurlencode( $type ) ) ); ?>" class="smacg-leaderboard-more">
+                <?php /* 參數名須為 tab：page-ranking-users.php 讀的是 $_GET['tab']，
+                         用 type 會被忽略而一律落回預設的等級排行 */ ?>
+                <a href="<?php echo esc_url( home_url( '/ranking-users/?tab=' . rawurlencode( $type ) ) ); ?>" class="smacg-leaderboard-more">
                     查看完整排行 →
                 </a>
             <?php endif; ?>

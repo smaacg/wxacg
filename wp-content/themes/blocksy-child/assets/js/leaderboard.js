@@ -1,6 +1,12 @@
 /**
  * Leaderboard /ranking-users/ Front-end
- * @version 2.2.0 (2026-07-26)
+ * @version 2.3.0 (2026-08-16)
+ *
+ * v2.3.0 變更：
+ *   - 復原 exp_monthly / followers / badges 三個 type 的 label / 單位
+ *     （v2.0.0 曾隨 page 精簡成 3 tab 而移除，現 page-ranking-users.php v2.5.0
+ *     重新提供對應 tab）。這 3 種走 Ranking_System::get() 的既有格式
+ *     （level + job_title、無 tier），normalizeRow() 與 renderRow() 無需調整。
  *
  * v2.2.0 變更：
  *   - 新增：本季結算倒數（.ranku-season-countdown）。
@@ -76,11 +82,17 @@
     exp_total:        '等級排行',
     rank_season:      '本季牌位排行',
     rank_last_season: '上季牌位排行',
+    exp_monthly:      '本月 EXP 榜',
+    followers:        '人氣榜',
+    badges:           '徽章榜',
   };
   const scoreUnit = {
     exp_total:        'EXP',
     rank_season:      '分',
     rank_last_season: '分',
+    exp_monthly:      'EXP',
+    followers:        '粉絲',
+    badges:           '枚',
   };
 
   const isRankTab = (t) => t === 'rank_season' || t === 'rank_last_season';

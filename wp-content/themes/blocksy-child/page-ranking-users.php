@@ -3,7 +3,16 @@
  * Template Name: 會員排行榜
  * Template Post Type: page
  * @package weixiaoacg
- * @version 2.4.0 (2026-07-26)
+ * @version 2.5.0 (2026-08-16)
+ *
+ * v2.5.0 變更：
+ *   - 補齊 3 個排行 tab：exp_monthly（本月 EXP 榜）/ followers（人氣榜）/
+ *     badges（徽章榜）。這 3 種型別的資料早已由 class-ranking-cron.php 每小時
+ *     隨 Ranking_System::rebuild_all() 一併算入 wp_smacg_rankings 表，
+ *     後端 AJAX（smacg_get_ranking）也一直支援，先前僅缺前台入口。
+ *   - 對應前端字典補在 assets/js/leaderboard.js（typeLabel / scoreUnit）。
+ *   - 圖示避開已被使用的 fa-trophy（本季牌位），徽章榜改用 fa-medal；
+ *     fa-calendar-star 為 FA Pro 專屬，本月榜改用免費版的 fa-calendar-days。
  *
  * v2.4.0 變更：
  *   - 新增：本季牌位排行（rank_season）tabs 列旁邊顯示「距離本季結算」倒數
@@ -32,7 +41,7 @@ $is_logged_in = is_user_logged_in();
 $updated_at   = get_option( 'smacg_ranking_last_rebuild', '' );
 
 $default_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'exp_total';
-$valid_tabs  = [ 'exp_total', 'rank_season', 'rank_last_season' ];
+$valid_tabs  = [ 'exp_total', 'rank_season', 'rank_last_season', 'exp_monthly', 'followers', 'badges' ];
 if ( ! in_array( $default_tab, $valid_tabs, true ) ) $default_tab = 'exp_total';
 
 $season_info = null;
@@ -104,6 +113,9 @@ $hero_title_labels = [
   'exp_total'        => __( '等級排行', 'weixiaoacg' ),
   'rank_season'       => __( '本季牌位排行', 'weixiaoacg' ),
   'rank_last_season'  => __( '上季牌位排行', 'weixiaoacg' ),
+  'exp_monthly'       => __( '本月 EXP 榜', 'weixiaoacg' ),
+  'followers'         => __( '人氣榜', 'weixiaoacg' ),
+  'badges'            => __( '徽章榜', 'weixiaoacg' ),
 ];
 $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 'weixiaoacg' );
 ?>
@@ -178,9 +190,12 @@ $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 
           <div class="ranku-tabs" id="ranku-tabs" role="tablist" aria-label="<?php esc_attr_e( '排行榜類別', 'weixiaoacg' ); ?>">
             <?php
             $tabs = [
-              'exp_total'        => [ 'fa-bolt',   __( '等級排行', 'weixiaoacg' ) ],
-              'rank_season'      => [ 'fa-trophy', __( '本季牌位排行', 'weixiaoacg' ) ],
-              'rank_last_season' => [ 'fa-scroll', __( '上季牌位排行', 'weixiaoacg' ) ],
+              'exp_total'        => [ 'fa-bolt',          __( '等級排行', 'weixiaoacg' ) ],
+              'rank_season'      => [ 'fa-trophy',        __( '本季牌位排行', 'weixiaoacg' ) ],
+              'rank_last_season' => [ 'fa-scroll',        __( '上季牌位排行', 'weixiaoacg' ) ],
+              'exp_monthly'      => [ 'fa-calendar-days', __( '本月 EXP 榜', 'weixiaoacg' ) ],
+              'followers'        => [ 'fa-users',         __( '人氣榜', 'weixiaoacg' ) ],
+              'badges'           => [ 'fa-medal',         __( '徽章榜', 'weixiaoacg' ) ],
             ];
             foreach ( $tabs as $key => $info ) {
                 [ $icon, $label ] = $info;
@@ -263,6 +278,21 @@ $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 
               else :
                   esc_html_e( '上一賽季結算後的最終排名快照', 'weixiaoacg' );
               endif; ?>
+            </li>
+            <li>
+              <i class="fa-solid fa-calendar-days"></i>
+              <strong><?php esc_html_e( '本月 EXP 榜', 'weixiaoacg' ); ?></strong>
+              — <?php esc_html_e( '只計算當月獲得的 EXP，每月 1 日重新開始，新加入的會員也有機會上榜', 'weixiaoacg' ); ?>
+            </li>
+            <li>
+              <i class="fa-solid fa-users"></i>
+              <strong><?php esc_html_e( '人氣榜', 'weixiaoacg' ); ?></strong>
+              — <?php esc_html_e( '依被其他會員追蹤的粉絲人數排序', 'weixiaoacg' ); ?>
+            </li>
+            <li>
+              <i class="fa-solid fa-medal"></i>
+              <strong><?php esc_html_e( '徽章榜', 'weixiaoacg' ); ?></strong>
+              — <?php esc_html_e( '依已解鎖的徽章總數排序，反映達成過的各項成就', 'weixiaoacg' ); ?>
             </li>
           </ul>
           <a href="<?php echo esc_url( $guide_url ); ?>" class="ranku-guide-link">
