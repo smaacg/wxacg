@@ -1,0 +1,584 @@
+<?php
+/**
+ * 微笑動漫 — 外部平台排行榜（伺服器端抓取 + 快取）
+ * 路徑：/blocksy-child/inc/ranking-feed.php
+ * 版本：1.0.0 (2026-08-15)
+ *
+ * 背景：
+ *   原本 AniList / Jikan / Bangumi 三支 API 全在 ranking.js 由瀏覽器直接呼叫，
+ *   造成三個問題：
+ *     1. 排行內容不在 HTML 裡，搜尋引擎抓到的是空容器（SEO 零貢獻）
+ *     2. 每位訪客都要等三次跨國 API 往返
+ *     3. Jikan 有嚴格速率限制（3 req/s、60 req/min），流量一大就會有人載入失敗
+ *   改為伺服器端抓取後，外部請求從「每位訪客各打一次」變成「全站每小時一次」。
+ *
+ * REST：
+ *   GET weixiaoacg/v1/ranking/external?platform=anilist&period=weekly
+ *     → { platform, period, updated, items: [...] }
+ *
+ * 快取：
+ *   transient wxacg_rank_{platform}_{period} = { items: [...], time: 時間戳 }
+ *   - 未滿 WXACG_RANKING_TTL 直接用
+ *   - 過期則重新抓取；抓取失敗時回傳上一份舊資料（stale-while-error），
+ *     避免外部 API 暫時故障就讓整頁空白
+ *   - 另有 WP-Cron 定時預熱，讓訪客幾乎不會撞到冷啟動
+ *
+ * 注意：
+ *   站內榜（platform=site）不走這裡，它本來就是伺服器端 REST
+ *   （anime-sync-pro/includes/class-rating-manager.php 的 /ranking/site）。
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+/** 資料視為新鮮的秒數 */
+const WXACG_RANKING_TTL = HOUR_IN_SECONDS;
+
+/** 舊資料最長保留多久（供外部 API 故障時墊檔） */
+const WXACG_RANKING_KEEP = WEEK_IN_SECONDS;
+
+/** 每個榜取幾筆（與前端原本的 limit=20 一致） */
+const WXACG_RANKING_LIMIT = 20;
+
+/** 對外請求的 User-Agent（Bangumi 要求要能識別來源） */
+const WXACG_RANKING_UA = 'weixiaoacg/1.0 (+https://weixiaoacg.com)';
+
+/** 允許的平台（site 不在此列，見檔頭說明） */
+function wxacg_ranking_platforms(): array {
+	return [ 'anilist', 'mal', 'bangumi' ];
+}
+
+/** 允許的期間 */
+function wxacg_ranking_periods(): array {
+	return [ 'daily', 'weekly', 'monthly', 'all' ];
+}
+
+function wxacg_ranking_norm_platform( $platform ): string {
+	$platform = sanitize_key( (string) $platform );
+
+	return in_array( $platform, wxacg_ranking_platforms(), true )
+		? $platform
+		: 'anilist';
+}
+
+function wxacg_ranking_norm_period( $period ): string {
+	$period = sanitize_key( (string) $period );
+
+	return in_array( $period, wxacg_ranking_periods(), true )
+		? $period
+		: 'weekly';
+}
+
+/* ============================================================
+ * 取得排行（含快取與 stale-while-error）
+ * ============================================================ */
+
+/**
+ * @param string $platform anilist | mal | bangumi
+ * @param string $period   daily | weekly | monthly | all
+ * @param bool   $force    true 時忽略新鮮度強制重抓（供 Cron 預熱用）
+ * @return array 正規化後的項目陣列
+ */
+function wxacg_ranking_get( string $platform, string $period, bool $force = false ): array {
+	$platform = wxacg_ranking_norm_platform( $platform );
+	$period   = wxacg_ranking_norm_period( $period );
+
+	$key    = 'wxacg_rank_' . $platform . '_' . $period;
+	$stored = get_transient( $key );
+
+	$has_stored = is_array( $stored ) && ! empty( $stored['items'] );
+
+	if ( ! $force && $has_stored ) {
+		$age = time() - (int) ( $stored['time'] ?? 0 );
+
+		if ( $age < WXACG_RANKING_TTL ) {
+			return $stored['items'];
+		}
+	}
+
+	$items = wxacg_ranking_fetch( $platform, $period );
+
+	if ( ! empty( $items ) ) {
+		set_transient(
+			$key,
+			[
+				'items' => $items,
+				'time'  => time(),
+			],
+			WXACG_RANKING_KEEP
+		);
+
+		return $items;
+	}
+
+	// 抓取失敗 → 用上一份舊資料墊檔，總比整頁空白好。
+	if ( $has_stored ) {
+		return $stored['items'];
+	}
+
+	return [];
+}
+
+/**
+ * 取得該筆快取的更新時間（給前端顯示「最後更新」）。
+ */
+function wxacg_ranking_updated_at( string $platform, string $period ): int {
+	$key    = 'wxacg_rank_' . wxacg_ranking_norm_platform( $platform )
+		. '_' . wxacg_ranking_norm_period( $period );
+	$stored = get_transient( $key );
+
+	return is_array( $stored ) ? (int) ( $stored['time'] ?? 0 ) : 0;
+}
+
+/**
+ * 依平台分派抓取。
+ */
+function wxacg_ranking_fetch( string $platform, string $period ): array {
+	switch ( $platform ) {
+		case 'mal':
+			return wxacg_ranking_fetch_mal( $period );
+
+		case 'bangumi':
+			return wxacg_ranking_fetch_bangumi( $period );
+
+		case 'anilist':
+		default:
+			return wxacg_ranking_fetch_anilist( $period );
+	}
+}
+
+/**
+ * 統一的錯誤記錄：不吞掉失敗，但也不讓前台壞掉。
+ */
+function wxacg_ranking_log_error( string $platform, string $message ): void {
+	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		error_log( sprintf( '[wxacg-ranking] %s 抓取失敗：%s', $platform, $message ) );
+	}
+}
+
+/* ============================================================
+ * AniList（GraphQL）
+ * ------------------------------------------------------------
+ * 查詢語句與正規化欄位沿用原本 ranking.js 的 fetchAniList()，
+ * 確保前端渲染邏輯不需要改動。
+ * ============================================================ */
+
+function wxacg_ranking_fetch_anilist( string $period ): array {
+	$sort = in_array( $period, [ 'daily', 'weekly', 'monthly' ], true )
+		? 'TRENDING_DESC'
+		: 'SCORE_DESC';
+
+	$query = 'query ($sort: [MediaSort], $perPage: Int) {
+		Page(perPage: $perPage) {
+			media(type: ANIME, sort: $sort, status_in: [RELEASING, FINISHED]) {
+				id
+				title { romaji native userPreferred }
+				coverImage { large }
+				averageScore
+				popularity
+				genres
+				seasonYear
+				season
+			}
+		}
+	}';
+
+	$response = wp_remote_post( 'https://graphql.anilist.co', [
+		'timeout'    => 10,
+		'user-agent' => WXACG_RANKING_UA,
+		'headers'    => [
+			'Content-Type' => 'application/json',
+			'Accept'       => 'application/json',
+		],
+		'body'       => wp_json_encode( [
+			'query'     => $query,
+			'variables' => [
+				'sort'    => [ $sort ],
+				'perPage' => WXACG_RANKING_LIMIT,
+			],
+		] ),
+	] );
+
+	if ( is_wp_error( $response ) ) {
+		wxacg_ranking_log_error( 'anilist', $response->get_error_message() );
+		return [];
+	}
+
+	$code = (int) wp_remote_retrieve_response_code( $response );
+
+	if ( $code !== 200 ) {
+		wxacg_ranking_log_error( 'anilist', 'HTTP ' . $code );
+		return [];
+	}
+
+	$json = json_decode( wp_remote_retrieve_body( $response ), true );
+	$list = $json['data']['Page']['media'] ?? [];
+
+	if ( ! is_array( $list ) ) {
+		return [];
+	}
+
+	$season_map = [
+		'WINTER' => '冬季',
+		'SPRING' => '春季',
+		'SUMMER' => '夏季',
+		'FALL'   => '秋季',
+	];
+
+	$items = [];
+
+	foreach ( $list as $i => $m ) {
+		if ( ! is_array( $m ) ) {
+			continue;
+		}
+
+		$score = isset( $m['averageScore'] ) && $m['averageScore']
+			? number_format( (float) $m['averageScore'] / 10, 1 )
+			: null;
+
+		$year = '';
+		if ( ! empty( $m['seasonYear'] ) ) {
+			$season = $m['season'] ?? '';
+			$year   = $season
+				? $m['seasonYear'] . ' ' . ( $season_map[ $season ] ?? '' )
+				: (string) $m['seasonYear'];
+		}
+
+		$items[] = [
+			'rank'      => count( $items ) + 1,
+			'titleZh'   => (string) ( $m['title']['userPreferred'] ?? $m['title']['romaji'] ?? '' ),
+			'titleJp'   => (string) ( $m['title']['native'] ?? '' ),
+			'cover'     => (string) ( $m['coverImage']['large'] ?? '' ),
+			'score'     => $score,
+			'scoredBy'  => (int) ( $m['popularity'] ?? 0 ),
+			'genres'    => array_slice( (array) ( $m['genres'] ?? [] ), 0, 3 ),
+			'year'      => trim( $year ),
+			'anilistId' => (int) ( $m['id'] ?? 0 ),
+			'isSite'    => false,
+			'url'       => 'https://anilist.co/anime/' . (int) ( $m['id'] ?? 0 ),
+		];
+	}
+
+	return $items;
+}
+
+/* ============================================================
+ * MyAnimeList（Jikan v4）
+ * ============================================================ */
+
+function wxacg_ranking_fetch_mal( string $period ): array {
+	$endpoint = 'https://api.jikan.moe/v4/top/anime?limit=' . WXACG_RANKING_LIMIT;
+
+	if ( $period === 'daily' || $period === 'weekly' ) {
+		$endpoint .= '&filter=airing';
+	} elseif ( $period === 'monthly' ) {
+		$endpoint .= '&filter=bypopularity';
+	}
+
+	$response = wp_remote_get( $endpoint, [
+		'timeout'    => 10,
+		'user-agent' => WXACG_RANKING_UA,
+		'headers'    => [ 'Accept' => 'application/json' ],
+	] );
+
+	if ( is_wp_error( $response ) ) {
+		wxacg_ranking_log_error( 'mal', $response->get_error_message() );
+		return [];
+	}
+
+	$code = (int) wp_remote_retrieve_response_code( $response );
+
+	if ( $code !== 200 ) {
+		wxacg_ranking_log_error( 'mal', 'HTTP ' . $code );
+		return [];
+	}
+
+	$json = json_decode( wp_remote_retrieve_body( $response ), true );
+	$list = $json['data'] ?? [];
+
+	if ( ! is_array( $list ) ) {
+		return [];
+	}
+
+	$items = [];
+
+	foreach ( $list as $m ) {
+		if ( ! is_array( $m ) ) {
+			continue;
+		}
+
+		$genres = [];
+		foreach ( array_slice( (array) ( $m['genres'] ?? [] ), 0, 3 ) as $g ) {
+			if ( ! empty( $g['name'] ) ) {
+				$genres[] = (string) $g['name'];
+			}
+		}
+
+		$items[] = [
+			'rank'      => count( $items ) + 1,
+			'titleZh'   => (string) ( $m['title'] ?? '' ),
+			'titleJp'   => (string) ( $m['title_japanese'] ?? '' ),
+			'cover'     => (string) (
+				$m['images']['jpg']['large_image_url']
+					?? $m['images']['jpg']['image_url']
+					?? ''
+			),
+			'score'     => ! empty( $m['score'] )
+				? number_format( (float) $m['score'], 1 )
+				: null,
+			'scoredBy'  => (int) ( $m['scored_by'] ?? 0 ),
+			'genres'    => $genres,
+			'year'      => ! empty( $m['year'] ) ? (string) $m['year'] : '',
+			'anilistId' => null,
+			'isSite'    => false,
+			'url'       => (string) (
+				$m['url'] ?? 'https://myanimelist.net/anime/' . (int) ( $m['mal_id'] ?? 0 )
+			),
+		];
+	}
+
+	return $items;
+}
+
+/* ============================================================
+ * Bangumi
+ * ============================================================ */
+
+function wxacg_ranking_fetch_bangumi( string $period ): array {
+	$response = wp_remote_get(
+		'https://api.bgm.tv/v0/subjects?type=2&sort=rank&limit=' . WXACG_RANKING_LIMIT,
+		[
+			'timeout'    => 10,
+			'user-agent' => WXACG_RANKING_UA,
+			'headers'    => [ 'Accept' => 'application/json' ],
+		]
+	);
+
+	if ( is_wp_error( $response ) ) {
+		wxacg_ranking_log_error( 'bangumi', $response->get_error_message() );
+		return [];
+	}
+
+	$code = (int) wp_remote_retrieve_response_code( $response );
+
+	if ( $code !== 200 ) {
+		wxacg_ranking_log_error( 'bangumi', 'HTTP ' . $code );
+		return [];
+	}
+
+	$json = json_decode( wp_remote_retrieve_body( $response ), true );
+	$list = $json['data'] ?? [];
+
+	if ( ! is_array( $list ) ) {
+		return [];
+	}
+
+	$items = [];
+
+	foreach ( $list as $m ) {
+		if ( ! is_array( $m ) ) {
+			continue;
+		}
+
+		$tags = [];
+		foreach ( array_slice( (array) ( $m['tags'] ?? [] ), 0, 3 ) as $t ) {
+			if ( ! empty( $t['name'] ) ) {
+				$tags[] = (string) $t['name'];
+			}
+		}
+
+		$items[] = [
+			'rank'      => count( $items ) + 1,
+			'titleZh'   => (string) ( $m['name_cn'] ?? $m['name'] ?? '' ),
+			'titleJp'   => (string) ( $m['name'] ?? '' ),
+			'cover'     => (string) ( $m['images']['large'] ?? $m['images']['common'] ?? '' ),
+			'score'     => ! empty( $m['rating']['score'] )
+				? number_format( (float) $m['rating']['score'], 1 )
+				: null,
+			'scoredBy'  => (int) ( $m['rating']['total'] ?? 0 ),
+			'genres'    => $tags,
+			'year'      => ! empty( $m['date'] ) ? substr( (string) $m['date'], 0, 4 ) : '',
+			'anilistId' => null,
+			'isSite'    => false,
+			'url'       => 'https://bgm.tv/subject/' . (int) ( $m['id'] ?? 0 ),
+		];
+	}
+
+	return $items;
+}
+
+/* ============================================================
+ * 伺服器端渲染
+ * ------------------------------------------------------------
+ * 只負責「外部平台」的卡片，站內榜仍由 ranking.js 處理
+ * （站內榜多了 4 維分項與收藏／瀏覽等變體，留在前端避免兩邊都要維護）。
+ *
+ * 標記結構刻意與 ranking.js 的 rankRenderList() 對齊，
+ * 讓使用者切換頁籤由 JS 接手重繪時不會有視覺跳動。
+ * ============================================================ */
+
+function wxacg_ranking_platform_color( string $platform ): string {
+	$colors = [
+		'anilist' => '#02a9ff',
+		'mal'     => '#2e51a2',
+		'bangumi' => '#f09199',
+	];
+
+	return $colors[ $platform ] ?? '#63a8ff';
+}
+
+/**
+ * 輸出排行卡片 HTML。
+ *
+ * @param array  $items    wxacg_ranking_get() 的回傳值
+ * @param string $platform 用於取色
+ */
+function wxacg_ranking_render_cards( array $items, string $platform ): string {
+	if ( empty( $items ) ) {
+		return '';
+	}
+
+	$color = wxacg_ranking_platform_color( $platform );
+	$html  = '';
+
+	foreach ( $items as $item ) {
+		$rank = (int) ( $item['rank'] ?? 0 );
+
+		$num_class = '';
+		if ( $rank === 1 ) {
+			$num_class = 'rank-card__num--top1';
+		} elseif ( $rank === 2 ) {
+			$num_class = 'rank-card__num--top2';
+		} elseif ( $rank === 3 ) {
+			$num_class = 'rank-card__num--top3';
+		}
+
+		$title_zh = (string) ( $item['titleZh'] ?? '' );
+		$title_jp = (string) ( $item['titleJp'] ?? '' );
+
+		$tags_html = '';
+		foreach ( (array) ( $item['genres'] ?? [] ) as $g ) {
+			$tags_html .= '<span class="rank-card__tag">' . esc_html( $g ) . '</span>';
+		}
+
+		if ( ! empty( $item['year'] ) ) {
+			$tags_html .= '<span class="rank-card__tag rank-card__tag--year">'
+				. esc_html( $item['year'] ) . '</span>';
+		}
+
+		$score_html = '';
+		if ( ! empty( $item['score'] ) ) {
+			$score_html = '<div class="rank-card__score" style="color:' . esc_attr( $color ) . ';">'
+				. esc_html( $item['score'] ) . '</div>'
+				. '<div class="rank-card__score-label">/ 10</div>';
+		}
+
+		$votes_html = '';
+		if ( ! empty( $item['scoredBy'] ) ) {
+			$votes_html = '<div class="rank-card__votes">'
+				. esc_html( number_format_i18n( (int) $item['scoredBy'] ) )
+				. ' 人評分</div>';
+		}
+
+		$cover_html = ! empty( $item['cover'] )
+			? '<img src="' . esc_url( $item['cover'] ) . '" alt="'
+				. esc_attr( $title_zh ) . '" loading="lazy" decoding="async">'
+			: '<div class="rank-card__cover-fb">🎬</div>';
+
+		$html .= '<a class="rank-card" href="' . esc_url( $item['url'] ?? '#' ) . '"'
+			. ' target="_blank" rel="noopener noreferrer">'
+			. '<div class="rank-card__rank">'
+			. ( $rank === 1 ? '<span class="rank-card__crown">👑</span>' : '' )
+			. '<div class="rank-card__num ' . esc_attr( $num_class ) . '">' . $rank . '</div>'
+			. '</div>'
+			. '<div class="rank-card__cover">' . $cover_html . '</div>'
+			. '<div class="rank-card__body">'
+			. '<div class="rank-card__title">' . esc_html( $title_zh ) . '</div>'
+			. ( ( $title_jp !== '' && $title_jp !== $title_zh )
+				? '<div class="rank-card__native">' . esc_html( $title_jp ) . '</div>'
+				: '' )
+			. '<div class="rank-card__tags">' . $tags_html . '</div>'
+			. '</div>'
+			. '<div class="rank-card__meta">'
+			. $score_html
+			. $votes_html
+			. '<div class="rank-card__action" style="color:' . esc_attr( $color ) . ';'
+			. 'border-color:' . esc_attr( $color ) . '44;">詳情 →</div>'
+			. '</div>'
+			. '</a>';
+	}
+
+	return $html;
+}
+
+/* ============================================================
+ * REST：給前端切換頁籤時使用
+ * ============================================================ */
+
+add_action( 'rest_api_init', function () {
+	register_rest_route( 'weixiaoacg/v1', '/ranking/external', [
+		'methods'             => 'GET',
+		'permission_callback' => '__return_true',
+		'callback'            => 'wxacg_ranking_rest_external',
+		'args'                => [
+			'platform' => [
+				'default'           => 'anilist',
+				'sanitize_callback' => 'sanitize_key',
+			],
+			'period'   => [
+				'default'           => 'weekly',
+				'sanitize_callback' => 'sanitize_key',
+			],
+		],
+	] );
+} );
+
+function wxacg_ranking_rest_external( WP_REST_Request $request ) {
+	$platform = wxacg_ranking_norm_platform( $request->get_param( 'platform' ) );
+	$period   = wxacg_ranking_norm_period( $request->get_param( 'period' ) );
+
+	$items = wxacg_ranking_get( $platform, $period );
+
+	return rest_ensure_response( [
+		'platform' => $platform,
+		'period'   => $period,
+		'updated'  => wxacg_ranking_updated_at( $platform, $period ),
+		'items'    => $items,
+	] );
+}
+
+/* ============================================================
+ * WP-Cron 預熱
+ * ------------------------------------------------------------
+ * 讓快取由背景排程更新，訪客請求不必等待外部 API。
+ * 只預熱前端預設會用到的組合，避免無謂的外部請求。
+ * ============================================================ */
+
+add_action( 'wp', function () {
+	if ( ! wp_next_scheduled( 'wxacg_ranking_warm_cron' ) ) {
+		wp_schedule_event( time() + 300, 'hourly', 'wxacg_ranking_warm_cron' );
+	}
+} );
+
+add_action( 'switch_theme', function () {
+	wp_clear_scheduled_hook( 'wxacg_ranking_warm_cron' );
+} );
+
+add_action( 'wxacg_ranking_warm_cron', 'wxacg_ranking_warm' );
+
+function wxacg_ranking_warm(): void {
+	// 併發鎖：避免排程與手動觸發重疊，對外部 API 連續請求。
+	if ( get_transient( 'wxacg_ranking_warm_lock' ) ) {
+		return;
+	}
+
+	set_transient( 'wxacg_ranking_warm_lock', 1, 10 * MINUTE_IN_SECONDS );
+
+	foreach ( wxacg_ranking_platforms() as $platform ) {
+		wxacg_ranking_get( $platform, 'weekly', true );
+
+		// Jikan 限制 3 req/s，平台之間稍微間隔，避免被擋。
+		sleep( 1 );
+	}
+
+	delete_transient( 'wxacg_ranking_warm_lock' );
+}

@@ -152,12 +152,51 @@ $smacg_brand = '微笑動漫';
         </div>
 
         <!-- 排行列表 -->
-        <div class="rank-list" id="rank-list" aria-live="polite">
-          <div class="rank-loading">
-            <div class="skeleton" style="height:90px;border-radius:16px;"></div>
-            <div class="skeleton" style="height:90px;border-radius:16px;margin-top:10px;"></div>
-            <div class="skeleton" style="height:90px;border-radius:16px;margin-top:10px;"></div>
-          </div>
+        <?php
+        /**
+         * v1.2：預設視圖改為伺服器端渲染。
+         *
+         * 原本整份榜單都由 ranking.js 在瀏覽器端向第三方 API 取得，
+         * 導致搜尋引擎只看得到骨架動畫、頁面實質內容為零。
+         * 這裡先把「AniList + 本週」（即 ranking.js 的預設狀態）直接輸出，
+         * 使用者切換頁籤後才交由 JS 接手重繪。
+         *
+         * 資料來源與快取見 inc/ranking-feed.php。
+         */
+        $rank_default_platform = 'anilist';
+        $rank_default_period   = 'weekly';
+
+        $rank_prerendered = '';
+
+        if ( function_exists( 'wxacg_ranking_get' ) ) {
+            $rank_prerendered = wxacg_ranking_render_cards(
+                wxacg_ranking_get( $rank_default_platform, $rank_default_period ),
+                $rank_default_platform
+            );
+        }
+        ?>
+        <div
+          class="rank-list"
+          id="rank-list"
+          aria-live="polite"
+          <?php if ( $rank_prerendered !== '' ) : ?>
+            data-prerendered="1"
+            data-platform="<?php echo esc_attr( $rank_default_platform ); ?>"
+            data-period="<?php echo esc_attr( $rank_default_period ); ?>"
+          <?php endif; ?>
+        >
+          <?php if ( $rank_prerendered !== '' ) : ?>
+            <?php
+            // 內容由 wxacg_ranking_render_cards() 逐欄位 esc_* 過，此處不可再跑一次跳脫。
+            echo $rank_prerendered; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            ?>
+          <?php else : ?>
+            <div class="rank-loading">
+              <div class="skeleton" style="height:90px;border-radius:16px;"></div>
+              <div class="skeleton" style="height:90px;border-radius:16px;margin-top:10px;"></div>
+              <div class="skeleton" style="height:90px;border-radius:16px;margin-top:10px;"></div>
+            </div>
+          <?php endif; ?>
         </div>
 
         <!-- 站內排行底部提示 -->

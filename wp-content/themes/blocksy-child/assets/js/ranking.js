@@ -184,6 +184,24 @@ function rankInitPeriodBtns() {
    ============================================================ */
 function rankRenderAll() {
   rankRenderPlatformCard(rankState.platform);
+
+  /* v1.4.0：預設視圖已由 PHP 伺服器端渲染（見 page-ranking.php）。
+     首次載入時若標記相符，就直接沿用現成的 HTML，
+     不再重新抓一次資料、也不會讓已顯示的內容閃一下。
+     使用者一旦切換頁籤或期間，就照常走 rankFetchAndRender()。 */
+  const listEl = document.getElementById('rank-list');
+
+  if (
+    listEl &&
+    listEl.dataset.prerendered === '1' &&
+    listEl.dataset.platform === rankState.platform &&
+    listEl.dataset.period === rankState.period
+  ) {
+    updateCountInfo(listEl.querySelectorAll('.rank-card').length);
+    listEl.dataset.prerendered = '0';
+    return;
+  }
+
   rankFetchAndRender();
 }
 
@@ -257,11 +275,13 @@ async function rankFetchAndRender() {
   try {
     let items = _cache[cacheKey];
     if (!items) {
-      if      (platform === 'site')    items = await fetchSiteRanking(20, rankType, period);
-      else if (platform === 'anilist') items = await fetchAniList(period);
-      else if (platform === 'mal')     items = await fetchMAL(period);
-      else if (platform === 'bangumi') items = await fetchBangumi(period);
-      else items = [];
+      if (platform === 'site') {
+        items = await fetchSiteRanking(20, rankType, period);
+      } else if (platform === 'anilist' || platform === 'mal' || platform === 'bangumi') {
+        items = await fetchExternalRanking(platform, period);
+      } else {
+        items = [];
+      }
       _cache[cacheKey] = items;
     }
     // v1.3.0：每次重渲染前，先更新平台介紹卡（rankType 可能已變）
@@ -325,115 +345,34 @@ async function fetchSiteRanking(limit = 20, rankType = 'rating', period = 'month
 /* ============================================================
    AniList API
    ============================================================ */
-async function fetchAniList(period) {
-  const sortBy = (period === 'daily' || period === 'weekly' || period === 'monthly')
-    ? 'TRENDING_DESC'
-    : 'SCORE_DESC';
-
-  const query = `
-    query ($sort: [MediaSort], $perPage: Int) {
-      Page(perPage: $perPage) {
-        media(type: ANIME, sort: $sort, status_in: [RELEASING, FINISHED]) {
-          id
-          title { romaji native userPreferred }
-          coverImage { large }
-          averageScore
-          popularity
-          trending
-          genres
-          seasonYear
-          season
-          status
-          rankings { rank type allTime season }
-        }
-      }
-    }`;
-
-  const res = await fetch('https://graphql.anilist.co', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ query, variables: { sort: [sortBy], perPage: 20 } })
-  });
-
-  if (!res.ok) throw new Error(`AniList HTTP ${res.status}`);
-  const json = await res.json();
-  const mediaList = json?.data?.Page?.media || [];
-
-  const seasonMap = { WINTER:'冬季', SPRING:'春季', SUMMER:'夏季', FALL:'秋季' };
-
-  return mediaList.map((m, i) => ({
-    rank:     i + 1,
-    titleZh:  m.title.userPreferred || m.title.romaji,
-    titleJp:  m.title.native || '',
-    cover:    m.coverImage?.large || '',
-    score:    m.averageScore ? (m.averageScore / 10).toFixed(1) : null,
-    scoredBy: m.popularity || 0,
-    genres:   (m.genres || []).slice(0, 3),
-    year:     m.seasonYear
-      ? (m.season ? `${m.seasonYear} ${seasonMap[m.season] || ''}` : String(m.seasonYear))
-      : '',
-    anilistId: m.id,
-    isSite:    false,
-    url:       `https://anilist.co/anime/${m.id}`
-  }));
-}
-
 /* ============================================================
-   MAL / Jikan v4 API
+   外部平台排行（AniList / MAL / Bangumi）
+
+   v1.4.0：改由本站後端代抓。
+
+   原本這三支是在瀏覽器端直接打第三方 API，造成：
+     1. 排行內容不在 HTML 裡，搜尋引擎抓到空容器
+     2. 每位訪客都要等三次跨國往返
+     3. Jikan 速率限制（3 req/s）以「每位訪客」為單位消耗，流量一大就失敗
+
+   後端契約見：blocksy-child/inc/ranking-feed.php
+     GET /wp-json/weixiaoacg/v1/ranking/external?platform=&period=
+     回傳 { platform, period, updated, items: [...] }
+   items 的欄位結構與原本前端自行正規化的結果完全一致，
+   因此 rankRenderList() 不需要改動。
    ============================================================ */
-async function fetchMAL(period) {
-  let endpoint = 'https://api.jikan.moe/v4/top/anime?limit=20';
-  if (period === 'daily' || period === 'weekly') {
-    endpoint += '&filter=airing';
-  } else if (period === 'monthly') {
-    endpoint += '&filter=bypopularity';
-  }
+async function fetchExternalRanking(platform, period) {
+  const params = new URLSearchParams({ platform, period });
 
-  const res = await fetch(endpoint);
-  if (!res.ok) throw new Error(`Jikan HTTP ${res.status}`);
-  const json = await res.json();
-  const list = json?.data || [];
-
-  return list.map((m, i) => ({
-    rank:     i + 1,
-    titleZh:  m.title || '',
-    titleJp:  m.title_japanese || '',
-    cover:    m.images?.jpg?.large_image_url || m.images?.jpg?.image_url || '',
-    score:    m.score ? Number(m.score).toFixed(1) : null,
-    scoredBy: m.scored_by || 0,
-    genres:   (m.genres || []).slice(0, 3).map(g => g.name),
-    year:     m.year ? String(m.year) : '',
-    anilistId: null,
-    isSite:    false,
-    url:       m.url || `https://myanimelist.net/anime/${m.mal_id}`
-  }));
-}
-
-/* ============================================================
-   Bangumi API
-   ============================================================ */
-async function fetchBangumi(period) {
   const res = await fetch(
-    'https://api.bgm.tv/v0/subjects?type=2&sort=rank&limit=20',
-    { headers: { 'Accept': 'application/json', 'User-Agent': 'weixiaoacg/1.0' } }
+    `/wp-json/weixiaoacg/v1/ranking/external?${params.toString()}`,
+    { headers: { 'Accept': 'application/json' } }
   );
-  if (!res.ok) throw new Error(`Bangumi HTTP ${res.status}`);
-  const json = await res.json();
-  const list = json?.data || [];
 
-  return list.map((m, i) => ({
-    rank:     i + 1,
-    titleZh:  m.name_cn || m.name || '',
-    titleJp:  m.name || '',
-    cover:    m.images?.large || m.images?.common || '',
-    score:    m.rating?.score ? Number(m.rating.score).toFixed(1) : null,
-    scoredBy: m.rating?.total || 0,
-    genres:   (m.tags || []).slice(0, 3).map(t => t.name),
-    year:     m.date ? m.date.slice(0, 4) : '',
-    anilistId: null,
-    isSite:    false,
-    url:       `https://bgm.tv/subject/${m.id}`
-  }));
+  if (!res.ok) throw new Error(`Ranking API HTTP ${res.status}`);
+
+  const data = await res.json();
+  return data?.items || [];
 }
 
 /* ============================================================

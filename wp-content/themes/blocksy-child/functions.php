@@ -164,6 +164,7 @@ foreach (
 		'image-optimizer',
 		'ajax-news-filter',
 		'search-hot',
+		'ranking-feed',
 	] as $wxacg_optional_file
 ) {
 	$wxacg_path = $wxacg_inc_dir . $wxacg_optional_file . '.php';
