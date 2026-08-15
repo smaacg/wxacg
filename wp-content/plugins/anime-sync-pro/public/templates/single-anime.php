@@ -3078,14 +3078,45 @@ while ( have_posts() ) :
 				<?php endif; ?>
 
 				<div class="asd-hero-badges">
+					<?php
+					/*
+					 * 播映狀態：連到 /anime/?anime_status={slug} 的篩選檢視。
+					 * 狀態會隨時間改變，所以不做成分類法，直接查 meta（見
+					 * anime-sync-pro.php 的 anime_sync_get_status_filter_map()）。
+					 */
+					$hero_status_url  = '';
+					$status_slug_map  = function_exists( 'anime_sync_get_status_filter_map' )
+						? anime_sync_get_status_filter_map()
+						: [];
+
+					foreach ( $status_slug_map as $status_slug => $status_info ) {
+						if ( $status_info['code'] === $status ) {
+							$hero_status_url = add_query_arg(
+								'anime_status',
+								$status_slug,
+								get_post_type_archive_link( 'anime' ) ?: home_url( '/anime/' )
+							);
+							break;
+						}
+					}
+
+					$status_badge_class = 'asd-hbadge'
+						. ( $status_class ? ' asd-hbadge--' . $status_class : '' );
+					?>
 					<?php if ( $status_label ) : ?>
-						<span class="asd-hbadge<?php
-							echo $status_class
-								? ' asd-hbadge--' . esc_attr( $status_class )
-								: '';
-						?>">
-							<?php echo esc_html( $status_label ); ?>
-						</span>
+						<?php if ( $hero_status_url ) : ?>
+							<a
+								href="<?php echo esc_url( $hero_status_url ); ?>"
+								class="<?php echo esc_attr( $status_badge_class ); ?> asd-hbadge--link"
+								title="<?php echo esc_attr( '查看所有' . $status_label . '的動畫' ); ?>"
+							>
+								<?php echo esc_html( $status_label ); ?>
+							</a>
+						<?php else : ?>
+							<span class="<?php echo esc_attr( $status_badge_class ); ?>">
+								<?php echo esc_html( $status_label ); ?>
+							</span>
+						<?php endif; ?>
 					<?php endif; ?>
 
 					<?php

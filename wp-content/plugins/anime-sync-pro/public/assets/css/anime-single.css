@@ -515,6 +515,35 @@ a.asd-hbadge--genre:focus-visible {
   background: rgba(143, 107, 255, .24);
 }
 
+/* 狀態徽章各有配色，hover 時保留原色加深，
+   否則會被上面的通用 hover 規則洗成灰白。 */
+
+a.asd-hbadge--s-fin:hover,
+a.asd-hbadge--s-fin:focus-visible {
+  border-color: rgba(52, 211, 153, .6);
+  background: rgba(52, 211, 153, .26);
+}
+
+a.asd-hbadge--s-rel:hover,
+a.asd-hbadge--s-rel:focus-visible {
+  border-color: rgba(76, 201, 240, .6);
+  background: rgba(76, 201, 240, .26);
+}
+
+a.asd-hbadge--s-pre:hover,
+a.asd-hbadge--s-pre:focus-visible {
+  border-color: rgba(251, 191, 36, .6);
+  background: rgba(251, 191, 36, .26);
+}
+
+a.asd-hbadge--s-can:hover,
+a.asd-hbadge--s-can:focus-visible,
+a.asd-hbadge--s-hia:hover,
+a.asd-hbadge--s-hia:focus-visible {
+  border-color: rgba(251, 113, 133, .6);
+  background: rgba(251, 113, 133, .26);
+}
+
 @media (prefers-reduced-motion: reduce) {
   a.asd-hbadge--link {
     transition: none;

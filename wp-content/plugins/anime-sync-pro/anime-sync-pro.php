@@ -307,6 +307,68 @@ add_filter( 'posts_where', function( string $where, WP_Query $q ): string {
 	return $where;
 }, 10, 2 );
 
+/* ============================================================
+ * 3.5. /anime/?anime_status= — 依播映狀態篩選
+ * ------------------------------------------------------------
+ * 刻意「不」做成分類法：播映狀態會隨時間改變（連載中 → 已完結），
+ * 分類法等於把 meta 複製一份，只要某部作品沒被重新同步就會卡住不動，
+ * 反而製造錯誤資料。這裡直接查 anime_status meta，永遠與同步結果一致，
+ * 也不需要回填。做法與上方 /upcoming-anime/ 一致。
+ * ============================================================ */
+
+/**
+ * 網址 slug ↔ anime_status meta 值的對照。
+ *
+ * @return array<string,array{code:string,label:string}>
+ */
+function anime_sync_get_status_filter_map(): array {
+	return [
+		'releasing'        => [ 'code' => 'RELEASING',        'label' => '連載中' ],
+		'finished'         => [ 'code' => 'FINISHED',         'label' => '已完結' ],
+		'not-yet-released' => [ 'code' => 'NOT_YET_RELEASED', 'label' => '尚未播出' ],
+		'cancelled'        => [ 'code' => 'CANCELLED',        'label' => '已取消' ],
+		'hiatus'           => [ 'code' => 'HIATUS',           'label' => '暫停中' ],
+	];
+}
+
+add_filter( 'query_vars', function( array $vars ): array {
+	if ( ! in_array( 'anime_status', $vars, true ) ) {
+		$vars[] = 'anime_status';
+	}
+
+	return $vars;
+} );
+
+add_action( 'pre_get_posts', function( WP_Query $q ): void {
+	if ( is_admin() || ! $q->is_main_query() ) {
+		return;
+	}
+
+	// /upcoming-anime/ 有自己的一套條件（含開播日排除），不要互相覆蓋。
+	if ( $q->get( 'anime_upcoming' ) ) {
+		return;
+	}
+
+	if ( ! $q->is_post_type_archive( 'anime' ) ) {
+		return;
+	}
+
+	$slug = sanitize_key( (string) $q->get( 'anime_status' ) );
+	$map  = anime_sync_get_status_filter_map();
+
+	if ( $slug === '' || ! isset( $map[ $slug ] ) ) {
+		return;
+	}
+
+	$q->set( 'meta_query', [
+		[
+			'key'     => 'anime_status',
+			'value'   => $map[ $slug ]['code'],
+			'compare' => '=',
+		],
+	] );
+}, 1 );
+
 function anime_sync_register_post_types(): void {
 
 	register_post_type( 'anime', [

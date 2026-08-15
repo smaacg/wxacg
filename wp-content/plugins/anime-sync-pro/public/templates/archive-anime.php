@@ -42,11 +42,20 @@ if ( $is_upcoming ) {
         . '每部作品附上原作出處、製作公司與目前確定的播出季度，'
         . '尚未定檔期者也會先行建檔，官方一有新情報就更新。';
 }
+/* ── 播映狀態篩選（/anime/?anime_status=releasing 等）── */
+$status_filter_slug  = sanitize_key( (string) get_query_var( 'anime_status' ) );
+$status_filter_map   = function_exists( 'anime_sync_get_status_filter_map' )
+    ? anime_sync_get_status_filter_map()
+    : [];
+$status_filter_label = $status_filter_map[ $status_filter_slug ]['label'] ?? '';
+
 if ( $is_search ) {
     $archive_title = '搜尋結果：' . get_search_query();
 } elseif ( $current_term ) {
     $archive_title = $current_term->name;
     $archive_desc  = term_description( $current_term->term_id );
+} elseif ( $status_filter_label !== '' ) {
+    $archive_title = $status_filter_label . '的動畫';
 }
 
 $total_posts  = (int) $GLOBALS['wp_query']->found_posts;
@@ -60,10 +69,20 @@ $active_source = $is_source ? $current_term->slug : '';
 
 /* ── [v2.6] Thin Content 防護：noindex 判斷（在 get_header 之前）── */
 add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
-    $is_search, $current_term, $total_posts, $archive_desc
+    $is_search, $current_term, $total_posts, $archive_desc, $status_filter_label
 ) {
     // 動畫搜尋結果頁強制 noindex（同 search.php 同樣邏輯）
     if ( $is_search ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+        return $robots;
+    }
+    /*
+     * 狀態篩選是帶參數的檢視，內容與主歸檔高度重疊（已完結就佔 1000 部以上），
+     * 給它索引只會製造重複內容。follow 保留，讓權重仍能流向作品頁。
+     */
+    if ( $status_filter_label !== '' ) {
         $robots['index']  = 'noindex';
         $robots['follow'] = 'follow';
         unset( $robots['noarchive'], $robots['nosnippet'] );
