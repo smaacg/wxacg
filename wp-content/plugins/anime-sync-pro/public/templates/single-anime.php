@@ -2726,6 +2726,94 @@ while ( have_posts() ) :
 		}
 	}
 
+	/*
+	 * 全站追蹤統計（想看／追番中／已看完的人數）。
+	 *
+	 * 這是彙總數字、與觀看者是誰無關，
+	 * 因此不受登入狀態影響，訪客也看得到。
+	 */
+	$track_stats = [
+		'want'      => 0,
+		'watching'  => 0,
+		'completed' => 0,
+		'dropped'   => 0,
+		'favorited' => 0,
+		'total'     => 0,
+	];
+
+	if ( class_exists( 'Anime_Sync_User_Status_Manager' ) ) {
+		$stats_manager = isset( $status_manager )
+			? $status_manager
+			: new Anime_Sync_User_Status_Manager();
+
+		if ( method_exists( $stats_manager, 'get_stats_for_anime' ) ) {
+			$track_stats = $stats_manager->get_stats_for_anime(
+				(int) $post_id
+			);
+		}
+	}
+
+	/*
+	 * 個人化推薦（僅登入者本人可見）。
+	 *
+	 * 依使用者自己的追蹤紀錄推算偏好類型，
+	 * 找出同類型、但他還沒追過的作品。
+	 *
+	 * 登入者在本站有獨立的 LSCache 分區，
+	 * 不會與訪客或其他使用者共用這段輸出。
+	 */
+	$reco_items = [];
+
+	if (
+		$user_id
+		&& isset( $stats_manager )
+		&& method_exists( $stats_manager, 'get_recommendations' )
+	) {
+		$reco_ids = $stats_manager->get_recommendations(
+			(int) $user_id,
+			(int) $post_id,
+			6
+		);
+
+		foreach ( $reco_ids as $reco_id ) {
+			$reco_id = (int) $reco_id;
+
+			$reco_title = trim(
+				(string) get_post_meta(
+					$reco_id,
+					'anime_title_chinese',
+					true
+				)
+			);
+
+			if ( $reco_title === '' ) {
+				$reco_title = get_the_title( $reco_id );
+			}
+
+			$reco_format = trim(
+				(string) get_post_meta(
+					$reco_id,
+					'anime_format',
+					true
+				)
+			);
+
+			$reco_items[] = [
+				'url'    => get_permalink( $reco_id ),
+				'title'  => $reco_title,
+				'cover'  => trim(
+					(string) get_post_meta(
+						$reco_id,
+						'anime_cover_image',
+						true
+					)
+				),
+				'format' => $format_labels[ $reco_format ]
+					?? $reco_format,
+			];
+		}
+	}
+
 	$user_rating = [
 		'story'     => 5.0,
 		'music'     => 5.0,
@@ -3722,6 +3810,53 @@ while ( have_posts() ) :
 				aria-live="polite"
 			></div>
 		</div><!-- /.smacg-track-bar -->
+
+		<?php
+		/*
+		 * 追蹤人數（全站彙總）。
+		 * 完全沒有人追蹤時整列不輸出，避免新作品頁出現一排 0。
+		 */
+		$track_stat_items = [];
+
+		if ( $track_stats['want'] > 0 ) {
+			$track_stat_items[] = [ '🔖', '想看', $track_stats['want'] ];
+		}
+
+		if ( $track_stats['watching'] > 0 ) {
+			$track_stat_items[] = [ '▶', '追番中', $track_stats['watching'] ];
+		}
+
+		if ( $track_stats['completed'] > 0 ) {
+			$track_stat_items[] = [ '✓', '已看完', $track_stats['completed'] ];
+		}
+
+		if ( $track_stats['favorited'] > 0 ) {
+			$track_stat_items[] = [ '⭐', '收藏', $track_stats['favorited'] ];
+		}
+		?>
+
+		<?php if ( ! empty( $track_stat_items ) ) : ?>
+			<div class="smacg-track-stats">
+				<?php foreach ( $track_stat_items as $track_stat_item ) : ?>
+					<span class="smacg-track-stat">
+						<span
+							class="smacg-track-stat-ico"
+							aria-hidden="true"
+						><?php echo esc_html( $track_stat_item[0] ); ?></span>
+
+						<span class="smacg-track-stat-label">
+							<?php echo esc_html( $track_stat_item[1] ); ?>
+						</span>
+
+						<b class="smacg-track-stat-num">
+							<?php echo esc_html(
+								number_format_i18n( $track_stat_item[2] )
+							); ?>
+						</b>
+					</span>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
 
 		<div
 			class="smacg-share-modal"
@@ -5447,6 +5582,63 @@ while ( have_posts() ) :
 													· <?php echo esc_html( $relation_item['format'] ); ?>
 												<?php endif; ?>
 											</span>
+										</div>
+									</a>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $reco_items ) ) : ?>
+						<div class="asd-side-section">
+							<div class="asd-side-section__head">
+								<h3>✨ 為你推薦</h3>
+							</div>
+
+							<p class="asd-side-note">
+								依你追過的作品類型推算，只有你看得到。
+							</p>
+
+							<div class="asd-side-cards">
+								<?php foreach ( $reco_items as $reco_item ) : ?>
+									<a
+										href="<?php echo esc_url( $reco_item['url'] ); ?>"
+										class="asd-mini-card"
+									>
+										<div class="asd-mini-card__thumb">
+											<?php if ( ! empty( $reco_item['cover'] ) ) : ?>
+												<img
+													src="<?php echo esc_url( $reco_item['cover'] ); ?>"
+													alt="<?php echo esc_attr( $reco_item['title'] ); ?> 封面"
+													loading="lazy"
+													decoding="async"
+												>
+											<?php else : ?>
+												<div class="asd-mini-card__thumb-fb">
+													<span>
+														<?php
+														echo esc_html(
+															$fallback_text(
+																$reco_item['title'],
+																2
+															)
+														);
+														?>
+													</span>
+												</div>
+											<?php endif; ?>
+										</div>
+
+										<div class="asd-mini-card__body">
+											<span class="asd-mini-card__title">
+												<?php echo esc_html( $reco_item['title'] ); ?>
+											</span>
+
+											<?php if ( $reco_item['format'] ) : ?>
+												<span class="asd-mini-card__meta">
+													<?php echo esc_html( $reco_item['format'] ); ?>
+												</span>
+											<?php endif; ?>
 										</div>
 									</a>
 								<?php endforeach; ?>

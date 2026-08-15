@@ -63,6 +63,17 @@ class Anime_Sync_User_Status_Manager {
     private const CACHE_TTL_ONE = 60;
     private const CACHE_TTL_LST = 300;
 
+    // 單一作品彙總統計：與 Cron 同一個 cache group，
+    // 每 15 分鐘重算後 flush_ranking_cache() 會一併清掉，不需另外失效。
+    private const CACHE_TTL_STATS = 600;
+
+    // 個人化推薦：改用 transient 保存，避免被上述 group flush 連帶清空；
+    // 使用者自己更動追蹤清單時由 flush_cache() 主動失效。
+    private const CACHE_TTL_RECO  = HOUR_IN_SECONDS;
+    private const RECO_SAMPLE_MAX = 30;  // 最多取幾筆追蹤紀錄推算偏好
+    private const RECO_GENRE_MAX  = 3;   // 取前幾名類型作為推薦依據
+    private const RECO_POOL_MAX   = 24;  // 候選池大小
+
     public function __construct() {
         add_action( 'rest_api_init', [ $this, 'register_routes' ] );
     }
@@ -578,6 +589,182 @@ class Anime_Sync_User_Status_Manager {
     }
 
     /* ──────────────────────────────────────────────
+     * 單一作品的追蹤統計（全站彙總）
+     * ──────────────────────────────────────────────
+     * 資料來自 anime_user_status_stats，由 Anime_Sync_User_Status_Cron
+     * 每 15 分鐘重算；此處純唯讀，不會觸發即時彙總查詢。
+     *
+     * 回傳的是「全站彙總數字」而非個人資料，
+     * 因此可安全輸出在對所有訪客共用的快取頁面上。
+     * ────────────────────────────────────────────── */
+
+    public function get_stats_for_anime( int $anime_id, bool $use_cache = true ): array {
+        $empty = [
+            'want'      => 0,
+            'watching'  => 0,
+            'completed' => 0,
+            'dropped'   => 0,
+            'favorited' => 0,
+            'total'     => 0,
+        ];
+
+        if ( ! $anime_id ) return $empty;
+
+        $key = "us_stats_{$anime_id}";
+        if ( $use_cache ) {
+            $cached = wp_cache_get( $key, self::CACHE_GROUP );
+            if ( false !== $cached ) return $cached;
+        }
+
+        global $wpdb;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT want_count, watching_count, completed_count,
+                    dropped_count, favorited_count, total_count
+             FROM {$wpdb->prefix}anime_user_status_stats
+             WHERE anime_id = %d",
+            $anime_id
+        ), ARRAY_A );
+
+        $stats = $row
+            ? [
+                'want'      => (int) $row['want_count'],
+                'watching'  => (int) $row['watching_count'],
+                'completed' => (int) $row['completed_count'],
+                'dropped'   => (int) $row['dropped_count'],
+                'favorited' => (int) $row['favorited_count'],
+                'total'     => (int) $row['total_count'],
+            ]
+            : $empty;
+
+        wp_cache_set( $key, $stats, self::CACHE_GROUP, self::CACHE_TTL_STATS );
+
+        return $stats;
+    }
+
+    /* ──────────────────────────────────────────────
+     * 個人化推薦
+     * ──────────────────────────────────────────────
+     * 以使用者自己的追蹤紀錄推算偏好類型（genre），
+     * 再找出同類型、但他尚未追過的作品。
+     *
+     * ⚠ 回傳結果因人而異，呼叫端必須確認只輸出給該使用者本人。
+     *   （本站登入者有獨立的 LSCache 分區，不與訪客頁面共用）
+     *
+     * @param int $user_id    對象使用者
+     * @param int $exclude_id 目前頁面的作品 ID（不推薦自己）
+     * @param int $limit      需要幾筆
+     * @return int[] 作品 post ID 陣列
+     * ────────────────────────────────────────────── */
+
+    public function get_recommendations( int $user_id, int $exclude_id = 0, int $limit = 6 ): array {
+        if ( ! $user_id ) return [];
+
+        $limit = max( 1, min( self::RECO_POOL_MAX, $limit ) );
+        $pool  = $this->get_recommendation_pool( $user_id );
+
+        if ( empty( $pool ) ) return [];
+
+        if ( $exclude_id ) {
+            $pool = array_values( array_diff( $pool, [ (int) $exclude_id ] ) );
+        }
+
+        return array_slice( $pool, 0, $limit );
+    }
+
+    /**
+     * 候選池（含快取）。
+     *
+     * 快取整個候選池而非「本頁最終結果」，
+     * 讓使用者在不同作品頁之間切換時共用同一份運算結果。
+     */
+    private function get_recommendation_pool( int $user_id ): array {
+        $key    = "asp_reco_{$user_id}";
+        $cached = get_transient( $key );
+
+        if ( is_array( $cached ) ) return $cached;
+
+        $pool = $this->build_recommendation_pool( $user_id );
+
+        set_transient( $key, $pool, self::CACHE_TTL_RECO );
+
+        return $pool;
+    }
+
+    /**
+     * 實際運算候選池。
+     */
+    private function build_recommendation_pool( int $user_id ): array {
+        $list = $this->get_user_list( $user_id );
+        if ( empty( $list ) ) return [];
+
+        $seen_ids  = [];
+        $liked_ids = [];
+
+        foreach ( $list as $entry ) {
+            $aid = (int) ( $entry['anime_id'] ?? 0 );
+            if ( ! $aid ) continue;
+
+            // 追蹤過的一律排除，不再重複推薦。
+            $seen_ids[] = $aid;
+
+            // 但棄坑的作品不列入偏好推算，避免推出更多他不喜歡的類型。
+            if ( 'dropped' === ( $entry['status'] ?? null ) ) continue;
+
+            $liked_ids[] = $aid;
+        }
+
+        if ( empty( $liked_ids ) ) return [];
+
+        // get_user_list() 已依 updated_at DESC 排序，
+        // 只取最近的數筆推算偏好，避免清單過長時掃描成本失控。
+        $sample_ids = array_slice( $liked_ids, 0, self::RECO_SAMPLE_MAX );
+
+        $terms = wp_get_object_terms( $sample_ids, 'genre', [
+            'fields' => 'all_with_object_id',
+        ] );
+
+        if ( is_wp_error( $terms ) || empty( $terms ) ) return [];
+
+        // 統計各類型出現次數，取最常出現的前幾名。
+        $genre_hits = [];
+        foreach ( $terms as $term ) {
+            $tid = (int) $term->term_id;
+            $genre_hits[ $tid ] = ( $genre_hits[ $tid ] ?? 0 ) + 1;
+        }
+
+        arsort( $genre_hits );
+        $top_genres = array_slice(
+            array_keys( $genre_hits ),
+            0,
+            self::RECO_GENRE_MAX
+        );
+
+        if ( empty( $top_genres ) ) return [];
+
+        $ids = get_posts( [
+            'post_type'              => 'anime',
+            'post_status'            => 'publish',
+            'posts_per_page'         => self::RECO_POOL_MAX,
+            'fields'                 => 'ids',
+            'orderby'                => 'rand',
+            'post__not_in'           => $seen_ids,
+            'no_found_rows'          => true,
+            'ignore_sticky_posts'    => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'tax_query'              => [
+                [
+                    'taxonomy' => 'genre',
+                    'field'    => 'term_id',
+                    'terms'    => $top_genres,
+                ],
+            ],
+        ] );
+
+        return array_map( 'intval', (array) $ids );
+    }
+
+    /* ──────────────────────────────────────────────
      * 內部 helper
      * ────────────────────────────────────────────── */
 
@@ -625,5 +812,9 @@ class Anime_Sync_User_Status_Manager {
         wp_cache_delete( "us_{$user_id}_{$anime_id}", self::CACHE_GROUP );
         wp_cache_delete( "us_list_{$user_id}",        self::CACHE_GROUP );
         delete_transient( 'smacg_stats_' . $user_id );
+
+        // 追蹤清單一變動，個人化推薦的候選池就過期了
+        // （新追的作品要從推薦中排除、偏好類型也可能改變）。
+        delete_transient( "asp_reco_{$user_id}" );
     }
 }

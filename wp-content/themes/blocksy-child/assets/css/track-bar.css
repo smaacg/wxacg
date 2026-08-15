@@ -218,6 +218,38 @@
   transform: translateY(-6px);
 }
 
+/* ── 追蹤人數（全站彙總，訪客也看得到） ── */
+.smacg-track-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: -12px 0 24px;
+  padding: 0 20px;
+  color: rgba(255,255,255,.62);
+  font-size: .82rem;
+}
+.smacg-track-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.smacg-track-stat-ico {
+  font-size: .9em;
+  opacity: .85;
+}
+.smacg-track-stat-num {
+  color: #fff;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .smacg-track-stats {
+    gap: 6px 14px;
+    padding: 0 14px;
+    font-size: .78rem;
+  }
+}
+
 /* ── 分享浮窗 ── */
 .smacg-share-modal {
   position: fixed;

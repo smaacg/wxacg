@@ -2414,6 +2414,14 @@ nav.asd-tabs a.asd-tab.is-active::after {
   text-align: center;
 }
 
+/* 側欄區塊的小字說明（例如「為你推薦」的推算依據） */
+.asd-side-note {
+  margin: 0 0 10px;
+  color: var(--asd-text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .asd-tags-wrap {
   display: flex;
   flex-wrap: wrap;
