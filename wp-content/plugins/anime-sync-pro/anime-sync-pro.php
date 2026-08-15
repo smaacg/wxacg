@@ -332,8 +332,10 @@ function anime_sync_get_status_filter_map(): array {
 }
 
 add_filter( 'query_vars', function( array $vars ): array {
-	if ( ! in_array( 'anime_status', $vars, true ) ) {
-		$vars[] = 'anime_status';
+	foreach ( [ 'anime_status', 'anime_format' ] as $var ) {
+		if ( ! in_array( $var, $vars, true ) ) {
+			$vars[] = $var;
+		}
 	}
 
 	return $vars;
@@ -349,24 +351,52 @@ add_action( 'pre_get_posts', function( WP_Query $q ): void {
 		return;
 	}
 
-	if ( ! $q->is_post_type_archive( 'anime' ) ) {
+	// 動畫與漫畫共用同一組 meta 欄位，兩個列表頁都適用。
+	if (
+		! $q->is_post_type_archive( 'anime' )
+		&& ! $q->is_post_type_archive( 'manga' )
+	) {
 		return;
 	}
 
-	$slug = sanitize_key( (string) $q->get( 'anime_status' ) );
-	$map  = anime_sync_get_status_filter_map();
+	$meta_query = [];
 
-	if ( $slug === '' || ! isset( $map[ $slug ] ) ) {
-		return;
-	}
+	$status_slug = sanitize_key( (string) $q->get( 'anime_status' ) );
+	$status_map  = anime_sync_get_status_filter_map();
 
-	$q->set( 'meta_query', [
-		[
+	if ( $status_slug !== '' && isset( $status_map[ $status_slug ] ) ) {
+		$meta_query[] = [
 			'key'     => 'anime_status',
-			'value'   => $map[ $slug ]['code'],
+			'value'   => $status_map[ $status_slug ]['code'],
 			'compare' => '=',
-		],
-	] );
+		];
+	}
+
+	/*
+	 * 格式：動畫有 anime_format_tax 分類法可走 term link，漫畫沒有，
+	 * 因此這裡提供以 meta 篩選的路徑，兩邊都能用。
+	 * 代碼直接取自 meta 值（TV / MOVIE / MANGA / MANHWA …），
+	 * 用 sanitize_key 後轉大寫比對，避免任意字串進到查詢。
+	 */
+	$format_raw = sanitize_key( (string) $q->get( 'anime_format' ) );
+
+	if ( $format_raw !== '' ) {
+		$meta_query[] = [
+			'key'     => 'anime_format',
+			'value'   => strtoupper( str_replace( '-', '_', $format_raw ) ),
+			'compare' => '=',
+		];
+	}
+
+	if ( empty( $meta_query ) ) {
+		return;
+	}
+
+	if ( count( $meta_query ) > 1 ) {
+		$meta_query['relation'] = 'AND';
+	}
+
+	$q->set( 'meta_query', $meta_query );
 }, 1 );
 
 function anime_sync_register_post_types(): void {

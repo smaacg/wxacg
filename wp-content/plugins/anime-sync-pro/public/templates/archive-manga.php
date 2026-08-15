@@ -40,15 +40,68 @@ $genre_terms = get_terms( [
     'number'     => 20,
 ] );
 
+/* ── 狀態／格式篩選（與動畫列表同一套 query var，見 anime-sync-pro.php §3.5）──
+   漫畫沒有對應的分類法，直接統計 meta 取得可用選項與數量。
+   目前漫畫作品數少，各欄位往往只有單一值——選項不足 2 個時整組不顯示，
+   等作品累積出多樣性後篩選列會自動出現，不需要再改這支模板。 */
+$mg_active_status = sanitize_key( (string) get_query_var( 'anime_status' ) );
+$mg_active_format = sanitize_key( (string) get_query_var( 'anime_format' ) );
+
+$mg_status_map = function_exists( 'anime_sync_get_status_filter_map' )
+    ? anime_sync_get_status_filter_map()
+    : [];
+
+$mg_format_counts = get_transient( 'wxacg_manga_facet_counts' );
+
+if ( false === $mg_format_counts ) {
+    $mg_facets = [ 'anime_status' => [], 'anime_format' => [] ];
+
+    foreach ( array_keys( $mg_facets ) as $mg_key ) {
+        $mg_rows = $GLOBALS['wpdb']->get_results(
+            $GLOBALS['wpdb']->prepare(
+                "SELECT pm.meta_value AS code, COUNT(*) AS n
+                 FROM {$GLOBALS['wpdb']->postmeta} pm
+                 JOIN {$GLOBALS['wpdb']->posts} p ON p.ID = pm.post_id
+                 WHERE pm.meta_key = %s
+                   AND p.post_type = 'manga'
+                   AND p.post_status = 'publish'
+                   AND pm.meta_value != ''
+                 GROUP BY pm.meta_value",
+                $mg_key
+            ),
+            ARRAY_A
+        );
+
+        foreach ( (array) $mg_rows as $mg_row ) {
+            $mg_facets[ $mg_key ][ (string) $mg_row['code'] ] = (int) $mg_row['n'];
+        }
+    }
+
+    $mg_format_counts = $mg_facets;
+    set_transient( 'wxacg_manga_facet_counts', $mg_format_counts, HOUR_IN_SECONDS );
+}
+
+$mg_status_counts = $mg_format_counts['anime_status'] ?? [];
+$mg_fmt_counts    = $mg_format_counts['anime_format'] ?? [];
+
 $canonical_url = ( $is_genre && $current_term )
     ? get_term_link( $current_term )
     : get_post_type_archive_link( 'manga' );
 
 /* ── [v1.2.0] Thin Content 防護：noindex 判斷（在 get_header 之前）── */
 add_filter( 'rank_math/frontend/robots', function ( $robots ) use (
-    $is_search, $current_term, $total_posts, $archive_desc
+    $is_search, $current_term, $total_posts, $archive_desc,
+    $mg_active_status, $mg_active_format
 ) {
     if ( $is_search ) {
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+        return $robots;
+    }
+    /* 狀態／格式篩選是帶參數的檢視，內容與主歸檔重疊，
+       給它索引只會製造重複內容；follow 保留讓權重仍流向作品頁。 */
+    if ( $mg_active_status !== '' || $mg_active_format !== '' ) {
         $robots['index']  = 'noindex';
         $robots['follow'] = 'follow';
         unset( $robots['noarchive'], $robots['nosnippet'] );
@@ -154,21 +207,83 @@ if ( $list_elements ) {
     <p class="aaa-count">共 <strong><?php echo number_format( $total_posts ); ?></strong> 部作品</p>
 </header>
 
-<div class="aaa-search-wrap">
-    <form role="search" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>">
-        <div class="aaa-search-inner">
-            <span class="aaa-search-icon">🔍</span>
-            <input class="aaa-search-input" type="search" name="s"
-                   placeholder="搜尋漫畫名稱…"
-                   value="<?php echo esc_attr( get_search_query() ); ?>">
-            <input type="hidden" name="post_type" value="manga">
-            <button class="aaa-search-btn" type="submit">搜尋</button>
-        </div>
-    </form>
-</div>
-
-<?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
 <div class="aaa-filter-wrap">
+    <?php
+    /*
+     * 搜尋框放在篩選卡片內的第一列（與動畫列表一致）。
+     * 原本擺在卡片外、外觀又與頁首的全站搜尋幾乎相同，兩個框相隔不到一屏，
+     * 使用者無從分辨範圍差異（頁首是全站即時搜尋，這裡只搜漫畫）。
+     */
+    ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">🔍 搜尋名稱</div>
+        <form role="search" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>">
+            <div class="aaa-search-inner">
+                <span class="aaa-search-icon">🔍</span>
+                <input class="aaa-search-input" type="search" name="s"
+                       placeholder="在漫畫列表中搜尋…"
+                       value="<?php echo esc_attr( get_search_query() ); ?>">
+                <input type="hidden" name="post_type" value="manga">
+                <button class="aaa-search-btn" type="submit">搜尋</button>
+            </div>
+        </form>
+    </div>
+
+    <?php
+    // 連載狀態：選項不足 2 個時整組不顯示（單一選項的篩選等於裝飾）
+    $mg_status_opts = [];
+
+    foreach ( $mg_status_map as $mg_slug => $mg_info ) {
+        if ( ( $mg_status_counts[ $mg_info['code'] ] ?? 0 ) > 0 ) {
+            $mg_status_opts[ $mg_slug ] = $mg_info['label'];
+        }
+    }
+    ?>
+    <?php if ( count( $mg_status_opts ) >= 2 ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">📺 連載狀態</div>
+        <div class="aaa-filter-row">
+            <a href="<?php echo esc_url( home_url( '/manga/' ) ); ?>"
+               class="aaa-filter-btn <?php echo ! $mg_active_status ? 'active' : ''; ?>">全部</a>
+            <?php foreach ( $mg_status_opts as $mg_slug => $mg_label ) : ?>
+            <a href="<?php echo esc_url( add_query_arg( 'anime_status', $mg_slug, home_url( '/manga/' ) ) ); ?>"
+               class="aaa-filter-btn <?php echo ( $mg_slug === $mg_active_status ) ? 'active' : ''; ?>">
+                <?php echo esc_html( $mg_label ); ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php
+    // 作品格式：同樣採「選項 >= 2 才顯示」
+    $mg_fmt_opts = [];
+
+    foreach ( $mg_fmt_counts as $mg_code => $mg_n ) {
+        if ( $mg_n > 0 ) {
+            $mg_fmt_opts[ $mg_code ] = $format_labels[ $mg_code ] ?? $mg_code;
+        }
+    }
+    ?>
+    <?php if ( count( $mg_fmt_opts ) >= 2 ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">📚 作品格式</div>
+        <div class="aaa-filter-row">
+            <a href="<?php echo esc_url( home_url( '/manga/' ) ); ?>"
+               class="aaa-filter-btn <?php echo ! $mg_active_format ? 'active' : ''; ?>">全部</a>
+            <?php foreach ( $mg_fmt_opts as $mg_code => $mg_label ) :
+                $mg_fmt_slug = strtolower( str_replace( '_', '-', $mg_code ) );
+                ?>
+            <a href="<?php echo esc_url( add_query_arg( 'anime_format', $mg_fmt_slug, home_url( '/manga/' ) ) ); ?>"
+               class="aaa-filter-btn <?php echo ( $mg_fmt_slug === $mg_active_format ) ? 'active' : ''; ?>">
+                <?php echo esc_html( $mg_label ); ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
     <div class="aaa-filter-group">
         <div class="aaa-filter-label">🏷️ 漫畫類型</div>
         <div class="aaa-filter-row">
@@ -182,8 +297,8 @@ if ( $list_elements ) {
             <?php endforeach; ?>
         </div>
     </div>
+    <?php endif; ?>
 </div>
-<?php endif; ?>
 
 <?php if ( have_posts() ) : ?>
     <div class="aaa-grid" id="aaa-grid">
