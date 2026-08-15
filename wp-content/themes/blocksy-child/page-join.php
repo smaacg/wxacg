@@ -17,6 +17,17 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+/*
+ * SEO 標題。
+ *
+ * 後台頁面標題為英文 slug「join」，直接輸出會是「join - 微笑動漫」。
+ * 沿用 page-bangumi*.php 既有的 pre_get_document_title 作法覆寫，
+ * 不動後台頁面標題（避免連帶影響選單與頁面上的 H1）。
+ */
+add_filter( 'pre_get_document_title', function () {
+    return '人才招募｜加入微笑動漫編輯與內容團隊';
+}, 99 );
+
 get_header();
 
 /**

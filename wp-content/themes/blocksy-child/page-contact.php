@@ -2,6 +2,18 @@
 /**
  * Template Name: 聯絡我們
  */
+
+/*
+ * SEO 標題。
+ *
+ * 後台頁面標題為英文 slug「contact」，直接輸出會是「contact - 微笑動漫」。
+ * 沿用 page-bangumi*.php 既有的 pre_get_document_title 作法覆寫，
+ * 不動後台頁面標題（避免連帶影響選單與頁面上的 H1）。
+ */
+add_filter( 'pre_get_document_title', function () {
+	return '聯絡微笑動漫｜問題回報、版權申訴與合作洽談';
+}, 99 );
+
 get_header(); ?>
 
 <main class="static-page">

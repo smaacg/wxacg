@@ -40,6 +40,18 @@ $sponsors = array(
 
 );
 
+/*
+ * SEO 標題。
+ *
+ * 這個頁面在後台的標題是英文 slug「sponsor」，直接輸出會變成
+ * 「sponsor - 微笑動漫」，與站內其他頁面的中文標題不一致。
+ * 沿用 page-bangumi*.php 既有的 pre_get_document_title 作法覆寫，
+ * 不動後台頁面標題（避免連帶影響選單與頁面上的 H1）。
+ */
+add_filter( 'pre_get_document_title', function () {
+	return '贊助支持｜讓微笑動漫持續運作';
+}, 99 );
+
 get_header();
 ?>
 
@@ -691,8 +703,8 @@ get_header();
           <div class="why-icon" style="background:rgba(236,72,153,0.15);">
             <i class="fa-solid fa-heart" style="color:#f472b6;"></i>
           </div>
-          <h3>讓我們敢拒絕廣告</h3>
-          <p>很多動漫站靠彈跳廣告活著，我們不想那樣。<strong style="color:var(--text-primary);">有了你的支持，我們才有底氣說不</strong>，讓閱讀體驗保持乾淨。</p>
+          <h3>讓廣告不會蓋住內容</h3>
+          <p>很多動漫站靠彈跳與遮蔽式廣告活著，我們不想那樣。<strong style="color:var(--text-primary);">有了你的支持，我們才有餘裕把版位控制在不打擾閱讀的範圍</strong>，也不會為了衝曝光而在空白頁面硬塞廣告。</p>
         </div>
 
         <div class="why-card">
