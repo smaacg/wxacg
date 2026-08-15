@@ -857,7 +857,10 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
          data-progress="<?php echo (int) $manga_prog_val; ?>"
          data-favorited="<?php echo $manga_is_fav ? '1' : '0'; ?>"
          data-fullcleared="0"
-         data-unit="<?php echo esc_attr( $manga_unit_label ); ?>">
+         data-unit="<?php echo esc_attr( $manga_unit_label ); ?>"
+         <?php /* 共用 JS 的進度標籤預設是「📺 觀看中」，漫畫要用閱讀語彙 */ ?>
+         data-progress-label="📖 閱讀中"
+         data-done-label="🎉 已讀完！">
 
         <?php if ( is_user_logged_in() ) : ?>
 
@@ -885,30 +888,77 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     <?php endforeach; ?>
                 </div>
 
-                <?php /* 進度控制(話 / 卷)*/ ?>
+                <?php
+                /*
+                 * 進度區(話 / 卷)。
+                 *
+                 * 結構必須是 .smacg-progress-group > 三列：
+                 *   .smacg-prog-top / .smacg-prog-bar-wrap / .smacg-prog-controls
+                 * 因為共用 CSS 把 .smacg-progress-group 設成
+                 * grid-template-rows: auto auto auto。原本這裡直接塞了
+                 * 「減號／數字／加號」三個元素，剛好被排成垂直三列，
+                 * 才會出現 − / 0 話 / ＋ 直排的破版。與動畫頁結構對齊即可修正。
+                 */
+                $manga_has_total = $manga_total_units > 0;
+                ?>
                 <div class="smacg-progress-group">
-                    <button class="smacg-prog-btn smacg-prog-minus"
-                            data-value="-1" type="button" title="減少進度">−</button>
-                    <span class="smacg-progress-display">
-                        <span class="smacg-prog-current"><?php echo (int) $manga_prog_val; ?></span>
-                        <?php if ( $manga_total_units > 0 ) : ?>
-                            <span class="smacg-prog-sep">/</span>
-                            <span class="smacg-prog-total"><?php echo (int) $manga_total_units; ?></span>
-                        <?php endif; ?>
-                        <span class="smacg-prog-unit"><?php echo esc_html( $manga_unit_label ); ?></span>
-                    </span>
-                    <button class="smacg-prog-btn smacg-prog-plus"
-                            data-value="1" type="button" title="增加進度">＋</button>
+                    <div class="smacg-prog-top">
+                        <span class="smacg-prog-label">
+                            <?php
+                            if ( $manga_cur_status === 'completed' ) {
+                                echo '🎉 已讀完！';
+                            } elseif ( ! $manga_has_total ) {
+                                echo '📖 連載中';
+                            } elseif ( $manga_prog_val > 0 ) {
+                                echo '📖 閱讀中';
+                            } else {
+                                echo '&nbsp;';
+                            }
+                            ?>
+                        </span>
+
+                        <?php
+                        /* 總數未知時顯示「—」而不是 0%：
+                           永遠空著的 0% 進度條看起來像壞掉，也像「完全沒讀」。 */
+                        ?>
+                        <span class="smacg-prog-pct">
+                            <?php echo $manga_has_total ? (int) $manga_prog_pct . '%' : '—'; ?>
+                        </span>
+                    </div>
+
+                    <?php if ( $manga_has_total ) : ?>
+                        <div class="smacg-prog-bar-wrap"
+                             role="progressbar"
+                             aria-label="閱讀進度"
+                             aria-valuemin="0"
+                             aria-valuemax="<?php echo (int) $manga_total_units; ?>"
+                             aria-valuenow="<?php echo (int) $manga_prog_val; ?>">
+                            <div class="smacg-prog-bar"
+                                 style="width:<?php echo (int) $manga_prog_pct; ?>%"></div>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="smacg-prog-controls">
+                        <button class="smacg-prog-btn smacg-prog-minus"
+                                data-value="-1" type="button"
+                                aria-label="<?php echo esc_attr( '閱讀進度減一' . $manga_unit_label ); ?>">−</button>
+
+                        <span class="smacg-prog-display">
+                            <span class="smacg-prog-current"><?php echo (int) $manga_prog_val; ?></span>
+                            <?php if ( $manga_has_total ) : ?>
+                                <span class="smacg-prog-sep"> / </span>
+                                <span class="smacg-prog-total"><?php echo (int) $manga_total_units; ?></span>
+                            <?php endif; ?>
+                            <span class="smacg-prog-unit"> <?php echo esc_html( $manga_unit_label ); ?></span>
+                        </span>
+
+                        <button class="smacg-prog-btn smacg-prog-plus"
+                                data-value="1" type="button"
+                                aria-label="<?php echo esc_attr( '閱讀進度加一' . $manga_unit_label ); ?>">＋</button>
+                    </div>
                 </div>
 
-                <?php /* 進度條 + 標籤 + 百分比 */ ?>
-                <div class="smacg-prog-track">
-                    <div class="smacg-prog-bar" style="width:<?php echo (int) $manga_prog_pct; ?>%"></div>
-                </div>
-                <div class="smacg-prog-meta">
-                    <span class="smacg-prog-label">&nbsp;</span>
-                    <span class="smacg-prog-pct"><?php echo (int) $manga_prog_pct; ?>%</span>
-                </div>
+                <div class="smacg-track-sep"></div>
 
                 <?php /* 動作群(收藏 / 分享)— 收藏用 Font Awesome,與 JS renderFav 對齊 */ ?>
                 <div class="smacg-action-group">

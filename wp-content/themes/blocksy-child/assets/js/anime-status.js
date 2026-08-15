@@ -161,8 +161,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         const labelEl = bar.querySelector('.smacg-prog-label');
         if (labelEl) {
-            if (state.fullcleared)  labelEl.textContent = '🎉 已全破！';
-            else if (prog > 0)      labelEl.textContent = '📺 觀看中';
+            /* 漫畫頁沿用同一支腳本但語彙不同（閱讀 vs 觀看），
+               故容器可用 data-progress-label / data-done-label 覆寫，
+               沒設定時維持動畫頁原本的文案。 */
+            const doneLabel = bar.dataset.doneLabel     || '🎉 已全破！';
+            const progLabel = bar.dataset.progressLabel || '📺 觀看中';
+
+            if (state.fullcleared)  labelEl.textContent = doneLabel;
+            else if (prog > 0)      labelEl.textContent = progLabel;
             else                    labelEl.innerHTML   = '&nbsp;';
         }
     }
