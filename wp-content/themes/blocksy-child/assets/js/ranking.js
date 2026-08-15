@@ -544,23 +544,93 @@ function updateCountInfo(count) {
    │ 觸發實作的條件：站內已評分動漫數 ≥ 100 部                  │
    └─────────────────────────────────────────────────────────┘
    ============================================================ */
-function rankInitSidebar() {
-  const newEl = document.getElementById('sidebar-new-list');
+/* 側欄空狀態／錯誤的統一樣式 */
+function sbNotice(icon, text) {
+  return `
+    <div style="text-align:center;padding:20px 0;color:var(--text-muted,rgba(208,215,224,.55));font-size:12px;line-height:1.8;">
+      <i class="fa-solid ${icon}" style="font-size:20px;display:block;margin-bottom:8px;opacity:.5;"></i>
+      ${text}
+    </div>`;
+}
+
+/* 側欄小卡：縮圖 + 標題 + 右側徽章 */
+function sbCard(item, badgeHtml) {
+  const cover = item.cover
+    ? `<img src="${item.cover}" alt="" loading="lazy" decoding="async"
+           style="width:36px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">`
+    : `<div style="width:36px;height:48px;border-radius:6px;background:rgba(255,255,255,.08);
+           display:flex;align-items:center;justify-content:center;flex-shrink:0;">🎬</div>`;
+
+  return `
+    <a href="${item.url || '#'}" class="sb-rank-item"
+       style="display:flex;align-items:center;gap:10px;padding:8px 0;text-decoration:none;color:inherit;">
+      ${cover}
+      <span style="flex:1;min-width:0;font-size:13px;line-height:1.5;
+                   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+        ${item.title || ''}
+      </span>
+      ${badgeHtml}
+    </a>`;
+}
+
+async function rankInitSidebar() {
+  const newEl   = document.getElementById('sidebar-new-list');
+  const moverEl = document.getElementById('sidebar-movers-list');
+
+  /* ── 本週新上榜 ── */
   if (newEl) {
-    newEl.innerHTML = `
-      <div style="text-align:center;padding:20px 0;color:var(--text-muted,rgba(208,215,224,.55));font-size:12px;line-height:1.8;">
-        <i class="fa-solid fa-clock" style="font-size:20px;display:block;margin-bottom:8px;opacity:.5;"></i>
-        評分系統開發中<br>敬請期待
-      </div>`;
+    try {
+      const res  = await fetch('/wp-json/weixiaoacg/v1/ranking/site/new?limit=5',
+                               { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const items = (await res.json())?.items || [];
+
+      newEl.innerHTML = items.length
+        ? items.map(it => sbCard(it,
+            `<span style="font-size:12px;font-weight:700;color:#6c63ff;flex-shrink:0;">
+               ${it.score ? Number(it.score).toFixed(1) : '—'}
+             </span>`)).join('')
+        : sbNotice('fa-seedling', '本週還沒有新作品獲得評分');
+
+    } catch (e) {
+      console.error('[ranking:sidebar:new]', e);
+      newEl.innerHTML = sbNotice('fa-triangle-exclamation', '資料載入失敗');
+    }
   }
 
-  const moverEl = document.getElementById('sidebar-movers-list');
+  /* ── 本週排名變動 ── */
   if (moverEl) {
-    moverEl.innerHTML = `
-      <div style="text-align:center;padding:20px 0;color:var(--text-muted,rgba(208,215,224,.55));font-size:12px;line-height:1.8;">
-        <i class="fa-solid fa-chart-line" style="font-size:20px;display:block;margin-bottom:8px;opacity:.5;"></i>
-        站內排名數據<br>即將上線
-      </div>`;
+    try {
+      const res = await fetch('/wp-json/weixiaoacg/v1/ranking/site/movers?limit=5',
+                              { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data  = await res.json();
+      const items = data?.items || [];
+
+      if (items.length) {
+        moverEl.innerHTML = items.map(it => {
+          const up    = it.delta > 0;
+          const color = up ? '#34D399' : '#f87171';
+          const arrow = up ? '▲' : '▼';
+          return sbCard(it,
+            `<span style="font-size:12px;font-weight:700;color:${color};flex-shrink:0;white-space:nowrap;">
+               ${arrow} ${Math.abs(it.delta)}
+             </span>`);
+        }).join('');
+
+      } else if (data?.ready) {
+        moverEl.innerHTML = sbNotice('fa-equals', '本週名次沒有變動');
+      } else {
+        /* 名次變動需要上週紀錄才能計算，無法回溯，第一週只能等 */
+        moverEl.innerHTML = sbNotice('fa-hourglass-half', '排名紀錄累積中<br>下週開始顯示變動');
+      }
+
+    } catch (e) {
+      console.error('[ranking:sidebar:movers]', e);
+      moverEl.innerHTML = sbNotice('fa-triangle-exclamation', '資料載入失敗');
+    }
   }
 }
 
