@@ -384,7 +384,7 @@ class Anime_Sync_Installer {
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 		$queue_table = $wpdb->prefix . 'anime_review_queue';
-		$queue_sql   = "CREATE TABLE IF NOT EXISTS {$queue_table} (
+		$queue_sql   = "CREATE TABLE {$queue_table} (
 			id          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			anilist_id  INT(11) UNSIGNED NOT NULL,
 			title       VARCHAR(255) NOT NULL DEFAULT '',
@@ -402,7 +402,7 @@ class Anime_Sync_Installer {
 		dbDelta( $queue_sql );
 
 		$logs_table = $wpdb->prefix . 'anime_sync_logs';
-		$logs_sql   = "CREATE TABLE IF NOT EXISTS {$logs_table} (
+		$logs_sql   = "CREATE TABLE {$logs_table} (
 			id         BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			level      ENUM('info','warning','error','critical') NOT NULL DEFAULT 'info',
 			message    TEXT NOT NULL,
@@ -415,7 +415,7 @@ class Anime_Sync_Installer {
 		dbDelta( $logs_sql );
 
 		$ratings_table = $wpdb->prefix . 'anime_ratings';
-		$ratings_sql   = "CREATE TABLE IF NOT EXISTS {$ratings_table} (
+		$ratings_sql   = "CREATE TABLE {$ratings_table} (
 			id               BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			anime_id         BIGINT(20) UNSIGNED NOT NULL,
 			user_id          BIGINT(20) UNSIGNED NOT NULL,
@@ -435,7 +435,7 @@ class Anime_Sync_Installer {
 		dbDelta( $ratings_sql );
 
 		$user_status_table = $wpdb->prefix . 'anime_user_status';
-		$user_status_sql   = "CREATE TABLE IF NOT EXISTS {$user_status_table} (
+		$user_status_sql   = "CREATE TABLE {$user_status_table} (
 			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			user_id       BIGINT(20) UNSIGNED NOT NULL,
 			anime_id      BIGINT(20) UNSIGNED NOT NULL,
@@ -460,7 +460,7 @@ class Anime_Sync_Installer {
 		dbDelta( $user_status_sql );
 
 		$us_stats_table = $wpdb->prefix . 'anime_user_status_stats';
-		$us_stats_sql   = "CREATE TABLE IF NOT EXISTS {$us_stats_table} (
+		$us_stats_sql   = "CREATE TABLE {$us_stats_table} (
 			anime_id        BIGINT(20) UNSIGNED NOT NULL,
 			want_count      INT UNSIGNED NOT NULL DEFAULT 0,
 			watching_count  INT UNSIGNED NOT NULL DEFAULT 0,
@@ -484,7 +484,7 @@ class Anime_Sync_Installer {
 
 		// 角色表
 		$characters_table = $wpdb->prefix . 'anime_characters';
-		$characters_sql   = "CREATE TABLE IF NOT EXISTS {$characters_table} (
+		$characters_sql   = "CREATE TABLE {$characters_table} (
 			id             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			bgm_id         BIGINT(20) UNSIGNED NOT NULL,
 			anilist_id     BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
@@ -513,7 +513,7 @@ class Anime_Sync_Installer {
 
 		// 人物表（聲優 cv / 未來製作 staff，用 type 區分主要身分）
 		$persons_table = $wpdb->prefix . 'anime_persons';
-		$persons_sql   = "CREATE TABLE IF NOT EXISTS {$persons_table} (
+		$persons_sql   = "CREATE TABLE {$persons_table} (
 			id             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			bgm_id         BIGINT(20) UNSIGNED NOT NULL,
 			anilist_id     BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
@@ -543,7 +543,7 @@ class Anime_Sync_Installer {
 
 		// 關聯表（作品 ↔ 角色 ↔ 聲優 / staff）
 		$relations_table = $wpdb->prefix . 'anime_relations';
-		$relations_sql   = "CREATE TABLE IF NOT EXISTS {$relations_table} (
+		$relations_sql   = "CREATE TABLE {$relations_table} (
 			id                BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			anime_id          BIGINT(20) UNSIGNED NOT NULL,
 			character_bgm_id  BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
