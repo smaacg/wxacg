@@ -20,62 +20,16 @@ if (!defined('ABSPATH')) {
 get_header();
 
 /**
- * 取得站內使用者資料
+ * 編輯與內容團隊：與 page-about.php 的「編輯與內容團隊」區塊沿用同一份邏輯
+ * ──動態抓取已發表過至少一篇文章的作者，而非手動維護的固定名單，
+ * 兩頁呈現的作者資訊才會一致，不會各說各話。
  */
-function weixiao_join_get_team_member($slug, $display_name, $role_title, $desc, $profile_url, $tags = array()) {
-    $user = get_user_by('slug', $slug);
-
-    $avatar_url = '';
-    if ($user && !is_wp_error($user)) {
-        $avatar_url = get_avatar_url($user->ID, array(
-            'size' => 220,
-        ));
-
-        if (!empty($user->display_name)) {
-            $display_name = $user->display_name;
-        }
-    }
-
-    return array(
-        'slug'         => $slug,
-        'display_name' => $display_name,
-        'role_title'   => $role_title,
-        'desc'         => $desc,
-        'profile_url'  => $profile_url,
-        'avatar_url'   => $avatar_url,
-        'tags'         => $tags,
-    );
-}
-
-/**
- * 團隊成員資料
- */
-$weixiao_team_members = array(
-    weixiao_join_get_team_member(
-        'smaacggmail-com',
-        '斯麥又',
-        '網站管理員・內容規劃',
-        '負責平台整體方向、動畫情報整理、網站內容規劃，持續把更多 ACG 作品介紹給大家。',
-        'https://weixiaoacg.com/u/smyyo/',
-        array('網站營運', '動畫情報', '內容整理')
-    ),
-    weixiao_join_get_team_member(
-        'faro',
-        '法爾加羅',
-        '管理員・社群互動',
-        '喜歡和大家交流動畫話題，協助社群互動、作品討論與內容推廣，一起讓平台更熱鬧。',
-        'https://weixiaoacg.com/u/faro/',
-        array('社群互動', '作品討論', '動漫分享')
-    ),
-    weixiao_join_get_team_member(
-        'kousei',
-        'Kousei',
-        '管理員・作品追蹤',
-        '協助整理作品資訊、追蹤動畫進度與使用者內容，讓更多好作品被看見。',
-        'https://weixiaoacg.com/u/kousei/',
-        array('作品追蹤', '資料整理', 'ACG 推廣')
-    ),
-);
+$weixiao_team_members = get_users( array(
+    'has_published_posts' => array( 'post' ),
+    'orderby'              => 'post_count',
+    'order'                => 'DESC',
+    'number'               => 12,
+) );
 
 /**
  * 表單處理
@@ -859,63 +813,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
             </div>
         </section>
 
+        <?php if (!empty($weixiao_team_members)) : ?>
         <section id="join-team" class="join-section">
             <div class="join-section-head">
                 <div>
                     <div class="join-section-kicker">Our Team</div>
-                    <h2 class="join-section-title">目前三位管理員</h2>
+                    <h2 class="join-section-title">編輯與內容團隊</h2>
                     <p class="join-section-desc">
-                        微笑動漫目前由三位管理員共同維護。每個人負責的方向不同，但目標一樣：
-                        <strong>把更多值得看的動畫、漫畫與 ACG 情報分享給大家。</strong>
+                        本站的新聞、評論、專欄與資料整理由下列作者撰寫或編修。
+                        點擊姓名可查看該作者發表過的所有文章。
                     </p>
                 </div>
             </div>
 
             <div class="join-team-grid">
-                <?php foreach ($weixiao_team_members as $member) : ?>
+                <?php foreach ($weixiao_team_members as $member) :
+                    $m_id     = (int) $member->ID;
+                    $m_name   = $member->display_name ?: $member->user_login;
+                    $m_bio    = trim( (string) get_user_meta( $m_id, 'description', true ) );
+                    $m_url    = get_author_posts_url( $m_id );
+                    $m_avatar = get_avatar_url( $m_id, array( 'size' => 220 ) );
+                    $m_posts  = (int) count_user_posts( $m_id, 'post', true );
+                    $m_role   = ( $m_posts >= 20 ) ? '主編輯' : '內容作者';
+                    if ( $m_posts < 1 ) continue;
+                ?>
                     <article class="join-team-card">
                         <div class="join-team-inner">
                             <div class="join-team-avatar-wrap">
-                                <?php if (!empty($member['avatar_url'])) : ?>
+                                <?php if (!empty($m_avatar)) : ?>
                                     <img
                                         class="join-team-avatar"
-                                        src="<?php echo esc_url($member['avatar_url']); ?>"
-                                        alt="<?php echo esc_attr($member['display_name']); ?> 的頭貼"
+                                        src="<?php echo esc_url($m_avatar); ?>"
+                                        alt="<?php echo esc_attr($m_name); ?> 的頭貼"
                                         loading="lazy"
                                         decoding="async"
                                     >
                                 <?php else : ?>
-                                    <div class="join-team-avatar-fallback" aria-label="<?php echo esc_attr($member['display_name']); ?> 的頭貼">
-                                        <?php echo esc_html(mb_substr($member['display_name'], 0, 1)); ?>
+                                    <div class="join-team-avatar-fallback" aria-label="<?php echo esc_attr($m_name); ?> 的頭貼">
+                                        <?php echo esc_html(mb_substr($m_name, 0, 1)); ?>
                                     </div>
                                 <?php endif; ?>
                             </div>
 
                             <h3 class="join-team-name">
-                                <?php echo esc_html($member['display_name']); ?>
+                                <a href="<?php echo esc_url($m_url); ?>" rel="author" style="color:inherit;text-decoration:none;">
+                                    <?php echo esc_html($m_name); ?>
+                                </a>
                             </h3>
 
                             <div class="join-team-role">
-                                <?php echo esc_html($member['role_title']); ?>
+                                <?php echo esc_html($m_role); ?>
                             </div>
 
-                            <p class="join-team-desc">
-                                <?php echo esc_html($member['desc']); ?>
-                            </p>
-
-                            <?php if (!empty($member['tags'])) : ?>
-                                <div class="join-team-tags">
-                                    <?php foreach ($member['tags'] as $tag) : ?>
-                                        <span class="join-team-tag">
-                                            <?php echo esc_html($tag); ?>
-                                        </span>
-                                    <?php endforeach; ?>
-                                </div>
+                            <?php if ($m_bio !== '') : ?>
+                                <p class="join-team-desc">
+                                    <?php echo esc_html($m_bio); ?>
+                                </p>
                             <?php endif; ?>
 
                             <div class="join-team-link">
-                                <a href="<?php echo esc_url($member['profile_url']); ?>" target="_blank" rel="noopener author">
-                                    查看個人頁
+                                <a href="<?php echo esc_url($m_url); ?>" rel="author">
+                                    已發表 <?php echo esc_html(number_format_i18n($m_posts)); ?> 篇文章・查看文章
                                     <span aria-hidden="true">↗</span>
                                 </a>
                             </div>
@@ -924,6 +882,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
                 <?php endforeach; ?>
             </div>
         </section>
+        <?php endif; ?>
 
         <section class="join-section">
             <div class="join-section-head">
