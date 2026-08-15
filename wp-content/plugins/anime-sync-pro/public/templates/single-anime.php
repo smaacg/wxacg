@@ -1873,6 +1873,42 @@ while ( have_posts() ) :
 	}
 
 	/* =========================================================
+	 * Hero 標籤列的連結目標
+	 * ---------------------------------------------------------
+	 * 格式與季度各自對應一個分類法，取得 term link 後 Hero 的標籤
+	 * 就能點進歸檔頁（與側欄標籤區同一套 get_term_link 做法）。
+	 * 取不到時留空字串，模板會自動退回不可點的 <span>，不會產生壞連結。
+	 *
+	 * 狀態（已完結／連載中…）與集數沒有對應的分類法，歸檔頁也沒有這兩種
+	 * 篩選，因此維持純文字；且「已完結」幾乎涵蓋全站作品，就算做出歸檔頁
+	 * 也只會是一份內容稀薄的清單。
+	 * ======================================================= */
+
+	/* 變數刻意加 hero_ 前綴：側欄標籤區的迴圈也用 $season_term_url /
+	   $genre_term_url，同名會在日後調動區塊順序時默默取到殘值。 */
+
+	$hero_format_url  = '';
+	$format_tax_terms = get_the_terms( $post_id, 'anime_format_tax' );
+
+	if ( is_array( $format_tax_terms ) && ! empty( $format_tax_terms ) ) {
+		$resolved_format_url = get_term_link( $format_tax_terms[0] );
+
+		if ( ! is_wp_error( $resolved_format_url ) ) {
+			$hero_format_url = $resolved_format_url;
+		}
+	}
+
+	$hero_season_url = '';
+
+	if ( ! empty( $season_child_terms ) ) {
+		$resolved_season_url = get_term_link( $season_child_terms[0] );
+
+		if ( ! is_wp_error( $resolved_season_url ) ) {
+			$hero_season_url = $resolved_season_url;
+		}
+	}
+
+	/* =========================================================
 	 * 相關作品：單次 IN 查詢
 	 * ======================================================= */
 
@@ -3052,28 +3088,69 @@ while ( have_posts() ) :
 						</span>
 					<?php endif; ?>
 
+					<?php
+					/* 以下格式／季度／類型三種標籤有對應的歸檔頁，改為可點；
+					   取不到 term link 時退回 <span>，維持原本的純文字顯示。 */
+					?>
 					<?php if ( $format_label ) : ?>
-						<span class="asd-hbadge">
-							<?php echo esc_html( $format_label ); ?>
-						</span>
+						<?php if ( $hero_format_url ) : ?>
+							<a
+								href="<?php echo esc_url( $hero_format_url ); ?>"
+								class="asd-hbadge asd-hbadge--link"
+								title="<?php echo esc_attr( '查看更多 ' . $format_label . ' 作品' ); ?>"
+							>
+								<?php echo esc_html( $format_label ); ?>
+							</a>
+						<?php else : ?>
+							<span class="asd-hbadge">
+								<?php echo esc_html( $format_label ); ?>
+							</span>
+						<?php endif; ?>
 					<?php endif; ?>
 
 					<?php if ( $season_str ) : ?>
-						<span class="asd-hbadge">
-							<?php echo esc_html( $season_str ); ?>
-						</span>
+						<?php if ( $hero_season_url ) : ?>
+							<a
+								href="<?php echo esc_url( $hero_season_url ); ?>"
+								class="asd-hbadge asd-hbadge--link"
+								title="<?php echo esc_attr( '查看 ' . $season_str . ' 的所有作品' ); ?>"
+							>
+								<?php echo esc_html( $season_str ); ?>
+							</a>
+						<?php else : ?>
+							<span class="asd-hbadge">
+								<?php echo esc_html( $season_str ); ?>
+							</span>
+						<?php endif; ?>
 					<?php endif; ?>
 
+					<?php /* 集數不是分類維度，沒有歸檔頁可連 */ ?>
 					<?php if ( $ep_str ) : ?>
 						<span class="asd-hbadge">
 							<?php echo esc_html( $ep_str ); ?>
 						</span>
 					<?php endif; ?>
 
-					<?php foreach ( array_slice( $genre_terms, 0, 3 ) as $genre_term ) : ?>
-						<span class="asd-hbadge asd-hbadge--genre">
-							<?php echo esc_html( $genre_term->name ); ?>
-						</span>
+					<?php
+					foreach ( array_slice( $genre_terms, 0, 3 ) as $genre_term ) :
+						$resolved_genre_url = get_term_link( $genre_term );
+						$hero_genre_url     = is_wp_error( $resolved_genre_url )
+							? ''
+							: $resolved_genre_url;
+						?>
+						<?php if ( $hero_genre_url ) : ?>
+							<a
+								href="<?php echo esc_url( $hero_genre_url ); ?>"
+								class="asd-hbadge asd-hbadge--genre asd-hbadge--link"
+								title="<?php echo esc_attr( '查看更多 ' . $genre_term->name . ' 作品' ); ?>"
+							>
+								<?php echo esc_html( $genre_term->name ); ?>
+							</a>
+						<?php else : ?>
+							<span class="asd-hbadge asd-hbadge--genre">
+								<?php echo esc_html( $genre_term->name ); ?>
+							</span>
+						<?php endif; ?>
 					<?php endforeach; ?>
 				</div>
 

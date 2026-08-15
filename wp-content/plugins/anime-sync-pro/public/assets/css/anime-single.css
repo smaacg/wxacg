@@ -491,6 +491,41 @@ body.single-anime .entry-content>.asd-wrap {
   background: rgba(143, 107, 255, .13);
 }
 
+/* 可點的標籤（格式／季度／類型有對應歸檔頁）。
+   狀態與集數沒有歸檔頁，仍是 <span>，不會套到這組樣式。 */
+
+a.asd-hbadge--link {
+  text-decoration: none;
+  transition:
+    border-color .2s ease,
+    background-color .2s ease,
+    transform .2s ease;
+}
+
+a.asd-hbadge--link:hover,
+a.asd-hbadge--link:focus-visible {
+  border-color: rgba(255, 255, 255, .32);
+  background: rgba(255, 255, 255, .14);
+  transform: translateY(-1px);
+}
+
+a.asd-hbadge--genre:hover,
+a.asd-hbadge--genre:focus-visible {
+  border-color: rgba(143, 107, 255, .55);
+  background: rgba(143, 107, 255, .24);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.asd-hbadge--link {
+    transition: none;
+  }
+
+  a.asd-hbadge--link:hover,
+  a.asd-hbadge--link:focus-visible {
+    transform: none;
+  }
+}
+
 /* Hero 分數 */
 
 .asd-score-pill {
