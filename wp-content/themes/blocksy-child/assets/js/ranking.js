@@ -1,7 +1,19 @@
 /* ============================================================
    微笑動漫 — ranking.js
-   v1.3.0  (2026-05-27)
-   
+   v1.5.0  (2026-08-16)
+
+   改動摘要（v1.4 → v1.5）：
+   - 外部平台（AniList / MAL / Bangumi）異常時改變顯示方式。
+     原本不論對方伺服器掛掉、快取過期或真的沒資料，一律顯示
+     「此條件暫無資料」，使用者會誤以為是自己選錯篩選條件。
+     現依後端新增的 status 欄位分流：
+       error → 明確說明是對方平台無法連線，並提供「重新載入」與
+               「改看微笑動漫站內榜」（站內榜不依賴外部 API）
+       stale → 照常顯示榜單，上方加提示說明資料取得時間
+     計數列在 error 時也不再顯示會誤導的「Top 0」。
+   - _cache 的單位由項目陣列改為 { items, status, updated }。
+   - 後端契約見 inc/ranking-feed.php v1.1.0 的 wxacg_ranking_get_state()。
+
    改動摘要（v1.2 → v1.3）：
    - 站內排行支援 3 類榜單：rating / favorites / views
      * rating    沿用既有貝葉斯加權評分榜
@@ -84,11 +96,40 @@ document.addEventListener('DOMContentLoaded', () => {
   rankInitPlatformTabs();
   rankInitPeriodBtns();
   rankInitSiteSubTabs();
+  rankInitStateActions();
   rankInitParticles();
   rankInitSwipe();
   rankRenderAll();
   rankInitSidebar();
 });
+
+/* ============================================================
+   v1.5.0：外部平台異常提示裡的兩個按鈕
+   ------------------------------------------------------------
+   用事件委派綁在容器上，因為提示區塊有兩種來源：
+   伺服器端預渲染（inc/ranking-feed.php）與前端重繪，
+   直接綁元素的話前者會漏掉。
+   ============================================================ */
+function rankInitStateActions() {
+  const listEl = document.getElementById('rank-list');
+  if (!listEl) return;
+
+  listEl.addEventListener('click', e => {
+    /* 重新載入：清掉這組條件的前端快取，強制重打一次 REST。
+       後端若仍抓不到，會再回一次 error，顯示維持不變。 */
+    if (e.target.closest('.rank-state__retry')) {
+      delete _cache[`${rankState.platform}_${rankState.period}`];
+      rankFetchAndRender();
+      return;
+    }
+
+    /* 改看站內榜：直接觸發「微笑動漫」頁籤，沿用既有切換流程 */
+    if (e.target.closest('.rank-state__goto-site')) {
+      const siteTab = document.querySelector('.rank-platform-tab[data-platform="site"]');
+      if (siteTab) siteTab.click();
+    }
+  });
+}
 
 /* ============================================================
    平台 Tab
@@ -197,7 +238,12 @@ function rankRenderAll() {
     listEl.dataset.platform === rankState.platform &&
     listEl.dataset.period === rankState.period
   ) {
-    updateCountInfo(listEl.querySelectorAll('.rank-card').length);
+    /* v1.5.0：PHP 也可能預渲染的是「無法連線」提示（沒有任何 .rank-card），
+       此時計數列不能顯示 Top 0，故一併把狀態傳進去。 */
+    updateCountInfo(
+      listEl.querySelectorAll('.rank-card').length,
+      listEl.dataset.status || 'ok'
+    );
     listEl.dataset.prerendered = '0';
     return;
   }
@@ -273,20 +319,22 @@ async function rankFetchAndRender() {
   rankShowSkeleton();
 
   try {
-    let items = _cache[cacheKey];
-    if (!items) {
+    /* v1.5.0：快取單位由「項目陣列」改為「項目 + 狀態」，
+       讓重繪時仍知道這批資料是新鮮的、過期墊檔的，還是根本沒抓到。 */
+    let entry = _cache[cacheKey];
+    if (!entry) {
       if (platform === 'site') {
-        items = await fetchSiteRanking(20, rankType, period);
+        entry = { items: await fetchSiteRanking(20, rankType, period), status: 'ok', updated: 0 };
       } else if (platform === 'anilist' || platform === 'mal' || platform === 'bangumi') {
-        items = await fetchExternalRanking(platform, period);
+        entry = await fetchExternalRanking(platform, period);
       } else {
-        items = [];
+        entry = { items: [], status: 'ok', updated: 0 };
       }
-      _cache[cacheKey] = items;
+      _cache[cacheKey] = entry;
     }
     // v1.3.0：每次重渲染前，先更新平台介紹卡（rankType 可能已變）
     rankRenderPlatformCard(platform);
-    rankRenderList(items);
+    rankRenderList(entry.items, entry);
   } catch (e) {
     console.error('[ranking]', e);
     const listEl = document.getElementById('rank-list');
@@ -372,7 +420,15 @@ async function fetchExternalRanking(platform, period) {
   if (!res.ok) throw new Error(`Ranking API HTTP ${res.status}`);
 
   const data = await res.json();
-  return data?.items || [];
+
+  /* v1.5.0：改回傳完整狀態。status 為 ok / stale / error，
+     見 inc/ranking-feed.php 的 wxacg_ranking_get_state()。
+     舊版後端不會有這個欄位，缺少時當作 ok，行為與過去一致。 */
+  return {
+    items:   data?.items || [],
+    status:  data?.status || 'ok',
+    updated: Number(data?.updated || 0),
+  };
 }
 
 /* ============================================================
@@ -383,25 +439,39 @@ async function fetchExternalRanking(platform, period) {
      views     → 「X 次瀏覽」 + 🔥 圖示
    外部平台維持原邏輯
    ============================================================ */
-function rankRenderList(items) {
+function rankRenderList(items, state) {
   const listEl = document.getElementById('rank-list');
   if (!listEl) return;
 
   const { platform, period, rankType } = rankState;
   const p = PLATFORMS[platform];
   const color = p?.color || '#63a8ff';
+  const status = state?.status || 'ok';
 
   if (!items || !items.length) {
+    /* v1.5.0：外部平台掛掉時不再沿用「此條件暫無資料」。
+       那句話會讓使用者以為是自己選錯篩選條件，實際上是對方伺服器的問題。 */
+    if (status === 'error') {
+      listEl.innerHTML = rankStateErrorHtml(platform);
+      updateCountInfo(0, status);
+      return;
+    }
+
     listEl.innerHTML = `
       <div style="text-align:center;padding:48px 0;color:var(--text-muted);">
         <i class="fa-solid fa-box-open" style="font-size:28px;display:block;margin-bottom:12px;"></i>
         ${getEmptyMessage(platform, rankType)}
       </div>`;
-    updateCountInfo(0);
+    updateCountInfo(0, status);
     return;
   }
 
-  listEl.innerHTML = items.map(item => {
+  /* 有資料但來源是過期快取：照常顯示，只在上方掛提示，避免使用者誤把舊排名當即時。 */
+  const staleBanner = status === 'stale'
+    ? rankStateBannerHtml(platform, state?.updated || 0)
+    : '';
+
+  listEl.innerHTML = staleBanner + items.map(item => {
     const numClass = item.rank === 1 ? 'rank-card__num--top1'
                    : item.rank === 2 ? 'rank-card__num--top2'
                    : item.rank === 3 ? 'rank-card__num--top3' : '';
@@ -483,7 +553,69 @@ function rankRenderList(items) {
     </a>`;
   }).join('');
 
-  updateCountInfo(items.length);
+  updateCountInfo(items.length, status);
+}
+
+/* ============================================================
+   v1.5.0：外部平台異常時的顯示
+   ------------------------------------------------------------
+   標記需與 inc/ranking-feed.php 的 wxacg_ranking_render_state_notice()
+   保持一致：預設視圖由 PHP 伺服器端輸出，使用者切換頁籤後才由這裡接手，
+   兩邊長得不一樣的話會有視覺跳動。
+   ============================================================ */
+
+/* 「N 小時前」：後端傳的是 unix 秒數 */
+function rankTimeAgo(ts) {
+  if (!ts) return '稍早';
+
+  const diff = Math.floor(Date.now() / 1000) - Number(ts);
+  if (diff < 60)    return '剛剛';
+  if (diff < 3600)  return `${Math.floor(diff / 60)} 分鐘前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} 小時前`;
+  return `${Math.floor(diff / 86400)} 天前`;
+}
+
+/* 有舊資料可看：上方掛一條淡提示 */
+function rankStateBannerHtml(platform, updated) {
+  const label = PLATFORMS[platform]?.label || platform;
+
+  return `
+    <div class="rank-state-banner" style="display:flex;align-items:center;gap:8px;
+         margin-bottom:12px;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;
+         color:#ffd88a;background:rgba(255,183,3,0.10);border:1px solid rgba(255,183,3,0.28);">
+      <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      <span>${label} 目前無法連線，以下顯示的是 ${rankTimeAgo(updated)}取得的資料。</span>
+    </div>`;
+}
+
+/* 完全沒有資料：說清楚是對方平台的問題，並給重試與站內替代方案 */
+function rankStateErrorHtml(platform) {
+  const label = PLATFORMS[platform]?.label || platform;
+  const btnBase = `display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:9px 18px;
+                   border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;`;
+
+  return `
+    <div class="rank-state rank-state--error" style="text-align:center;padding:44px 20px;">
+      <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"
+         style="font-size:30px;display:block;margin-bottom:14px;color:#ffb703;"></i>
+      <div style="font-size:16px;font-weight:800;color:var(--text-primary,#fff);margin-bottom:8px;">
+        ${label} 目前無法連線
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);line-height:1.75;margin:0 auto;max-width:420px;">
+        這是對方平台的暫時性問題，不是你的操作或本站的資料有誤。稍後系統會自動重新取得。
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px;">
+        <button type="button" class="rank-state__retry" style="${btnBase}
+                color:#fff;border:none;background:linear-gradient(135deg,#6c63ff,#9b8cff);">
+          <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> 重新載入
+        </button>
+        <button type="button" class="rank-state__goto-site" style="${btnBase}
+                color:var(--text-secondary,#d0d7e0);background:transparent;
+                border:1px solid var(--glass-border,rgba(255,255,255,.14));">
+          <i class="fa-solid fa-star" aria-hidden="true"></i> 改看微笑動漫站內榜
+        </button>
+      </div>
+    </div>`;
 }
 
 /* ============================================================
@@ -499,7 +631,7 @@ function getEmptyMessage(platform, rankType) {
 /* ============================================================
    v1.3.0：計數列文字（依平台與 rankType 動態組合）
    ============================================================ */
-function updateCountInfo(count) {
+function updateCountInfo(count, status) {
   const countEl = document.getElementById('rank-count-info');
   if (!countEl) return;
 
@@ -512,6 +644,9 @@ function updateCountInfo(count) {
     if (rankType === 'favorites') label = '收藏排行';
     else if (rankType === 'views') label = `${periodLabels[period] || '本月'}瀏覽排行`;
     countEl.textContent = `微笑動漫 ${label} · Top ${count}`;
+  } else if (status === 'error') {
+    /* v1.5.0：外部平台掛掉時顯示「Top 0」會讓人以為是真的沒有作品上榜 */
+    countEl.textContent = `${periodLabels[period] || '本週'} ${p?.label || ''} 排行 · 暫時無法取得`;
   } else {
     countEl.textContent = `${periodLabels[period] || '本週'} ${p?.label || ''} 排行 · Top ${count}`;
   }

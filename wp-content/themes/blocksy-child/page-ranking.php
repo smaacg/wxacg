@@ -3,6 +3,13 @@
  * Template Name: 動漫排行榜
  * Template Post Type: page
  *
+ * v1.3  2026-08-16
+ * - 預渲染改用 wxacg_ranking_get_state()，一併輸出資料狀態：
+ *   外部平台無法連線時（status=error）直接渲染提示區塊，
+ *   不再顯示骨架動畫後才由 JS 換成誤導的「此條件暫無資料」。
+ * - 計數列改為依實際狀態輸出，避免先閃一次寫死的「Top 20」。
+ * - 狀態經 data-status 傳給 ranking.js（見該檔 v1.5.0）。
+ *
  * v1.1  2026-05-11
  * - 品牌名稱：weixiaoacg+ → 微笑動漫+
  * - <div class="rank-category-tab"> 改 <button>
@@ -135,6 +142,46 @@ $smacg_brand = '微笑動漫';
           </button>
         </div>
 
+        <?php
+        /**
+         * v1.2：預設視圖改為伺服器端渲染。
+         *
+         * 原本整份榜單都由 ranking.js 在瀏覽器端向第三方 API 取得，
+         * 導致搜尋引擎只看得到骨架動畫、頁面實質內容為零。
+         * 這裡先把「AniList + 本週」（即 ranking.js 的預設狀態）直接輸出，
+         * 使用者切換頁籤後才交由 JS 接手重繪。
+         *
+         * 資料來源與快取見 inc/ranking-feed.php。
+         *
+         * v1.3：連同狀態一起預渲染。
+         * 外部平台掛掉時（status=error）直接輸出「無法連線」提示，
+         * 不再落到骨架動畫、等 JS 再打一次注定失敗的請求；
+         * status=stale 則在榜單上方掛一條資料時間提示。
+         * 計數也在這裡先算好，避免先閃一次寫死的「Top 20」再被 JS 修正。
+         */
+        $rank_default_platform = 'anilist';
+        $rank_default_period   = 'weekly';
+
+        $rank_prerendered = '';
+        $rank_status      = 'ok';
+        $rank_count       = 0;
+
+        if ( function_exists( 'wxacg_ranking_get_state' ) ) {
+            $rank_state  = wxacg_ranking_get_state( $rank_default_platform, $rank_default_period );
+            $rank_status = $rank_state['status'];
+            $rank_count  = count( $rank_state['items'] );
+
+            $rank_prerendered = wxacg_ranking_render_state_notice(
+                $rank_default_platform,
+                $rank_status,
+                (int) $rank_state['updated']
+            ) . wxacg_ranking_render_cards(
+                $rank_state['items'],
+                $rank_default_platform
+            );
+        }
+        ?>
+
         <!-- 平台介紹卡 -->
         <div class="platform-info-card glass-card" id="platform-info-card"></div>
 
@@ -147,40 +194,27 @@ $smacg_brand = '微笑動漫';
             <button type="button" class="period-btn" data-period="yearly"><?php echo esc_html__( '年度', 'weixiaoacg' ); ?></button>
           </div>
           <span class="rank-count-info" id="rank-count-info">
-            <?php echo esc_html__( '本週 AniList 排行', 'weixiaoacg' ); ?> · Top 20
+            <?php
+            echo esc_html__( '本週 AniList 排行', 'weixiaoacg' );
+
+            if ( $rank_status === 'error' ) {
+                echo ' · ' . esc_html__( '暫時無法取得', 'weixiaoacg' );
+            } elseif ( $rank_count > 0 ) {
+                echo ' · Top ' . (int) $rank_count;
+            }
+            // 兩者皆非（伺服器端沒資料、待 JS 載入）時不標數量，避免顯示誤導的 Top 0
+            ?>
           </span>
         </div>
 
         <!-- 排行列表 -->
-        <?php
-        /**
-         * v1.2：預設視圖改為伺服器端渲染。
-         *
-         * 原本整份榜單都由 ranking.js 在瀏覽器端向第三方 API 取得，
-         * 導致搜尋引擎只看得到骨架動畫、頁面實質內容為零。
-         * 這裡先把「AniList + 本週」（即 ranking.js 的預設狀態）直接輸出，
-         * 使用者切換頁籤後才交由 JS 接手重繪。
-         *
-         * 資料來源與快取見 inc/ranking-feed.php。
-         */
-        $rank_default_platform = 'anilist';
-        $rank_default_period   = 'weekly';
-
-        $rank_prerendered = '';
-
-        if ( function_exists( 'wxacg_ranking_get' ) ) {
-            $rank_prerendered = wxacg_ranking_render_cards(
-                wxacg_ranking_get( $rank_default_platform, $rank_default_period ),
-                $rank_default_platform
-            );
-        }
-        ?>
         <div
           class="rank-list"
           id="rank-list"
           aria-live="polite"
           <?php if ( $rank_prerendered !== '' ) : ?>
             data-prerendered="1"
+            data-status="<?php echo esc_attr( $rank_status ); ?>"
             data-platform="<?php echo esc_attr( $rank_default_platform ); ?>"
             data-period="<?php echo esc_attr( $rank_default_period ); ?>"
           <?php endif; ?>

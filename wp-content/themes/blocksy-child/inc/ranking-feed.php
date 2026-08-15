@@ -2,7 +2,20 @@
 /**
  * 微笑動漫 — 外部平台排行榜（伺服器端抓取 + 快取）
  * 路徑：/blocksy-child/inc/ranking-feed.php
- * 版本：1.0.0 (2026-08-15)
+ * 版本：1.1.0 (2026-08-16)
+ *
+ * v1.1.0 變更：
+ *   - 新增 wxacg_ranking_get_state()：除了項目本身，另外回報資料狀態
+ *     （ok / stale / error），讓前端能區分「外部平台掛了」與「這個條件沒東西」。
+ *     原本兩者都只回空陣列，前端一律顯示「此條件暫無資料」，
+ *     使用者會誤以為是自己選錯篩選條件。
+ *     wxacg_ranking_get() 改為委派給它，回傳值與呼叫方式維持不變。
+ *   - REST 回應新增 status 欄位。
+ *   - 修正期間對應：前端「年度」送的是 yearly，但白名單只有
+ *     daily/weekly/monthly/all，會被靜默正規化成 weekly
+ *     → 點年度看到的其實是本週資料，標題卻寫「年度排行」。
+ *     現加上 yearly → all 別名，並讓 Cron 一併預熱 all，
+ *     避免修正後年度榜變成每次都要冷抓。
  *
  * 背景：
  *   原本 AniList / Jikan / Bangumi 三支 API 全在 ranking.js 由瀏覽器直接呼叫，
@@ -77,6 +90,15 @@ function wxacg_ranking_norm_platform( $platform ): string {
 function wxacg_ranking_norm_period( $period ): string {
 	$period = sanitize_key( (string) $period );
 
+	/*
+	 * 前端「年度」按鈕送的是 yearly（見 page-ranking.php 的 period-btn），
+	 * 但抓取端用來表示總榜的字是 all。少了這個對應，yearly 會落到下面的
+	 * fallback 變成 weekly，導致年度榜實際顯示本週資料卻標成「年度排行」。
+	 */
+	if ( $period === 'yearly' ) {
+		$period = 'all';
+	}
+
 	return in_array( $period, wxacg_ranking_periods(), true )
 		? $period
 		: 'weekly';
@@ -96,25 +118,41 @@ function wxacg_ranking_cache_key( string $platform, string $period ): string {
 }
 
 /**
+ * 取得排行，並一併回報資料狀態。
+ *
+ * 狀態的意義（前端據此決定顯示方式）：
+ *   ok    — 快取新鮮，或這次抓取成功
+ *   stale — 抓取失敗，正在用上一份舊快取墊檔（資料能看，但已過期）
+ *   error — 抓取失敗且沒有任何舊快取可用（唯一真的空手而回的情況）
+ *
+ * 之所以要區分 stale 與 error：兩者過去都只是「回傳的陣列有沒有東西」，
+ * 前端無從得知空陣列是因為對方伺服器掛了，只能顯示語意誤導的
+ * 「此條件暫無資料」，看起來像使用者自己選錯條件。
+ *
  * @param string $platform anilist | mal | bangumi
- * @param string $period   daily | weekly | monthly | all
+ * @param string $period   daily | weekly | monthly | all（yearly 會對應到 all）
  * @param bool   $force    true 時忽略新鮮度強制重抓（供 Cron 預熱用）
- * @return array 正規化後的項目陣列
+ * @return array{items: array, status: string, updated: int}
  */
-function wxacg_ranking_get( string $platform, string $period, bool $force = false ): array {
+function wxacg_ranking_get_state( string $platform, string $period, bool $force = false ): array {
 	$platform = wxacg_ranking_norm_platform( $platform );
 	$period   = wxacg_ranking_norm_period( $period );
 
 	$key    = wxacg_ranking_cache_key( $platform, $period );
 	$stored = get_transient( $key );
 
-	$has_stored = is_array( $stored ) && ! empty( $stored['items'] );
+	$has_stored  = is_array( $stored ) && ! empty( $stored['items'] );
+	$stored_time = $has_stored ? (int) ( $stored['time'] ?? 0 ) : 0;
 
 	if ( ! $force && $has_stored ) {
-		$age = time() - (int) ( $stored['time'] ?? 0 );
+		$age = time() - $stored_time;
 
 		if ( $age < WXACG_RANKING_TTL ) {
-			return $stored['items'];
+			return [
+				'items'   => $stored['items'],
+				'status'  => 'ok',
+				'updated' => $stored_time,
+			];
 		}
 	}
 
@@ -122,24 +160,52 @@ function wxacg_ranking_get( string $platform, string $period, bool $force = fals
 	$items = wxacg_ranking_localize( $items, $platform );
 
 	if ( ! empty( $items ) ) {
+		$now = time();
+
 		set_transient(
 			$key,
 			[
 				'items' => $items,
-				'time'  => time(),
+				'time'  => $now,
 			],
 			WXACG_RANKING_KEEP
 		);
 
-		return $items;
+		return [
+			'items'   => $items,
+			'status'  => 'ok',
+			'updated' => $now,
+		];
 	}
 
 	// 抓取失敗 → 用上一份舊資料墊檔，總比整頁空白好。
 	if ( $has_stored ) {
-		return $stored['items'];
+		return [
+			'items'   => $stored['items'],
+			'status'  => 'stale',
+			'updated' => $stored_time,
+		];
 	}
 
-	return [];
+	return [
+		'items'   => [],
+		'status'  => 'error',
+		'updated' => 0,
+	];
+}
+
+/**
+ * 只要項目本身的簡便版（維持 v1.0.0 起的既有呼叫方式）。
+ *
+ * @param string $platform anilist | mal | bangumi
+ * @param string $period   daily | weekly | monthly | all
+ * @param bool   $force    true 時忽略新鮮度強制重抓（供 Cron 預熱用）
+ * @return array 正規化後的項目陣列
+ */
+function wxacg_ranking_get( string $platform, string $period, bool $force = false ): array {
+	$state = wxacg_ranking_get_state( $platform, $period, $force );
+
+	return $state['items'];
 }
 
 /**
@@ -769,6 +835,77 @@ function wxacg_ranking_platform_color( string $platform ): string {
 	return $colors[ $platform ] ?? '#63a8ff';
 }
 
+/** 平台顯示名稱（與 ranking.js 的 PLATFORMS.label 一致） */
+function wxacg_ranking_platform_label( string $platform ): string {
+	$labels = [
+		'anilist' => 'AniList',
+		'mal'     => 'MyAnimeList',
+		'bangumi' => 'Bangumi',
+	];
+
+	return $labels[ $platform ] ?? $platform;
+}
+
+/**
+ * 外部平台異常時的提示區塊。
+ *
+ * 對應 ranking.js 的 rankStateBannerHtml()／rankStateErrorHtml()，
+ * 兩邊標記需保持一致，切換頁籤由 JS 接手重繪時才不會有視覺跳動。
+ *
+ * @param string $platform anilist | mal | bangumi
+ * @param string $status   stale | error（ok 不會產生任何輸出）
+ * @param int    $updated  舊資料的時間戳（僅 stale 用得到）
+ */
+function wxacg_ranking_render_state_notice( string $platform, string $status, int $updated = 0 ): string {
+	$label = wxacg_ranking_platform_label( $platform );
+
+	/* 有舊資料可看：照常顯示榜單，只在上方掛一條淡提示說明資料已過期。 */
+	if ( $status === 'stale' ) {
+		$ago = $updated > 0
+			? sprintf( '%s前', human_time_diff( $updated, time() ) )
+			: '稍早';
+
+		return '<div class="rank-state-banner" style="display:flex;align-items:center;gap:8px;'
+			. 'margin-bottom:12px;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;'
+			. 'color:#ffd88a;background:rgba(255,183,3,0.10);border:1px solid rgba(255,183,3,0.28);">'
+			. '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>'
+			. '<span>' . esc_html( sprintf(
+				'%s 目前無法連線，以下顯示的是 %s 取得的資料。',
+				$label,
+				$ago
+			) ) . '</span>'
+			. '</div>';
+	}
+
+	if ( $status !== 'error' ) {
+		return '';
+	}
+
+	/* 完全沒有資料可顯示：說清楚是對方平台的問題，並提供重試與站內替代方案。 */
+	$btn_base = 'display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:9px 18px;'
+		. 'border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;';
+
+	return '<div class="rank-state rank-state--error" style="text-align:center;padding:44px 20px;">'
+		. '<i class="fa-solid fa-plug-circle-xmark" aria-hidden="true" '
+		. 'style="font-size:30px;display:block;margin-bottom:14px;color:#ffb703;"></i>'
+		. '<div style="font-size:16px;font-weight:800;color:var(--text-primary,#fff);margin-bottom:8px;">'
+		. esc_html( sprintf( '%s 目前無法連線', $label ) )
+		. '</div>'
+		. '<p style="font-size:13px;color:var(--text-muted);line-height:1.75;margin:0 auto;max-width:420px;">'
+		. esc_html( '這是對方平台的暫時性問題，不是你的操作或本站的資料有誤。稍後系統會自動重新取得。' )
+		. '</p>'
+		. '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px;">'
+		. '<button type="button" class="rank-state__retry" style="' . $btn_base
+		. 'color:#fff;border:none;background:linear-gradient(135deg,#6c63ff,#9b8cff);">'
+		. '<i class="fa-solid fa-rotate-right" aria-hidden="true"></i> 重新載入</button>'
+		. '<button type="button" class="rank-state__goto-site" style="' . $btn_base
+		. 'color:var(--text-secondary,#d0d7e0);background:transparent;'
+		. 'border:1px solid var(--glass-border,rgba(255,255,255,.14));">'
+		. '<i class="fa-solid fa-star" aria-hidden="true"></i> 改看微笑動漫站內榜</button>'
+		. '</div>'
+		. '</div>';
+}
+
 /**
  * 輸出排行卡片 HTML。
  *
@@ -882,13 +1019,15 @@ function wxacg_ranking_rest_external( WP_REST_Request $request ) {
 	$platform = wxacg_ranking_norm_platform( $request->get_param( 'platform' ) );
 	$period   = wxacg_ranking_norm_period( $request->get_param( 'period' ) );
 
-	$items = wxacg_ranking_get( $platform, $period );
+	$state = wxacg_ranking_get_state( $platform, $period );
 
 	return rest_ensure_response( [
 		'platform' => $platform,
 		'period'   => $period,
-		'updated'  => wxacg_ranking_updated_at( $platform, $period ),
-		'items'    => $items,
+		// status：ok | stale | error，前端據此切換顯示方式（見 ranking.js）
+		'status'   => $state['status'],
+		'updated'  => $state['updated'],
+		'items'    => $state['items'],
 	] );
 }
 
@@ -919,11 +1058,18 @@ function wxacg_ranking_warm(): void {
 
 	set_transient( 'wxacg_ranking_warm_lock', 1, 10 * MINUTE_IN_SECONDS );
 
+	/*
+	 * weekly 是前端預設視圖；all 則是「年度」按鈕在 v1.1.0 修正對應後會用到的鍵。
+	 * 不一起預熱的話，年度榜每次都得冷抓，外部平台不穩時就直接掉到 error 狀態。
+	 * 今日／本月仍維持隨選抓取，避免對外請求無謂增加。
+	 */
 	foreach ( wxacg_ranking_platforms() as $platform ) {
-		wxacg_ranking_get( $platform, 'weekly', true );
+		foreach ( [ 'weekly', 'all' ] as $period ) {
+			wxacg_ranking_get( $platform, $period, true );
 
-		// Jikan 限制 3 req/s，平台之間稍微間隔，避免被擋。
-		sleep( 1 );
+			// Jikan 限制 3 req/s，每次請求之間稍微間隔，避免被擋。
+			sleep( 1 );
+		}
 	}
 
 	delete_transient( 'wxacg_ranking_warm_lock' );
