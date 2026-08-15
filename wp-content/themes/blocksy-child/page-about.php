@@ -16,6 +16,11 @@ defined( 'ABSPATH' ) || exit;
 
 $anime_total = 0;
 
+/* ── 開站日期：2026/06/11 正式上線，計算已上線天數 ───────── */
+$wx_launch_date  = new DateTimeImmutable( '2026-06-11', wp_timezone() );
+$wx_now          = new DateTimeImmutable( 'now', wp_timezone() );
+$wx_days_online  = (int) $wx_launch_date->diff( $wx_now )->days;
+
 if ( post_type_exists( 'anime' ) ) {
 	$anime_counts = wp_count_posts( 'anime' );
 
@@ -186,6 +191,12 @@ get_header();
 .wx-about-grid-4 {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 20px;
+}
+
+.wx-about-grid-5 {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 	gap: 20px;
 }
 
@@ -626,7 +637,8 @@ get_header();
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
-	.wx-about-grid-4 {
+	.wx-about-grid-4,
+	.wx-about-grid-5 {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
@@ -676,7 +688,8 @@ get_header();
 		grid-template-columns: 1fr;
 	}
 
-	.wx-about-grid-4 {
+	.wx-about-grid-4,
+	.wx-about-grid-5 {
 		gap: 12px;
 	}
 
@@ -738,7 +751,8 @@ get_header();
 }
 
 @media (max-width: 380px) {
-	.wx-about-grid-4 {
+	.wx-about-grid-4,
+	.wx-about-grid-5 {
 		grid-template-columns: 1fr;
 	}
 }
@@ -1380,7 +1394,7 @@ get_header();
 				網站資料概況
 			</h2>
 
-			<div class="wx-about-grid-4" style="margin-top:32px;">
+			<div class="wx-about-grid-5" style="margin-top:32px;">
 
 				<div class="wx-about-stat">
 					<div class="wx-about-stat-number">
@@ -1388,6 +1402,15 @@ get_header();
 					</div>
 					<div class="wx-about-stat-label">
 						已發布動畫資料
+					</div>
+				</div>
+
+				<div class="wx-about-stat">
+					<div class="wx-about-stat-number">
+						<?php echo esc_html( number_format_i18n( $wx_days_online ) ); ?>
+					</div>
+					<div class="wx-about-stat-label">
+						已上線天數（自 2026/6/11）
 					</div>
 				</div>
 
@@ -1625,7 +1648,7 @@ get_header();
 					<div class="wx-about-timeline-dot" aria-hidden="true">🚀</div>
 
 					<article class="wx-about-timeline-card">
-						<span class="wx-about-timeline-year">2026</span>
+						<span class="wx-about-timeline-year">2026年6月11日</span>
 
 						<h3 class="wx-about-timeline-title">
 							以 WeixiaoACG 重新出發
@@ -1633,6 +1656,7 @@ get_header();
 
 						<p class="wx-about-timeline-text">
 							微笑動漫以 weixiaoacg.com 重新建立，
+							並於 2026 年 6 月 11 日正式上線，
 							定位為繁體中文 ACG 資料庫、內容媒體與社群平台，
 							專注於作品資料、新番資訊、動漫新聞、
 							評論專欄、追番紀錄及會員討論。
