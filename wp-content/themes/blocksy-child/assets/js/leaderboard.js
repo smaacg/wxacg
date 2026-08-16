@@ -392,9 +392,26 @@
     const label   = typeLabel[state.type] || '排行';
     const total   = Number(data?.total ?? 0);
     const extra   = data?.season_label ? ` · ${data.season_label}` : '';
-    countInfo.textContent = total > 0
-      ? `${label} · Top ${total}${extra}`
-      : `${label}${extra}`;
+
+    if (total > 0) {
+      countInfo.textContent = `${label} · Top ${total}${extra}`;
+      countInfo.style.display = '';
+      return;
+    }
+
+    /*
+     * 沒有資料時（例如徽章榜在還沒有人解鎖徽章前 total 為 0），
+     * 原本會退化成只印一次 label，跟左邊的分頁按鈕文字完全一樣，
+     * 看起來像同一個名稱被顯示了兩次。這種情況直接隱藏；
+     * 只有在有額外資訊（賽季標籤）時才留著。
+     */
+    if (extra) {
+      countInfo.textContent = `${label}${extra}`;
+      countInfo.style.display = '';
+    } else {
+      countInfo.textContent = '';
+      countInfo.style.display = 'none';
+    }
   }
 
   function renderLoading() {

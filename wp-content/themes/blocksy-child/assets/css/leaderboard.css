@@ -275,13 +275,25 @@
   display:flex;align-items:center;gap:8px;
   font-size:15px;font-weight:700;color:#fff;margin:0 0 14px;
 }
-.ranku-rules{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;}
+.ranku-rules{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;}
+/*
+ * 圖示改為絕對定位，項目本身維持一般文字流。
+ *
+ * 原本 li 是 flex container，於是 <strong> 與後面的說明文字各自成為
+ * flex item，<strong> 被壓縮後會硬斷成「本季牌 / 排行」。
+ * 圖示抽離文字流後，標籤與說明回到同一段文字裡自然折行。
+ */
 .ranku-rules li{
-  font-size:12.5px;line-height:1.6;color:var(--text-muted,#9ca3af);
-  display:flex;gap:8px;align-items:flex-start;
+  position:relative;padding-left:24px;
+  font-size:12.5px;line-height:1.75;color:var(--text-muted,#9ca3af);
 }
-.ranku-rules li i{color:var(--accent-cyan,#02a9ff);margin-top:3px;width:14px;}
-.ranku-rules strong{color:#fff;font-weight:600;}
+.ranku-rules li i{
+  position:absolute;left:0;top:4px;
+  width:16px;text-align:center;
+  color:var(--accent-cyan,#02a9ff);
+}
+/* 標籤本身不折行，說明文字才折 */
+.ranku-rules strong{color:#fff;font-weight:600;white-space:nowrap;}
 
 .ranku-priv-desc{font-size:13px;color:var(--text-muted,#9ca3af);margin:0 0 12px;}
 .ranku-priv-hint{
