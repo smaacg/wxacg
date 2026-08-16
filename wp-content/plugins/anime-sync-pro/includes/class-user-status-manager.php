@@ -764,9 +764,34 @@ class Anime_Sync_User_Status_Manager {
                     'terms'    => $genre_ids,
                 ],
             ],
+            'meta_query'             => self::exclude_unaired_meta_query(),
         ] );
 
         return array_map( 'intval', (array) $ids );
+    }
+
+    /**
+     * 推薦一律排除尚未播出的作品。
+     *
+     * 推薦的用途是「現在就能去看」，未播出作品點進去沒有集數、多半也還沒有
+     * 完整班底資料，放進推薦只會佔掉版位。
+     *
+     * 用 OR 併上 NOT EXISTS：meta_query 的 != 比較對「根本沒有這個 meta」的
+     * 文章不會成立（JOIN 不到），少了這條會把缺 anime_status 的作品一起濾掉。
+     */
+    private static function exclude_unaired_meta_query(): array {
+        return [
+            'relation' => 'OR',
+            [
+                'key'     => 'anime_status',
+                'value'   => 'NOT_YET_RELEASED',
+                'compare' => '!=',
+            ],
+            [
+                'key'     => 'anime_status',
+                'compare' => 'NOT EXISTS',
+            ],
+        ];
     }
 
     /**
@@ -857,6 +882,7 @@ class Anime_Sync_User_Status_Manager {
                     'terms'    => $top_genres,
                 ],
             ],
+            'meta_query'             => self::exclude_unaired_meta_query(),
         ] );
 
         return array_map( 'intval', (array) $ids );

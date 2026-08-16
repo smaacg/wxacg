@@ -1880,9 +1880,9 @@ while ( have_posts() ) :
 	 * 就能點進歸檔頁（與側欄標籤區同一套 get_term_link 做法）。
 	 * 取不到時留空字串，模板會自動退回不可點的 <span>，不會產生壞連結。
 	 *
-	 * 狀態（已完結／連載中…）與集數沒有對應的分類法，歸檔頁也沒有這兩種
-	 * 篩選，因此維持純文字；且「已完結」幾乎涵蓋全站作品，就算做出歸檔頁
-	 * 也只會是一份內容稀薄的清單。
+	 * 狀態沒有對應的分類法，但歸檔頁支援 /anime/?anime_status={slug}
+	 * 篩選（見 archive-anime.php 與 anime_sync_get_status_filter_map()），
+	 * 因此改走 query string。集數仍無對應頁面，維持純文字。
 	 * ======================================================= */
 
 	/* 變數刻意加 hero_ 前綴：側欄標籤區的迴圈也用 $season_term_url /
@@ -1906,6 +1906,22 @@ while ( have_posts() ) :
 
 		if ( ! is_wp_error( $resolved_season_url ) ) {
 			$hero_season_url = $resolved_season_url;
+		}
+	}
+
+	/* 狀態走歸檔頁的 query string 篩選，slug 對應由外掛統一提供 */
+	$hero_status_url = '';
+
+	if ( $status !== '' && function_exists( 'anime_sync_get_status_filter_map' ) ) {
+		foreach ( anime_sync_get_status_filter_map() as $status_slug => $status_info ) {
+			if ( ( $status_info['code'] ?? '' ) === $status ) {
+				$hero_status_url = add_query_arg(
+					'anime_status',
+					$status_slug,
+					home_url( '/anime/' )
+				);
+				break;
+			}
 		}
 	}
 
@@ -4167,10 +4183,10 @@ while ( have_posts() ) :
 								: '首播日期';
 
 							$info_rows = [
-								'類型'       => $format_label,
+								'類型'       => [ 'text' => $format_label, 'url' => $hero_format_url ],
 								'集數'       => $ep_str,
-								'狀態'       => $status_label,
-								'播出季度'   => $season_str,
+								'狀態'       => [ 'text' => $status_label, 'url' => $hero_status_url ],
+								'播出季度'   => [ 'text' => $season_str,   'url' => $hero_season_url ],
 								'每集時長'   => $duration > 0
 									? $duration . ' 分鐘'
 									: '',
@@ -4190,6 +4206,18 @@ while ( have_posts() ) :
 							];
 
 							foreach ( $info_rows as $info_label => $info_value ) :
+								/*
+								 * 值可以是純字串，或 [ 'text' => …, 'url' => … ]。
+								 * 後者在有網址時輸出連結；取不到網址就自動退回純文字，
+								 * 不會產生空的 href。
+								 */
+								$info_url = '';
+
+								if ( is_array( $info_value ) ) {
+									$info_url   = trim( (string) ( $info_value['url']  ?? '' ) );
+									$info_value = (string) ( $info_value['text'] ?? '' );
+								}
+
 								$info_value = trim( (string) $info_value );
 
 								if ( $info_value === '' ) {
@@ -4201,7 +4229,13 @@ while ( have_posts() ) :
 										<?php echo esc_html( $info_label ); ?>
 									</span>
 									<span class="asd-info-val">
-										<?php echo esc_html( $info_value ); ?>
+										<?php if ( $info_url !== '' ) : ?>
+											<a href="<?php echo esc_url( $info_url ); ?>">
+												<?php echo esc_html( $info_value ); ?>
+											</a>
+										<?php else : ?>
+											<?php echo esc_html( $info_value ); ?>
+										<?php endif; ?>
 									</span>
 								</div>
 							<?php endforeach; ?>
@@ -5140,7 +5174,7 @@ while ( have_posts() ) :
 								<div class="asd-stream-region asd-stream-region--tw">
 									<div class="asd-stream-region-head">
 										<span class="asd-stream-dot asd-stream-dot--tw" aria-hidden="true"></span>
-										<span>台灣地區</span>
+										<span>台港澳地區</span>
 									</div>
 
 									<div class="asd-stream-list">
@@ -5298,7 +5332,7 @@ while ( have_posts() ) :
 									<div class="asd-stream-region-head">
 										<span class="asd-stream-dot asd-stream-dot--os" aria-hidden="true"></span>
 										<span>海外平台</span>
-										<span class="asd-stream-region-note">台灣地區可能無法觀看</span>
+										<span class="asd-stream-region-note">台港澳地區可能無法觀看</span>
 									</div>
 
 									<div class="asd-stream-list">
