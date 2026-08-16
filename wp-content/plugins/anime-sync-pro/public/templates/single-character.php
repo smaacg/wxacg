@@ -148,7 +148,17 @@ foreach ( $character_aliases as $alias ) {
 
 /* ── BGM 其他資料:infobox 通用展開,排除已在基本資料顯示的欄位 ── */
 $infobox_all  = ( isset( $character['infobox'] ) && is_array( $character['infobox'] ) ) ? $character['infobox'] : [];
-$infobox_skip = [ '性别', '性別', '生日', '血型', '身高', '身長', '体重', '體重' ];
+/*
+ * 排除已經在上方「基本資料」列過的欄位，否則同一筆會顯示兩次。
+ *
+ * 星座與聲優原本漏在清單外：星座上方是由 birthday 推算後顯示（見 v1.6.0），
+ * 聲優則以「聲優(CV)」標籤呈現，兩者都會再被 infobox 重複列一次。
+ * 位置／年齡／頭髮／眸色等不重複，保留在「其他資料」。
+ */
+$infobox_skip = [
+    '性别', '性別', '生日', '血型', '身高', '身長', '体重', '體重',
+    '星座', '声优', '聲優', 'CV',
+];
 $extra_info_rows = [];
 foreach ( $infobox_all as $item ) {
     $i_label = isset( $item['label'] ) ? trim( (string) $item['label'] ) : '';
