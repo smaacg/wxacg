@@ -2289,6 +2289,14 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: rgba(255, 255, 255, .16);
 }
 
+.asd-mv-modal-error {
+  margin: 10px 4px 0;
+  color: #fca5a5;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
 /* ED 播放器改用與 --ed 徽章一致的紫色系，與 OP 做出區分 */
 .asd-music-card-v2:has(.asd-music-type-badge--ed) .asd-music-play-btn {
   color: #c4b5fd;

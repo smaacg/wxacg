@@ -444,12 +444,28 @@ function initMusicPlayer() {
     var mvModal      = document.getElementById('asd-mv-modal');
     var mvModalVideo = document.getElementById('asd-mv-modal-video');
     var mvModalClose = document.getElementById('asd-mv-modal-close');
+    var mvModalError = document.getElementById('asd-mv-modal-error');
+
+    if (mvModalVideo && mvModalError) {
+        // 影片真的載入失敗（404／格式不支援／CORS 等）時顯示訊息，
+        // 不要讓使用者只看到一片空白的播放器猜不出發生什麼事。
+        mvModalVideo.addEventListener('error', function () {
+            var err = mvModalVideo.error;
+            console.warn('[MV modal] 影片載入失敗：', err && err.code, err && err.message);
+            mvModalError.hidden = false;
+        });
+    }
 
     function openMvModal(src) {
         if (!mvModal || !mvModalVideo || !src) return;
+        if (mvModalError) mvModalError.hidden = true;
         mvModalVideo.src = src;
         mvModal.hidden = false;
-        mvModalVideo.play().catch(function () {});
+        mvModalVideo.play().catch(function (err) {
+            // 常見是瀏覽器自動播放政策擋下。controls 還在，使用者可以
+            // 自己按播放；這裡把原因印出來，方便之後排查，不要靜默吞掉。
+            console.warn('[MV modal] 自動播放失敗，需要手動按播放：', err && err.name, err && err.message);
+        });
     }
 
     function closeMvModal() {
@@ -458,6 +474,7 @@ function initMusicPlayer() {
         mvModalVideo.removeAttribute('src');
         mvModalVideo.load();
         mvModal.hidden = true;
+        if (mvModalError) mvModalError.hidden = true;
     }
 
     if (mvModal && mvModalVideo) {

@@ -4238,6 +4238,7 @@ while ( have_posts() ) :
 		<div class="asd-mv-modal-inner">
 			<button type="button" class="asd-mv-modal-close" id="asd-mv-modal-close" aria-label="關閉 MV">✕</button>
 			<video class="asd-mv-modal-video" id="asd-mv-modal-video" controls playsinline></video>
+			<p class="asd-mv-modal-error" id="asd-mv-modal-error" hidden>影片載入失敗，請重新嘗試再點擊播放一次</p>
 		</div>
 	</div>
 
@@ -5299,6 +5300,10 @@ while ( have_posts() ) :
 									<?php endforeach; ?>
 								</div>
 							<?php endforeach; ?>
+
+							<p class="asd-stream-disclaimer" style="margin-top:20px !important;">
+								主題曲影音由外部資料庫即時提供，載入速度依網路狀況而定，若遇到緩衝、讀取較慢或播放失敗，請耐心等候或重新點擊播放一次。
+							</p>
 						</section>
 					<?php endif; ?>
 
