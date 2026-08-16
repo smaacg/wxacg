@@ -4,6 +4,12 @@
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-character.php
  *
  * Changelog:
+ *   1.6.3 (2026-08-16)
+ *     - [修正] 簡介顯示 Bangumi BBCode 原始碼（[b]/[url=]標籤未轉換，
+ *              先前只處理過 [mask]）:新增 asa_render_bgm_bbcode()，把
+ *              [b]、[url=]/[url]、[mask] 轉成安全的 HTML（連結過
+ *              esc_url()，文字過 esc_html()）。JSON-LD schema description
+ *              另外走純文字版，拿掉 BBCode 符號。
  *   1.6.2 (2026-08-12)
  *     - [新增] 判定為 thin content 時，寫入 $GLOBALS['asa_page_is_thin']，
  *              讓 child theme functions.php 的 AdSense 腳本載入判斷
@@ -168,10 +174,63 @@ foreach ( $infobox_all as $item ) {
     $extra_info_rows[] = [ $i_label, $i_value ];
 }
 
-/* summary:先清掉 Bangumi BBCode 劇透標籤 [mask]/[/mask],再 strip HTML */
-$character_summary = isset( $character['summary'] )
-    ? trim( wp_strip_all_tags( str_replace( [ '[mask]', '[/mask]' ], '', (string) $character['summary'] ) ) )
+/* ── 把 Bangumi 簡介裡的 BBCode 轉成安全的 HTML ──
+ * 只認得 Bangumi 實際會用到的幾種標記：[b]、[url=]/[url]、[mask]（劇透，直接拆掉標籤只留內文）。
+ * 網址一律過 esc_url()、文字一律過 esc_html()，不信任來源內容，避免 XSS。
+ */
+if ( ! function_exists( 'asa_render_bgm_bbcode' ) ) {
+    function asa_render_bgm_bbcode( string $raw ): string {
+        if ( $raw === '' ) return '';
+
+        // 劇透標籤：先拆掉標籤本身，只留內文
+        $raw = str_replace( [ '[mask]', '[/mask]' ], '', $raw );
+
+        // 用 placeholder 保護連結，避免內容被後面的 esc_html() 動到
+        $links = [];
+        $protect_link = static function ( string $href, string $label ) use ( &$links ): string {
+            $token = "\x01ASA_LINK_" . count( $links ) . "\x02";
+            $links[ $token ] = '<a href="' . esc_url( $href ) . '" target="_blank" rel="noopener noreferrer nofollow">' . esc_html( $label ) . '</a>';
+            return $token;
+        };
+
+        // [url=網址]文字[/url]
+        $raw = preg_replace_callback(
+            '/\[url=(https?:\/\/[^\]\s]+)\](.*?)\[\/url\]/su',
+            static function ( array $m ) use ( $protect_link ): string {
+                return $protect_link( $m[1], $m[2] );
+            },
+            $raw
+        );
+        // 裸網址形式 [url]網址[/url]
+        $raw = preg_replace_callback(
+            '/\[url\](https?:\/\/[^\]\s]+)\[\/url\]/su',
+            static function ( array $m ) use ( $protect_link ): string {
+                return $protect_link( $m[1], $m[1] );
+            },
+            $raw
+        );
+
+        // 其餘文字整段跳脫，任何殘留標記或惡意內容都只會被當純文字顯示
+        $escaped = esc_html( $raw );
+
+        // [b]/[/b] 粗體（此時作用在已跳脫過的文字上，安全）
+        $escaped = str_replace( [ '[b]', '[/b]' ], [ '<strong>', '</strong>' ], $escaped );
+
+        // 換回保護起來的連結
+        $escaped = strtr( $escaped, $links );
+
+        return $escaped;
+    }
+}
+
+/* summary:純文字版拿掉 BBCode 標記符號，給 JSON-LD schema description／thin-content 判斷用 */
+$character_summary_raw = isset( $character['summary'] ) ? trim( (string) $character['summary'] ) : '';
+$character_summary     = $character_summary_raw !== ''
+    ? trim( wp_strip_all_tags( preg_replace( '/\[\/?(?:b|url(?:=[^\]]*)?|mask)\]/u', '', $character_summary_raw ) ) )
     : '';
+
+/* summary:HTML 版，BBCode 轉安全 HTML，給前台簡介區塊顯示用 */
+$character_summary_html = $character_summary_raw !== '' ? wpautop( asa_render_bgm_bbcode( $character_summary_raw ) ) : '';
 
 /* ── 關聯角色 ── */
 $character_relations = method_exists( $repo, 'get_character_relations' ) ? (array) $repo->get_character_relations( $character_bgm_id ) : [];
@@ -523,7 +582,7 @@ get_header();
                   <?php if ( $character_summary !== '' ) : ?>
                 <section class="asa-entity-summary">
                     <h2 class="asa-section-title">角色介紹</h2>
-                    <?php echo wpautop( esc_html( $character_summary ) ); ?>
+                    <?php echo $character_summary_html; ?>
                 </section>
             <?php endif; ?>
 
