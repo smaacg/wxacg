@@ -111,8 +111,12 @@ class WXACG_AI_News_Engine_Plugin {
     # 對照表快取鍵名與最短可連結標題字數 (太短的通用詞容易誤命中，一律不納入)
     const ANIME_LINK_MAP_TRANSIENT = 'wxacg_anime_link_map';
     const AUTOLINK_MIN_TITLE_LENGTH = 3;
-    # 不設單篇連結數量上限：每部作品本來就只連結第一次出現處（已去重），
-    # 像「異世界動畫大整理」這類樞紐型文章動輒收錄數十部作品，逐一連向各自作品頁屬合理結構，非過度優化。
+    # 不設單篇「總連結數」上限：像「異世界動畫大整理」這類樞紐型文章動輒收錄數十部作品，
+    # 逐一連向各自作品頁屬合理結構，非過度優化。
+    # 但同一部作品在同一篇文章內最多連結 3 次，避免同一目標被重複連結而顯得像自動洗連結。
+    # 又因掃描以「文字節點」為單位、每個節點內同一作品只比對一次，
+    # 第 2、3 條必然落在不同段落或小標，短篇新聞自然用不滿額度，無須另外判斷文章長短。
+    const AUTOLINK_MAX_PER_TITLE = 3;
 
     /**
      * 清除作品對照表快取。動畫資料新增/更新/刪除時觸發，
@@ -283,8 +287,8 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         $current_id = get_the_ID();
-        # 記錄本篇已連結過的作品名，確保同一個作品只連結第一次出現處
-        $linked_titles = [];
+        # 記錄本篇各作品已連結次數，超過 AUTOLINK_MAX_PER_TITLE 就不再連結
+        $title_link_counts = [];
         # 【防巢狀連結】剛插入的 <a> 先以佔位符代替，避免後續較短的作品名比對時，
         # 命中前一輪已插入的 anchor 內部文字，產生 <a> 包 <a> 的不合法結構（例：「咒術迴戰 死滅迴游」與「咒術迴戰」）
         $link_placeholders = [];
@@ -336,8 +340,9 @@ class WXACG_AI_News_Engine_Plugin {
                 if ($info['id'] === $current_id || empty($info['url'])) {
                     continue;
                 }
-                # 此作品已在本篇連結過就跳過，確保只連結第一次出現處
-                if (isset($linked_titles[$normalized_title])) {
+                # 此作品在本篇已達連結次數上限就跳過
+                if (isset($title_link_counts[$normalized_title])
+                    && $title_link_counts[$normalized_title] >= self::AUTOLINK_MAX_PER_TITLE) {
                     continue;
                 }
                 # 【刻意使用位元組版 strpos/substr】WordPress 核心 compat.php 只在缺少 mbstring 時補上
@@ -367,7 +372,7 @@ class WXACG_AI_News_Engine_Plugin {
                       . $token
                       . substr($text, $original_end);
 
-                $linked_titles[$normalized_title] = true;
+                $title_link_counts[$normalized_title] = ($title_link_counts[$normalized_title] ?? 0) + 1;
                 # 文字已變動，重新計算正規化字串與位移對照表，供後續作品名繼續比對
                 $normalized_text = self::normalize_for_match($text, $offset_map);
             }
@@ -561,7 +566,8 @@ class WXACG_AI_News_Engine_Plugin {
                                     啟用：自動把文章內文提到的作品名稱，轉為指向站內動畫作品頁的連結
                                 </label>
                                 <p class="description">
-                                    套用範圍為<strong>全站所有文章</strong>（含既有舊文章），每個作品只連結第一次出現處，不限單篇數量。<br>
+                                    套用範圍為<strong>全站所有文章</strong>（含既有舊文章），不限單篇作品數量；<br>
+                                    同一部作品最多連結 3 次，且同一段落內不重複，短篇新聞通常僅 1～2 條。<br>
                                     段落小標（h2～h6）內的作品名同樣會連結，文章主標題（h1）與既有連結則不受影響。<br>
                                     此功能不會修改資料庫內的文章內容，僅在前台顯示時即時處理，取消勾選即完全復原。
                                 </p>
