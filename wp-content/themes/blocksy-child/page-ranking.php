@@ -193,7 +193,7 @@ $smacg_brand = '微笑動漫';
             <button type="button" class="period-btn" data-period="monthly"><?php echo esc_html__( '本月', 'weixiaoacg' ); ?></button>
             <button type="button" class="period-btn" data-period="yearly"><?php echo esc_html__( '年度', 'weixiaoacg' ); ?></button>
           </div>
-          <span class="rank-count-info" id="rank-count-info">
+          <h2 class="rank-count-info" id="rank-count-info">
             <?php
             echo esc_html__( '本週 AniList 排行', 'weixiaoacg' );
 
@@ -204,8 +204,54 @@ $smacg_brand = '微笑動漫';
             }
             // 兩者皆非（伺服器端沒資料、待 JS 載入）時不標數量，避免顯示誤導的 Top 0
             ?>
-          </span>
+          </h2>
         </div>
+
+        <?php
+        /*
+         * ItemList 結構化資料。
+         *
+         * 排行榜本質是有序清單，先前頁面只有 BreadcrumbList。
+         * 這裡輸出的是伺服器預渲染的那一份（AniList／本週）——與搜尋引擎
+         * 實際看得到的 HTML 內容一致；其餘平台是 JS 切換的，不納入，
+         * 避免宣告了頁面上不存在的項目。
+         */
+        if ( ! empty( $rank_state['items'] ) ) {
+            $rank_ld_items = [];
+
+            foreach ( $rank_state['items'] as $rank_ld_i => $rank_ld_row ) {
+                $rank_ld_name = trim( (string) ( $rank_ld_row['titleZh'] ?? '' ) );
+                $rank_ld_url  = trim( (string) ( $rank_ld_row['url'] ?? '' ) );
+
+                if ( $rank_ld_name === '' || $rank_ld_url === '' ) {
+                    continue;
+                }
+
+                $rank_ld_items[] = [
+                    '@type'    => 'ListItem',
+                    'position' => $rank_ld_i + 1,
+                    'name'     => $rank_ld_name,
+                    'url'      => $rank_ld_url,
+                ];
+            }
+
+            if ( ! empty( $rank_ld_items ) ) {
+                echo '<script type="application/ld+json">'
+                    . wp_json_encode(
+                        [
+                            '@context'        => 'https://schema.org',
+                            '@type'           => 'ItemList',
+                            'name'            => __( '本週 AniList 動畫排行榜', 'weixiaoacg' ),
+                            'itemListOrder'   => 'https://schema.org/ItemListOrderDescending',
+                            'numberOfItems'   => count( $rank_ld_items ),
+                            'itemListElement' => $rank_ld_items,
+                        ],
+                        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                    )
+                    . '</script>' . "\n";
+            }
+        }
+        ?>
 
         <!-- 排行列表 -->
         <div
@@ -258,28 +304,28 @@ $smacg_brand = '微笑動漫';
 
         <!-- 本週新上榜 -->
         <div class="rank-sidebar-card glass-mid">
-          <h3 class="rank-sidebar-title">
+          <h2 class="rank-sidebar-title">
             <i class="fa-solid fa-circle-plus" style="color:var(--accent-cyan);"></i>
             <?php echo esc_html__( '本週新上榜', 'weixiaoacg' ); ?> 🆕
-          </h3>
+          </h2>
           <div class="sb-rank-list" id="sidebar-new-list"></div>
         </div>
 
         <!-- 排名變動最大 -->
         <div class="rank-sidebar-card glass-mid">
-          <h3 class="rank-sidebar-title">
+          <h2 class="rank-sidebar-title">
             <i class="fa-solid fa-chart-line" style="color:var(--accent-violet);"></i>
             <?php echo esc_html__( '本週排名變動', 'weixiaoacg' ); ?> 📈
-          </h3>
+          </h2>
           <div class="sb-rank-list" id="sidebar-movers-list"></div>
         </div>
 
         <!-- 平台說明 -->
         <div class="rank-sidebar-card glass-mid">
-          <h3 class="rank-sidebar-title">
+          <h2 class="rank-sidebar-title">
             <i class="fa-solid fa-circle-question" style="color:var(--accent-blue);"></i>
             <?php echo esc_html__( '平台說明', 'weixiaoacg' ); ?>
-          </h3>
+          </h2>
           <div class="platform-guide">
             <div class="pg-item">
               <span class="pg-icon" style="background:rgba(108,99,255,0.15);color:#6c63ff;">⭐</span>
