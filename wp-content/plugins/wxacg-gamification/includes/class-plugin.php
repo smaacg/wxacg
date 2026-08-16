@@ -71,6 +71,12 @@ class Plugin {
         require_once $base . 'profile/class-profile-tracker.php';
         Profile_Tracker::instance();
 
+        // 3c. 「第一次動作」徽章 + EXP（1.0.0）
+        //     必須在 Exp_Events / Gamipress_Bridge 之後載入
+        //     （依賴 Exp_Events::award_with_cap、Gamipress_Bridge::award_badge）
+        require_once $base . 'first-action/class-first-badge.php';
+        First_Badge::instance();
+
         // 4. Career Jobs（8 職業 × 4 階稱號）+ AJAX endpoint
         require_once $base . 'level/class-career-jobs.php';
         Career_Jobs::instance();
