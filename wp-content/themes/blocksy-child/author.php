@@ -60,9 +60,9 @@ get_header();
   </div>
 </div>
 
-<!-- ===== MAIN：文章卡片列表（含縮圖） ===== -->
+<!-- ===== MAIN：文章列表（小縮圖、列表型） ===== -->
 <main class="container" style="padding: 32px 0 64px;">
-  <div class="news-main-grid">
+  <div class="news-main-grid author-post-list">
     <?php get_template_part( 'template-parts/news-list' ); ?>
   </div>
 </main>
@@ -106,6 +106,61 @@ get_header();
 @media (max-width: 600px) {
   .author-archive-box { flex-direction: column; align-items: center; text-align: center; }
   .author-archive-meta { justify-content: center; }
+}
+
+/* ── 文章列表：把共用的卡片格線（.news-card-list）改成列表型，
+   只在這個頁面生效，不動 news.css 本身，不影響分類頁等其他用到
+   同一份 partial 的地方。 ── */
+.author-post-list .news-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.author-post-list .news-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 10px;
+  border: none;
+  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, .08));
+  border-radius: 10px;
+  background: transparent;
+}
+.author-post-list .news-card:hover {
+  background: rgba(255, 255, 255, .04);
+  transform: none;
+  box-shadow: none;
+}
+.author-post-list .news-card-img {
+  width: 64px;
+  height: 64px;
+  aspect-ratio: unset;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  font-size: 20px;
+}
+.author-post-list .news-card-body {
+  padding: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.author-post-list .news-card-title {
+  font-size: 14px;
+  -webkit-line-clamp: 1;
+  margin-bottom: 4px;
+}
+.author-post-list .news-card-excerpt {
+  -webkit-line-clamp: 1;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.author-post-list .news-card-tag {
+  margin-bottom: 4px;
+}
+@media (max-width: 600px) {
+  .author-post-list .news-card-img { width: 52px; height: 52px; }
+  .author-post-list .news-card-excerpt { display: none; }
 }
 </style>
 
