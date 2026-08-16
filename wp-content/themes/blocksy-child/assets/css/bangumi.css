@@ -2709,7 +2709,12 @@ body:has(.bgm-arc-main) .entry-content > * {
 }
 
 
-<style id="bgm-card-link-fix">
+/* ============================================================
+ * 21. 卡片連結
+ *   原本這段被 <style> / </style> 包住——那是 HTML 標籤，寫在 .css
+ *   檔裡屬於無效語法，瀏覽器解析到就會把後面整條規則一起丟棄，
+ *   等於這個 fix 從來沒有生效過。移除標籤讓它真正套用。
+ * ============================================================ */
 .bgm-card-link {
     display: block;
     width: 100%;
@@ -2719,5 +2724,41 @@ body:has(.bgm-arc-main) .entry-content > * {
 }
 .bgm-card-link:hover,
 .bgm-card-link:focus { text-decoration: none; color: inherit; }
-</style>
+
+/* ============================================================
+ * 22. Hero 季度切換按鈕放大
+ *   .bgm-nav-btn 同時用在「清除所有篩選」與空狀態按鈕上，因此限定
+ *   在 hero 的兩個容器內（.bgm-arc-back = 索引／存檔頁、
+ *   .bgm-nav = 季度頁），避免那些次要按鈕跟著放大。
+ * ============================================================ */
+.bgm-arc-back .bgm-nav-btn,
+.bgm-nav .bgm-nav-btn {
+    padding: 13px 24px;
+    font-size: 15px;
+    border-radius: 12px;
+}
+
+/* 本季：份量再加重一級，一眼看出目前在哪一季 */
+.bgm-arc-back .bgm-nav-btn.is-current,
+.bgm-nav .bgm-nav-btn.is-current {
+    padding: 15px 28px;
+    font-size: 16px;
+    font-weight: 800;
+    box-shadow: 0 6px 22px var(--arc-glow, var(--bgm-glow));
+}
+
+/* 手機：放大幅度收斂，避免三顆按鈕各自佔滿一行 */
+@media (max-width: 640px) {
+    .bgm-arc-back .bgm-nav-btn,
+    .bgm-nav .bgm-nav-btn {
+        padding: 11px 16px;
+        font-size: 13.5px;
+    }
+
+    .bgm-arc-back .bgm-nav-btn.is-current,
+    .bgm-nav .bgm-nav-btn.is-current {
+        padding: 12px 19px;
+        font-size: 14.5px;
+    }
+}
 
