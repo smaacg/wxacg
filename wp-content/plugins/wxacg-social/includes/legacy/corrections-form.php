@@ -254,6 +254,13 @@ add_shortcode( 'wxacg_correction_form', function () {
         }
         .wxacg-corr-select{
             color:#f5f5f5;
+            cursor:pointer;
+            appearance:none;
+            line-height:normal;
+            background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;
+            background-position:right 14px center;
+            padding-right:36px;
         }
 
         /* placeholder 調亮（分開寫各家前綴 + !important 蓋過主題） */
