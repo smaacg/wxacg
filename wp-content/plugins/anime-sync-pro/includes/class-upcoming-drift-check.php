@@ -40,27 +40,33 @@ class Anime_Sync_Upcoming_Drift_Check {
 	/**
 	 * 掃描未播出作品，回報上游與本地的筆數落差。
 	 *
-	 * @param array{limit?:int} $args
+	 * @param array{limit?:int,ids?:int[]} $args
+	 *        ids 指定只檢查這幾篇（供分批輪掃的 cron 使用，見
+	 *        class-upcoming-bgm-scan.php）；未指定時掃全部未播出作品。
 	 * @return array<int,array<string,mixed>> 每部作品一列
 	 */
 	public function run( array $args = [] ): array {
 		$limit = isset( $args['limit'] ) ? max( 0, (int) $args['limit'] ) : 0;
 
-		$ids = get_posts( [
-			'post_type'      => 'anime',
-			'post_status'    => 'publish',
-			'posts_per_page' => -1,
-			'fields'         => 'ids',
-			'orderby'        => 'ID',
-			'order'          => 'ASC',
-			'no_found_rows'  => true,
-			'meta_query'     => [
-				[
-					'key'   => 'anime_status',
-					'value' => 'NOT_YET_RELEASED',
+		if ( ! empty( $args['ids'] ) ) {
+			$ids = array_values( array_filter( array_map( 'intval', (array) $args['ids'] ) ) );
+		} else {
+			$ids = get_posts( [
+				'post_type'      => 'anime',
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'orderby'        => 'ID',
+				'order'          => 'ASC',
+				'no_found_rows'  => true,
+				'meta_query'     => [
+					[
+						'key'   => 'anime_status',
+						'value' => 'NOT_YET_RELEASED',
+					],
 				],
-			],
-		] );
+			] );
+		}
 
 		if ( $limit > 0 ) {
 			$ids = array_slice( $ids, 0, $limit );
