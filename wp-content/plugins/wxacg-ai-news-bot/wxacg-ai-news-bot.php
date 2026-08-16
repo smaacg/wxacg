@@ -29,9 +29,13 @@ class WXACG_AI_News_Engine_Plugin {
 
         # 作品名稱自動內部連結：輸出文章內容時即時加上作品頁連結 (優先權 20，晚於 wpautop 避免干擾段落處理)
         add_filter('the_content', [$this, 'autolink_anime_titles'], 20);
-        # 動畫資料異動時清除對照表快取，讓新建立的作品頁能立即被連結
+        # 動畫資料異動時清除對照表快取，讓新建立的作品頁能立即被連結。
+        # 刪除／丟垃圾桶／還原都要處理，否則文章會在快取到期前持續連向 404 頁面；
+        # 且一律先判斷 post_type，避免修訂版本裁切、刪除媒體等無關操作把快取洗掉。
         add_action('save_post_anime', [$this, 'flush_anime_link_map']);
-        add_action('deleted_post', [$this, 'flush_anime_link_map']);
+        add_action('deleted_post', [$this, 'flush_anime_link_map_for_post'], 10, 2);
+        add_action('trashed_post', [$this, 'flush_anime_link_map_for_post']);
+        add_action('untrashed_post', [$this, 'flush_anime_link_map_for_post']);
     }
 
     /**
@@ -127,6 +131,23 @@ class WXACG_AI_News_Engine_Plugin {
     }
 
     /**
+     * 僅在異動對象確實是動畫時才清除對照表快取。
+     *
+     * deleted_post / trashed_post 等 hook 對所有文章類型都會觸發，
+     * 若不判斷類型，修訂版本裁切、刪除媒體、每日清理自動草稿等日常操作
+     * 都會把快取洗掉，導致對照表幾乎永遠處於冷啟動狀態而反覆重建。
+     *
+     * @param int          $post_id 文章 ID
+     * @param WP_Post|null $post    文章物件（deleted_post 會帶入，此時資料已從資料庫移除）
+     */
+    public function flush_anime_link_map_for_post($post_id, $post = null) {
+        $post_type = ($post instanceof WP_Post) ? $post->post_type : get_post_type($post_id);
+        if ($post_type === 'anime') {
+            $this->flush_anime_link_map();
+        }
+    }
+
+    /**
      * 將 Unicode 碼位編碼為 UTF-8 位元組字串。
      * 自行實作而不使用 mb_chr()，因為 WordPress 核心的 compat.php 並未提供該函式的備援，
      * 主機若未啟用 mbstring 擴充會直接 Fatal Error。
@@ -162,6 +183,40 @@ class WXACG_AI_News_Engine_Plugin {
         $table[self::utf8_chr(0x3000)] = ' ';   // 表意文字空格
         $table[self::utf8_chr(0x301C)] = '~';   // 波浪號 〜
         $table[self::utf8_chr(0xFF5E)] = '~';   // 全形波浪號 ～
+        $table[self::utf8_chr(0x00A0)] = ' ';   // 不斷行空格（trim() 不認得，需明確轉換才會被視為空白丟棄）
+        # 印刷體標點：wptexturize 會把內文的直式引號轉為彎引號，資料庫標題則多為原始字元，兩邊統一為 ASCII
+        $table[self::utf8_chr(0x2018)] = "'";
+        $table[self::utf8_chr(0x2019)] = "'";
+        $table[self::utf8_chr(0x201C)] = '"';
+        $table[self::utf8_chr(0x201D)] = '"';
+        $table[self::utf8_chr(0x2013)] = '-';
+        $table[self::utf8_chr(0x2014)] = '-';
+        $table[self::utf8_chr(0x2026)] = '...';
+        return $table;
+    }
+
+    /**
+     * 取得「HTML 實體 → ASCII」對照表。
+     *
+     * 本濾鏡掛在優先權 20，晚於 wptexturize（優先權 10），內文中的撇號與引號此時
+     * 已被轉成 `&#8217;` 這類數值實體，而資料庫標題仍是原始字元，不處理就會完全比對不到
+     * （例如「Don't Toy with Me, Miss Nagatoro」這類含撇號的作品名會靜默失效）。
+     */
+    private static function get_entity_normalize_table() {
+        static $table = null;
+        if ($table !== null) {
+            return $table;
+        }
+        $table = [
+            '&#8216;' => "'", '&#8217;' => "'", '&lsquo;' => "'", '&rsquo;' => "'",
+            '&#39;'   => "'", '&#039;'  => "'", '&apos;'  => "'",
+            '&#8220;' => '"', '&#8221;' => '"', '&ldquo;' => '"', '&rdquo;' => '"',
+            '&quot;'  => '"',
+            '&#8211;' => '-', '&ndash;' => '-', '&#8212;' => '-', '&mdash;' => '-',
+            '&#8230;' => '...', '&hellip;' => '...',
+            '&amp;'   => '&',
+            '&nbsp;'  => ' ', '&#160;' => ' ',
+        ];
         return $table;
     }
 
@@ -171,43 +226,62 @@ class WXACG_AI_News_Engine_Plugin {
      * 之所以需要位置對照表，是因為正規化後的字串長度與原文不同，
      * 找到位置後必須換算回原文位移，才能在插入連結時保留文章原本的寫法。
      *
-     * @param string     $text        原始文字
-     * @param array|null $offset_map  輸出參數：正規化位移 => 原文位移（含結尾哨兵）
+     * @param string     $text       原始文字
+     * @param array|null $start_map  輸出參數：正規化位移 => 該字元在原文的「起始」位移
+     * @param array|null $end_map    輸出參數：正規化位移 => 前一個字元在原文的「結束」位移
      * @return string 正規化後字串
      */
-    private static function normalize_for_match($text, &$offset_map = null) {
+    private static function normalize_for_match($text, &$start_map = null, &$end_map = null) {
         $table = self::get_width_normalize_table();
+        $entities = self::get_entity_normalize_table();
         # 作品名常見但兩邊寫法可能不一致的分隔符號，一律移除後再比對
         $droppable = ['・' => 1, '･' => 1, '·' => 1, '‧' => 1];
 
-        $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
-        if (!is_array($chars)) {
-            $offset_map = [0 => 0];
+        # 以「HTML 實體或單一 UTF-8 字元」為切割單位，讓 &#8217; 這類實體能整組轉換
+        if (!preg_match_all('/&(?:#\d{1,6}|#x[0-9a-fA-F]{1,5}|[a-zA-Z][a-zA-Z0-9]{1,9});|./us', $text, $matches)) {
+            $start_map = [0 => 0];
+            $end_map = [0 => 0];
             return '';
         }
 
         $normalized = '';
-        $offset_map = [];
+        $start_map = [];
+        # end_map[0] 對應「尚未取用任何字元」的狀態
+        $end_map = [0 => 0];
         $original_offset = 0;
 
-        foreach ($chars as $char) {
-            $byte_length = strlen($char);
-            $converted = isset($table[$char]) ? $table[$char] : $char;
+        foreach ($matches[0] as $token) {
+            $byte_length = strlen($token);
+            $lower_token = strtolower($token);
+
+            if (isset($entities[$lower_token])) {
+                $converted = $entities[$lower_token];
+            } elseif (isset($table[$token])) {
+                $converted = $table[$token];
+            } else {
+                $converted = $token;
+            }
 
             # 空白與分隔符號不納入比對字串（僅推進原文位移）
-            if (isset($droppable[$char]) || trim($converted) === '') {
+            if ($converted === '' || isset($droppable[$token]) || trim($converted) === '') {
                 $original_offset += $byte_length;
                 continue;
             }
 
-            # 位移對照只記錄在字元邊界上，供比對命中後換算回原文使用
-            $offset_map[strlen($normalized)] = $original_offset;
+            # 起始位移記錄在字元邊界上，供比對命中後換算回原文
+            $start_map[strlen($normalized)] = $original_offset;
             $normalized .= strtolower($converted);
             $original_offset += $byte_length;
+            # 結束位移必須單獨記錄：若只靠「下一個字元的起始位移」，
+            # 中間被丟棄的空白或分隔符號會被一併算進比對範圍，
+            # 導致連結文字多吃一個尾隨空白（例如「咒術迴戰 」）而在前台多畫出一截底線
+            $end_map[strlen($normalized)] = $original_offset;
         }
 
-        # 結尾哨兵：讓「比對結束位置」也能換算回原文
-        $offset_map[strlen($normalized)] = $original_offset;
+        # 結尾哨兵：讓「比對結束位置」在全部字元都被丟棄時仍可換算
+        if (!isset($start_map[strlen($normalized)])) {
+            $start_map[strlen($normalized)] = $original_offset;
+        }
         return $normalized;
     }
 
@@ -227,6 +301,18 @@ class WXACG_AI_News_Engine_Plugin {
             "SELECT ID, post_title FROM {$wpdb->posts}
              WHERE post_type = 'anime' AND post_status = 'publish' AND post_title != ''"
         );
+
+        # 【避免 N+1 查詢】原生 SQL 只取回 ID 與標題，不會填入 WP 的文章物件快取，
+        # 後面每次 get_permalink() 都會各自再送一次 SELECT（近千筆就是近千條查詢）。
+        # 先分批預先載入文章快取，讓後續 get_permalink() 全部命中記憶體。
+        if (is_array($rows) && !empty($rows)) {
+            $post_ids = array_map(function ($row) {
+                return (int) $row->ID;
+            }, $rows);
+            foreach (array_chunk($post_ids, 200) as $chunk) {
+                _prime_post_caches($chunk, false, false);
+            }
+        }
 
         # 對照表以「正規化後的標題」為鍵，比對時才能忽略全半形與空白差異
         $map = [];
@@ -263,7 +349,8 @@ class WXACG_AI_News_Engine_Plugin {
      * 特性：
      * - 不修改資料庫內容，純輸出時加工，關閉開關即完全復原。
      * - 既有舊文章同樣生效（回溯）；日後新增作品頁後，舊文章下次瀏覽時自動補上連結。
-     * - 每個作品名只連結第一次出現處，且整篇有連結總數上限，避免過度優化。
+     * - 同一部作品最多連結 AUTOLINK_MAX_PER_TITLE 次，且同一段落內不重複；
+     *   不限制單篇「總連結數」，讓整理型文章能逐一連向各作品頁。
      */
     public function autolink_anime_titles($content) {
         # 未啟用開關時完全不介入
@@ -304,23 +391,32 @@ class WXACG_AI_News_Engine_Plugin {
         # h2~h6 刻意「不」排除：整理型文章常把作品名放在段落小標，那正是最該連向作品頁的位置；
         # 僅 h1 為文章自身主標題，不應連出。
         $excluded_tags = ['a', 'h1', 'style', 'script'];
+        # 區塊層級標籤：進入新區塊時重置該區塊的去重清單，確保「同一段落內同一作品不重複連結」
+        # （單靠文字節點判斷不足，因為 <p>文字<strong>文字</strong></p> 會被切成多個文字節點）
+        $block_tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th',
+                       'blockquote', 'div', 'figcaption', 'section', 'article'];
         $skip_depth = 0;
+        $block_linked = [];
 
         foreach ($parts as $index => $part) {
             if ($part === '') {
                 continue;
             }
 
-            # 標籤本體：只更新排除區塊的巢狀深度，不做任何替換
+            # 標籤本體：只更新排除區塊的巢狀深度與區塊邊界，不做任何替換
             if ($part[0] === '<') {
                 if (preg_match('#^</\s*([a-zA-Z0-9]+)#', $part, $m)) {
                     if (in_array(strtolower($m[1]), $excluded_tags, true) && $skip_depth > 0) {
                         $skip_depth--;
                     }
                 } elseif (preg_match('#^<\s*([a-zA-Z0-9]+)#', $part, $m)) {
+                    $tag_name = strtolower($m[1]);
                     $is_self_closing = substr(rtrim($part), -2) === '/>';
-                    if (in_array(strtolower($m[1]), $excluded_tags, true) && !$is_self_closing) {
+                    if (in_array($tag_name, $excluded_tags, true) && !$is_self_closing) {
                         $skip_depth++;
+                    }
+                    if (in_array($tag_name, $block_tags, true)) {
+                        $block_linked = [];
                     }
                 }
                 continue;
@@ -333,33 +429,70 @@ class WXACG_AI_News_Engine_Plugin {
 
             $text = $part;
             # 先算出這段文字的正規化版本與位移對照表，之後每命中一次就重算，確保對照表與文字同步
-            $normalized_text = self::normalize_for_match($text, $offset_map);
+            $normalized_text = self::normalize_for_match($text, $start_map, $end_map);
 
             foreach ($map as $normalized_title => $info) {
                 # 文章若正好關聯到自己（例如作品同名文章），略過避免自我連結
                 if ($info['id'] === $current_id || empty($info['url'])) {
                     continue;
                 }
-                # 此作品在本篇已達連結次數上限就跳過
+                # 此作品在本篇已達連結次數上限，或已在目前這個段落連結過，就跳過
                 if (isset($title_link_counts[$normalized_title])
                     && $title_link_counts[$normalized_title] >= self::AUTOLINK_MAX_PER_TITLE) {
                     continue;
                 }
-                # 【刻意使用位元組版 strpos/substr】WordPress 核心 compat.php 只在缺少 mbstring 時補上
-                # mb_substr / mb_strlen，並未提供 mb_strpos；若主機未啟用 mbstring，呼叫 mb_strpos 會直接 Fatal Error。
-                # 這裡比對的是正規化字串，位移再透過 $offset_map 換算回原文，故位元組運算安全且無外部相依。
-                $pos = strpos($normalized_text, $normalized_title);
-                if ($pos === false) {
+                if (isset($block_linked[$normalized_title])) {
                     continue;
                 }
 
-                $end = $pos + strlen($normalized_title);
-                # 位移必落在字元邊界上，理論上必定存在；防禦性檢查避免異常資料造成錯位切割
-                if (!isset($offset_map[$pos]) || !isset($offset_map[$end])) {
+                # 【刻意使用位元組版 strpos/substr】WordPress 核心 compat.php 只在缺少 mbstring 時補上
+                # mb_substr / mb_strlen，並未提供 mb_strpos；若主機未啟用 mbstring，呼叫 mb_strpos 會直接 Fatal Error。
+                # 這裡比對的是正規化字串，位移再透過對照表換算回原文，故位元組運算安全且無外部相依。
+                # 逐一往後找，直到取得一個通過詞界檢查的位置為止
+                $title_length = strlen($normalized_title);
+                $starts_with_alnum = ctype_alnum($normalized_title[0]);
+                $ends_with_alnum = ctype_alnum($normalized_title[$title_length - 1]);
+                $search_from = 0;
+                $original_start = null;
+                $original_end = null;
+
+                while (($candidate = strpos($normalized_text, $normalized_title, $search_from)) !== false) {
+                    $candidate_end = $candidate + $title_length;
+                    # 位移必落在字元邊界上，理論上必定存在；防禦性檢查避免異常資料造成錯位切割。
+                    # 結束位移取自 end_map，避免把後方被丟棄的空白或分隔符號一併吃進連結文字。
+                    if (!isset($start_map[$candidate]) || !isset($end_map[$candidate_end])) {
+                        $search_from = $candidate + 1;
+                        continue;
+                    }
+                    $candidate_original_start = $start_map[$candidate];
+                    $candidate_original_end = $end_map[$candidate_end];
+
+                    # 【英數詞界檢查】若不檢查詞界，「Air」會命中 repair 當中的 air、把單字從中切斷。
+                    # 必須在「原文」而非正規化字串上檢查：正規化會剝除空白，
+                    # 在正規化字串上看，"The Air anime" 的 air 前面會變成字母 e 而被誤判為單字內部。
+                    # 中日文標題不受影響（首尾非英數字元時不觸發檢查）。
+                    $prev_is_alnum = $starts_with_alnum && $candidate_original_start > 0
+                        && ctype_alnum($text[$candidate_original_start - 1]);
+                    $next_is_alnum = $ends_with_alnum && isset($text[$candidate_original_end])
+                        && ctype_alnum($text[$candidate_original_end]);
+
+                    # 【英文作品名大小寫檢查】詞界檢查擋不掉語意歧義：
+                    # 「One Piece」在 "one piece of good news" 中前後都是空白，詞界完全合法卻不是在講作品。
+                    # 英文作品名在文章中一律會是首字大寫的專有名詞，故要求原文首字母為大寫才視為命中。
+                    $case_mismatch = ctype_alpha($normalized_title[0])
+                        && !ctype_upper($text[$candidate_original_start]);
+
+                    if (!$prev_is_alnum && !$next_is_alnum && !$case_mismatch) {
+                        $original_start = $candidate_original_start;
+                        $original_end = $candidate_original_end;
+                        break;
+                    }
+                    $search_from = $candidate + 1;
+                }
+
+                if ($original_start === null) {
                     continue;
                 }
-                $original_start = $offset_map[$pos];
-                $original_end = $offset_map[$end];
                 # 連結文字取用「原文實際寫法」而非資料庫標題，保留文章原本的標點與空白
                 $matched_text = substr($text, $original_start, $original_end - $original_start);
 
@@ -373,8 +506,9 @@ class WXACG_AI_News_Engine_Plugin {
                       . substr($text, $original_end);
 
                 $title_link_counts[$normalized_title] = ($title_link_counts[$normalized_title] ?? 0) + 1;
+                $block_linked[$normalized_title] = true;
                 # 文字已變動，重新計算正規化字串與位移對照表，供後續作品名繼續比對
-                $normalized_text = self::normalize_for_match($text, $offset_map);
+                $normalized_text = self::normalize_for_match($text, $start_map, $end_map);
             }
             $parts[$index] = $text;
         }
