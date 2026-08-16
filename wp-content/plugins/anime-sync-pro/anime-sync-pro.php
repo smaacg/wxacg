@@ -165,6 +165,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		ANIME_SYNC_PRO_DIR . 'includes/class-entity-migrator.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-source-tax-backfill.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-upcoming-drift-check.php',
+		ANIME_SYNC_PRO_DIR . 'includes/class-new-release-scan.php',
 	];
 	foreach ( $anime_sync_cli_files as $anime_sync_cli_file ) {
 		if ( file_exists( $anime_sync_cli_file ) ) {
@@ -735,6 +736,10 @@ register_activation_hook( __FILE__, function (): void {
 		Anime_Sync_Manga_Wiki_Cron::schedule();
 	}
 
+	if ( class_exists( 'Anime_Sync_New_Release_Scan' ) ) {
+		Anime_Sync_New_Release_Scan::schedule();
+	}
+
 	update_option( 'anime_sync_flush_rewrite', 1 );
 } );
 
@@ -753,6 +758,10 @@ register_deactivation_hook( __FILE__, function (): void {
 
 	if ( class_exists( 'Anime_Sync_Manga_Wiki_Cron' ) ) {
 		Anime_Sync_Manga_Wiki_Cron::unschedule();
+	}
+
+	if ( class_exists( 'Anime_Sync_New_Release_Scan' ) ) {
+		Anime_Sync_New_Release_Scan::unschedule();
 	}
 
 	if ( class_exists( 'Anime_Sync_Installer' ) ) {
@@ -906,6 +915,11 @@ add_action( 'plugins_loaded', function (): void {
 
 		if ( $import_manager && class_exists( 'Anime_Sync_Cron_Manager' ) ) {
 			new Anime_Sync_Cron_Manager( $import_manager );
+		}
+
+		// AniList 新登錄作品掃描（每日；匯入成草稿等人工複核）
+		if ( $import_manager && class_exists( 'Anime_Sync_New_Release_Scan' ) ) {
+			new Anime_Sync_New_Release_Scan( $import_manager );
 		}
 
 		if ( is_admin() && class_exists( 'Anime_Sync_Custom_Post_Type' ) ) {
