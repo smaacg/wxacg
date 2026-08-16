@@ -4114,6 +4114,17 @@ while ( have_posts() ) :
 			</div>
 		</div>
 
+	<?php
+	/* MV 燈箱：所有主題曲卡片共用同一個，點縮圖時由 JS 換 src 再播放，
+	   同頁顯示原始尺寸影片，不開新分頁。 */
+	?>
+	<div class="asd-mv-modal" id="asd-mv-modal" role="dialog" aria-modal="true" aria-label="MV 播放" hidden>
+		<div class="asd-mv-modal-inner">
+			<button type="button" class="asd-mv-modal-close" id="asd-mv-modal-close" aria-label="關閉 MV">✕</button>
+			<video class="asd-mv-modal-video" id="asd-mv-modal-video" controls playsinline></video>
+		</div>
+	</div>
+
 		<div class="asd-tabs-wrap">
 			<nav
 				class="asd-tabs"
@@ -5104,6 +5115,24 @@ while ( have_posts() ) :
 												<?php endif; ?>
 											</div>
 
+											<?php if ( $video_url ) : ?>
+												<div
+													class="asd-music-thumb-slot"
+													role="button"
+													tabindex="0"
+													aria-label="播放 MV"
+												>
+													<video
+														class="asd-music-thumb-video"
+														src="<?php echo esc_url( $video_url ); ?>"
+														preload="metadata"
+														muted
+														playsinline
+													></video>
+													<span class="asd-music-thumb-play" aria-hidden="true">▶</span>
+												</div>
+											<?php endif; ?>
+
 											<?php if ( $audio_url || $video_url ) : ?>
 												<div
 													class="asd-music-player-wrap"
@@ -5138,7 +5167,7 @@ while ( have_posts() ) :
 
 													<span class="asd-music-time">0:00</span>
 
-													<?php if ( $open_media_url ) : ?>
+													<?php if ( ! $video_url && $open_media_url ) : ?>
 														<a
 															class="asd-music-open-link"
 															href="<?php echo esc_url( $open_media_url ); ?>"

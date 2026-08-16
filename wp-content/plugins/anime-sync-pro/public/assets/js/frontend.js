@@ -403,6 +403,62 @@ function initMusicPlayer() {
             media.currentTime = ratio * media.duration;
         });
     });
+
+    // 縮圖用的 <video preload="metadata"> 不保證瀏覽器會自動畫出第一幀，
+    // 用 loadedmetadata 事件強制 seek 到 0.1 秒觸發畫面渲染，避免一直是黑框。
+    document.querySelectorAll('.asd-music-thumb-video').forEach(function (video) {
+        video.addEventListener('loadedmetadata', function () {
+            try {
+                video.currentTime = Math.min(0.1, (video.duration || 1) / 2);
+            } catch (e) {}
+        });
+    });
+
+    // MV 縮圖：點下去用燈箱（同頁蓋一層），以原始尺寸播放，不開新分頁、不跳走
+    var mvModal      = document.getElementById('asd-mv-modal');
+    var mvModalVideo = document.getElementById('asd-mv-modal-video');
+    var mvModalClose = document.getElementById('asd-mv-modal-close');
+
+    function openMvModal(src) {
+        if (!mvModal || !mvModalVideo || !src) return;
+        mvModalVideo.src = src;
+        mvModal.hidden = false;
+        mvModalVideo.play().catch(function () {});
+    }
+
+    function closeMvModal() {
+        if (!mvModal || !mvModalVideo) return;
+        mvModalVideo.pause();
+        mvModalVideo.removeAttribute('src');
+        mvModalVideo.load();
+        mvModal.hidden = true;
+    }
+
+    if (mvModal && mvModalVideo) {
+        document.querySelectorAll('.asd-music-thumb-slot').forEach(function (slot) {
+            function openFromSlot() {
+                var video = slot.querySelector('.asd-music-thumb-video');
+                var src = video ? (video.currentSrc || video.getAttribute('src') || '') : '';
+                openMvModal(src);
+            }
+
+            slot.addEventListener('click', openFromSlot);
+            slot.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                    ev.preventDefault();
+                    openFromSlot();
+                }
+            });
+        });
+
+        if (mvModalClose) mvModalClose.addEventListener('click', closeMvModal);
+        mvModal.addEventListener('click', function (e) {
+            if (e.target === mvModal) closeMvModal();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !mvModal.hidden) closeMvModal();
+        });
+    }
 }
 
 // ========================================
