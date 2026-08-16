@@ -253,9 +253,9 @@ class Anime_Sync_YourAnimes_Fetcher {
 
             $post_title = get_the_title( $post_id ) ?: "ID {$post_id}";
             if ( empty( $result ) ) {
-                $this->log_warning( "自動同步〔{$post_title}〕：抓到頁面但尚無串流平台資料" );
+                $this->log_info( "自動同步〔{$post_title}〕：抓到頁面但尚無串流平台資料" );
             } else {
-                $this->log_warning( "自動同步〔{$post_title}〕：成功更新 " . implode( '、', $result ) );
+                $this->log_info( "自動同步〔{$post_title}〕：成功更新 " . implode( '、', $result ) );
             }
         }
     }
@@ -380,7 +380,7 @@ class Anime_Sync_YourAnimes_Fetcher {
             }
         }
 
-        $this->log_warning( sprintf(
+        $this->log_info( sprintf(
             '[Cron] 每日同步完成：更新 %d、尚無資料 %d、失敗 %d（窗口 %s ~ %s）',
             $ok, $empty, $fail, $lower_ymd, $upper_ymd
         ) );
@@ -409,6 +409,22 @@ class Anime_Sync_YourAnimes_Fetcher {
 
     private function reset_failures(): void {
         delete_transient( self::FAIL_COUNT_KEY );
+    }
+
+    /*
+     * 正常結果與異常分開記錄。
+     *
+     * 原本所有訊息都走 log_warning()，「成功更新」「每日同步完成」這類正常
+     * 結果也被記成 warning，把真正需要處理的警告稀釋掉（錯誤日誌一週
+     * 5900 筆 info、583 筆 warning，其中大半是本類別的成功訊息）。
+     * 例行結果改記 info，warning 只留給真正的異常：抓取失敗與熔斷。
+     */
+    private function log_info( string $message ): void {
+        if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+            Anime_Sync_Error_Logger::info( '[YourAnimes Fetcher] ' . $message );
+        } else {
+            error_log( '[YourAnimes Fetcher] ' . $message );
+        }
     }
 
     private function log_warning( string $message ): void {
@@ -753,7 +769,7 @@ class Anime_Sync_YourAnimes_Fetcher {
                     update_post_meta( $post_id, 'anime_tw_distributor', $distributor );
                 }
 
-                $this->log_warning( sprintf(
+                $this->log_info( sprintf(
                     '自動代理商〔%s〕：偵測到平台 %s → 代理商 %s',
                     get_the_title( $post_id ) ?: "ID {$post_id}",
                     $platform,
