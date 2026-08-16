@@ -751,10 +751,23 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
+        /*
+         * 季度必須有年份支撐才寫入（與 class-api-handler.php 的匯入端一致）。
+         *
+         * 「宣布動畫化、製作進行中」的作品，AniList 常常 season 有值但
+         * seasonYear 是 null——片商只先發製作消息，年份都還沒定。寫進去會得到
+         * 「冬季，第 0 年」這種不指涉任何時間的資料。
+         *
+         * 這裡少了這道檢查的話，就算把既有壞資料清乾淨，下一次每日更新
+         * 又會原封不動寫回來。
+         */
+        $upstream_season_year = (int) ( $media['seasonYear'] ?? 0 );
+
         if ( ! $is_locked( 'anime_season' )
              && isset( $media['season'] )
              && $media['season'] !== null
-             && $media['season'] !== '' ) {
+             && $media['season'] !== ''
+             && $upstream_season_year > 0 ) {
             $old_val = (string) get_post_meta( $post_id, 'anime_season', true );
             $new_val = (string) $media['season'];
             if ( $old_val !== $new_val ) {
