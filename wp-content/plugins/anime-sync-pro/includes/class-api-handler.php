@@ -126,7 +126,16 @@ class Anime_Sync_API_Handler {
         $title_english  = $media['title']['english'] ?? '';
         $title_native   = $media['title']['native']  ?? '';
         $season_year    = $media['seasonYear']        ?? 0;
-        $season         = $media['season']            ?? '';
+        /*
+         * 季度必須有年份支撐才算數。
+         *
+         * 「宣布動畫化、製作進行中」的作品，AniList 常常 season 有值但
+         * seasonYear 是 null——片商只先發製作消息，連 2027 還 2028 都沒定。
+         * 照抄會得到「冬季，第 0 年」這種不指涉任何時間的假資料：前台組不出
+         * 完整字串，季度分類法還會把它歸到錯的季別底下。
+         * 無年份時一律留空，誠實表示「檔期未定」。
+         */
+        $season         = ( (int) $season_year > 0 ) ? ( $media['season'] ?? '' ) : '';
         $episodes       = (int) ( $media['episodes'] ?? 0 );
         $external_links = $media['externalLinks']     ?? [];
         $animethemes_meta = $this->get_animethemes_meta( $post_id );
@@ -241,7 +250,7 @@ class Anime_Sync_API_Handler {
             'anime_title_native'     => $title_native,
             'anime_format'           => $media['format'] ?? '',
             'anime_status'           => $media['status'] ?? '',
-            'anime_season'           => $media['season'] ?? '',
+            'anime_season'           => $season,
             'anime_season_year'      => $season_year,
             'anime_source'           => $media['source'] ?? '',
             'anime_episodes'         => $episodes,
@@ -533,7 +542,16 @@ class Anime_Sync_API_Handler {
         $title_english  = $media['title']['english'] ?? '';
         $title_native   = $media['title']['native']  ?? '';
         $season_year    = $media['seasonYear']        ?? 0;
-        $season         = $media['season']            ?? '';
+        /*
+         * 季度必須有年份支撐才算數。
+         *
+         * 「宣布動畫化、製作進行中」的作品，AniList 常常 season 有值但
+         * seasonYear 是 null——片商只先發製作消息，連 2027 還 2028 都沒定。
+         * 照抄會得到「冬季，第 0 年」這種不指涉任何時間的假資料：前台組不出
+         * 完整字串，季度分類法還會把它歸到錯的季別底下。
+         * 無年份時一律留空，誠實表示「檔期未定」。
+         */
+        $season         = ( (int) $season_year > 0 ) ? ( $media['season'] ?? '' ) : '';
         $episodes       = (int) ( $media['episodes'] ?? 0 );
         $external_links = $media['externalLinks']     ?? [];
         $existing_animethemes_meta = $this->get_animethemes_meta( $post_id );
@@ -683,7 +701,7 @@ class Anime_Sync_API_Handler {
             'anime_title_native'     => $title_native,
             'anime_format'           => $media['format'] ?? '',
             'anime_status'           => $media['status'] ?? '',
-            'anime_season'           => $media['season'] ?? '',
+            'anime_season'           => $season,
             'anime_season_year'      => $season_year,
             'anime_source'           => $media['source'] ?? '',
             'anime_episodes'         => $episodes,
