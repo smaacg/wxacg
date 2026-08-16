@@ -755,8 +755,24 @@ class Anime_Sync_ID_Mapper {
                 elseif ( $eps_diff > 12 )   $score -= 6;
             }
 
+            /*
+             * 季號加分只給「候選也標了同一個季號」的情況，不能給「候選完全
+             * 沒標季號」的情況。
+             *
+             * matches_season_signal() 對候選沒有季號訊號時回傳 true，用意是
+             * 不要因此擋掉候選（很多第一季標題本就不寫「第1期」）。但下面
+             * 評分如果直接沿用同一個布林值，「沒訊號、不確定」跟「有訊號、
+             * 真的對上」會拿到同樣的 +14——兩者分數等於是被判成一樣可信。
+             *
+             * 沒有年份/季度/集數可用時（AniList 檔期未定，season_year=0），
+             * 這個加分是唯一能分出正確候選的訊號，分數打平後 usort 只看陣列
+             * 順序，等於用猜的。實例：容易對付的惡魔大人 第二季（post 2664）
+             * 匯入時 season_year=0，兩個候選都拿到 +14，結果配到第一季
+             * （bgm 552589）而非正確的第二季（bgm 662395，因為 Bangumi
+             * 尚未填集數/日期，年份與集數比對都被跳過)。
+             */
             if ( ! empty( $input_signal['number'] ) ) {
-                if ( $season_match ) {
+                if ( $season_match && ! empty( $subject_signal['number'] ) ) {
                     $score += 14;
                 } elseif ( ! empty( $subject_signal['number'] ) ) {
                     $score -= 18;
