@@ -4156,6 +4156,16 @@ while ( have_posts() ) :
 
 						<div class="asd-info-grid">
 							<?php
+							/*
+							 * 首播日欄位的標籤依狀態切換。
+							 *
+							 * AniList 的 startDate 對未播出作品是「預定首播日」，沿用
+							 * 「開始日期」會讓一個還沒到的日期讀起來像已經發生。
+							 */
+							$start_date_label = ( $status === 'NOT_YET_RELEASED' )
+								? '預定首播'
+								: '首播日期';
+
 							$info_rows = [
 								'類型'       => $format_label,
 								'集數'       => $ep_str,
@@ -4164,8 +4174,8 @@ while ( have_posts() ) :
 								'每集時長'   => $duration > 0
 									? $duration . ' 分鐘'
 									: '',
-								'開始日期'   => $start_date,
-								'結束日期'   =>
+								$start_date_label => $start_date,
+								'完結日期'   =>
 									$end_date && $status === 'FINISHED'
 										? $end_date
 										: '',
