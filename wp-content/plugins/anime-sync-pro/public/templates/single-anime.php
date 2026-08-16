@@ -4008,54 +4008,56 @@ while ( have_posts() ) :
 				class="smacg-point-toast"
 				aria-live="polite"
 			></div>
-		</div><!-- /.smacg-track-bar -->
 
-		<?php
-		/*
-		 * 追蹤人數（全站彙總）。
-		 * 完全沒有人追蹤時整列不輸出，避免新作品頁出現一排 0。
-		 */
-		$track_stat_items = [];
+			<?php
+			/*
+			 * 追蹤人數（全站彙總）。
+			 * 完全沒有人追蹤時整列不輸出，避免新作品頁出現一排 0。
+			 * v1.2：搬進 .smacg-track-bar 卡片內，顯示在動作按鈕下方，
+			 *       不再是卡片外面獨立浮著的一排文字。
+			 */
+			$track_stat_items = [];
 
-		if ( $track_stats['want'] > 0 ) {
-			$track_stat_items[] = [ '🔖', '想看', $track_stats['want'] ];
-		}
+			if ( $track_stats['want'] > 0 ) {
+				$track_stat_items[] = [ '🔖', '想看', $track_stats['want'], 'want' ];
+			}
 
-		if ( $track_stats['watching'] > 0 ) {
-			$track_stat_items[] = [ '▶', '追番中', $track_stats['watching'] ];
-		}
+			if ( $track_stats['watching'] > 0 ) {
+				$track_stat_items[] = [ '▶', '追番中', $track_stats['watching'], 'watching' ];
+			}
 
-		if ( $track_stats['completed'] > 0 ) {
-			$track_stat_items[] = [ '✓', '已看完', $track_stats['completed'] ];
-		}
+			if ( $track_stats['completed'] > 0 ) {
+				$track_stat_items[] = [ '✓', '已看完', $track_stats['completed'], 'completed' ];
+			}
 
-		if ( $track_stats['favorited'] > 0 ) {
-			$track_stat_items[] = [ '⭐', '收藏', $track_stats['favorited'] ];
-		}
-		?>
+			if ( $track_stats['favorited'] > 0 ) {
+				$track_stat_items[] = [ '⭐', '收藏', $track_stats['favorited'], 'favorited' ];
+			}
+			?>
 
-		<?php if ( ! empty( $track_stat_items ) ) : ?>
-			<div class="smacg-track-stats">
-				<?php foreach ( $track_stat_items as $track_stat_item ) : ?>
-					<span class="smacg-track-stat">
-						<span
-							class="smacg-track-stat-ico"
-							aria-hidden="true"
-						><?php echo esc_html( $track_stat_item[0] ); ?></span>
+			<?php if ( ! empty( $track_stat_items ) ) : ?>
+				<div class="smacg-track-stats">
+					<?php foreach ( $track_stat_items as $track_stat_item ) : ?>
+						<span class="smacg-track-stat smacg-track-stat--<?php echo esc_attr( $track_stat_item[3] ); ?>">
+							<span
+								class="smacg-track-stat-ico"
+								aria-hidden="true"
+							><?php echo esc_html( $track_stat_item[0] ); ?></span>
 
-						<span class="smacg-track-stat-label">
-							<?php echo esc_html( $track_stat_item[1] ); ?>
+							<span class="smacg-track-stat-label">
+								<?php echo esc_html( $track_stat_item[1] ); ?>
+							</span>
+
+							<b class="smacg-track-stat-num">
+								<?php echo esc_html(
+									number_format_i18n( $track_stat_item[2] )
+								); ?>
+							</b>
 						</span>
-
-						<b class="smacg-track-stat-num">
-							<?php echo esc_html(
-								number_format_i18n( $track_stat_item[2] )
-							); ?>
-						</b>
-					</span>
-				<?php endforeach; ?>
-			</div>
-		<?php endif; ?>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		</div><!-- /.smacg-track-bar -->
 
 		<div
 			class="smacg-share-modal"
