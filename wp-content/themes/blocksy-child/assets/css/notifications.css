@@ -120,6 +120,20 @@
 .smacg-bell-mark-all:hover {
     background: rgba(107, 182, 255, 0.1);
 }
+.smacg-bell-sound-select {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #d0d7e0;
+    font-size: 11px;
+    padding: 3px 4px;
+    border-radius: 6px;
+    max-width: 92px;
+    cursor: pointer;
+}
+.smacg-bell-sound-select:focus-visible {
+    outline: 2px solid #6bb6ff;
+    outline-offset: 1px;
+}
 .smacg-bell-panel-list {
     flex: 1;
     overflow-y: auto;

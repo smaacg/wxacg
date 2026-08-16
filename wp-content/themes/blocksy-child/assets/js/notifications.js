@@ -30,6 +30,47 @@
 	let currentFilter = 'all';
 
 	/* =========================================================
+	   通知音效（v1.2.0）
+	   偏好存在 localStorage（跟既有的骰子音效同一套做法，不用
+	   額外動資料庫/後端）。'off' 或 '01'/'02'/'03'，預設 '01'。
+	   ========================================================= */
+	const SOUND_PREF_KEY = 'smacg_notif_sound';
+
+	function getSoundPref() {
+		const v = localStorage.getItem(SOUND_PREF_KEY);
+		return v === null ? '01' : v;
+	}
+
+	function setSoundPref(v) {
+		try {
+			localStorage.setItem(SOUND_PREF_KEY, v);
+		} catch (e) {}
+	}
+
+	function playNotifSound() {
+		const pref = getSoundPref();
+		if (pref === 'off') return;
+		const url = CFG.sounds && CFG.sounds[pref];
+		if (!url) return;
+		try {
+			const audio = new Audio(url);
+			audio.volume = 0.6;
+			audio.play().catch(() => {});
+		} catch (e) {}
+	}
+
+	function bindSoundSelect() {
+		const select = document.getElementById('smacg-bell-sound-select');
+		if (!select) return;
+		select.value = getSoundPref();
+		select.addEventListener('click', (e) => e.stopPropagation());
+		select.addEventListener('change', () => {
+			setSoundPref(select.value);
+			if (select.value !== 'off') playNotifSound(); // 選了音效馬上試聽一下
+		});
+	}
+
+	/* =========================================================
 	   工具
 	   ========================================================= */
 	function api(action, params) {
@@ -206,10 +247,17 @@
 	/* =========================================================
 	   輪詢
 	   ========================================================= */
+	let lastUnread = null; // null = 還沒拿過第一次結果，第一次不放音效（避免一進頁面有舊未讀就響）
+
 	function pollUnreadCount() {
 		api('smacg_notif_unread_count').then((res) => {
 			if (res && res.success) {
-				updateUnreadBadge(res.data.unread || 0);
+				const n = res.data.unread || 0;
+				if (lastUnread !== null && n > lastUnread) {
+					playNotifSound();
+				}
+				lastUnread = n;
+				updateUnreadBadge(n);
 			}
 		}).catch(() => {});
 	}
@@ -371,6 +419,7 @@
 		if (bindBellEvents()) {
 			startPolling();
 		}
+		bindSoundSelect();
 		bindMemberCenterPage();
 	}
 

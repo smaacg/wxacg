@@ -505,6 +505,11 @@ add_action( 'wp_enqueue_scripts', function () {
             'loggedIn'     => true,
             'mcUrl'        => home_url( '/mc/' ),
             'pollInterval' => 60,
+            'sounds'       => [
+                '01' => $base_url . '/assets/sounds/notification01.mp3',
+                '02' => $base_url . '/assets/sounds/notification02.mp3',
+                '03' => $base_url . '/assets/sounds/notification03.mp3',
+            ],
         ] );
     }
 }, 23 );

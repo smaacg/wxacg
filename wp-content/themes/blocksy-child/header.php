@@ -103,6 +103,12 @@ if ( ! is_user_logged_in() ) {
           <div class="smacg-bell-panel" id="smacg-bell-panel" hidden>
             <div class="smacg-bell-panel-header">
               <strong>通知</strong>
+              <select class="smacg-bell-sound-select" id="smacg-bell-sound-select" aria-label="通知音效">
+                <option value="off">🔇 音效關閉</option>
+                <option value="01">🔊 音效 1</option>
+                <option value="02">🔊 音效 2</option>
+                <option value="03">🔊 音效 3</option>
+              </select>
               <button type="button" class="smacg-bell-mark-all" id="smacg-bell-mark-all">全部已讀</button>
             </div>
             <div class="smacg-bell-panel-list" id="smacg-bell-panel-list">

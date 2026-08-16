@@ -277,6 +277,15 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
   </span>
 </a>
 
+<!-- ── 抽動漫音效開關 ── -->
+<button type="button"
+        id="random-anime-sound-toggle"
+        aria-label="<?php echo esc_attr__('抽動漫音效開關','blocksy-child'); ?>"
+        aria-pressed="true"
+        title="<?php echo esc_attr__('抽動漫音效開關','blocksy-child'); ?>">
+  <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+</button>
+
 
 <!-- ── Back to Top ── -->
 <button id="back-to-top" aria-label="<?php echo esc_attr__( '回到頂端', 'blocksy-child' ); ?>" title="<?php echo esc_attr__( '回到頂端', 'blocksy-child' ); ?>">
@@ -305,6 +314,21 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
 #random-anime-btn.visible{opacity:1; visibility:visible; transform:translateY(0) scale(1);}
 #random-anime-btn:hover,#random-anime-btn:focus,#random-anime-btn:active{color:#fff; text-decoration:none;}
 #random-anime-btn:hover{transform:translateY(-3px) scale(1.08);}
+
+/* 抽動漫音效開關：貼在骰子按鈕右上角的小圓鈕 */
+#random-anime-sound-toggle{
+  position:fixed; right:20px; bottom:150px; z-index:9999;
+  width:26px; height:26px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(20,30,45,.75); border:1px solid rgba(255,255,255,.25);
+  color:#cfe4f5; font-size:11px; cursor:pointer; padding:0;
+  opacity:0; visibility:hidden; transform:translateY(10px) scale(.9);
+  transition:opacity .3s ease, transform .3s cubic-bezier(.34,1.56,.64,1), background .15s ease;
+}
+#random-anime-sound-toggle.visible{opacity:1; visibility:visible; transform:translateY(0) scale(1);}
+#random-anime-sound-toggle:hover{background:rgba(20,30,45,.92);}
+#random-anime-sound-toggle.is-muted{color:rgba(207,228,245,.45);}
+@media (max-width:768px){#random-anime-sound-toggle{display:none;}}
 
 /* 中間毛玻璃骰子 —— 科技白/藍/灰 */
 #random-anime-btn .ra-glass{
@@ -415,6 +439,37 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
   /* 隨機動漫按鈕：進頁即顯示，不需捲動 */
   if ( diceBtn ) diceBtn.classList.add('visible');
 
+  /* 抽動漫音效開關：偏好存在瀏覽器（localStorage），預設開啟 */
+  var SMACG_DICE_SOUND_KEY = 'smacg_dice_sound_enabled';
+  var soundToggle = document.getElementById('random-anime-sound-toggle');
+
+  function diceSoundEnabled() {
+    try {
+      var v = localStorage.getItem(SMACG_DICE_SOUND_KEY);
+      return v === null ? true : v === '1';
+    } catch (err) { return true; }
+  }
+
+  function syncSoundToggleUI() {
+    if ( !soundToggle ) return;
+    var on = diceSoundEnabled();
+    soundToggle.classList.toggle('is-muted', !on);
+    soundToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+    soundToggle.querySelector('i').className = on ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
+  }
+
+  if ( soundToggle ) {
+    soundToggle.classList.add('visible');
+    syncSoundToggleUI();
+    soundToggle.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var next = !diceSoundEnabled();
+      try { localStorage.setItem(SMACG_DICE_SOUND_KEY, next ? '1' : '0'); } catch (err) {}
+      syncSoundToggleUI();
+    });
+  }
+
   if ( btn ) {
     btn.addEventListener('click', function () {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -453,6 +508,11 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
         if ( navigated ) return;
         navigated = true;
         window.location.href = targetUrl;
+      }
+
+      if ( !diceSoundEnabled() ) {
+        goNow(); // 音效關閉：不用等，直接跳轉
+        return;
       }
 
       try {
