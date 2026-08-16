@@ -14,30 +14,42 @@ defined( 'ABSPATH' ) || exit;
  *
  * 徽章解鎖後會經由既有的 badge_unlock 規則（class-exp-config.php）
  * 自動再疊加 20 EXP（掛在 gamipress_award_achievement hook）。
- * 下面 $rules 的 exp 數值已經扣掉這 20，讓「規則 exp + 自動疊加 20」
- * 等於使用者實際拿到的總額：
- *   初次登入／追蹤／加入片單／收藏 → 0 + 20 = 20
+ * 使用者實際拿到的總額 = 下面 $rules 的 exp + 自動疊加 20：
+ *   初次登入／追蹤／加入片單／收藏 → 10 + 20 = 30
  *   初次留言／評分                 → 20 + 20 = 40
  *   初次完結作品                   → 40 + 20 = 60
  *   初次發表論壇文章               → 100 + 20 = 120
  *
+ * ⚠ exp 不可設為 0：Exp_Events::award_with_cap() 要求金額必須 > 0，
+ * 0 或負數會直接 return false，連 once 鎖都不會鎖、徽章也不會發
+ * （v1.0.0 上線後第一筆「初次收藏」實測就是踩到這個，v1.0.1 修正）。
+ *
  * season_score 一律設 0，比照 register / profile_* 既有作法：
  * 一次性里程碑獎勵不計入賽季排行，避免刷分。
  *
- * 徽章貼文（badges CPT）由 scripts/create-first-badges.php 一次性建立，
- * slug 需與下面 $rules 的 badge_slug 完全一致。
+ * 徽章貼文（badges CPT）由一次性 wp eval 腳本建立（未落地成檔案，
+ * 對話記錄可查），slug 需與下面 $rules 的 badge_slug 完全一致。
  *
  * @since 1.0.0 (2026-08-16)
+ * @version 1.0.1 (2026-08-16) — 修正 exp=0 導致 once 鎖完全不觸發的 bug
  */
 class First_Badge {
 
 	private static $instance = null;
 
+	/*
+	 * v1.0.1 修正：exp 不能設 0——Exp_Events::award_with_cap() 內建
+	 * 「金額必須 > 0」的防呆檢查（金額 0 或負數直接 return false，
+	 * 連 once 鎖都不會鎖，等於整個動作沒發生）。原本想靠 badge_unlock
+	 * 規則自動疊加的 20 EXP 湊數、自己這邊填 0，結果變成完全不會觸發。
+	 * 改成每個動作都給實際的正數 EXP，總到手金額（規則值 + 自動疊加 20）
+	 * 不用剛好湊整數，正確運作比數字好看重要。
+	 */
 	private static $rules = [
-		'first_login'              => [ 'badge_slug' => 'badge-first-login',             'exp' => 0,   'label' => '初次登入' ],
-		'first_follow'              => [ 'badge_slug' => 'badge-first-follow',            'exp' => 0,   'label' => '初次追蹤' ],
-		'first_watchlist_add'       => [ 'badge_slug' => 'badge-first-watchlist-add',     'exp' => 0,   'label' => '初次加入片單' ],
-		'first_favorite'            => [ 'badge_slug' => 'badge-first-favorite',          'exp' => 0,   'label' => '初次收藏' ],
+		'first_login'              => [ 'badge_slug' => 'badge-first-login',             'exp' => 10,  'label' => '初次登入' ],
+		'first_follow'              => [ 'badge_slug' => 'badge-first-follow',            'exp' => 10,  'label' => '初次追蹤' ],
+		'first_watchlist_add'       => [ 'badge_slug' => 'badge-first-watchlist-add',     'exp' => 10,  'label' => '初次加入片單' ],
+		'first_favorite'            => [ 'badge_slug' => 'badge-first-favorite',          'exp' => 10,  'label' => '初次收藏' ],
 		'first_comment'             => [ 'badge_slug' => 'badge-first-comment',           'exp' => 20,  'label' => '初次留言' ],
 		'first_rating'              => [ 'badge_slug' => 'badge-first-rating',            'exp' => 20,  'label' => '初次評分' ],
 		'first_watchlist_complete'  => [ 'badge_slug' => 'badge-first-watchlist-complete', 'exp' => 40,  'label' => '初次完結作品' ],
