@@ -1,0 +1,381 @@
+/* ============================================================
+   微笑動漫 — 動漫「評論」樣式
+   路徑：/blocksy-child/assets/css/review.css
+   版本：1.0 — 2026-08-17
+   配色沿用 track-bar.css 同一套（不依賴 anime-single.css 的
+   CSS variable，避免載入順序問題）：
+     主色 #63A8FF、綠 #34D399、紅 #FB7185、琥珀 #FBBF24
+   ============================================================ */
+
+.asd-review-root {
+  --rv-primary: #63A8FF;
+  --rv-green: #34D399;
+  --rv-red: #FB7185;
+  --rv-amber: #FBBF24;
+  --rv-text: #E5E9EF;
+  --rv-text-dim: #9AA4B2;
+  --rv-border: rgba(255, 255, 255, .1);
+  --rv-bg: rgba(255, 255, 255, .04);
+}
+
+.asd-review-loading,
+.asd-review-empty {
+  padding: 24px 0;
+  color: var(--rv-text-dim);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ── 短評／長評切換 ── */
+.asd-review-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.asd-review-track-btn {
+  padding: 8px 18px;
+  color: var(--rv-text-dim);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--rv-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 999px;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.asd-review-track-btn.is-active {
+  color: #fff;
+  background: var(--rv-primary);
+  border-color: var(--rv-primary);
+}
+
+/* ── 送出表單 ── */
+.asd-review-form-wrap {
+  margin-bottom: 20px;
+}
+
+.asd-review-login-hint {
+  padding: 16px;
+  color: var(--rv-text-dim);
+  font-size: 14px;
+  text-align: center;
+  background: var(--rv-bg);
+  border: 1px dashed var(--rv-border);
+  border-radius: 10px;
+}
+
+.asd-review-login-link {
+  color: var(--rv-primary);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.asd-review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  background: var(--rv-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 12px;
+}
+
+.asd-review-title-input,
+.asd-review-excerpt-input,
+.asd-review-episode-select,
+.asd-review-content-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  color: var(--rv-text);
+  font-size: 14px;
+  background: rgba(0, 0, 0, .25);
+  border: 1px solid var(--rv-border);
+  border-radius: 8px;
+}
+
+.asd-review-episode-select {
+  width: auto;
+  cursor: pointer;
+  appearance: none;
+  line-height: normal;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa4b2' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.asd-review-episode-select option {
+  background: #1e242b;
+  color: var(--rv-text);
+}
+
+.asd-review-content-input {
+  min-height: 90px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.asd-review-content-input::placeholder,
+.asd-review-title-input::placeholder,
+.asd-review-excerpt-input::placeholder {
+  color: var(--rv-text-dim);
+}
+
+.asd-review-form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.asd-review-spoiler-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rv-text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.asd-review-counter {
+  margin-left: auto;
+  color: var(--rv-text-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.asd-review-counter.is-ok {
+  color: var(--rv-green);
+}
+
+.asd-review-submit-btn {
+  padding: 8px 22px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--rv-primary);
+  border: none;
+  border-radius: 999px;
+}
+
+.asd-review-submit-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.asd-review-form-msg {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rv-green);
+}
+
+.asd-review-form-msg.is-error {
+  color: var(--rv-red);
+}
+
+/* ── 排序 ── */
+.asd-review-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.asd-review-sort {
+  display: flex;
+  gap: 4px;
+}
+
+.asd-review-sort-btn {
+  padding: 4px 12px;
+  color: var(--rv-text-dim);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+}
+
+.asd-review-sort-btn.is-active {
+  color: var(--rv-primary);
+  background: rgba(99, 168, 255, .12);
+}
+
+/* ── 卡片 ── */
+.asd-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.asd-review-card {
+  padding: 14px;
+  background: var(--rv-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 12px;
+}
+
+.asd-review-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.asd-review-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.asd-review-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.asd-review-author {
+  color: var(--rv-text);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.asd-review-episode-tag,
+.asd-review-status-tag,
+.asd-review-score-tag {
+  padding: 1px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.asd-review-episode-tag {
+  color: var(--rv-primary);
+  background: rgba(99, 168, 255, .14);
+}
+
+.asd-review-status-tag {
+  color: var(--rv-green);
+  background: rgba(52, 211, 153, .14);
+}
+
+.asd-review-score-tag {
+  color: var(--rv-amber);
+  background: rgba(251, 191, 36, .14);
+}
+
+.asd-review-delete-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  color: var(--rv-text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--rv-border);
+  border-radius: 999px;
+}
+
+.asd-review-delete-btn:hover {
+  color: var(--rv-red);
+  border-color: var(--rv-red);
+}
+
+.asd-review-card-title {
+  margin: 0 0 4px;
+  color: var(--rv-text);
+  font-size: 15px;
+}
+
+.asd-review-card-excerpt {
+  margin: 0 0 8px;
+  color: var(--rv-text-dim);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.asd-review-card-content {
+  color: var(--rv-text);
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+/* ── 防雷遮罩 ── */
+.asd-review-spoiler-mask {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, .35);
+  border-radius: 8px;
+}
+
+.asd-review-reveal-btn {
+  padding: 8px 16px;
+  color: var(--rv-amber);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(251, 191, 36, .1);
+  border: 1px solid rgba(251, 191, 36, .35);
+  border-radius: 999px;
+}
+
+/* ── 讚／倒讚 ── */
+.asd-review-card-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.asd-review-vote-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  color: var(--rv-text-dim);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--rv-border);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.asd-review-like-btn.is-active {
+  color: var(--rv-green);
+  background: rgba(52, 211, 153, .12);
+  border-color: rgba(52, 211, 153, .4);
+}
+
+.asd-review-dislike-btn.is-active {
+  color: var(--rv-red);
+  background: rgba(251, 113, 133, .12);
+  border-color: rgba(251, 113, 133, .4);
+}
+
+@media (max-width: 560px) {
+  .asd-review-card-head {
+    flex-wrap: wrap;
+  }
+
+  .asd-review-delete-btn {
+    margin-left: 0;
+  }
+
+  .asd-review-counter {
+    margin-left: 0;
+    order: 3;
+    width: 100%;
+  }
+}

@@ -805,6 +805,10 @@ add_action( 'plugins_loaded', function (): void {
 		new Anime_Sync_User_Status_Manager();
 	}
 
+	if ( class_exists( 'Anime_Sync_Review_Manager' ) ) {
+		new Anime_Sync_Review_Manager();
+	}
+
 	if ( class_exists( 'Anime_Sync_User_Status_Cron' ) ) {
 		new Anime_Sync_User_Status_Cron();
 	}

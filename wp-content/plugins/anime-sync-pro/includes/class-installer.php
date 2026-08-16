@@ -50,10 +50,14 @@ class Anime_Sync_Installer {
 	 * dashboard 系統資訊即可正確顯示，不再 fallback 成「—」。
 	 */
 	/*
+	 * 1.4 — 新增 wxacg_review_votes（評論／短評的讚／倒讚）。
+	 *       評論本身走 wxacg_review CPT（wp_posts/wp_postmeta），
+	 *       只有「讚／倒讚」這種需要去重＋計數的關聯資料才需要獨立表。
+	 *
 	 * 1.3 — anime_user_status_stats 新增 paused_count（暫停狀態）。
 	 *       主表 anime_user_status 不需異動：status 是 tinyint，新增值 4 即可。
 	 */
-	private const DB_VERSION = '1.3';
+	private const DB_VERSION = '1.4';
 
 	/**
 	 * 季度 seed：往前 N 年 + 當年 + 當年+1 的範圍
@@ -561,6 +565,23 @@ class Anime_Sync_Installer {
 			KEY role (role)
 		) {$charset_collate};";
 		dbDelta( $relations_sql );
+
+		// =====================================================================
+		// v1.4 新增：評論／短評的讚／倒讚（評論本體走 wxacg_review CPT）
+		// =====================================================================
+		$review_votes_table = $wpdb->prefix . 'wxacg_review_votes';
+		$review_votes_sql   = "CREATE TABLE {$review_votes_table} (
+			id          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			review_id   BIGINT(20) UNSIGNED NOT NULL,
+			user_id     BIGINT(20) UNSIGNED NOT NULL,
+			vote_type   TINYINT NOT NULL,
+			created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY review_user (review_id, user_id),
+			KEY review_id (review_id),
+			KEY user_id (user_id)
+		) {$charset_collate};";
+		dbDelta( $review_votes_sql );
 	}
 
 	public function is_table_missing( string $table_name_without_prefix ): bool {

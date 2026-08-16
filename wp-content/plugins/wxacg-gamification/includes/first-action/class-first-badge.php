@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
  * 使用者實際拿到的總額 = 下面 $rules 的 exp + 自動疊加 20：
  *   初次登入／追蹤／加入片單／收藏／抽動漫 → 10 + 20 = 30
  *   初次留言／評分                         → 20 + 20 = 40
- *   初次轉職                               → 20 + 20 = 40
+ *   初次轉職／發表評論                     → 20/40 + 20 = 40/60
  *   初次完結作品                           → 40 + 20 = 60
  *   初次發表論壇文章                       → 100 + 20 = 120
  *
@@ -34,6 +34,7 @@ defined( 'ABSPATH' ) || exit;
  * @since 1.0.0 (2026-08-16)
  * @version 1.0.1 (2026-08-16) — 修正 exp=0 導致 once 鎖完全不觸發的 bug
  * @version 1.1.0 (2026-08-16) — 新增初次抽動漫／初次轉職
+ * @version 1.2.0 (2026-08-17) — 新增初次發表評論（wxacg_review_submitted）
  */
 class First_Badge {
 
@@ -58,6 +59,7 @@ class First_Badge {
 		'first_forum_post'          => [ 'badge_slug' => 'badge-first-forum-post',        'exp' => 100, 'label' => '初次發表論壇文章' ],
 		'first_dice_roll'           => [ 'badge_slug' => 'badge-first-dice-roll',         'exp' => 10,  'label' => '初次抽動漫' ],
 		'first_career_change'       => [ 'badge_slug' => 'badge-first-career-change',     'exp' => 20,  'label' => '初次轉職' ],
+		'first_review'              => [ 'badge_slug' => 'badge-first-review',           'exp' => 40,  'label' => '初次發表評論' ],
 	];
 
 	private static $badge_id_cache = [];
@@ -81,6 +83,7 @@ class First_Badge {
 		add_action( 'wpforo_after_add_topic',    [ __CLASS__, 'on_forum_topic' ], 10, 2 );
 		add_action( 'wxacg_random_anime_used',   [ __CLASS__, 'on_dice_roll' ], 10, 1 );
 		add_action( 'smacg_career_selected',     [ __CLASS__, 'on_career_change' ], 10, 3 );
+		add_action( 'wxacg_review_submitted',    [ __CLASS__, 'on_review_submitted' ], 10, 4 );
 	}
 
 	/**
@@ -162,6 +165,10 @@ class First_Badge {
 
 	public static function on_career_change( $uid, $job_key, $is_change ) {
 		self::maybe_award( 'first_career_change', (int) $uid );
+	}
+
+	public static function on_review_submitted( $uid, $review_id, $anime_id, $track ) {
+		self::maybe_award( 'first_review', (int) $uid );
 	}
 
 	/* =========================================================
