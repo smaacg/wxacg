@@ -4209,8 +4209,8 @@ while ( have_posts() ) :
 									$end_date && $status === 'FINISHED'
 										? $end_date
 										: '',
-								'原作來源'   => $source_label,
-								'製作公司'   => $studio,
+								'原作來源'   => [ 'text' => $source_label, 'url' => $source_url ?? '' ],
+								'製作公司'   => [ 'text' => $studio,       'url' => $studio_url ?? '' ],
 								'台灣代理'   => $tw_dist_display,
 								'播出頻道'   => $tw_broadcast,
 								'配音版本'   => ! empty( $dub_display )
