@@ -18,6 +18,7 @@ class WXACG_AI_News_Engine_Plugin {
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_init', [$this, 'register_custom_capability']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
         
         # 註冊 AJAX 下單與輪詢處理
         add_action('wp_ajax_wxacg_trigger_ai_news', [$this, 'handle_trigger_ai_news']);
@@ -80,6 +81,20 @@ class WXACG_AI_News_Engine_Plugin {
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wxacg_ai_news_action_nonce')
         ]);
+    }
+
+    /**
+     * 掛載前台共用樣式表：AI 新聞文章的固定版面/間距/字體規則統一寫在這一份 CSS，
+     * 全站只載入一次、瀏覽器可跨頁快取，避免每篇文章各自內嵌重複樣式拖累頁面體積。
+     */
+    public function enqueue_frontend_assets() {
+        $css_path = plugin_dir_path(__FILE__) . 'wx-majo-news.css';
+        wp_enqueue_style(
+            'wxacg-ai-news-article',
+            plugin_dir_url(__FILE__) . 'wx-majo-news.css',
+            [],
+            file_exists($css_path) ? filemtime($css_path) : '1.0.0'
+        );
     }
 
     /**
