@@ -218,12 +218,17 @@
   transform: translateY(-6px);
 }
 
-/* ── 追蹤人數（全站彙總，訪客也看得到） ── */
+/* ── 追蹤人數（全站彙總，訪客也看得到） ──
+ * v1.1：原本是裸文字浮在 .smacg-track-bar 卡片下方，跟頁面其他地方
+ * 的膠囊徽章（如 .asd-hbadge）風格不一致、看起來像斷開的殘留文字。
+ * 改成同款毛玻璃膠囊，並沿用 --asd-radius-pill（.asd-wrap 底下才有
+ * 這個變數，加 999px fallback 以防萬一脫離該容器）。
+ */
 .smacg-track-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 18px;
-  margin: -12px 0 24px;
+  gap: 8px 10px;
+  margin: 10px 0 24px;
   padding: 0 20px;
   color: rgba(255,255,255,.62);
   font-size: .82rem;
@@ -232,6 +237,10 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--asd-radius-pill, 999px);
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.045);
 }
 .smacg-track-stat-ico {
   font-size: .9em;
@@ -244,9 +253,12 @@
 
 @media (max-width: 640px) {
   .smacg-track-stats {
-    gap: 6px 14px;
+    gap: 6px 8px;
     padding: 0 14px;
     font-size: .78rem;
+  }
+  .smacg-track-stat {
+    padding: 4px 10px;
   }
 }
 
