@@ -357,6 +357,31 @@ class Anime_Sync_API_Handler {
                 $current = json_decode( (string) get_post_meta( $post_id, $meta_key, true ), true );
                 $current = is_array( $current ) ? $current : [];
 
+                if ( empty( $current ) ) {
+                    return true;
+                }
+
+                /*
+                 * 現有資料若不是 Bangumi 來的（早期 AniList 匯入的殘留），
+                 * 一律讓 Bangumi 取代——staff / cast 以 Bangumi 為準是本站
+                 * 既定政策，AniList 只是沒有 Bangumi 資料時的暫代。
+                 * 筆數多寡在這裡不該有否決權：AniList 常把每位配角、每個
+                 * 細項職位都列出來，數量多但不是我們要的口徑。
+                 */
+                $from_bangumi = false;
+                foreach ( $current as $entry ) {
+                    $src = isset( $entry['source'] ) ? (string) $entry['source'] : '';
+                    if ( str_starts_with( $src, 'bangumi' ) ) {
+                        $from_bangumi = true;
+                        break;
+                    }
+                }
+
+                if ( ! $from_bangumi ) {
+                    return true;
+                }
+
+                // 兩邊都是 Bangumi：只增不減（續季條目常只先建原作／動畫製作兩筆）
                 return count( $incoming ) >= count( $current );
             };
 

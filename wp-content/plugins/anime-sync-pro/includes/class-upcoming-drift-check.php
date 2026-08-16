@@ -180,10 +180,37 @@ class Anime_Sync_Upcoming_Drift_Check {
 		$api    = new Anime_Sync_API_Handler();
 		$done   = [];
 
+		/*
+		 * 與 class-api-handler.php 的 enrich 護欄同一套判斷：
+		 * 現有資料不是 Bangumi 來的就直接取代（staff / cast 以 Bangumi 為準），
+		 * 兩邊都是 Bangumi 時才套用「只增不減」。
+		 */
+		$should_write = function ( string $meta_key, array $incoming ) use ( $post_id ): bool {
+			if ( empty( $incoming ) ) {
+				return false;
+			}
+
+			$current = json_decode( (string) get_post_meta( $post_id, $meta_key, true ), true );
+			$current = is_array( $current ) ? $current : [];
+
+			if ( empty( $current ) ) {
+				return true;
+			}
+
+			foreach ( $current as $entry ) {
+				$src = isset( $entry['source'] ) ? (string) $entry['source'] : '';
+				if ( str_starts_with( $src, 'bangumi' ) ) {
+					return count( $incoming ) >= count( $current );
+				}
+			}
+
+			return true;
+		};
+
 		if ( ! in_array( 'anime_staff_json', $locked, true ) ) {
 			$staff = $api->get_bgm_staff_public( $bgm_id );
 
-			if ( count( $staff ) > $local_staff ) {
+			if ( $should_write( 'anime_staff_json', $staff ) ) {
 				update_post_meta(
 					$post_id,
 					'anime_staff_json',
@@ -196,7 +223,7 @@ class Anime_Sync_Upcoming_Drift_Check {
 		if ( ! in_array( 'anime_cast_json', $locked, true ) ) {
 			$cast = $api->get_bgm_chars_public( $bgm_id );
 
-			if ( count( $cast ) > $local_cast ) {
+			if ( $should_write( 'anime_cast_json', $cast ) ) {
 				update_post_meta(
 					$post_id,
 					'anime_cast_json',
