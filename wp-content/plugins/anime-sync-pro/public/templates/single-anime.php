@@ -2103,6 +2103,122 @@ while ( have_posts() ) :
 		}
 	}
 
+	/*
+	 * 補反向的前作／續作關聯：AniList 社群資料常常只有一邊填（例如季2
+	 * 標了「前作是季1」，季1自己卻沒有「續作是季2」這筆），造成單向
+	 * 關聯、這邊看不到對方。既然雙方都已經匯進站內，就反查一次：
+	 * 有沒有別部動畫的 anime_relations_json 把「我」標成 PREQUEL／
+	 * SEQUEL，但我自己這邊沒有這筆，有的話補上（關係方向要對調）。
+	 * 只處理 PREQUEL/SEQUEL，其他關聯類型語意不對稱、不安全反推。
+	 */
+	if ( $anilist_id > 0 ) {
+		$reverse_relation_map = [
+			'PREQUEL' => 'SEQUEL',
+			'SEQUEL'  => 'PREQUEL',
+		];
+
+		global $wpdb;
+
+		$reverse_candidate_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT post_id FROM {$wpdb->postmeta}
+				 WHERE meta_key = 'anime_relations_json'
+				   AND meta_value LIKE %s
+				   AND post_id != %d",
+				'%"id":' . $anilist_id . '%',
+				$post_id
+			)
+		);
+
+		$already_linked_ids = array_map(
+			static function ( $item ) {
+				return (int) (
+					$item['anilist_id']
+						?? $item['id']
+						?? 0
+				);
+			},
+			array_filter( $relations_list, 'is_array' )
+		);
+
+		foreach ( $reverse_candidate_ids as $candidate_post_id ) {
+			$candidate_post_id = (int) $candidate_post_id;
+
+			$candidate_anilist_id = (int) get_post_meta(
+				$candidate_post_id,
+				'anime_anilist_id',
+				true
+			);
+
+			if (
+				! $candidate_anilist_id
+				|| in_array( $candidate_anilist_id, $already_linked_ids, true )
+				|| get_post_status( $candidate_post_id ) !== 'publish'
+			) {
+				continue;
+			}
+
+			$candidate_relations = $decode_json(
+				get_post_meta( $candidate_post_id, 'anime_relations_json', true )
+			);
+
+			foreach ( $candidate_relations as $candidate_relation_item ) {
+				if ( ! is_array( $candidate_relation_item ) ) {
+					continue;
+				}
+
+				$candidate_points_to_id = (int) (
+					$candidate_relation_item['anilist_id']
+						?? $candidate_relation_item['id']
+						?? 0
+				);
+
+				if ( $candidate_points_to_id !== $anilist_id ) {
+					continue;
+				}
+
+				$candidate_raw_type = $candidate_relation_item['relation_type']
+					?? $candidate_relation_item['relation_label']
+					?? $candidate_relation_item['type']
+					?? '';
+
+				if ( ! isset( $reverse_relation_map[ $candidate_raw_type ] ) ) {
+					continue;
+				}
+
+				$reversed_type = $reverse_relation_map[ $candidate_raw_type ];
+
+				$candidate_title = get_post_meta(
+					$candidate_post_id,
+					'anime_title_chinese',
+					true
+				);
+
+				if ( ! $candidate_title ) {
+					$candidate_title = get_the_title( $candidate_post_id );
+				}
+
+				$candidate_cover = get_post_meta(
+					$candidate_post_id,
+					'anime_cover_image',
+					true
+				);
+
+				$site_relations[] = [
+					'title_zh'       => trim( (string) $candidate_title ),
+					'title_native'   => '',
+					'relation_label' => $relation_labels[ $reversed_type ]
+						?? $reversed_type,
+					'format'         => '',
+					'cover_image'    => trim( (string) $candidate_cover ),
+					'url'            => get_permalink( $candidate_post_id ),
+				];
+
+				break;
+			}
+		}
+	}
+
 	/* =========================================================
 	 * 站內平均評分
 	 * ======================================================= */
@@ -5124,8 +5240,8 @@ while ( have_posts() ) :
 												>
 													<video
 														class="asd-music-thumb-video"
-														src="<?php echo esc_url( $video_url ); ?>"
-														preload="metadata"
+														data-src="<?php echo esc_url( $video_url ); ?>"
+														preload="none"
 														muted
 														playsinline
 													></video>

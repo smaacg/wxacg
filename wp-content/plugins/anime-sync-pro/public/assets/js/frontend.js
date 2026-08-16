@@ -404,15 +404,41 @@ function initMusicPlayer() {
         });
     });
 
-    // 縮圖用的 <video preload="metadata"> 不保證瀏覽器會自動畫出第一幀，
-    // 用 loadedmetadata 事件強制 seek 到 0.1 秒觸發畫面渲染，避免一直是黑框。
-    document.querySelectorAll('.asd-music-thumb-video').forEach(function (video) {
-        video.addEventListener('loadedmetadata', function () {
-            try {
-                video.currentTime = Math.min(0.1, (video.duration || 1) / 2);
-            } catch (e) {}
-        });
-    });
+    // 縮圖懶載入：捲到畫面上才真的去抓影片（data-src 換成 src），避免
+    // 一進頁面就對 animethemes.moe 發一堆請求。載入後用 loadedmetadata
+    // 強制 seek 到 0.1 秒觸發畫面渲染（preload="metadata" 不保證會自動
+    // 畫出第一幀，不然縮圖會一直是黑框）。
+    var thumbVideos = document.querySelectorAll('.asd-music-thumb-video');
+    if (thumbVideos.length) {
+        function loadThumb(video) {
+            var src = video.dataset.src || '';
+            if (!src || video.src) return;
+            video.addEventListener('loadedmetadata', function () {
+                try {
+                    video.currentTime = Math.min(0.1, (video.duration || 1) / 2);
+                } catch (e) {}
+            });
+            video.preload = 'metadata';
+            video.src = src;
+        }
+
+        if ('IntersectionObserver' in window) {
+            var thumbObserver = new IntersectionObserver(function (entries, observer) {
+                entries.forEach(function (entry) {
+                    if (!entry.isIntersecting) return;
+                    loadThumb(entry.target);
+                    observer.unobserve(entry.target);
+                });
+            }, { rootMargin: '200px 0px' });
+
+            thumbVideos.forEach(function (video) {
+                thumbObserver.observe(video);
+            });
+        } else {
+            // 沒有 IntersectionObserver 支援的舊瀏覽器，直接全部載入
+            thumbVideos.forEach(loadThumb);
+        }
+    }
 
     // MV 縮圖：點下去用燈箱（同頁蓋一層），以原始尺寸播放，不開新分頁、不跳走
     var mvModal      = document.getElementById('asd-mv-modal');
@@ -438,7 +464,7 @@ function initMusicPlayer() {
         document.querySelectorAll('.asd-music-thumb-slot').forEach(function (slot) {
             function openFromSlot() {
                 var video = slot.querySelector('.asd-music-thumb-video');
-                var src = video ? (video.currentSrc || video.getAttribute('src') || '') : '';
+                var src = video ? (video.currentSrc || video.getAttribute('src') || video.dataset.src || '') : '';
                 openMvModal(src);
             }
 
