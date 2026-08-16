@@ -3475,6 +3475,17 @@ nav.asd-tabs a.asd-tab.is-active::after {
     display: none;
   }
 
+  /* 245x138 的固定寬縮圖在窄螢幕上會把 .asd-music-body 擠到只剩
+     幾 px，導致標題逐字換行（overflow-wrap: anywhere 在極窄容器
+     下的必然結果）。縮圖改用 width:100% 讓 flex-wrap 把它擠到
+     單獨一行，標題那排（徽章 + 內容）維持原本足夠的寬度。 */
+  .asd-music-thumb-slot {
+    width: 100%;
+    height: auto;
+    margin-left: 0;
+    aspect-ratio: 245 / 138;
+  }
+
   .wacg-modal-actions {
     flex-direction: column;
   }
