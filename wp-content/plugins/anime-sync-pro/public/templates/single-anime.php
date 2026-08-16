@@ -637,6 +637,7 @@ while ( have_posts() ) :
 		'tongli'    => '東立出版社',
 		'remow'     => 'REMOW',
 		'gaga'      => 'GaGa OOLala',
+		'liying'    => '麗嬰國際',
 		'other'     => '',
 	];
 

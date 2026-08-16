@@ -1555,6 +1555,7 @@ function wxacg_distributor_label_map() {
 		'tongli'    => '東立出版社',
 		'remow'     => 'REMOW',
 		'gaga'      => 'GaGa OOLala',
+		'liying'    => '麗嬰國際',
 	);
 }
 
