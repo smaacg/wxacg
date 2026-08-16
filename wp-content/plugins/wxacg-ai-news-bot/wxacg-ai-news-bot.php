@@ -26,6 +26,12 @@ class WXACG_AI_News_Engine_Plugin {
 
         # 註冊雙軌獨立保存自定處理端點 (區分全域與使用者獨立金鑰)
         add_action('admin_post_wxacg_save_settings', [$this, 'handle_save_settings']);
+
+        # 作品名稱自動內部連結：輸出文章內容時即時加上作品頁連結 (優先權 20，晚於 wpautop 避免干擾段落處理)
+        add_filter('the_content', [$this, 'autolink_anime_titles'], 20);
+        # 動畫資料異動時清除對照表快取，讓新建立的作品頁能立即被連結
+        add_action('save_post_anime', [$this, 'flush_anime_link_map']);
+        add_action('deleted_post', [$this, 'flush_anime_link_map']);
     }
 
     /**
@@ -65,6 +71,7 @@ class WXACG_AI_News_Engine_Plugin {
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_url', ['default' => '']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_token', ['default' => 'wxacg-super-secret-master-key-2026']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_unlock_password', ['default' => '123456789']);
+        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_enable_autolink', ['default' => '0']);
     }
 
     /**
@@ -97,6 +104,184 @@ class WXACG_AI_News_Engine_Plugin {
         );
     }
 
+    # =====================================================================
+    # 作品名稱自動內部連結 (Internal Linking)
+    # =====================================================================
+
+    # 對照表快取鍵名與最短可連結標題字數 (太短的通用詞容易誤命中，一律不納入)
+    const ANIME_LINK_MAP_TRANSIENT = 'wxacg_anime_link_map';
+    const AUTOLINK_MIN_TITLE_LENGTH = 3;
+    # 單篇文章最多自動加入的連結數，避免整篇被連結洗版而被判定過度優化
+    const AUTOLINK_MAX_PER_POST = 5;
+
+    /**
+     * 清除作品對照表快取。動畫資料新增/更新/刪除時觸發，
+     * 讓新建立的作品頁不必等快取自然過期就能立即被文章連結。
+     */
+    public function flush_anime_link_map() {
+        delete_transient(self::ANIME_LINK_MAP_TRANSIENT);
+    }
+
+    /**
+     * 取得「作品標題 → 作品頁網址」對照表 (以 Transient 快取 12 小時，避免每次瀏覽都查資料庫)。
+     * 回傳陣列已按標題長度由長至短排序，確保較具體的長標題優先命中，
+     * 不會被同系列的短標題搶先比對成功。
+     */
+    private function get_anime_link_map() {
+        $map = get_transient(self::ANIME_LINK_MAP_TRANSIENT);
+        if (is_array($map)) {
+            return $map;
+        }
+
+        global $wpdb;
+        $rows = $wpdb->get_results(
+            "SELECT ID, post_title FROM {$wpdb->posts}
+             WHERE post_type = 'anime' AND post_status = 'publish' AND post_title != ''"
+        );
+
+        $map = [];
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                $title = trim($row->post_title);
+                # 過短的標題（如兩字通用詞）容易在內文誤命中，直接略過不建立連結
+                if (mb_strlen($title, 'UTF-8') < self::AUTOLINK_MIN_TITLE_LENGTH) {
+                    continue;
+                }
+                $map[$title] = [
+                    'id'  => (int) $row->ID,
+                    'url' => get_permalink((int) $row->ID),
+                ];
+            }
+        }
+
+        # 依標題長度由長到短排序：先比對《咒術迴戰 第二季》再比對《咒術迴戰》，避免長標題永遠命不中
+        uksort($map, function ($a, $b) {
+            return mb_strlen($b, 'UTF-8') <=> mb_strlen($a, 'UTF-8');
+        });
+
+        set_transient(self::ANIME_LINK_MAP_TRANSIENT, $map, 12 * HOUR_IN_SECONDS);
+        return $map;
+    }
+
+    /**
+     * the_content 過濾器：輸出文章時即時把內文中的作品名稱轉為指向站內作品頁的連結。
+     *
+     * 特性：
+     * - 不修改資料庫內容，純輸出時加工，關閉開關即完全復原。
+     * - 既有舊文章同樣生效（回溯）；日後新增作品頁後，舊文章下次瀏覽時自動補上連結。
+     * - 每個作品名只連結第一次出現處，且整篇有連結總數上限，避免過度優化。
+     */
+    public function autolink_anime_titles($content) {
+        # 未啟用開關時完全不介入
+        if (get_option('wxacg_ai_news_enable_autolink', '0') !== '1') {
+            return $content;
+        }
+
+        # 僅處理前台單篇內容主迴圈，排除後台、RSS、摘要與各式列表頁
+        if (is_admin() || is_feed() || !is_singular() || !in_the_loop() || !is_main_query()) {
+            return $content;
+        }
+
+        # 作品頁本身不需要再連向自己
+        if (get_post_type() === 'anime') {
+            return $content;
+        }
+
+        $map = $this->get_anime_link_map();
+        if (empty($map)) {
+            return $content;
+        }
+
+        $current_id = get_the_ID();
+        $linked_count = 0;
+        # 記錄本篇已連結過的作品名，確保同一個作品只連結第一次出現處
+        $linked_titles = [];
+        # 【防巢狀連結】剛插入的 <a> 先以佔位符代替，避免後續較短的作品名比對時，
+        # 命中前一輪已插入的 anchor 內部文字，產生 <a> 包 <a> 的不合法結構（例：「咒術迴戰 死滅迴游」與「咒術迴戰」）
+        $link_placeholders = [];
+
+        # 以標籤為界切開內容，只在「純文字節點」進行替換，
+        # 避免破壞 HTML 屬性值，也避免在既有連結或標題內重複加連結
+        $parts = preg_split('/(<[^>]+>)/', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if (!is_array($parts)) {
+            return $content;
+        }
+
+        # 這些標籤內的文字一律跳過：既有連結、各級標題、樣式與腳本區塊
+        $excluded_tags = ['a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'style', 'script'];
+        $skip_depth = 0;
+
+        foreach ($parts as $index => $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            # 標籤本體：只更新排除區塊的巢狀深度，不做任何替換
+            if ($part[0] === '<') {
+                if (preg_match('#^</\s*([a-zA-Z0-9]+)#', $part, $m)) {
+                    if (in_array(strtolower($m[1]), $excluded_tags, true) && $skip_depth > 0) {
+                        $skip_depth--;
+                    }
+                } elseif (preg_match('#^<\s*([a-zA-Z0-9]+)#', $part, $m)) {
+                    $is_self_closing = substr(rtrim($part), -2) === '/>';
+                    if (in_array(strtolower($m[1]), $excluded_tags, true) && !$is_self_closing) {
+                        $skip_depth++;
+                    }
+                }
+                continue;
+            }
+
+            # 位於排除標籤內的文字，或已達整篇連結數上限，都不再處理
+            if ($skip_depth > 0 || $linked_count >= self::AUTOLINK_MAX_PER_POST) {
+                continue;
+            }
+
+            $text = $part;
+            foreach ($map as $title => $info) {
+                if ($linked_count >= self::AUTOLINK_MAX_PER_POST) {
+                    break;
+                }
+                # 文章若正好關聯到自己（例如作品同名文章），略過避免自我連結
+                if ($info['id'] === $current_id || empty($info['url'])) {
+                    continue;
+                }
+                # 此作品已在本篇連結過，或此段文字沒有出現該作品名，都跳過
+                if (isset($linked_titles[$title])) {
+                    continue;
+                }
+                # 【刻意使用位元組版 strpos/substr】WordPress 核心 compat.php 只在缺少 mbstring 時補上
+                # mb_substr / mb_strlen，並未提供 mb_strpos；若主機未啟用 mbstring，呼叫 mb_strpos 會直接 Fatal Error。
+                # 而 UTF-8 具自我同步特性，搜尋詞本身為合法 UTF-8 時，strpos 回傳的位移必然落在字元邊界，
+                # 因此改用位元組版函式進行搜尋與切割，結果正確且不依賴任何擴充套件。
+                $pos = strpos($text, $title);
+                if ($pos === false) {
+                    continue;
+                }
+
+                $anchor = '<a href="' . esc_url($info['url']) . '" class="wxacg-autolink">' . esc_html($title) . '</a>';
+                # 以不含中文與角括號的控制字元佔位符暫代，待全部比對結束後再還原成真正的 <a> 標籤
+                $token = "\x02WXACGLINK" . count($link_placeholders) . "\x02";
+                $link_placeholders[$token] = $anchor;
+
+                $text = substr($text, 0, $pos)
+                      . $token
+                      . substr($text, $pos + strlen($title));
+
+                $linked_titles[$title] = true;
+                $linked_count++;
+            }
+            $parts[$index] = $text;
+        }
+
+        $output = implode('', $parts);
+        # 還原佔位符為實際連結
+        if (!empty($link_placeholders)) {
+            $output = str_replace(array_keys($link_placeholders), array_values($link_placeholders), $output);
+        }
+
+        return $output;
+    }
+
     /**
      * 後台主主控板渲染
      */
@@ -125,6 +310,7 @@ class WXACG_AI_News_Engine_Plugin {
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
         $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
         $unlock_pass = get_option('wxacg_ai_news_unlock_password', '123456789');
+        $enable_autolink = get_option('wxacg_ai_news_enable_autolink', '0');
 
         ?>
         <div class="wrap wxacg-ai-container">
@@ -266,6 +452,19 @@ class WXACG_AI_News_Engine_Plugin {
                                 <p class="description">AI產出文章後的後台狀態【草稿or直接發佈】</p>
                             </td>
                         </tr>
+                        <tr>
+                            <th scope="row"><label for="wxacg_ai_news_enable_autolink">作品名稱自動內部連結<br><small style="color:#0073aa;">[全站共用設定]</small></label></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" id="wxacg_ai_news_enable_autolink" name="wxacg_ai_news_enable_autolink" value="1" <?php checked($enable_autolink, '1'); ?>>
+                                    啟用：自動把文章內文提到的作品名稱，轉為指向站內動畫作品頁的連結
+                                </label>
+                                <p class="description">
+                                    套用範圍為<strong>全站所有文章</strong>（含既有舊文章），每個作品只連結第一次出現處，單篇最多 5 條。<br>
+                                    此功能不會修改資料庫內的文章內容，僅在前台顯示時即時處理，取消勾選即完全復原。
+                                </p>
+                            </td>
+                        </tr>
 
                         <!-- 加密防禦大門與密碼手設功能 -->
                         <tr class="wxacg-lock-section">
@@ -346,6 +545,11 @@ class WXACG_AI_News_Engine_Plugin {
         if (isset($_POST['wxacg_ai_news_unlock_password'])) {
             update_option('wxacg_ai_news_unlock_password', sanitize_text_field($_POST['wxacg_ai_news_unlock_password']));
         }
+
+        # 作品名稱自動內部連結開關（未勾選時瀏覽器不會送出該欄位，故以 isset 判斷存 1 或 0）
+        update_option('wxacg_ai_news_enable_autolink', isset($_POST['wxacg_ai_news_enable_autolink']) ? '1' : '0');
+        # 開關切換後清一次對照表快取，確保狀態立即反映
+        $this->flush_anime_link_map();
 
         # 保存完畢，攜帶反饋狀態順暢轉送返回原操作面壁
         wp_redirect(add_query_arg(['page' => 'wxacg-ai-news-engine', 'updated' => 'true'], admin_url('admin.php')));

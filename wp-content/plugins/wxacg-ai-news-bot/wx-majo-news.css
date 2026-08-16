@@ -25,6 +25,9 @@
 .wx-majo-news .info-box th{background:var(--wx-infobox-th-bg);color:var(--wx-heading);width:28%;font-weight:700;}
 .wx-majo-news .info-box td{background:rgba(255,255,255,.03);color:var(--wx-text);}
 .wx-majo-news .notice{background:var(--wx-notice-bg);border-left:4px solid var(--wx-accent2);padding:12px 18px;border-radius:8px;font-size:13.5px;color:var(--wx-text-soft);margin:0 0 26px;}
+/* 作品名稱自動內部連結：在深色版型內沿用主題強調色，避免瀏覽器預設藍色底線與版型不搭 */
+.wx-majo-news .wxacg-autolink{color:var(--wx-accent);text-decoration:none;border-bottom:1px dotted var(--wx-accent);}
+.wx-majo-news .wxacg-autolink:hover{color:var(--wx-heading);border-bottom-color:var(--wx-heading);}
 .wx-majo-news .source-list{font-size:13px;color:var(--wx-text-soft);border-top:1px dashed rgba(255,255,255,.2);padding-top:16px;}
 .wx-majo-news .source-list a{color:var(--wx-accent);word-break:break-all;}
 .wx-majo-news .declare{font-size:12px;color:var(--wx-text-soft);margin-top:10px;border-top:1px dashed rgba(255,255,255,.15);padding-top:12px;}
