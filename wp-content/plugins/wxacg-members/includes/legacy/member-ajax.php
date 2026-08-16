@@ -46,6 +46,38 @@ defined( 'ABSPATH' ) || exit;
    ============================================================ */
 add_action( 'wp_ajax_weixiaoacg_search',        'weixiaoacg_ajax_search' );
 add_action( 'wp_ajax_nopriv_weixiaoacg_search', 'weixiaoacg_ajax_search' );
+/**
+ * 動畫搜尋結果的相關性分數：讓長系列（火影忍者、鬼滅之刃…）搜尋時，
+ * 原生 TV 正篇能排在劇場版／OVA／特別篇／SD 這些衍生作前面，而不是
+ * 單純照發布時間排序（正篇通常比較舊，新同步的衍生作反而會排前面）。
+ *
+ * @return int 分數越高越優先。
+ */
+function weixiaoacg_anime_search_relevance( int $post_id, string $title, string $keyword ): int {
+    $score = 0;
+
+    $norm_title = mb_strtolower( trim( $title ) );
+    $norm_kw    = mb_strtolower( trim( $keyword ) );
+
+    if ( $norm_title === $norm_kw ) {
+        $score += 1000;
+    } elseif ( str_starts_with( $norm_title, $norm_kw ) ) {
+        $score += 500;
+    }
+
+    $format = strtoupper( (string) get_post_meta( $post_id, 'anime_format', true ) );
+    if ( in_array( $format, [ 'TV', 'TV_SHORT' ], true ) ) {
+        $score += 200;
+    } elseif ( in_array( $format, [ 'MOVIE', 'OVA', 'ONA', 'SPECIAL', 'MUSIC' ], true ) ) {
+        $score -= 150;
+    }
+
+    $episodes = (int) get_post_meta( $post_id, 'anime_episodes', true );
+    $score   += min( $episodes, 100 ); // 集數當最後 tie-breaker，設上限避免蓋過標題/格式訊號
+
+    return $score;
+}
+
 function weixiaoacg_ajax_search() {
     check_ajax_referer( 'weixiaoacg_nonce', 'nonce' );
     $kw   = sanitize_text_field( $_POST['query'] ?? $_POST['keyword'] ?? '' );
@@ -61,22 +93,55 @@ function weixiaoacg_ajax_search() {
         default     => [ 'anime', 'manga', 'novel', 'game', 'character', 'voice-actor', 'post' ],
     };
 
-    $q   = new WP_Query( [ 's' => $kw, 'post_type' => $types, 'posts_per_page' => 12, 'post_status' => 'publish' ] );
+    $display_limit = 12;
+
+    /*
+     * 先撈一批比較寬的結果（40 筆）再自己排序、切到最終顯示筆數。
+     * 原本 posts_per_page 直接卡 12 筆，這個數字在 SQL LIMIT 那層就
+     * 定案了——如果原生作品發布日期比新同步的衍生作舊，在 PHP 這邊
+     * 重新排序前就已經被砍掉，救不回來。放寬到 40 筆再排序才有救。
+     */
+    $q = new WP_Query( [
+        's'              => $kw,
+        'post_type'      => $types,
+        'posts_per_page' => 40,
+        'post_status'    => 'publish',
+    ] );
+
     $res = [];
     while ( $q->have_posts() ) {
         $q->the_post();
-        $pid   = get_the_ID();
+        $pid        = get_the_ID();
+        $post_type  = get_post_type();
+        $title      = get_the_title();
+        $title_zh   = weixiaoacg_acf( 'anime_title_chinese', $pid, $title );
+
         $res[] = [
             'id'       => $pid,
-            'title'    => get_the_title(),
-            'title_zh' => weixiaoacg_acf( 'weixiaoacg_title_zh', $pid, get_the_title() ),
-            'type'     => get_post_type(),
+            'title'    => $title,
+            'title_zh' => $title_zh,
+            'type'     => $post_type,
             'url'      => get_permalink(),
-            'thumb'    => get_the_post_thumbnail_url( $pid, 'weixiaoacg-thumb' ) ?: weixiaoacg_acf( 'weixiaoacg_cover_url', $pid ),
-            'score'    => weixiaoacg_acf( 'weixiaoacg_score_anilist', $pid, 0 ),
+            'thumb'    => get_the_post_thumbnail_url( $pid, 'weixiaoacg-thumb' ) ?: weixiaoacg_acf( 'anime_cover_image', $pid ),
+            'score'    => weixiaoacg_acf( 'anime_score_anilist', $pid, 0 ),
+            '_date'    => get_the_date( 'U' ),
+            '_rank'    => $post_type === 'anime'
+                ? weixiaoacg_anime_search_relevance( $pid, $title_zh ?: $title, $kw )
+                : 0,
         ];
     }
     wp_reset_postdata();
+
+    usort( $res, function ( $a, $b ) {
+        return ( $b['_rank'] <=> $a['_rank'] ) ?: ( $b['_date'] <=> $a['_date'] );
+    } );
+
+    $res = array_slice( $res, 0, $display_limit );
+    $res = array_map( function ( $item ) {
+        unset( $item['_rank'], $item['_date'] );
+        return $item;
+    }, $res );
+
     wp_send_json_success( $res );
 }
 
