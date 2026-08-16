@@ -25,20 +25,20 @@
 .wx-majo-news .info-box th{background:var(--wx-infobox-th-bg);color:var(--wx-heading);width:28%;font-weight:700;}
 .wx-majo-news .info-box td{background:rgba(255,255,255,.03);color:var(--wx-text);}
 .wx-majo-news .notice{background:var(--wx-notice-bg);border-left:4px solid var(--wx-accent2);padding:12px 18px;border-radius:8px;font-size:13.5px;color:var(--wx-text-soft);margin:0 0 26px;}
-/* 作品名稱自動內部連結：在深色版型內沿用主題強調色，避免瀏覽器預設藍色底線與版型不搭 */
-.wx-majo-news .wxacg-autolink{color:var(--wx-accent);text-decoration:none;border-bottom:1px dotted var(--wx-accent);}
-.wx-majo-news .wxacg-autolink:hover{color:var(--wx-heading);border-bottom-color:var(--wx-heading);}
-/* 段落小標內的自動連結：維持小標字級與粗細，但用強調色與虛線底線明確標示可點擊 */
+/* 作品名稱自動內部連結：沿用主題強調色，並改用「實線底線」這個最通用的連結慣例（虛線容易被誤讀成提示文字而非可點擊連結） */
+.wx-majo-news .wxacg-autolink{color:var(--wx-accent);font-weight:700;text-decoration:underline;text-decoration-color:var(--wx-accent);text-decoration-thickness:1.5px;text-underline-offset:2px;}
+.wx-majo-news .wxacg-autolink:hover{color:var(--wx-heading);text-decoration-color:var(--wx-heading);}
+/* 段落小標內的自動連結：維持小標字級，同樣用實線底線明確標示可點擊 */
 .wx-majo-news h2 .wxacg-autolink,
 .wx-majo-news h3 .wxacg-autolink,
 .wx-majo-news h4 .wxacg-autolink,
 .wx-majo-news h5 .wxacg-autolink,
-.wx-majo-news h6 .wxacg-autolink{color:var(--wx-accent);border-bottom:2px dotted var(--wx-accent);}
+.wx-majo-news h6 .wxacg-autolink{color:var(--wx-accent);text-decoration:underline;text-decoration-color:var(--wx-accent);text-decoration-thickness:2px;text-underline-offset:3px;}
 .wx-majo-news h2 .wxacg-autolink:hover,
 .wx-majo-news h3 .wxacg-autolink:hover,
 .wx-majo-news h4 .wxacg-autolink:hover,
 .wx-majo-news h5 .wxacg-autolink:hover,
-.wx-majo-news h6 .wxacg-autolink:hover{color:var(--wx-heading);border-bottom-style:solid;border-bottom-color:var(--wx-heading);}
+.wx-majo-news h6 .wxacg-autolink:hover{color:var(--wx-heading);text-decoration-color:var(--wx-heading);}
 .wx-majo-news .source-list{font-size:13px;color:var(--wx-text-soft);border-top:1px dashed rgba(255,255,255,.2);padding-top:16px;}
 .wx-majo-news .source-list a{color:var(--wx-accent);word-break:break-all;}
 .wx-majo-news .declare{font-size:12px;color:var(--wx-text-soft);margin-top:10px;border-top:1px dashed rgba(255,255,255,.15);padding-top:12px;}
