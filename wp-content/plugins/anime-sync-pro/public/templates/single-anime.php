@@ -4131,15 +4131,7 @@ while ( have_posts() ) :
 				<?php endif; ?>
 
 				<?php if ( $has_trailer ) : ?>
-					<a class="asd-tab" href="#asd-sec-trailer">🎞 預告片（<?php echo esc_html( count( $trailer_items ) ); ?>）</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $openings ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-music-op">🎵 片頭曲</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $endings ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-music-ed">🎵 片尾曲</a>
+					<a class="asd-tab" href="#asd-sec-trailer">🎞 預告片</a>
 				<?php endif; ?>
 
 				<?php if ( ! empty( $episodes_list ) ) : ?>
@@ -5164,92 +5156,6 @@ while ( have_posts() ) :
 							<?php endforeach; ?>
 						</section>
 					<?php endif; ?>
-
-					<?php
-					/*
-					 * v1：在原本合併的 #asd-sec-music 之外，另外新增「片頭曲」
-					 * 「片尾曲」兩個獨立分頁（內容跟上面 #asd-sec-music 重複），
-					 * 原本合併分頁維持不動。用 closure 包住卡片渲染邏輯，
-					 * 避免同一段 HTML 在這裡再貼一次。
-					 */
-					$asd_render_music_group_v2 = static function ( array $music_list, string $section_id, string $section_title ) {
-						if ( empty( $music_list ) ) {
-							return;
-						}
-						?>
-						<section class="asd-section" id="<?php echo esc_attr( $section_id ); ?>">
-							<h2 class="asd-section-title">🎵 <?php echo esc_html( $section_title ); ?></h2>
-
-							<div class="asd-music-group">
-								<?php foreach ( $music_list as $theme_item ) :
-									if ( ! is_array( $theme_item ) ) {
-										continue;
-									}
-
-									$theme_type = strtoupper( trim( (string) ( $theme_item['type'] ?? '' ) ) );
-									$theme_title = trim( (string) ( $theme_item['title'] ?? '' ) );
-									$theme_native = trim( (string) ( $theme_item['title_native'] ?? '' ) );
-									$theme_artists = is_array( $theme_item['artists'] ?? null ) ? $theme_item['artists'] : [];
-
-									$artist_names = [];
-									$artist_romaji_names = [];
-									foreach ( $theme_artists as $artist_item ) {
-										if ( ! is_array( $artist_item ) ) { continue; }
-										$artist_display = trim( (string) ( $artist_item['name_native'] ?? $artist_item['name'] ?? '' ) );
-										$artist_romaji = trim( (string) ( $artist_item['name'] ?? '' ) );
-										if ( $artist_display !== '' ) { $artist_names[] = $artist_display; }
-										if ( $artist_romaji !== '' ) { $artist_romaji_names[] = $artist_romaji; }
-									}
-									$artist_display = implode( '、', array_unique( $artist_names ) );
-									$artist_romaji = implode( ', ', array_unique( $artist_romaji_names ) );
-
-									$audio_url = trim( (string) ( $theme_item['audio_url'] ?? '' ) );
-									$video_url = trim( (string) ( $theme_item['video_url'] ?? '' ) );
-									if ( $audio_url !== '' && ! wp_http_validate_url( $audio_url ) ) { $audio_url = ''; }
-									if ( $video_url !== '' && ! wp_http_validate_url( $video_url ) ) { $video_url = ''; }
-
-									$theme_episodes = trim( (string) ( $theme_item['episodes'] ?? '' ) );
-									$open_media_url = $video_url ?: $audio_url;
-									$music_main = $theme_native !== '' ? $theme_native : $theme_title;
-									$music_sub = ( $theme_native !== '' && $theme_title !== '' && $theme_title !== $theme_native ) ? $theme_title : '';
-									$music_badge_class = strpos( $theme_type, 'OP' ) === 0 ? 'asd-music-type-badge--op' : 'asd-music-type-badge--ed';
-									?>
-									<div class="asd-music-card-v2">
-										<span class="asd-music-type-badge <?php echo esc_attr( $music_badge_class ); ?>"><?php echo esc_html( $theme_type ); ?></span>
-
-										<div class="asd-music-body">
-											<?php if ( $music_main ) : ?><span class="asd-music-title"><?php echo esc_html( $music_main ); ?></span><?php endif; ?>
-											<?php if ( $music_sub ) : ?><span class="asd-music-native"><?php echo esc_html( $music_sub ); ?></span><?php endif; ?>
-											<?php if ( $artist_display ) : ?>
-												<span class="asd-music-artist">by <?php echo esc_html( $artist_display ); ?>
-													<?php if ( $artist_romaji && $artist_romaji !== $artist_display ) : ?><span class="asd-music-artist-romaji">(<?php echo esc_html( $artist_romaji ); ?>)</span><?php endif; ?>
-												</span>
-											<?php elseif ( $artist_romaji ) : ?>
-												<span class="asd-music-artist">by <?php echo esc_html( $artist_romaji ); ?></span>
-											<?php endif; ?>
-											<?php if ( $theme_episodes ) : ?><span class="asd-music-episodes"><?php echo esc_html( $theme_episodes ); ?></span><?php endif; ?>
-										</div>
-
-										<?php if ( $audio_url || $video_url ) : ?>
-											<div class="asd-music-player-wrap" data-audio-src="<?php echo esc_url( $audio_url ); ?>" data-video-src="<?php echo esc_url( $video_url ); ?>">
-												<audio class="asd-music-audio" preload="none"></audio>
-												<video class="asd-music-video" preload="none" playsinline hidden></video>
-												<button class="asd-music-play-btn" type="button" aria-label="播放"></button>
-												<div class="asd-music-progress-wrap" role="slider" aria-label="播放進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="asd-music-progress-bar"></div></div>
-												<span class="asd-music-time">0:00</span>
-												<?php if ( $open_media_url ) : ?><a class="asd-music-open-link" href="<?php echo esc_url( $open_media_url ); ?>" target="_blank" rel="noopener noreferrer">MV</a><?php endif; ?>
-											</div>
-										<?php endif; ?>
-									</div>
-								<?php endforeach; ?>
-							</div>
-						</section>
-					<?php
-					};
-
-					$asd_render_music_group_v2( $openings, 'asd-sec-music-op', '片頭曲' );
-					$asd_render_music_group_v2( $endings, 'asd-sec-music-ed', '片尾曲' );
-					?>
 
 					<?php if ( $has_stream_section ) : ?>
 						<section class="asd-section" id="asd-sec-stream">
