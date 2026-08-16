@@ -629,6 +629,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
     padding: 14px 15px;
     outline: none;
     transition: border-color .18s ease, background .18s ease;
+    font-family: inherit;
+    font-size: 15px;
+    line-height: normal;
+}
+
+.join-field select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
 }
 
 .join-field input::placeholder,
