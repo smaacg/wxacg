@@ -57,7 +57,7 @@ if ( ! ( $q instanceof WP_Query ) ) {
             </div>
             <div class="news-card-body">
                 <div class="news-card-tag"><?php echo $cat_label; ?></div>
-                <div class="news-card-title"><?php the_title(); ?></div>
+                <h2 class="news-card-title"><?php the_title(); ?></h2>
                 <?php if ( $excerpt ) : ?>
                 <p class="news-card-excerpt"><?php echo esc_html( $excerpt ); ?></p>
                 <?php endif; ?>
