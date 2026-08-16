@@ -93,6 +93,20 @@ class Anime_Sync_Cron_Manager {
      */
     const DAILY_ABORT_AFTER_FAILURES = 5;
 
+    /**
+     * AniList 回 404（查無此 ID）連續達此次數即標記失效、停止重試。
+     *
+     * 404 與 403 是完全不同的兩件事：403 是 AniList 維修／暫時停用，
+     * 整個服務不可用，熔斷後下批重試即可自行恢復；404 是「這個 ID 在
+     * AniList 已經不存在」，屬於本地資料壞掉，重試一萬次也不會成功。
+     * 沒有這道門檻時，壞掉的一筆會每輪重撞（實例：post 2608 連續 14 天
+     * 撞了 36 次），且因為未播出作品屬 PRIO_UPCOMING 最高優先，每輪
+     * 都排在最前面，浪費的請求還特別集中。
+     */
+    const ANILIST_404_MAX_RETRY  = 3;
+    const ANILIST_404_COUNT_META = 'anime_anilist_404_count';
+    const ANILIST_DEAD_ID_META   = 'anime_anilist_id_dead';
+
     const THEMES_QUEUE_OPTION = 'anime_sync_themes_episodes_queue';
     const THEMES_BATCH_SIZE   = 20;
 
@@ -138,6 +152,9 @@ class Anime_Sync_Cron_Manager {
     private Anime_Sync_Error_Logger   $logger;
     private Anime_Sync_Rate_Limiter   $rate_limiter;
     private Anime_Sync_API_Handler $api_handler;
+
+    /** 最近一次 anilist_request() 的 HTTP 狀態碼，供呼叫端區分 403／404 */
+    private int $last_anilist_http_code = 0;
 
     public function __construct( Anime_Sync_Import_Manager $import_manager ) {
         $this->import_manager = $import_manager;
@@ -487,19 +504,35 @@ class Anime_Sync_Cron_Manager {
                     $consecutive_failures = 0; // 兜底成功，視為服務仍可用
                 } else {
                     $failed++;
-                    $consecutive_failures++;
-                    $this->logger->log( 'warning', "每日動態更新〔{$post_title}〕：失敗", [
-                        'post_id'    => $post_id,
-                        'anilist_id' => $anilist_id,
-                    ] );
+
+                    /*
+                     * 404 不計入熔斷。
+                     *
+                     * 熔斷的用途是判斷「上游整個不可用」，而 404 代表上游好端端地
+                     * 回答了「這個 ID 不存在」——服務是正常的，壞的是本地這一筆。
+                     * 混在一起算會有兩個後果：連續幾筆 ID 失效會被誤判成 API 掛掉
+                     * 而中止整批；而且這筆永遠不會成功，卻每輪都重試。
+                     */
+                    if ( $this->last_anilist_http_code === 404 ) {
+                        $this->mark_anilist_id_404( $post_id, $anilist_id, $post_title );
+                    } else {
+                        $consecutive_failures++;
+                        $this->logger->log( 'warning', "每日動態更新〔{$post_title}〕：失敗", [
+                            'post_id'    => $post_id,
+                            'anilist_id' => $anilist_id,
+                            'http_code'  => $this->last_anilist_http_code,
+                        ] );
+                    }
                 }
             } elseif ( $result === 'skipped' ) {
                 $skipped++;
                 $consecutive_failures = 0;
+                $this->clear_anilist_404_state( $post_id );
                 $this->logger->log( 'info', "每日動態更新〔{$post_title}〕：無變動" );
             } else {
                 $updated++;
                 $consecutive_failures = 0;
+                $this->clear_anilist_404_state( $post_id );
                 $detail = str_contains( $result, ':' ) ? '（' . explode( ':', $result, 2 )[1] . '）' : '';
                 $this->logger->log( 'info', "每日動態更新〔{$post_title}〕：已更新{$detail}" );
                 $this->purge_post_cache( $post_id );
@@ -542,6 +575,53 @@ class Anime_Sync_Cron_Manager {
         }
     }
 
+    /**
+     * 記錄一次 AniList 404；連續達門檻就標記失效並停止重試。
+     *
+     * 標記後 build_daily_queue() 不再納入這篇，等人工確認新的 anilist_id
+     * （AniList 條目重建時舊 ID 會被刪除，新 ID 通常只差幾號）。
+     * 修好後任何一次成功同步都會由 clear_anilist_404_state() 清掉標記。
+     */
+    private function mark_anilist_id_404( int $post_id, int $anilist_id, string $post_title ): void {
+        $count = (int) get_post_meta( $post_id, self::ANILIST_404_COUNT_META, true ) + 1;
+        update_post_meta( $post_id, self::ANILIST_404_COUNT_META, $count );
+
+        if ( $count < self::ANILIST_404_MAX_RETRY ) {
+            $this->logger->log( 'warning', sprintf(
+                '每日動態更新〔%s〕：AniList 查無此 ID（%d/%d）',
+                $post_title,
+                $count,
+                self::ANILIST_404_MAX_RETRY
+            ), [
+                'post_id'    => $post_id,
+                'anilist_id' => $anilist_id,
+            ] );
+            return;
+        }
+
+        update_post_meta( $post_id, self::ANILIST_DEAD_ID_META, current_time( 'mysql' ) );
+
+        $this->logger->log( 'warning', sprintf(
+            '〔%s〕anilist_id %d 已失效，已停止自動重試，請人工確認新的 AniList ID',
+            $post_title,
+            $anilist_id
+        ), [
+            'post_id'    => $post_id,
+            'anilist_id' => $anilist_id,
+            'edit_url'   => get_edit_post_link( $post_id, 'raw' ),
+        ] );
+    }
+
+    /** 同步成功即視為 ID 有效，清掉先前的 404 計數與失效標記 */
+    private function clear_anilist_404_state( int $post_id ): void {
+        if ( get_post_meta( $post_id, self::ANILIST_404_COUNT_META, true ) === '' ) {
+            return;
+        }
+
+        delete_post_meta( $post_id, self::ANILIST_404_COUNT_META );
+        delete_post_meta( $post_id, self::ANILIST_DEAD_ID_META );
+    }
+
     private function build_daily_queue(): array {
         $cached = get_transient( self::DAILY_QUEUE_CACHE_KEY );
         if ( is_array( $cached ) ) {
@@ -561,10 +641,16 @@ class Anime_Sync_Cron_Manager {
             'order'          => 'ASC',
             'no_found_rows'  => true,
             'meta_query'     => [
+                'relation' => 'AND',
                 [
                     'key'     => 'anime_status',
                     'value'   => [ 'RELEASING', 'NOT_YET_RELEASED', 'FINISHED' ],
                     'compare' => 'IN',
+                ],
+                // anilist_id 已確認失效的排除在外，不再每輪空撞
+                [
+                    'key'     => self::ANILIST_DEAD_ID_META,
+                    'compare' => 'NOT EXISTS',
                 ],
             ],
         ] );
@@ -809,10 +895,81 @@ class Anime_Sync_Cron_Manager {
 
         update_post_meta( $post_id, 'anime_dynamic_synced_at', current_time( 'mysql' ) );
 
+        $this->detect_upstream_cast_growth( $post_id, $media, $diff );
+
         if ( empty( $diff ) ) {
             return 'skipped';
         }
         return 'updated:' . implode( '、', $diff );
+    }
+
+    /**
+     * 以 AniList 的 staff／characters 筆數變化，偵測上游是否補了班底資料。
+     *
+     * 為什麼用 pageInfo.total：
+     *   這是唯一免費的變更訊號——查詢每小時本來就在打，只多兩個整數
+     *   （實測整包回應 343 bytes），請求數完全不變。未播出作品的 staff／
+     *   cast 會隨宣傳進度陸續補齊，但那些欄位匯入後就沒有任何機制再更新，
+     *   等於資料停在建檔當下。
+     *
+     * 500 的意義：
+     *   AniList 對這個 total 有 500 的截斷上限，長篇大作（NARUTO、ONE PIECE、
+     *   進擊的巨人）一律回 500，不是真實筆數。但目標族群——未播出與新作品
+     *   ——筆數遠低於此（實測琉璃龍 1、小紅帽 10），完全可用。達到 500 就
+     *   跳過判斷，不拿假數字誤觸。
+     *
+     * 為什麼首次不觸發：
+     *   既有作品都還沒有這兩個 meta，若把「無→有」視為變化，第一輪就會對
+     *   全站每一部排 enrich。只有在基準值建立之後的變動才算數。
+     */
+    private function detect_upstream_cast_growth( int $post_id, array $media, array &$diff ): void {
+        $totals = [
+            'anime_al_staff_total' => [
+                'value' => (int) ( $media['staff']['pageInfo']['total'] ?? 0 ),
+                'label' => 'AniList staff',
+            ],
+            'anime_al_cast_total'  => [
+                'value' => (int) ( $media['characters']['pageInfo']['total'] ?? 0 ),
+                'label' => 'AniList cast',
+            ],
+        ];
+
+        $grew = false;
+
+        foreach ( $totals as $meta_key => $info ) {
+            $total = $info['value'];
+
+            if ( $total <= 0 || $total >= 500 ) {
+                continue;
+            }
+
+            $stored = get_post_meta( $post_id, $meta_key, true );
+            update_post_meta( $post_id, $meta_key, $total );
+
+            if ( $stored === '' ) {
+                continue;
+            }
+
+            if ( (int) $stored !== $total ) {
+                $grew   = true;
+                $diff[] = sprintf( '%s %d→%d', $info['label'], (int) $stored, $total );
+            }
+        }
+
+        if ( ! $grew ) {
+            return;
+        }
+
+        /*
+         * 上游確實動了才排 enrich。走既有的單次事件機制，非同步執行，
+         * 不在每小時這輪裡同步打 Bangumi／Jikan／AnimeThemes。
+         * enrich 端的 keep_if_fewer() 會處理覆蓋護欄（只增不減、尊重鎖定）。
+         */
+        delete_post_meta( $post_id, '_enriched_at' );
+
+        if ( ! wp_next_scheduled( 'anime_sync_enrich_post', [ $post_id ] ) ) {
+            wp_schedule_single_event( time() + 60, 'anime_sync_enrich_post', [ $post_id ] );
+        }
     }
 
     private function fetch_anilist_dynamic( int $anilist_id ): ?array {
@@ -829,6 +986,8 @@ class Anime_Sync_Cron_Manager {
                 startDate { year month day }
                 endDate { year month day }
                 nextAiringEpisode { airingAt episode }
+                staff { pageInfo { total } }
+                characters { pageInfo { total } }
             }
         }
         GQL;
@@ -1862,6 +2021,8 @@ class Anime_Sync_Cron_Manager {
     }
 
     private function anilist_request( string $query, array $variables = [] ): ?array {
+        $this->last_anilist_http_code = 0;
+
         $response = wp_remote_post( 'https://graphql.anilist.co', [
             'timeout' => 30,
             'headers' => [
@@ -1881,6 +2042,8 @@ class Anime_Sync_Cron_Manager {
         }
 
         $code = wp_remote_retrieve_response_code( $response );
+
+        $this->last_anilist_http_code = (int) $code;
 
         if ( $code === 429 ) {
             $wait = $this->rate_limiter->handle_rate_limit_error( $response, 'anilist' );
