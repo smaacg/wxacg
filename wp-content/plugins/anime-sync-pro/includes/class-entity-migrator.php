@@ -9,6 +9,13 @@
  *   wp anime backfill-persons    [--force] [--id=N] [--limit=N]
  *
  * @changelog
+ *   1.8.2 (2026-08-16) — 修正 fetch_bgm_character_detail() 的 name_cn / name_original 對調:
+ *     Bangumi API 的 data['name'] 是角色的原始（通常是日文）名稱，不是中文名，
+ *     舊版誤把它當「中文名」存進 name_cn，卻把 infobox 的「簡體中文名」
+ *     （轉繁後的中文譯名）存進 name_original，造成前台「簡」標籤下顯示日文、
+ *     日文欄位反而是中文。現改為：name_cn 取 infobox 簡體中文名（轉繁），
+ *     name_original 取別名裡的日文名（若有）或 data['name']（不經簡繁轉換，
+ *     因為它本來就是原始語言文字）。既有資料未受此次修正影響，需另外處理。
  *   1.8.1 (2026-07-30) — infobox 的 key(label)也做簡轉繁:
  *     修正 fetch_bgm_character_detail() / fetch_bgm_person_detail() 中
  *     $infobox_all 的 key 未經 $convert() 導致「事务所/唱片公司/出道
@@ -464,8 +471,10 @@ class Anime_Sync_Entity_Migrator {
 			}
 		}
 
-		$name_cn       = $name_cn_top !== '' ? $name_cn_top : $name_cn_ibox;
-		$name_original = $name_ja !== '' ? $name_ja : $convert( $name_cn_ibox !== '' ? $name_cn_ibox : $name_cn_top );
+		// v1.8.2：data['name'] 是原始（通常日文）名稱，不能當中文名；
+		// 中文名要取 infobox 的「簡體中文名」（轉繁）。
+		$name_cn       = $name_cn_ibox !== '' ? $convert( $name_cn_ibox ) : '';
+		$name_original = $name_ja !== '' ? $name_ja : $name_cn_top;
 
 		return [
 			'name_original' => $name_original,
