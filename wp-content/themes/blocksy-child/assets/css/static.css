@@ -38,6 +38,11 @@
   margin: 0 auto;
 }
 
+/* 較矮的 hero（目前用在聯絡我們頁）：拿掉圖示、壓縮上下留白 */
+.static-hero--compact {
+  padding: 36px 20px 28px;
+}
+
 .static-hero-icon {
   font-size: 56px;
   line-height: 1;
@@ -125,7 +130,7 @@
   font-size: 14px;
   color: var(--text-secondary, #cbd5e1);
   line-height: 1.8;
-  margin: 0 0 8px;
+  margin: 0 0 14px;
 }
 
 .static-card p:last-child {
@@ -302,6 +307,28 @@
   text-decoration: underline;
 }
 
+/* 聯絡卡片裡的 Email 是主要行動呼籲，字太小、顏色太淡不明顯。
+   v2：改成淺色描邊玻璃感徽章（跟站內其他徽章同一套語言），
+   不用實心藥丸——太重、長信箱地址擠在裡面還會被硬切斷不好看。 */
+.static-card--center .static-link {
+  font-size: 14px;
+  font-weight: 700;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.32);
+  padding: 7px 14px;
+  border-radius: 10px;
+  margin-top: 14px;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.4;
+}
+
+.static-card--center .static-link:hover {
+  background: rgba(99, 102, 241, 0.2);
+  text-decoration: none;
+}
+
 /* ────────────────────────────────────────────
    資料來源列表（about 頁用）
    ──────────────────────────────────────────── */
@@ -442,6 +469,13 @@
   line-height: 1.7;
 }
 
+.static-cta-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* ────────────────────────────────────────────
    手機版通用調整
    ──────────────────────────────────────────── */
@@ -538,6 +572,7 @@
 .contact-select {
   cursor: pointer;
   appearance: none;
+  line-height: normal;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
@@ -699,17 +734,26 @@
 /* ── 欄位提示文字 ── */
 .contact-field-hint {
   font-size: 12px;
-  color: #f59e0b;
+  color: #fbbf24;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 4px 0 0;
-  line-height: 1.5;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 8px 0 0;
+  line-height: 1.6;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  padding: 8px 12px;
+  border-radius: 8px;
 }
 
 .contact-field-hint i {
   font-size: 11px;
   flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.contact-field-hint span {
+  text-wrap: balance;
 }
 /* ── 圖片上傳區 ── */
 .contact-upload-wrap {
@@ -772,18 +816,25 @@
   font-size: 16px;
 }
 
-/* 圖片預覽 */
-.contact-upload-preview {
-  position: relative;
+/* 圖片預覽（最多 5 張，格狀排列） */
+.contact-upload-preview--grid {
   margin-top: 12px;
-  display: inline-block;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.contact-upload-preview img {
-  max-width: 100%;
-  max-height: 240px;
+.contact-upload-preview-item {
+  position: relative;
+  width: 84px;
+  height: 84px;
+}
+
+.contact-upload-preview-item img {
+  width: 100%;
+  height: 100%;
   border-radius: 10px;
-  object-fit: contain;
+  object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -791,13 +842,13 @@
   position: absolute;
   top: -8px;
   right: -8px;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #ef4444;
-  border: none;
+  border: 2px solid var(--bg-primary, #10151c);
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   display: flex;
   align-items: center;

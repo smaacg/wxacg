@@ -769,8 +769,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weixiao_join_form_sub
             </h1>
 
             <p class="join-suit-sub">
-                <span aria-hidden="true">👔</span>
-                喜歡動漫・擅長分享・一起讓更多人看見好作品
+                <span aria-hidden="true">🔍</span>
+                我們正在找，跟你一樣熱愛分享的動漫迷朋友
             </p>
 
             <p class="join-suit-desc">

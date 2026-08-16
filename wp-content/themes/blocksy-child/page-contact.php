@@ -19,9 +19,8 @@ get_header(); ?>
 <main class="static-page">
 
   <!-- Hero -->
-  <section class="static-hero">
+  <section class="static-hero static-hero--compact">
     <div class="static-hero-inner">
-      <div class="static-hero-icon">💬</div>
       <h1 class="static-hero-title">聯絡我們</h1>
       <p class="static-hero-desc">有任何問題、建議或版權申訴，歡迎隨時與我們聯繫。</p>
     </div>
@@ -127,21 +126,20 @@ get_header(); ?>
                 }
             }
 
-            // ── 圖片上傳驗證 ──
-            $attachment_path = '';
-            if ( empty( $form_error ) && ! empty( $_FILES['contact_image']['name'] ) ) {
-                $file     = $_FILES['contact_image'];
-                $allowed  = [ 'image/jpeg', 'image/png', 'image/gif', 'image/webp' ];
-                $max_size = 5 * 1024 * 1024; // 5MB
+            // ── 圖片上傳驗證（最多 5 張，name="contact_image[]"） ──
+            $attachment_paths = [];
+            $max_images       = 5;
 
-                if ( $file['error'] !== UPLOAD_ERR_OK ) {
-                    $form_error = '圖片上傳失敗，請重試。';
-                } elseif ( ! in_array( $file['type'], $allowed, true ) ) {
-                    $form_error = '僅支援 JPG、PNG、GIF、WebP 格式的圖片。';
-                } elseif ( $file['size'] > $max_size ) {
-                    $form_error = '圖片大小不能超過 5MB。';
+            if ( empty( $form_error ) && ! empty( $_FILES['contact_image']['name'] ) && is_array( $_FILES['contact_image']['name'] ) ) {
+                $names  = $_FILES['contact_image']['name'];
+                $count  = count( array_filter( $names, static function ( $n ) { return $n !== ''; } ) );
+
+                if ( $count > $max_images ) {
+                    $form_error = "最多只能上傳 {$max_images} 張圖片。";
                 } else {
-                    // 暫存到 uploads 目錄
+                    $allowed  = [ 'image/jpeg', 'image/png', 'image/gif', 'image/webp' ];
+                    $max_size = 5 * 1024 * 1024; // 5MB／張
+
                     $upload_dir = wp_upload_dir();
                     $tmp_dir    = $upload_dir['basedir'] . '/contact-tmp/';
 
@@ -151,13 +149,49 @@ get_header(); ?>
                         file_put_contents( $tmp_dir . '.htaccess', 'deny from all' );
                     }
 
-                    $ext             = pathinfo( $file['name'], PATHINFO_EXTENSION );
-                    $safe_filename   = 'contact_' . time() . '_' . wp_generate_password( 8, false ) . '.' . $ext;
-                    $attachment_path = $tmp_dir . $safe_filename;
+                    foreach ( $names as $i => $name ) {
+                        if ( $name === '' ) {
+                            continue; // 該欄位沒選檔案
+                        }
 
-                    if ( ! move_uploaded_file( $file['tmp_name'], $attachment_path ) ) {
-                        $form_error      = '圖片儲存失敗，請重試。';
-                        $attachment_path = '';
+                        $file_error = $_FILES['contact_image']['error'][ $i ];
+                        $file_type  = $_FILES['contact_image']['type'][ $i ];
+                        $file_size  = $_FILES['contact_image']['size'][ $i ];
+                        $file_tmp   = $_FILES['contact_image']['tmp_name'][ $i ];
+
+                        if ( $file_error !== UPLOAD_ERR_OK ) {
+                            $form_error = '圖片上傳失敗，請重試。';
+                            break;
+                        }
+                        if ( ! in_array( $file_type, $allowed, true ) ) {
+                            $form_error = '僅支援 JPG、PNG、GIF、WebP 格式的圖片。';
+                            break;
+                        }
+                        if ( $file_size > $max_size ) {
+                            $form_error = '每張圖片大小不能超過 5MB。';
+                            break;
+                        }
+
+                        $ext           = pathinfo( $name, PATHINFO_EXTENSION );
+                        $safe_filename = 'contact_' . time() . '_' . wp_generate_password( 8, false ) . '.' . $ext;
+                        $dest_path     = $tmp_dir . $safe_filename;
+
+                        if ( ! move_uploaded_file( $file_tmp, $dest_path ) ) {
+                            $form_error = '圖片儲存失敗，請重試。';
+                            break;
+                        }
+
+                        $attachment_paths[] = $dest_path;
+                    }
+
+                    // 驗證中途失敗：把已經搬過去的檔案清掉，不留孤兒檔
+                    if ( $form_error ) {
+                        foreach ( $attachment_paths as $p ) {
+                            if ( file_exists( $p ) ) {
+                                unlink( $p );
+                            }
+                        }
+                        $attachment_paths = [];
                     }
                 }
             }
@@ -185,8 +219,8 @@ get_header(); ?>
                 if ( ! empty( $field_correct ) ) {
                     $body .= "【正確資料應為】{$field_correct}\n";
                 }
-                if ( $attachment_path ) {
-                    $body .= "【附件】已附上截圖\n";
+                if ( ! empty( $attachment_paths ) ) {
+                    $body .= '【附件】已附上 ' . count( $attachment_paths ) . " 張截圖\n";
                 }
 
                 $body .= "\n【訊息內容】\n{$field_msg}\n\n"
@@ -198,14 +232,13 @@ get_header(); ?>
                     'Reply-To: ' . $field_name . ' <' . $field_email . '>',
                 ];
 
-                // 有圖片就加附件
-                $attachments = $attachment_path ? [ $attachment_path ] : [];
-
-                $sent = wp_mail( 'weixiaoacg.com@gmail.com', $subject, $body, $headers, $attachments );
+                $sent = wp_mail( 'weixiaoacg.com@gmail.com', $subject, $body, $headers, $attachment_paths );
 
                 // 暫存圖片用完立刻刪除
-                if ( $attachment_path && file_exists( $attachment_path ) ) {
-                    unlink( $attachment_path );
+                foreach ( $attachment_paths as $p ) {
+                    if ( file_exists( $p ) ) {
+                        unlink( $p );
+                    }
                 }
 
                 if ( $sent ) {
@@ -315,7 +348,7 @@ get_header(); ?>
               >
               <p class="contact-field-hint">
                 <i class="fa-solid fa-triangle-exclamation"></i>
-                請務必填入正確的電子郵件，確認信與回覆將寄送至此信箱。
+                <span>請填寫正確的電子郵件，回覆將寄送至此信箱。</span>
               </p>
             </div>
 
@@ -327,12 +360,12 @@ get_header(); ?>
               <i class="fa-solid fa-tag"></i> 詢問類型
             </label>
             <select id="contact_type" name="contact_type" class="contact-input contact-select">
-              <option value="general"   <?php selected( $field_type, 'general' );   ?>>💬 一般詢問</option>
-              <option value="bug"       <?php selected( $field_type, 'bug' );       ?>>🐛 問題回報／資料糾錯</option>
-              <option value="copyright" <?php selected( $field_type, 'copyright' ); ?>>⚖️ 版權申訴</option>
-              <option value="suggest"   <?php selected( $field_type, 'suggest' );   ?>>💡 功能建議</option>
-              <option value="cooperate" <?php selected( $field_type, 'cooperate' ); ?>>🤝 合作洽談</option>
-              <option value="other"     <?php selected( $field_type, 'other' );     ?>>📌 其他</option>
+              <option value="general"   <?php selected( $field_type, 'general' );   ?>>一般詢問</option>
+              <option value="bug"       <?php selected( $field_type, 'bug' );       ?>>問題回報／資料糾錯</option>
+              <option value="copyright" <?php selected( $field_type, 'copyright' ); ?>>版權申訴</option>
+              <option value="suggest"   <?php selected( $field_type, 'suggest' );   ?>>功能建議</option>
+              <option value="cooperate" <?php selected( $field_type, 'cooperate' ); ?>>合作洽談</option>
+              <option value="other"     <?php selected( $field_type, 'other' );     ?>>其他</option>
             </select>
           </div>
 
@@ -366,30 +399,26 @@ get_header(); ?>
             ><?php echo esc_textarea( $field_msg ); ?></textarea>
           </div>
 
-          <!-- 圖片上傳 -->
+          <!-- 圖片上傳（最多 5 張） -->
           <div class="contact-field">
             <label class="contact-label" for="contact_image">
-              <i class="fa-solid fa-image"></i> 附上截圖（選填）
+              <i class="fa-solid fa-image"></i> 附上截圖（選填，最多 5 張）
             </label>
             <div class="contact-upload-wrap" id="contact-upload-wrap">
               <input
                 type="file"
                 id="contact_image"
-                name="contact_image"
+                name="contact_image[]"
                 class="contact-upload-input"
                 accept="image/jpeg,image/png,image/gif,image/webp"
+                multiple
               >
               <label for="contact_image" class="contact-upload-label">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
                 <span id="contact-upload-text">點擊或拖曳圖片至此上傳</span>
-                <small>支援 JPG、PNG、GIF、WebP，最大 5MB</small>
+                <small>支援 JPG、PNG、GIF、WebP，單張最大 5MB，最多 5 張</small>
               </label>
-              <div class="contact-upload-preview" id="contact-upload-preview" hidden>
-                <img id="contact-preview-img" src="" alt="預覽">
-                <button type="button" class="contact-upload-remove" id="contact-upload-remove">
-                  <i class="fa-solid fa-xmark"></i>
-                </button>
-              </div>
+              <div class="contact-upload-preview contact-upload-preview--grid" id="contact-upload-preview" hidden></div>
             </div>
           </div>
 
@@ -459,11 +488,20 @@ get_header(); ?>
       <h3 class="static-cta-title">感謝你支持微笑動漫</h3>
       <p class="static-cta-desc">
         每一則回饋都讓我們變得更好。<br>
-        我們在這裡，慢慢長大。
+        我們在這裡，慢慢長大。<br><br>
+        如果你也想讓這裡走得更久，歡迎請我們喝杯咖啡 ❤️
       </p>
-      <a href="<?php echo esc_url( home_url('/') ); ?>" class="btn btn-primary">
-        <i class="fa-solid fa-house"></i> 回到首頁
-      </a>
+      <div class="static-cta-actions">
+        <a href="<?php echo esc_url( home_url('/') ); ?>" class="btn btn-primary">
+          <i class="fa-solid fa-house"></i> 回到首頁
+        </a>
+        <a href="<?php echo esc_url( home_url('/sponsor/') ); ?>" class="btn btn-secondary">
+          <i class="fa-solid fa-mug-hot"></i> 贊助我們
+        </a>
+        <a href="<?php echo esc_url( home_url('/join/') ); ?>" class="btn btn-secondary">
+          <i class="fa-solid fa-user-plus"></i> 加入我們
+        </a>
+      </div>
     </section>
 
   </div>
@@ -517,27 +555,76 @@ if (typeSelect && correctWrap) {
   });
 }
 
-/* ── 圖片上傳預覽 ── */
+/* ── 圖片上傳預覽（最多 5 張） ── */
 var fileInput   = document.getElementById('contact_image');
 var uploadWrap  = document.getElementById('contact-upload-wrap');
 var previewWrap = document.getElementById('contact-upload-preview');
-var previewImg  = document.getElementById('contact-preview-img');
 var uploadText  = document.getElementById('contact-upload-text');
-var removeBtn   = document.getElementById('contact-upload-remove');
+var MAX_CONTACT_IMAGES = 5;
+
+function contactSetFiles(fileList) {
+  // 用 DataTransfer 重建 FileList，超過上限的部分直接捨棄
+  var dt    = new DataTransfer();
+  var total = 0;
+  Array.prototype.forEach.call(fileList, function (f) {
+    if (total < MAX_CONTACT_IMAGES) {
+      dt.items.add(f);
+      total++;
+    }
+  });
+  if (fileList.length > MAX_CONTACT_IMAGES) {
+    alert('最多只能上傳 ' + MAX_CONTACT_IMAGES + ' 張圖片，已自動取前 ' + MAX_CONTACT_IMAGES + ' 張。');
+  }
+  fileInput.files = dt.files;
+  contactRenderPreviews();
+}
+
+function contactRemoveFileAt(idx) {
+  var dt = new DataTransfer();
+  Array.prototype.forEach.call(fileInput.files, function (f, i) {
+    if (i !== idx) dt.items.add(f);
+  });
+  fileInput.files = dt.files;
+  contactRenderPreviews();
+}
+
+function contactRenderPreviews() {
+  previewWrap.innerHTML = '';
+  var files = fileInput.files;
+
+  if (!files || !files.length) {
+    previewWrap.hidden = true;
+    uploadWrap.classList.remove('has-preview');
+    uploadText.textContent = '點擊或拖曳圖片至此上傳';
+    return;
+  }
+
+  previewWrap.hidden = false;
+  uploadWrap.classList.add('has-preview');
+  uploadText.textContent = files.length + ' 張圖片已選擇（點縮圖右上角可移除）';
+
+  Array.prototype.forEach.call(files, function (file, idx) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var item = document.createElement('div');
+      item.className = 'contact-upload-preview-item';
+      item.innerHTML =
+        '<img src="' + e.target.result + '" alt="預覽 ' + (idx + 1) + '">' +
+        '<button type="button" class="contact-upload-remove" data-idx="' + idx + '" aria-label="移除這張圖片">' +
+        '  <i class="fa-solid fa-xmark"></i>' +
+        '</button>';
+      previewWrap.appendChild(item);
+      item.querySelector('.contact-upload-remove').addEventListener('click', function () {
+        contactRemoveFileAt(idx);
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 if (fileInput) {
-  fileInput.addEventListener('change', function() {
-    if (this.files && this.files[0]) {
-      var file   = this.files[0];
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        previewImg.src      = e.target.result;
-        previewWrap.hidden  = false;
-        uploadText.textContent = file.name;
-        uploadWrap.classList.add('has-preview');
-      };
-      reader.readAsDataURL(file);
-    }
+  fileInput.addEventListener('change', function () {
+    contactSetFiles(this.files);
   });
 
   // 拖曳上傳
@@ -548,22 +635,11 @@ if (fileInput) {
     uploadLabel.addEventListener('drop', function(e) {
       e.preventDefault();
       this.classList.remove('drag-over');
-      if (e.dataTransfer.files[0]) {
-        fileInput.files = e.dataTransfer.files;
-        fileInput.dispatchEvent(new Event('change'));
+      if (e.dataTransfer.files.length) {
+        contactSetFiles(e.dataTransfer.files);
       }
     });
   }
-}
-
-if (removeBtn) {
-  removeBtn.addEventListener('click', function() {
-    fileInput.value    = '';
-    previewImg.src     = '';
-    previewWrap.hidden = true;
-    uploadText.textContent = '點擊或拖曳圖片至此上傳';
-    uploadWrap.classList.remove('has-preview');
-  });
 }
 </script>
 
