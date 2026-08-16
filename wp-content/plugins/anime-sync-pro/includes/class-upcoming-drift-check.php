@@ -38,31 +38,6 @@ class Anime_Sync_Upcoming_Drift_Check {
 	private const UA = 'weixiaoacg-Project/1.0 (https://weixiaoacg.com)';
 
 	/**
-	 * 主要職位白名單。
-	 *
-	 * 必須與 class-api-handler.php 的 get_bgm_staff() 完全一致——匯入端只收
-	 * 這些職位，Bangumi 原始清單則包含原画／動画／制作進行等上百筆細項。
-	 * 不套用同一份過濾就會拿「過濾後的本地」比「未過濾的上游」，
-	 * 幾乎每部都會被誤判成有落差（初版就踩過：180 部報出 112 部）。
-	 */
-	private const MAIN_ROLES = [
-		'导演',
-		'原作',
-		'系列构成',
-		'脚本',
-		'人物原案',
-		'角色设计',
-		'人物设定',
-		'音乐',
-		'音響監督',
-		'音响监督',
-		'主题歌演出',
-		'主题歌作词',
-		'主题歌作曲',
-		'动画制作',
-	];
-
-	/**
 	 * 掃描未播出作品，回報上游與本地的筆數落差。
 	 *
 	 * @param array{limit?:int} $args
@@ -91,6 +66,11 @@ class Anime_Sync_Upcoming_Drift_Check {
 			$ids = array_slice( $ids, 0, $limit );
 		}
 
+		if ( ! class_exists( 'Anime_Sync_API_Handler' ) ) {
+			return [];
+		}
+
+		$api  = new Anime_Sync_API_Handler();
 		$rows = [];
 
 		foreach ( $ids as $id ) {
@@ -118,9 +98,31 @@ class Anime_Sync_Upcoming_Drift_Check {
 				continue;
 			}
 
-			$row['bgm_staff'] = $this->bgm_count( $bgm_id, 'persons' );
-			sleep( self::BGM_DELAY );
-			$row['bgm_cast'] = $this->bgm_count( $bgm_id, 'characters' );
+			/*
+			 * 直接呼叫匯入端使用的取得方法，不自行計數。
+			 *
+			 * 前兩版都因為「檢查」與「實際抓取」算的東西不同而誤報：
+			 *   1. staff — 匯入端只收 14 種主要職位，檢查卻數未過濾的原始清單
+			 *      （180 部誤報 112 部）
+			 *   2. cast  — 匯入端走 legacy API 的 crt 欄位，檢查卻數 v0 端點，
+			 *      兩者筆數不同（火影忍者 108 vs 241）
+			 *
+			 * 改為呼叫同一組方法後，兩邊由結構保證一致，不需要再同步維護
+			 * 白名單或端點選擇。這兩個方法內有 12 小時 transient 快取，
+			 * 緊接著的 --apply 不會重複請求。
+			 */
+			$staff = $api->get_bgm_staff_public( $bgm_id );
+			$cast  = $api->get_bgm_chars_public( $bgm_id );
+
+			$row['bgm_staff'] = count( $staff );
+			$row['bgm_cast']  = count( $cast );
+
+			// 兩邊都取不到才視為請求失敗；單邊為空是正常的（上游尚未建）
+			if ( empty( $staff ) && empty( $cast ) ) {
+				$row['bgm_staff'] = null;
+				$row['bgm_cast']  = null;
+			}
+
 			sleep( self::BGM_DELAY );
 
 			// 取不到就跳過判定，避免把「對方暫時失敗」誤認為「本地資料過期」
@@ -209,56 +211,6 @@ class Anime_Sync_Upcoming_Drift_Check {
 		}
 
 		return $done;
-	}
-
-	/**
-	 * 取得 Bangumi 子資源的筆數。
-	 *
-	 * @param string $kind persons | characters
-	 * @return int|null null 代表請求失敗（與「筆數為 0」意義不同）
-	 */
-	private function bgm_count( int $bgm_id, string $kind ): ?int {
-		$res = wp_remote_get(
-			'https://api.bgm.tv/v0/subjects/' . $bgm_id . '/' . $kind,
-			[
-				'timeout' => 15,
-				'headers' => [
-					'User-Agent' => self::UA,
-					'Accept'     => 'application/json',
-				],
-			]
-		);
-
-		if ( is_wp_error( $res ) ) {
-			return null;
-		}
-
-		$code = (int) wp_remote_retrieve_response_code( $res );
-
-		// 404 代表該條目沒有這類資料，是明確的「0」而非失敗
-		if ( 404 === $code ) {
-			return 0;
-		}
-
-		if ( 200 !== $code ) {
-			return null;
-		}
-
-		$data = json_decode( wp_remote_retrieve_body( $res ), true );
-
-		if ( ! is_array( $data ) ) {
-			return null;
-		}
-
-		// 製作人員套用與匯入端相同的主要職位過濾；角色沒有這層過濾，全數計入。
-		if ( 'persons' === $kind ) {
-			$data = array_filter(
-				$data,
-				static fn( $p ) => in_array( $p['relation'] ?? '', self::MAIN_ROLES, true )
-			);
-		}
-
-		return count( $data );
 	}
 
 	/** JSON 陣列筆數；格式不對一律當 0 */
