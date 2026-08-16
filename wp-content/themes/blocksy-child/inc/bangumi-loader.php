@@ -69,6 +69,7 @@ add_action( 'template_redirect', function () {
 	if ( $view === 'current' ) {
 		add_filter( 'rank_math/frontend/disable_integration', '__return_true' );
 		remove_all_actions( 'rank_math/head' );
+		smacg_bangumi_restore_title_tag();
 
 		$tpl = get_stylesheet_directory() . '/page-bangumi-index.php';
 		if ( file_exists( $tpl ) ) { include $tpl; exit; }
@@ -80,6 +81,7 @@ add_action( 'template_redirect', function () {
 	if ( $view === 'archive' ) {
 		add_filter( 'rank_math/frontend/disable_integration', '__return_true' );
 		remove_all_actions( 'rank_math/head' );
+		smacg_bangumi_restore_title_tag();
 
 		$tpl = get_stylesheet_directory() . '/page-bangumi-archive.php';
 		if ( file_exists( $tpl ) ) { include $tpl; exit; }
@@ -96,6 +98,7 @@ add_action( 'template_redirect', function () {
 
 		add_filter( 'rank_math/frontend/disable_integration', '__return_true' );
 		remove_all_actions( 'rank_math/head' );
+		smacg_bangumi_restore_title_tag();
 
 		$tpl = get_stylesheet_directory() . '/page-bangumi.php';
 		if ( file_exists( $tpl ) ) { include $tpl; exit; }
@@ -179,6 +182,25 @@ function smacg_bangumi_shift_ym( string $ym, int $delta ): string {
 /* ============================================================
  * 5. SEO helpers
  * ============================================================ */
+
+/**
+ * 取回 <title> 的輸出權。
+ *
+ * Rank Math 在建構子裡把 _wp_render_title_tag 從 wp_head 搬到自己的
+ * rank_math/head（見 seo-by-rank-math/includes/frontend/class-head.php:72-73），
+ * 因此路由那邊為了自行接管 SEO 而下的 remove_all_actions('rank_math/head')
+ * 會把 <title> 一起清掉——WP 那份已被 Rank Math 移走、Rank Math 那份又被
+ * 我們移除，結果整頁沒有標題。/bangumi、/bangumi/archive、/bangumi/{ym}
+ * 三個頁面都受影響。
+ *
+ * 這裡把它掛回 wp_head；標題內容仍由各模板的 pre_get_document_title
+ * （優先度 99）決定，與原設計一致。
+ */
+function smacg_bangumi_restore_title_tag(): void {
+	if ( ! has_action( 'wp_head', '_wp_render_title_tag' ) ) {
+		add_action( 'wp_head', '_wp_render_title_tag', 1 );
+	}
+}
 
 function smacg_bangumi_render_meta( array $ctx ): void {
 	echo "\n<!-- Bangumi SEO -->\n";
