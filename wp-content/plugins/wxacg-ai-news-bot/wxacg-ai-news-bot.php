@@ -123,6 +123,91 @@ class WXACG_AI_News_Engine_Plugin {
     }
 
     /**
+     * 將 Unicode 碼位編碼為 UTF-8 位元組字串。
+     * 自行實作而不使用 mb_chr()，因為 WordPress 核心的 compat.php 並未提供該函式的備援，
+     * 主機若未啟用 mbstring 擴充會直接 Fatal Error。
+     */
+    private static function utf8_chr($codepoint) {
+        if ($codepoint < 0x80) {
+            return chr($codepoint);
+        }
+        if ($codepoint < 0x800) {
+            return chr(0xC0 | ($codepoint >> 6)) . chr(0x80 | ($codepoint & 0x3F));
+        }
+        return chr(0xE0 | ($codepoint >> 12))
+             . chr(0x80 | (($codepoint >> 6) & 0x3F))
+             . chr(0x80 | ($codepoint & 0x3F));
+    }
+
+    /**
+     * 取得「全形 → 半形」字元轉換對照表（只建立一次後重複使用）。
+     * 解決作品頁標題與文章內文使用不同形式標點導致比對失敗的問題，
+     * 例如資料庫寫「Re：從零開始的異世界生活」（全形冒號）、文章寫「Re:從零開始的異世界生活」（半形冒號）。
+     */
+    private static function get_width_normalize_table() {
+        static $table = null;
+        if ($table !== null) {
+            return $table;
+        }
+        $table = [];
+        # 全形 ASCII 區段 U+FF01～U+FF5E 對應到半形 U+0021～U+007E（差值固定 0xFEE0）
+        for ($cp = 0xFF01; $cp <= 0xFF5E; $cp++) {
+            $table[self::utf8_chr($cp)] = chr($cp - 0xFEE0);
+        }
+        # 全形空白與波浪號的各種變體
+        $table[self::utf8_chr(0x3000)] = ' ';   // 表意文字空格
+        $table[self::utf8_chr(0x301C)] = '~';   // 波浪號 〜
+        $table[self::utf8_chr(0xFF5E)] = '~';   // 全形波浪號 ～
+        return $table;
+    }
+
+    /**
+     * 比對用正規化：統一全半形、轉小寫，並移除空白與作品名常見的分隔符號。
+     *
+     * 之所以需要位置對照表，是因為正規化後的字串長度與原文不同，
+     * 找到位置後必須換算回原文位移，才能在插入連結時保留文章原本的寫法。
+     *
+     * @param string     $text        原始文字
+     * @param array|null $offset_map  輸出參數：正規化位移 => 原文位移（含結尾哨兵）
+     * @return string 正規化後字串
+     */
+    private static function normalize_for_match($text, &$offset_map = null) {
+        $table = self::get_width_normalize_table();
+        # 作品名常見但兩邊寫法可能不一致的分隔符號，一律移除後再比對
+        $droppable = ['・' => 1, '･' => 1, '·' => 1, '‧' => 1];
+
+        $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($chars)) {
+            $offset_map = [0 => 0];
+            return '';
+        }
+
+        $normalized = '';
+        $offset_map = [];
+        $original_offset = 0;
+
+        foreach ($chars as $char) {
+            $byte_length = strlen($char);
+            $converted = isset($table[$char]) ? $table[$char] : $char;
+
+            # 空白與分隔符號不納入比對字串（僅推進原文位移）
+            if (isset($droppable[$char]) || trim($converted) === '') {
+                $original_offset += $byte_length;
+                continue;
+            }
+
+            # 位移對照只記錄在字元邊界上，供比對命中後換算回原文使用
+            $offset_map[strlen($normalized)] = $original_offset;
+            $normalized .= strtolower($converted);
+            $original_offset += $byte_length;
+        }
+
+        # 結尾哨兵：讓「比對結束位置」也能換算回原文
+        $offset_map[strlen($normalized)] = $original_offset;
+        return $normalized;
+    }
+
+    /**
      * 取得「作品標題 → 作品頁網址」對照表 (以 Transient 快取 12 小時，避免每次瀏覽都查資料庫)。
      * 回傳陣列已按標題長度由長至短排序，確保較具體的長標題優先命中，
      * 不會被同系列的短標題搶先比對成功。
@@ -139,6 +224,7 @@ class WXACG_AI_News_Engine_Plugin {
              WHERE post_type = 'anime' AND post_status = 'publish' AND post_title != ''"
         );
 
+        # 對照表以「正規化後的標題」為鍵，比對時才能忽略全半形與空白差異
         $map = [];
         if (is_array($rows)) {
             foreach ($rows as $row) {
@@ -147,7 +233,11 @@ class WXACG_AI_News_Engine_Plugin {
                 if (mb_strlen($title, 'UTF-8') < self::AUTOLINK_MIN_TITLE_LENGTH) {
                     continue;
                 }
-                $map[$title] = [
+                $normalized = self::normalize_for_match($title);
+                if ($normalized === '' || isset($map[$normalized])) {
+                    continue;
+                }
+                $map[$normalized] = [
                     'id'  => (int) $row->ID,
                     'url' => get_permalink((int) $row->ID),
                 ];
@@ -156,7 +246,7 @@ class WXACG_AI_News_Engine_Plugin {
 
         # 依標題長度由長到短排序：先比對《咒術迴戰 第二季》再比對《咒術迴戰》，避免長標題永遠命不中
         uksort($map, function ($a, $b) {
-            return mb_strlen($b, 'UTF-8') <=> mb_strlen($a, 'UTF-8');
+            return strlen($b) <=> strlen($a);
         });
 
         set_transient(self::ANIME_LINK_MAP_TRANSIENT, $map, 12 * HOUR_IN_SECONDS);
@@ -238,34 +328,48 @@ class WXACG_AI_News_Engine_Plugin {
             }
 
             $text = $part;
-            foreach ($map as $title => $info) {
+            # 先算出這段文字的正規化版本與位移對照表，之後每命中一次就重算，確保對照表與文字同步
+            $normalized_text = self::normalize_for_match($text, $offset_map);
+
+            foreach ($map as $normalized_title => $info) {
                 # 文章若正好關聯到自己（例如作品同名文章），略過避免自我連結
                 if ($info['id'] === $current_id || empty($info['url'])) {
                     continue;
                 }
-                # 此作品已在本篇連結過，或此段文字沒有出現該作品名，都跳過
-                if (isset($linked_titles[$title])) {
+                # 此作品已在本篇連結過就跳過，確保只連結第一次出現處
+                if (isset($linked_titles[$normalized_title])) {
                     continue;
                 }
                 # 【刻意使用位元組版 strpos/substr】WordPress 核心 compat.php 只在缺少 mbstring 時補上
                 # mb_substr / mb_strlen，並未提供 mb_strpos；若主機未啟用 mbstring，呼叫 mb_strpos 會直接 Fatal Error。
-                # 而 UTF-8 具自我同步特性，搜尋詞本身為合法 UTF-8 時，strpos 回傳的位移必然落在字元邊界，
-                # 因此改用位元組版函式進行搜尋與切割，結果正確且不依賴任何擴充套件。
-                $pos = strpos($text, $title);
+                # 這裡比對的是正規化字串，位移再透過 $offset_map 換算回原文，故位元組運算安全且無外部相依。
+                $pos = strpos($normalized_text, $normalized_title);
                 if ($pos === false) {
                     continue;
                 }
 
-                $anchor = '<a href="' . esc_url($info['url']) . '" class="wxacg-autolink">' . esc_html($title) . '</a>';
+                $end = $pos + strlen($normalized_title);
+                # 位移必落在字元邊界上，理論上必定存在；防禦性檢查避免異常資料造成錯位切割
+                if (!isset($offset_map[$pos]) || !isset($offset_map[$end])) {
+                    continue;
+                }
+                $original_start = $offset_map[$pos];
+                $original_end = $offset_map[$end];
+                # 連結文字取用「原文實際寫法」而非資料庫標題，保留文章原本的標點與空白
+                $matched_text = substr($text, $original_start, $original_end - $original_start);
+
+                $anchor = '<a href="' . esc_url($info['url']) . '" class="wxacg-autolink">' . esc_html($matched_text) . '</a>';
                 # 以不含中文與角括號的控制字元佔位符暫代，待全部比對結束後再還原成真正的 <a> 標籤
                 $token = "\x02WXACGLINK" . count($link_placeholders) . "\x02";
                 $link_placeholders[$token] = $anchor;
 
-                $text = substr($text, 0, $pos)
+                $text = substr($text, 0, $original_start)
                       . $token
-                      . substr($text, $pos + strlen($title));
+                      . substr($text, $original_end);
 
-                $linked_titles[$title] = true;
+                $linked_titles[$normalized_title] = true;
+                # 文字已變動，重新計算正規化字串與位移對照表，供後續作品名繼續比對
+                $normalized_text = self::normalize_for_match($text, $offset_map);
             }
             $parts[$index] = $text;
         }
