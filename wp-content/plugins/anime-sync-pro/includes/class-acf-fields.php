@@ -1451,8 +1451,17 @@ EOT,
                     'label'         => '播出季度',
                     'name'          => 'anime_season',
                     'type'          => 'select',
-                    'instructions'  => '由 AniList season 欄位自動填入。',
+                    'instructions'  => '由 AniList season 欄位自動填入。'
+                        . '尚未公布季度的作品請留空——留空時前台只顯示年份，'
+                        . '不會硬湊一個季度。',
                     'required'      => 0,
+                    /*
+                     * 必須允許留空：未播出作品常常只公布年份甚至什麼都還沒定，
+                     * AniList 的 season 這時是 null。沒有 allow_null 的話下拉
+                     * 選單沒有空白項，等於強迫編輯從四季裡挑一個，會產生假資料。
+                     * 前台已能處理空值（single-anime.php：只有年份時只顯示年份）。
+                     */
+                    'allow_null'    => 1,
                     'choices'       => [
                         'WINTER' => '冬季(1月)',
                         'SPRING' => '春季(4月)',
