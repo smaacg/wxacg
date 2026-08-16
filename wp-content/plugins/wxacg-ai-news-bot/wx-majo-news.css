@@ -4,7 +4,11 @@
  * 各篇文章內文只需宣告 CSS 變數（--wx-bg1 等）決定顏色，不再各自內嵌整組重複規則。
  * 變數清單需與 AI_News_Bot/cloud_engine.py 的 TEMPLATE_HTML 保持一致。
  */
-.wx-majo-news{max-width:900px;margin:0 auto;padding:34px 22px 46px;background:radial-gradient(circle at top,var(--wx-bg1) 0%,var(--wx-bg2) 48%,var(--wx-bg3) 100%);color:var(--wx-text);font-family:"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;line-height:1.9;border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.6);border:1px solid var(--wx-border);}
+.wx-majo-news{max-width:900px;margin:0 auto;padding:34px 22px 46px;background:radial-gradient(circle at top,var(--wx-bg1) 0%,var(--wx-bg2) 48%,var(--wx-bg3) 100%);color:var(--wx-text);font-family:"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;line-height:1.9;border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.6);border:1px solid var(--wx-border);
+  /* 連結專用固定色，刻意不隨文章配色變動（不在 AI 可控的變數清單內）：全站統一同一個顏色，
+     讀者才能建立「看到這個顏色 = 可以點」的直覺，不會被每篇文章不同的主題強調色稀釋掉 */
+  --wx-link:#58a6ff;--wx-link-hover:#8ecbff;
+}
 .wx-majo-news .tagline{display:inline-block;background:linear-gradient(90deg,var(--wx-accent2),var(--wx-accent));color:#fff;font-size:14px;font-weight:700;letter-spacing:.5px;padding:6px 14px;border-radius:999px;margin-bottom:18px;}
 .wx-majo-news h1{font-size:27px;font-weight:800;line-height:1.5;margin:0 0 20px;color:var(--wx-heading);text-shadow:0 2px 10px rgba(0,0,0,.5);}
 .wx-majo-news h2{font-size:19px;font-weight:800;line-height:1.5;margin:28px 0 14px;color:var(--wx-heading);}
@@ -25,20 +29,21 @@
 .wx-majo-news .info-box th{background:var(--wx-infobox-th-bg);color:var(--wx-heading);width:28%;font-weight:700;}
 .wx-majo-news .info-box td{background:rgba(255,255,255,.03);color:var(--wx-text);}
 .wx-majo-news .notice{background:var(--wx-notice-bg);border-left:4px solid var(--wx-accent2);padding:12px 18px;border-radius:8px;font-size:13.5px;color:var(--wx-text-soft);margin:0 0 26px;}
-/* 作品名稱自動內部連結：沿用主題強調色，並改用「實線底線」這個最通用的連結慣例（虛線容易被誤讀成提示文字而非可點擊連結） */
-.wx-majo-news .wxacg-autolink{color:var(--wx-accent);font-weight:700;text-decoration:underline;text-decoration-color:var(--wx-accent);text-decoration-thickness:1.5px;text-underline-offset:2px;}
-.wx-majo-news .wxacg-autolink:hover{color:var(--wx-heading);text-decoration-color:var(--wx-heading);}
-/* 段落小標內的自動連結：維持小標字級，同樣用實線底線明確標示可點擊 */
+/* 作品名稱自動內部連結：用全站固定的 --wx-link（不隨文章配色變動）+ 實線底線，
+   兩個訊號疊加，讓讀者不管在哪篇文章都能一眼認出「這是連結」 */
+.wx-majo-news .wxacg-autolink{color:var(--wx-link);font-weight:700;text-decoration:underline;text-decoration-color:var(--wx-link);text-decoration-thickness:1.5px;text-underline-offset:2px;}
+.wx-majo-news .wxacg-autolink:hover{color:var(--wx-link-hover);text-decoration-color:var(--wx-link-hover);}
+/* 段落小標內的自動連結：維持小標字級，同樣用固定連結色與實線底線 */
 .wx-majo-news h2 .wxacg-autolink,
 .wx-majo-news h3 .wxacg-autolink,
 .wx-majo-news h4 .wxacg-autolink,
 .wx-majo-news h5 .wxacg-autolink,
-.wx-majo-news h6 .wxacg-autolink{color:var(--wx-accent);text-decoration:underline;text-decoration-color:var(--wx-accent);text-decoration-thickness:2px;text-underline-offset:3px;}
+.wx-majo-news h6 .wxacg-autolink{color:var(--wx-link);text-decoration:underline;text-decoration-color:var(--wx-link);text-decoration-thickness:2px;text-underline-offset:3px;}
 .wx-majo-news h2 .wxacg-autolink:hover,
 .wx-majo-news h3 .wxacg-autolink:hover,
 .wx-majo-news h4 .wxacg-autolink:hover,
 .wx-majo-news h5 .wxacg-autolink:hover,
-.wx-majo-news h6 .wxacg-autolink:hover{color:var(--wx-heading);text-decoration-color:var(--wx-heading);}
+.wx-majo-news h6 .wxacg-autolink:hover{color:var(--wx-link-hover);text-decoration-color:var(--wx-link-hover);}
 .wx-majo-news .source-list{font-size:13px;color:var(--wx-text-soft);border-top:1px dashed rgba(255,255,255,.2);padding-top:16px;}
 .wx-majo-news .source-list a{color:var(--wx-accent);word-break:break-all;}
 .wx-majo-news .declare{font-size:12px;color:var(--wx-text-soft);margin-top:10px;border-top:1px dashed rgba(255,255,255,.15);padding-top:12px;}
