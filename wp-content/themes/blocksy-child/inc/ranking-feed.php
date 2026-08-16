@@ -55,8 +55,9 @@ defined( 'ABSPATH' ) || exit;
  * 2 — 加入繁中在地化（titleZh 換站內標題、url 改站內連結、新增 extId/internal）
  * 3 — MAL 改走官方 API（api.myanimelist.net），Jikan 降為備援
  * 4 — 類型標籤在地化（Action → 動作）
+ * 5 — 補上 MAL 獨有分類的中文（Award Winning／Gourmet／Avant Garde）
  */
-const WXACG_RANKING_CACHE_VER = 4;
+const WXACG_RANKING_CACHE_VER = 5;
 
 /** 資料視為新鮮的秒數 */
 const WXACG_RANKING_TTL = HOUR_IN_SECONDS;
@@ -761,8 +762,7 @@ function wxacg_ranking_genre_map(): array {
  * API 原文而露出英文。這裡以 sanitize_title() 把名稱轉成 slug 後查表，
  * "Slice of Life" → slice-of-life、"Sci-Fi" → sci-fi 都能正確對上。
  *
- * 對不到的一律保留原文，不硬翻也不丟掉——MAL 有幾個站內沒有的分類
- * （Award Winning、Gourmet、Avant Garde 等），顯示英文仍比消失好。
+ * 仍對不到的保留原文，不硬翻也不丟掉。
  *
  * @param string[] $raw
  * @return string[]
@@ -774,6 +774,22 @@ function wxacg_ranking_localize_genres( array $raw ): array {
 	$aliases = [
 		'boys-love'  => 'bl',
 		'girls-love' => 'yuri',
+	];
+
+	/*
+	 * 站內分類法沒有、但 MAL 會回傳的分類。
+	 *
+	 * 這幾個刻意不建成 taxonomy term：站內作品的類型是從 AniList 匯入的，
+	 * 而 AniList 沒有這三個分類，建了也永遠是 0 篇，只會讓後台與篩選器
+	 * 多出用不到的項目。純顯示用的對照放這裡即可。
+	 *
+	 * Award Winning 原意是「得過重要獎項」，不是題材分類；
+	 * Avant Garde 指實驗性、非主流表現手法（MAL 早期稱 Dementia）。
+	 */
+	$extra = [
+		'award-winning' => '得獎作品',
+		'gourmet'       => '美食',
+		'avant-garde'   => '前衛',
 	];
 
 	$out = [];
@@ -788,7 +804,7 @@ function wxacg_ranking_localize_genres( array $raw ): array {
 		$slug = sanitize_title( $name );
 		$slug = $aliases[ $slug ] ?? $slug;
 
-		$out[] = $map[ $slug ] ?? $name;
+		$out[] = $map[ $slug ] ?? ( $extra[ $slug ] ?? $name );
 	}
 
 	return $out;
