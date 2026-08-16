@@ -177,13 +177,13 @@ class WXACG_AI_News_Engine_Plugin {
                         開始生成報導
                     </button>
                     <div class="wxacg-style-wrap" style="display: flex; align-items: center; margin-left: 28px;">
-                        <label for="wxacg_ai_style" style="font-weight: 700; color: #d63638; font-size: 14px; white-space: nowrap; margin: 0 8px 0 0; display: inline-block;">風格：</label>
+                        <label for="wxacg_ai_style" style="font-weight: 700; color: #d63638; font-size: 14px; white-space: nowrap; margin: 0 8px 0 0; display: inline-block;">模板：</label>
                         <select id="wxacg_ai_style" class="wxacg-select" style="min-width: 180px; font-weight: 500; margin: 0;">
-                            <option value="default">1. AI預設(直譯改寫)</option>
-                            <option value="professional">2. 正規專業報導</option>
-                            <option value="passionate">3. 熱血網路鄉民</option>
-                            <option value="deep">4. 御宅深度賞析</option>
-                            <option value="meme">5. 迷因善意吐嘈風</option>
+                            <option value="breaking">A. ⚡ 速報快訊型</option>
+                            <option value="comprehensive" selected="selected">B. 📖 新作完整情報型</option>
+                            <option value="pv_visual">C. 🎬 PV／視覺圖解讀型</option>
+                            <option value="spec_guide">D. 📋 作品資訊整理型</option>
+                            <option value="editorial_analysis">E. 🧐 編輯深度評析型</option>
                         </select>
                     </div>
                 </div>
@@ -357,7 +357,7 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         $custom_glossary = isset($_POST['custom_glossary']) ? sanitize_textarea_field($_POST['custom_glossary']) : '';
-        $style = isset($_POST['style']) ? sanitize_text_field(trim($_POST['style'])) : 'default';
+        $style = isset($_POST['style']) ? sanitize_text_field(trim($_POST['style'])) : 'comprehensive';
         $target_category = isset($_POST['target_category']) ? intval($_POST['target_category']) : 9;
         $target_channel = isset($_POST['target_channel']) ? intval($_POST['target_channel']) : 12;
 

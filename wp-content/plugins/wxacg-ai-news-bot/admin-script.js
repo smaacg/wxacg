@@ -62,8 +62,8 @@ jQuery(document).ready(function($) {
         var customGlossary = $("#wxacg_custom_glossary").val().trim();
         var targetCategory = $("#wxacg_target_category").val();
         var targetChannel = $("#wxacg_target_channel").val();
-        var style = $("#wxacg_ai_style").val() || "default";
-        var styleText = $("#wxacg_ai_style option:selected").text() || "1. AI預設";
+        var style = $("#wxacg_ai_style").val() || "comprehensive";
+        var styleText = $("#wxacg_ai_style option:selected").text() || "B. 新作完整情報型";
 
         if (!targetUrl) {
             alert("提醒：您必須貼上您要轉化的目標海外報導文章網址。");
@@ -72,7 +72,7 @@ jQuery(document).ready(function($) {
         }
 
         logToTerminal("收到下單！組成 JSON 架構並投標發往 GCP 雲端大本營...");
-        logToTerminal("指定去向 -> 分類號: " + targetCategory + " | 頻道: " + targetChannel + " | 風格: [" + styleText + "]");
+        logToTerminal("指定去向 -> 分類號: " + targetCategory + " | 頻道: " + targetChannel + " | 模板: [" + styleText + "]");
         
         var btn = $("#wxacg_btn_generate");
         btn.prop("disabled", true).text("生成處理中...");
