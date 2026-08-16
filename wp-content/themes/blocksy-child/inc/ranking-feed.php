@@ -54,8 +54,9 @@ defined( 'ABSPATH' ) || exit;
  *
  * 2 — 加入繁中在地化（titleZh 換站內標題、url 改站內連結、新增 extId/internal）
  * 3 — MAL 改走官方 API（api.myanimelist.net），Jikan 降為備援
+ * 4 — 類型標籤在地化（Action → 動作）
  */
-const WXACG_RANKING_CACHE_VER = 3;
+const WXACG_RANKING_CACHE_VER = 4;
 
 /** 資料視為新鮮的秒數 */
 const WXACG_RANKING_TTL = HOUR_IN_SECONDS;
@@ -725,6 +726,75 @@ function wxacg_ranking_extract_id( array $item, string $platform ): int {
 }
 
 /**
+ * 類型代碼 → 中文名稱的對照表。
+ *
+ * 直接沿用站內 genre 分類法既有的中英對照（slug=action、name=動作），
+ * 不另外寫死一份：日後在後台改中文名，排行榜會跟著變，只有一個地方要維護。
+ */
+function wxacg_ranking_genre_map(): array {
+	static $map = null;
+
+	if ( $map !== null ) {
+		return $map;
+	}
+
+	$map   = [];
+	$terms = get_terms( [
+		'taxonomy'   => 'genre',
+		'hide_empty' => false,
+	] );
+
+	if ( ! is_wp_error( $terms ) ) {
+		foreach ( $terms as $term ) {
+			$map[ $term->slug ] = $term->name;
+		}
+	}
+
+	return $map;
+}
+
+/**
+ * 把外部平台的英文類型換成站內的中文說法。
+ *
+ * AniList 與 MAL 回傳的 genres 都是英文（Action / Slice of Life…），
+ * 站內作品頁走 genre 分類法所以本來就是中文，只有排行榜因為直接顯示
+ * API 原文而露出英文。這裡以 sanitize_title() 把名稱轉成 slug 後查表，
+ * "Slice of Life" → slice-of-life、"Sci-Fi" → sci-fi 都能正確對上。
+ *
+ * 對不到的一律保留原文，不硬翻也不丟掉——MAL 有幾個站內沒有的分類
+ * （Award Winning、Gourmet、Avant Garde 等），顯示英文仍比消失好。
+ *
+ * @param string[] $raw
+ * @return string[]
+ */
+function wxacg_ranking_localize_genres( array $raw ): array {
+	$map = wxacg_ranking_genre_map();
+
+	/* MAL 的分類名稱與站內 slug 命名不同的少數幾個 */
+	$aliases = [
+		'boys-love'  => 'bl',
+		'girls-love' => 'yuri',
+	];
+
+	$out = [];
+
+	foreach ( $raw as $name ) {
+		$name = trim( (string) $name );
+
+		if ( $name === '' ) {
+			continue;
+		}
+
+		$slug = sanitize_title( $name );
+		$slug = $aliases[ $slug ] ?? $slug;
+
+		$out[] = $map[ $slug ] ?? $name;
+	}
+
+	return $out;
+}
+
+/**
  * @param array  $items    抓取後的原始項目
  * @param string $platform anilist | mal | bangumi
  * @return array 已在地化的項目
@@ -776,6 +846,14 @@ function wxacg_ranking_localize( array $items, string $platform ): array {
 	$has_converter = class_exists( 'Anime_Sync_CN_Converter' );
 
 	foreach ( $items as &$item ) {
+		/*
+		 * 類型在地化與「站內有沒有收錄」無關，兩條路徑都要處理，
+		 * 因此放在命中判斷之前——命中的那條後面會 continue。
+		 */
+		if ( ! empty( $item['genres'] ) && is_array( $item['genres'] ) ) {
+			$item['genres'] = wxacg_ranking_localize_genres( $item['genres'] );
+		}
+
 		$ext_id = wxacg_ranking_extract_id( $item, $platform );
 		$post   = $ext_id > 0 ? ( $matched[ $ext_id ] ?? null ) : null;
 
