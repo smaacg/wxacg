@@ -4134,6 +4134,14 @@ while ( have_posts() ) :
 					<a class="asd-tab" href="#asd-sec-trailer">🎞 預告片（<?php echo esc_html( count( $trailer_items ) ); ?>）</a>
 				<?php endif; ?>
 
+				<?php if ( ! empty( $openings ) ) : ?>
+					<a class="asd-tab" href="#asd-sec-music-op">🎵 片頭曲</a>
+				<?php endif; ?>
+
+				<?php if ( ! empty( $endings ) ) : ?>
+					<a class="asd-tab" href="#asd-sec-music-ed">🎵 片尾曲</a>
+				<?php endif; ?>
+
 				<?php if ( ! empty( $episodes_list ) ) : ?>
 					<a class="asd-tab" href="#asd-sec-episodes">📺 集數列表</a>
 				<?php endif; ?>
@@ -4148,14 +4156,6 @@ while ( have_posts() ) :
 
 				<?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>
 					<a class="asd-tab" href="#asd-sec-music">🎵 主題曲</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $openings ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-music-op">🎵 片頭曲</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $endings ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-music-ed">🎵 片尾曲</a>
 				<?php endif; ?>
 
 				<?php if ( $has_stream_section ) : ?>
