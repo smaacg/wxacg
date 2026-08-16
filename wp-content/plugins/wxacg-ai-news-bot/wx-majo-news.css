@@ -10,12 +10,16 @@
   --wx-link:#58a6ff;--wx-link-hover:#8ecbff;
 }
 .wx-majo-news .tagline{display:inline-block;background:linear-gradient(90deg,var(--wx-accent2),var(--wx-accent));color:#fff;font-size:14px;font-weight:700;letter-spacing:.5px;padding:6px 14px;border-radius:999px;margin-bottom:18px;}
-.wx-majo-news h1{font-size:27px;font-weight:800;line-height:1.5;margin:0 0 20px;color:var(--wx-heading);text-shadow:0 2px 10px rgba(0,0,0,.5);}
-.wx-majo-news h2{font-size:19px;font-weight:800;line-height:1.5;margin:28px 0 14px;color:var(--wx-heading);}
+/* 【優先度強化】.wx-majo-news 重複兩次疊加 class 選擇器，把優先度從「1 class + 1 標籤」拉高到
+   「2 class + 1 標籤」，確保穩贏佈景主題常見的 .single-content h2 這類同層級選擇器。
+   實測發現主題的 .single-content h2 設定白色文字，跟本來優先度打平的 .wx-majo-news h2 撞在一起，
+   合併 CSS 檔裡剛好排在我們後面因而勝出，導致淺色背景的文章標題文字整個看不見（深色背景剛好白字還看得到才沒被發現）。 */
+.wx-majo-news.wx-majo-news h1{font-size:27px;font-weight:800;line-height:1.5;margin:0 0 20px;color:var(--wx-heading);text-shadow:0 2px 10px rgba(0,0,0,.5);}
+.wx-majo-news.wx-majo-news h2{font-size:19px;font-weight:800;line-height:1.5;margin:28px 0 14px;color:var(--wx-heading);}
 .wx-majo-news .lead{font-size:16.5px;color:var(--wx-text);margin:0 0 24px;padding-left:14px;border-left:4px solid var(--wx-accent);}
 .wx-majo-news figure{margin:0 0 26px;}
 .wx-majo-news figure img{max-width:100%;height:auto;border-radius:14px;display:block;margin:0 auto;box-shadow:0 8px 24px rgba(0,0,0,.5);}
-.wx-majo-news figcaption{font-size:13px;color:var(--wx-text-soft);margin-top:8px;text-align:center;}
+.wx-majo-news.wx-majo-news figcaption{font-size:13px;color:var(--wx-text-soft);margin-top:8px;text-align:center;}
 .wx-majo-news .video-wrap{width:100%;aspect-ratio:16/9;margin:0 0 26px;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.5);}
 .wx-majo-news .video-wrap iframe{width:100%;height:100%;border:0;display:block;}
 .wx-majo-news .news-box{background:rgba(255,255,255,.04);border:1px solid var(--wx-newsbox-border);border-radius:14px;padding:20px 24px;margin:0 0 28px;}
@@ -23,7 +27,7 @@
 .wx-majo-news .news-box ul{margin:0;padding-left:20px;}
 .wx-majo-news .news-box li{margin-bottom:8px;font-size:15px;color:var(--wx-text);}
 .wx-majo-news .news-box li b{color:var(--wx-accent);}
-.wx-majo-news p{font-size:15.5px;color:var(--wx-text);margin:0 0 18px;}
+.wx-majo-news.wx-majo-news p{font-size:15.5px;color:var(--wx-text);margin:0 0 18px;}
 .wx-majo-news .info-box{display:table;width:100%;table-layout:fixed;border-collapse:collapse;margin:0 0 28px;font-size:14.5px;overflow:hidden;border-radius:12px;}
 .wx-majo-news .info-box th,.wx-majo-news .info-box td{padding:11px 14px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1);vertical-align:top;word-wrap:break-word;}
 .wx-majo-news .info-box th{background:var(--wx-infobox-th-bg);color:var(--wx-heading);width:28%;font-weight:700;}
@@ -48,4 +52,4 @@
 .wx-majo-news .source-list a{color:var(--wx-accent);word-break:break-all;}
 .wx-majo-news .declare{font-size:12px;color:var(--wx-text-soft);margin-top:10px;border-top:1px dashed rgba(255,255,255,.15);padding-top:12px;}
 .wx-majo-news .declare a{color:var(--wx-accent);}
-@media(max-width:600px){.wx-majo-news{padding:24px 14px 34px;}.wx-majo-news h1{font-size:21px;}.wx-majo-news .info-box th{width:38%;}}
+@media(max-width:600px){.wx-majo-news{padding:24px 14px 34px;}.wx-majo-news.wx-majo-news h1{font-size:21px;}.wx-majo-news .info-box th{width:38%;}}
