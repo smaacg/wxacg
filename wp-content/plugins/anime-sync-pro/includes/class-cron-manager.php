@@ -1868,7 +1868,7 @@ class Anime_Sync_Cron_Manager {
         }
 
         $this->rate_limiter->wait_if_needed( 'bangumi' );
-        $new_episodes = $this->import_manager->fetch_episodes_only( $bgm_id );
+        $new_episodes = $this->import_manager->fetch_episodes_only( $bgm_id, false, $post_id );
 
         update_post_meta( $post_id, 'anime_episodes_synced_at', current_time( 'mysql' ) );
 

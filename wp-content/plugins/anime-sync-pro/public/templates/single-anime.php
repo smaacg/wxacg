@@ -4375,6 +4375,19 @@ while ( have_posts() ) :
 								<?php
 								$episode_output_index = 0;
 
+								/*
+								 * SP 沒有正規集數（Bangumi 的 ep 欄位為 0），不能沿用
+								 * 「第 N 集」的 index fallback，否則會被顯示成某一集。
+								 * 只有一個 SP 時標「SP」，多個才加編號。
+								 */
+								$sp_total = 0;
+								foreach ( $episodes_list as $sp_probe ) {
+									if ( is_array( $sp_probe ) && (int) ( $sp_probe['type'] ?? 0 ) === 1 ) {
+										$sp_total++;
+									}
+								}
+								$sp_output_index = 0;
+
 								foreach ( $episodes_list as $episode_index => $episode_item ) :
 									if ( ! is_array( $episode_item ) ) {
 										continue;
@@ -4425,9 +4438,21 @@ while ( have_posts() ) :
 											? (int) $episode_number
 											: $episode_number;
 
-									$episode_display = $episode_number > 0
-										? '第' . $episode_number_display . '集'
-										: '第' . ( $episode_index + 1 ) . '集';
+									$episode_type = (int) (
+										$episode_item['type']
+											?? 0
+									);
+
+									if ( $episode_type === 1 ) {
+										$sp_output_index++;
+										$episode_display = $sp_total > 1
+											? 'SP' . $sp_output_index
+											: 'SP';
+									} else {
+										$episode_display = $episode_number > 0
+											? '第' . $episode_number_display . '集'
+											: '第' . ( $episode_index + 1 ) . '集';
+									}
 									?>
 									<div class="asd-ep-row<?php echo $episode_output_index >= 3 ? ' asd-ep-hidden' : ''; ?>">
 										<span class="asd-ep-num">

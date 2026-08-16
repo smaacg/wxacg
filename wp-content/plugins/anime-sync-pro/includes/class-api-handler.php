@@ -402,7 +402,7 @@ class Anime_Sync_API_Handler {
             }
 
             $this->rate_limiter->wait_if_needed( 'bangumi' );
-            $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id );
+            $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id, false, $post_id );
             if ( ! empty( $bgm_episodes ) ) {
                 if ( in_array( 'anime_episodes_json', $locked_fields, true ) ) {
                     // 整欄已鎖定：不寫入，保留現有集數。
@@ -652,7 +652,7 @@ class Anime_Sync_API_Handler {
         $episodes_json = '[]';
         if ( $bangumi_id && $bangumi_id > 0 ) {
             $this->rate_limiter->wait_if_needed( 'bangumi' );
-            $bgm_episodes  = $this->fetch_bgm_episodes( $bangumi_id );
+            $bgm_episodes  = $this->fetch_bgm_episodes( $bangumi_id, false, $post_id );
             $episodes_json = wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE );
         }
 
@@ -1233,7 +1233,7 @@ class Anime_Sync_API_Handler {
 
         // 8. 集數
         $this->rate_limiter->wait_if_needed( 'bangumi' );
-        $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id );
+        $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id, false, $post_id );
         if ( ! empty( $bgm_episodes ) ) {
             if ( $is_locked( 'anime_episodes_json' ) ) {
                 $skipped[] = 'anime_episodes_json';
@@ -2095,19 +2095,33 @@ class Anime_Sync_API_Handler {
         return $chars;
     }
 
-    public function fetch_bgm_episodes( int $bangumi_id, bool $force_refresh = false ): array {
+    /**
+     * 取回 Bangumi 集數（本篇 + SP）。
+     *
+     * 原本查詢寫死 type=0，只拿本篇，SP 從來抓不到——例如 K-ON!! (bgm 3774)
+     * 的「番外編 計画！」(episode 53829、type=1) 就一直不在集數列表裡。
+     *
+     * 改為不帶 type 參數一次取回全部再於本地分流：實測同一個條目回 27 筆
+     * （26 本篇 + 1 SP），請求數與原本相同，不增加 Bangumi 負擔。
+     * Bangumi 的 type：0 本篇、1 SP、2 OP、3 ED、4 預告、6 其他；
+     * OP／ED／預告不是觀看單位，不收。
+     *
+     * $post_id 供 select_episodes_for_post() 判定「單集作品對到母條目」的
+     * 錯配情境，未傳入時維持「本篇 + SP 全給」的行為。
+     */
+    public function fetch_bgm_episodes( int $bangumi_id, bool $force_refresh = false, int $post_id = 0 ): array {
         $cache_key = 'anime_sync_bgm_eps_' . $bangumi_id;
 
         if ( ! $force_refresh ) {
             $cached = get_transient( $cache_key );
             if ( $cached !== false ) {
-                return (array) $cached;
+                $sets = $this->normalize_episode_cache( $cached );
+                return $this->select_episodes_for_post( $sets['main'], $sets['sp'], $post_id );
             }
         }
 
         $response = wp_remote_get( add_query_arg( [
             'subject_id' => $bangumi_id,
-            'type'       => 0,
             'limit'      => 100,
             'offset'     => 0,
         ], self::BGM_EPISODES_URL ), [
@@ -2125,20 +2139,85 @@ class Anime_Sync_API_Handler {
             return [];
         }
 
-        $result = [];
+        $main = [];
+        $sp   = [];
+
         foreach ( $eps as $ep ) {
-            $result[] = [
+            $type = (int) ( $ep['type'] ?? 0 );
+
+            if ( $type !== 0 && $type !== 1 ) {
+                continue;
+            }
+
+            $row = [
                 'id'      => $ep['id']      ?? 0,
                 'ep'      => $ep['ep']      ?? 0,
+                'sort'    => $ep['sort']    ?? 0,
+                'type'    => $type,
                 'name'    => $ep['name']    ?? '',
                 'name_cn' => $ep['name_cn'] ?? '',
                 'airdate' => $ep['airdate'] ?? '',
                 'comment' => (int) ( $ep['comment'] ?? 0 ),
             ];
+
+            if ( $type === 1 ) {
+                $sp[] = $row;
+            } else {
+                $main[] = $row;
+            }
         }
 
-        set_transient( $cache_key, $result, 12 * HOUR_IN_SECONDS );
-        return $result;
+        set_transient( $cache_key, [ 'main' => $main, 'sp' => $sp ], 12 * HOUR_IN_SECONDS );
+
+        return $this->select_episodes_for_post( $main, $sp, $post_id );
+    }
+
+    /**
+     * 相容舊版快取結構。
+     *
+     * v1 存的是平面陣列（只有本篇、無 type 欄位）。快取未過期前仍會讀到，
+     * 一律視為本篇，SP 待快取過期後的下一次抓取自然補上。
+     */
+    private function normalize_episode_cache( $cached ): array {
+        if ( is_array( $cached ) && isset( $cached['main'] ) ) {
+            return [
+                'main' => (array) $cached['main'],
+                'sp'   => (array) ( $cached['sp'] ?? [] ),
+            ];
+        }
+
+        return [ 'main' => (array) $cached, 'sp' => [] ];
+    }
+
+    /**
+     * 決定這篇該拿哪些集數。
+     *
+     * 錯配情境：SP／OVA 在 AniList 有獨立條目，Bangumi 卻只把它當成母作品的
+     * 一集，mapper 因此只能對應到母條目的 bgm_id。照抓會變成「單集 OVA 的
+     * 集數列表顯示母作品整季 26 話」——實例 K-ON!!: Keikaku!（AniList 9734、
+     * OVA、episodes=1）對到 K-ON!! 母條目 bgm 3774，站上共 36 篇有同樣狀況。
+     *
+     * 判定需要三個條件同時成立：
+     *   1. AniList 說這部只有 1 集
+     *   2. Bangumi 本篇不只 1 集
+     *   3. 該條目底下有 SP
+     *
+     * 第 3 點不可省。只看前兩點會誤判「Bangumi 把一部劇場版拆成數個部分、
+     * AniList 算 1 集」的正常情況——實測 37 篇符合前兩點的作品裡有 16 篇
+     * 屬於這類（例：數碼寶貝 tri. 各章 bgm 條目本篇 4~5 筆但無 SP、
+     * 新世紀福音戰士劇場版 2 筆無 SP），那些本篇是正確資料，清掉會變成
+     * 空的集數列表。有 SP 存在才代表這個 bgm_id 是母條目、本作是其中的 SP。
+     */
+    private function select_episodes_for_post( array $main, array $sp, int $post_id ): array {
+        if ( $post_id > 0 && count( $main ) > 1 && ! empty( $sp ) ) {
+            $declared = (int) get_post_meta( $post_id, 'anime_episodes', true );
+
+            if ( $declared === 1 ) {
+                return $sp;
+            }
+        }
+
+        return array_merge( $main, $sp );
     }
 
     // =========================================================================

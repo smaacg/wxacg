@@ -345,11 +345,11 @@ class Anime_Sync_Import_Manager {
 		return [];
 	}
 
-	public function fetch_episodes_only( int $bangumi_id, bool $force_refresh = false ): array {
+	public function fetch_episodes_only( int $bangumi_id, bool $force_refresh = false, int $post_id = 0 ): array {
 		if ( $bangumi_id <= 0 ) {
 			return [];
 		}
-		return $this->api_handler->fetch_bgm_episodes( $bangumi_id, $force_refresh );
+		return $this->api_handler->fetch_bgm_episodes( $bangumi_id, $force_refresh, $post_id );
 	}
 
 	// =========================================================================
