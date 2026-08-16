@@ -1321,6 +1321,9 @@ function wxacg_random_anime_redirect(): void {
 	$ids = get_posts( $args );
 
 	if ( ! empty( $ids[0] ) ) {
+		// 給成就系統掛勾（初次抽動漫），只在真的抽到動漫時觸發。
+		do_action( 'wxacg_random_anime_used', get_current_user_id() );
+
 		wp_safe_redirect(
 			get_permalink( (int) $ids[0] ),
 			302

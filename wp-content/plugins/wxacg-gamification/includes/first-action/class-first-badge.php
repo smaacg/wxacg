@@ -15,10 +15,11 @@ defined( 'ABSPATH' ) || exit;
  * 徽章解鎖後會經由既有的 badge_unlock 規則（class-exp-config.php）
  * 自動再疊加 20 EXP（掛在 gamipress_award_achievement hook）。
  * 使用者實際拿到的總額 = 下面 $rules 的 exp + 自動疊加 20：
- *   初次登入／追蹤／加入片單／收藏 → 10 + 20 = 30
- *   初次留言／評分                 → 20 + 20 = 40
- *   初次完結作品                   → 40 + 20 = 60
- *   初次發表論壇文章               → 100 + 20 = 120
+ *   初次登入／追蹤／加入片單／收藏／抽動漫 → 10 + 20 = 30
+ *   初次留言／評分                         → 20 + 20 = 40
+ *   初次轉職                               → 20 + 20 = 40
+ *   初次完結作品                           → 40 + 20 = 60
+ *   初次發表論壇文章                       → 100 + 20 = 120
  *
  * ⚠ exp 不可設為 0：Exp_Events::award_with_cap() 要求金額必須 > 0，
  * 0 或負數會直接 return false，連 once 鎖都不會鎖、徽章也不會發
@@ -32,6 +33,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * @since 1.0.0 (2026-08-16)
  * @version 1.0.1 (2026-08-16) — 修正 exp=0 導致 once 鎖完全不觸發的 bug
+ * @version 1.1.0 (2026-08-16) — 新增初次抽動漫／初次轉職
  */
 class First_Badge {
 
@@ -54,6 +56,8 @@ class First_Badge {
 		'first_rating'              => [ 'badge_slug' => 'badge-first-rating',            'exp' => 20,  'label' => '初次評分' ],
 		'first_watchlist_complete'  => [ 'badge_slug' => 'badge-first-watchlist-complete', 'exp' => 40,  'label' => '初次完結作品' ],
 		'first_forum_post'          => [ 'badge_slug' => 'badge-first-forum-post',        'exp' => 100, 'label' => '初次發表論壇文章' ],
+		'first_dice_roll'           => [ 'badge_slug' => 'badge-first-dice-roll',         'exp' => 10,  'label' => '初次抽動漫' ],
+		'first_career_change'       => [ 'badge_slug' => 'badge-first-career-change',     'exp' => 20,  'label' => '初次轉職' ],
 	];
 
 	private static $badge_id_cache = [];
@@ -74,6 +78,8 @@ class First_Badge {
 		add_action( 'smacg_favorite_added',      [ __CLASS__, 'on_favorite' ], 10, 2 );
 		add_action( 'smacg_watchlist_completed', [ __CLASS__, 'on_watchlist_complete' ], 10, 2 );
 		add_action( 'wpforo_after_add_topic',    [ __CLASS__, 'on_forum_topic' ], 10, 2 );
+		add_action( 'wxacg_random_anime_used',   [ __CLASS__, 'on_dice_roll' ], 10, 1 );
+		add_action( 'smacg_career_selected',     [ __CLASS__, 'on_career_change' ], 10, 3 );
 	}
 
 	/**
@@ -135,6 +141,14 @@ class First_Badge {
 		if ( $uid > 0 ) {
 			self::maybe_award( 'first_forum_post', $uid );
 		}
+	}
+
+	public static function on_dice_roll( $uid ) {
+		self::maybe_award( 'first_dice_roll', (int) $uid );
+	}
+
+	public static function on_career_change( $uid, $job_key, $is_change ) {
+		self::maybe_award( 'first_career_change', (int) $uid );
 	}
 
 	/* =========================================================

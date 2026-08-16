@@ -86,6 +86,10 @@ class Career_Ajax {
 
         $title = Career_Jobs::user_title( $uid );
 
+        // 給成就系統掛勾（初次轉職），選擇/變更職業都會觸發，
+        // 但實際只有第一次成功會拿到獎勵（見 First_Badge 的 once-cap）。
+        do_action( 'smacg_career_selected', $uid, $job_key, (bool) $existing );
+
         wp_send_json_success( [
             'message'    => sprintf( '已選擇職業：%s', $jobs[ $job_key ]['label'] ),
             'job_key'    => $job_key,
