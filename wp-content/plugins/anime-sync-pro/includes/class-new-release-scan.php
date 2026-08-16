@@ -25,10 +25,18 @@
  *   id_mapper 自動解析，此處不重複實作。新建文章一律 draft（見
  *   class-import-manager.php 的 post_status 判斷），等人工在審核佇列複核發布。
  *
- *   本掃描刻意不做 enrich（聲優／主題曲／Wikipedia）。剛宣布動畫化的作品
- *   上游根本還沒有這些資料，補抓只是空打一輪外部 API。這些欄位由既有的
- *   每日／15 分鐘 cron 在作品發布後接手——注意那些 cron 只處理 publish，
- *   草稿放著不會自動長資料，需要人工發布才會進入自動維護。
+ *   匯入後排一次 anime_sync_enrich_post（非同步，不拖慢本輪掃描）。
+ *
+ *   這一步不能省：import_single() 寫進去的 staff / cast 是 AniList 版本
+ *   （parse_staff/parse_cast 標 source: anilist），要 enrich_anime_data()
+ *   才會換成 Bangumi 版本。而既有 cron 沒有任何一個會做這個替換——每日更新
+ *   管狀態／評分／MAL ID，15 分鐘那輪管主題曲與集數，唯一會排 enrich 的是
+ *   class-cron-manager.php 的「MAL ID 從無到有」分支，條件太窄且只跑 publish。
+ *   不排的話，這些草稿的 staff / cast 會永遠停在 AniList 版本。
+ *
+ *   剛宣布動畫化的作品 Bangumi 多半也還沒有 staff / cast，第一次 enrich
+ *   大概率抓到空的——但 enrich 端的 keep_if_fewer() 遇到空陣列直接不覆蓋，
+ *   不會洗掉既有資料，重複執行安全。
  *
  * 用法：
  *   wp anime scan-new-releases --dry-run     # 只列出會抓什麼，不寫入
@@ -235,6 +243,16 @@ class Anime_Sync_New_Release_Scan {
 					'title'      => $result['title'] ?? $title,
 					'post_id'    => $result['post_id'] ?? 0,
 				];
+
+				/*
+				 * 排一次 enrich，把 staff / cast 由 AniList 換成 Bangumi 版本。
+				 * 比照 class-cron-manager.php 的既有寫法：非同步單次事件，
+				 * 不在本輪掃描裡同步打 Bangumi／Jikan／AnimeThemes／Wikipedia。
+				 */
+				$new_post_id = (int) ( $result['post_id'] ?? 0 );
+				if ( $new_post_id > 0 && ! wp_next_scheduled( 'anime_sync_enrich_post', [ $new_post_id ] ) ) {
+					wp_schedule_single_event( time() + 60, 'anime_sync_enrich_post', [ $new_post_id ] );
+				}
 			} else {
 				$failed++;
 				$consec++;
