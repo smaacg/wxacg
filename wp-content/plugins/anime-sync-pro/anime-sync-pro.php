@@ -442,7 +442,6 @@ function anime_sync_register_post_types(): void {
 		'menu_icon'         => 'dashicons-format-video',
 		'menu_position'     => 5,
 		'supports'          => [ 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ],
-		'taxonomies'        => [ 'post_tag' ],
 		'capability_type'   => 'post',
 		'map_meta_cap'      => true,
 		'rewrite'           => [
