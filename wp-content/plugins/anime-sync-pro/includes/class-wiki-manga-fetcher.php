@@ -101,6 +101,17 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 	}
 
 	private function parse_infobox_manga( string $wikitext ): array {
+		/*
+		 * 取值前先拿掉引用註解。
+		 *
+		 * <ref>{{cite web |url=… |title=…}}</ref> 內部的 | 會被下面的參數
+		 * 比對誤認成 infobox 的下一個參數，導致值在半途被截斷，留下
+		 * 「{{ubl|…{{cite web」這種殘骸（實例：躲在超市後門抽菸的兩人）。
+		 * 引用來源對 infobox 取值毫無用處，先清掉最單純。
+		 */
+		$wikitext = preg_replace( '/<ref[^>]*>.*?<\/ref>/su', '', $wikitext );
+		$wikitext = preg_replace( '/<ref[^>]*\/>/u', '', $wikitext );
+
 		$out = [
 			'author'       => '',
 			'publisher_jp' => '', 'publisher_tw' => '', 'publisher_hk' => '', 'publisher_cn' => '',
@@ -180,6 +191,16 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 	 */
 	private function split_regional_field( string $raw ): array {
 		$out = [ 'jp' => '', 'tw' => '', 'hk' => '', 'cn' => '' ];
+
+		/*
+		 * 地區旗幟模板 → 地區名，必須趕在 clean_wikitext 之前。
+		 * 那邊會把 {{JPN}}／{{TWN}} 這類模板整個移除，先轉成文字才留得住
+		 * 地區資訊，下面的前綴比對也才有東西可認。
+		 */
+		$raw = preg_replace( '/\{\{\s*(?:JPN|Japan|日本)\s*\}\}/u',                          '日本',     $raw );
+		$raw = preg_replace( '/\{\{\s*(?:TWN|ROC|臺灣|台灣|台湾|Taiwan)\s*\}\}/u',           '台灣',     $raw );
+		$raw = preg_replace( '/\{\{\s*(?:HKG|HK|香港|Hong Kong)\s*\}\}/u',                   '香港',     $raw );
+		$raw = preg_replace( '/\{\{\s*(?:CHNML|CHN|中國大陸|中国大陆|中國|中国|China)\s*\}\}/u', '中國大陸', $raw );
 
 		$cleaned = $this->clean_wikitext( $raw ); // <br> 已轉 |||
 		if ( $cleaned === '' ) return $out;
@@ -553,6 +574,17 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 
 		$s = preg_replace( '/\{\{(?:flagicon|Flagicon|flag|Flag)\|[^}]+\}\}/', '', $s );
 		$s = preg_replace( '/\{\{(?:TWN|HK|HKG|CHN|CHNML|ROC|JPN|Japan|日本|中國大陸|中国大陆|香港|台灣|台湾)\}\}/', '', $s );
+
+		/*
+		 * ubl / plainlist 是純排版模板，內容才是資料。
+		 * 不先展開的話，下面的通用移除會把整組 {{ubl|A|B|C}} 連同 A B C
+		 * 一起刪光。展開時把 | 轉成 |||，好讓 split_regional_field 拆得開。
+		 */
+		$s = preg_replace_callback(
+			'/\{\{\s*(?:ubl|ublist|unbulleted list|plainlist)\s*\|((?:[^{}]|\{\{[^{}]*\}\})*)\}\}/iu',
+			fn( $m ) => str_replace( '|', '|||', $m[1] ),
+			$s
+		);
 
 		for ( $k = 0; $k < 3; $k++ ) {
 			$s = preg_replace_callback(
