@@ -4278,6 +4278,8 @@ while ( have_posts() ) :
 					<a class="asd-tab" href="#asd-sec-music">🎵 主題曲</a>
 				<?php endif; ?>
 
+				<a class="asd-tab" href="#asd-sec-reviews">📝 評論</a>
+
 				<?php if ( $has_stream_section ) : ?>
 					<a class="asd-tab" href="#asd-sec-stream">📺 串流</a>
 				<?php endif; ?>
@@ -5306,6 +5308,39 @@ while ( have_posts() ) :
 							</p>
 						</section>
 					<?php endif; ?>
+
+					<section class="asd-section" id="asd-sec-reviews">
+						<h2 class="asd-section-title">📝 評論</h2>
+
+						<?php
+						/*
+						 * 集數選單只給短評（吐槽）用，長評固定是整部作品層級。
+						 * 直接沿用上面集數列表已經算好的 ep 數字，不重新解析一次。
+						 */
+						$review_episode_options = [];
+						if ( ! empty( $episodes_list ) ) {
+							foreach ( $episodes_list as $ep_probe ) {
+								if ( ! is_array( $ep_probe ) ) {
+									continue;
+								}
+								$ep_num = (int) ( $ep_probe['ep'] ?? 0 );
+								if ( $ep_num > 0 ) {
+									$review_episode_options[ $ep_num ] = $ep_num;
+								}
+							}
+							ksort( $review_episode_options );
+						}
+						?>
+
+						<div
+							class="asd-review-root"
+							id="asd-review-root"
+							data-anime-id="<?php echo (int) $post_id; ?>"
+							data-episodes="<?php echo esc_attr( wp_json_encode( array_values( $review_episode_options ) ) ); ?>"
+						>
+							<p class="asd-review-loading">評論載入中…</p>
+						</div>
+					</section>
 
 					<?php if ( $has_stream_section ) : ?>
 						<section class="asd-section" id="asd-sec-stream">

@@ -165,6 +165,14 @@ add_action( 'wp_enqueue_scripts', function () {
         if ( file_exists( $as ) ) {
             wp_enqueue_style( 'smacg-anime-status', weixiaoacg_THEME_URL . '/assets/css/anime-status.css', [ 'smacg-track-bar' ], filemtime( $as ) );
         }
+
+        // 評論（短評／長評）：v1 先只做動漫，漫畫還沒有片單/評分基礎設施可掛門檻
+        if ( is_singular( 'anime' ) ) {
+            $rv_css = weixiaoacg_THEME_DIR . '/assets/css/review.css';
+            if ( file_exists( $rv_css ) ) {
+                wp_enqueue_style( 'wxacg-review', weixiaoacg_THEME_URL . '/assets/css/review.css', [ 'smacg-anime-status' ], filemtime( $rv_css ) );
+            }
+        }
     }
 
     $p = weixiaoacg_THEME_DIR . '/assets/css/admin-sync.css';
@@ -229,6 +237,15 @@ add_action( 'wp_enqueue_scripts', function () {
             $p = weixiaoacg_THEME_DIR . '/assets/js/' . $f;
             if ( file_exists( $p ) ) {
                 wp_enqueue_script( $h, weixiaoacg_THEME_URL . '/assets/js/' . $f, [ 'weixiaoacg-api' ], filemtime( $p ), true );
+            }
+        }
+
+        // 評論（短評／長評）：v1 先只做動漫。依賴 smacg-anime-status 確保
+        // window.SmacgConfig 已經 localize 完成才會執行。
+        if ( is_singular( 'anime' ) ) {
+            $rv_js = weixiaoacg_THEME_DIR . '/assets/js/review.js';
+            if ( file_exists( $rv_js ) ) {
+                wp_enqueue_script( 'wxacg-review', weixiaoacg_THEME_URL . '/assets/js/review.js', [ 'smacg-anime-status' ], filemtime( $rv_js ), true );
             }
         }
 
