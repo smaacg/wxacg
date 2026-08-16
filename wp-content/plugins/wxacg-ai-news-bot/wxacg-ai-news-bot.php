@@ -111,8 +111,8 @@ class WXACG_AI_News_Engine_Plugin {
     # 對照表快取鍵名與最短可連結標題字數 (太短的通用詞容易誤命中，一律不納入)
     const ANIME_LINK_MAP_TRANSIENT = 'wxacg_anime_link_map';
     const AUTOLINK_MIN_TITLE_LENGTH = 3;
-    # 單篇文章最多自動加入的連結數，避免整篇被連結洗版而被判定過度優化
-    const AUTOLINK_MAX_PER_POST = 5;
+    # 不設單篇連結數量上限：每部作品本來就只連結第一次出現處（已去重），
+    # 像「異世界動畫大整理」這類樞紐型文章動輒收錄數十部作品，逐一連向各自作品頁屬合理結構，非過度優化。
 
     /**
      * 清除作品對照表快取。動畫資料新增/更新/刪除時觸發，
@@ -193,7 +193,6 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         $current_id = get_the_ID();
-        $linked_count = 0;
         # 記錄本篇已連結過的作品名，確保同一個作品只連結第一次出現處
         $linked_titles = [];
         # 【防巢狀連結】剛插入的 <a> 先以佔位符代替，避免後續較短的作品名比對時，
@@ -207,8 +206,10 @@ class WXACG_AI_News_Engine_Plugin {
             return $content;
         }
 
-        # 這些標籤內的文字一律跳過：既有連結、各級標題、樣式與腳本區塊
-        $excluded_tags = ['a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'style', 'script'];
+        # 這些標籤內的文字一律跳過：既有連結、文章主標題、樣式與腳本區塊。
+        # h2~h6 刻意「不」排除：整理型文章常把作品名放在段落小標，那正是最該連向作品頁的位置；
+        # 僅 h1 為文章自身主標題，不應連出。
+        $excluded_tags = ['a', 'h1', 'style', 'script'];
         $skip_depth = 0;
 
         foreach ($parts as $index => $part) {
@@ -231,16 +232,13 @@ class WXACG_AI_News_Engine_Plugin {
                 continue;
             }
 
-            # 位於排除標籤內的文字，或已達整篇連結數上限，都不再處理
-            if ($skip_depth > 0 || $linked_count >= self::AUTOLINK_MAX_PER_POST) {
+            # 位於排除標籤內的文字不處理
+            if ($skip_depth > 0) {
                 continue;
             }
 
             $text = $part;
             foreach ($map as $title => $info) {
-                if ($linked_count >= self::AUTOLINK_MAX_PER_POST) {
-                    break;
-                }
                 # 文章若正好關聯到自己（例如作品同名文章），略過避免自我連結
                 if ($info['id'] === $current_id || empty($info['url'])) {
                     continue;
@@ -268,7 +266,6 @@ class WXACG_AI_News_Engine_Plugin {
                       . substr($text, $pos + strlen($title));
 
                 $linked_titles[$title] = true;
-                $linked_count++;
             }
             $parts[$index] = $text;
         }
@@ -460,7 +457,8 @@ class WXACG_AI_News_Engine_Plugin {
                                     啟用：自動把文章內文提到的作品名稱，轉為指向站內動畫作品頁的連結
                                 </label>
                                 <p class="description">
-                                    套用範圍為<strong>全站所有文章</strong>（含既有舊文章），每個作品只連結第一次出現處，單篇最多 5 條。<br>
+                                    套用範圍為<strong>全站所有文章</strong>（含既有舊文章），每個作品只連結第一次出現處，不限單篇數量。<br>
+                                    段落小標（h2～h6）內的作品名同樣會連結，文章主標題（h1）與既有連結則不受影響。<br>
                                     此功能不會修改資料庫內的文章內容，僅在前台顯示時即時處理，取消勾選即完全復原。
                                 </p>
                             </td>
