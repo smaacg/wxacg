@@ -420,6 +420,12 @@ class Anime_Sync_Entity_Migrator {
 				continue;
 			}
 
+			/*
+			 * 這五個欄位原本直接寫入 $value（未簡轉繁），而下面 456 行的
+			 * infobox_all 卻對同一個 value 呼叫 $convert()——同一筆 Bangumi
+			 * 資料因此在兩處呈現不同結果：infobox 顯示「無」，gender 欄位
+			 * 卻是「无」（實例：bgm 161095 ぷにる）。統一在取用時就轉換。
+			 */
 			switch ( $key ) {
 				case '简体中文名':
 				case '簡體中文名':
@@ -428,27 +434,27 @@ class Anime_Sync_Entity_Migrator {
 					}
 					break;
 				case '生日':
-					$birthday = $value;
+					$birthday = $convert( $value );
 					break;
 				case '血型':
-					$bloodtype = $value;
+					$bloodtype = $convert( $value );
 					break;
 				case '身高':
 				case '身長':
 					if ( $height === '' ) {
-						$height = $value;
+						$height = $convert( $value );
 					}
 					break;
 				case '体重':
 				case '體重':
 					if ( $weight === '' ) {
-						$weight = $value;
+						$weight = $convert( $value );
 					}
 					break;
 				case '性别':
 				case '性別':
 					if ( $gender === '' ) {
-						$gender = $value;
+						$gender = $convert( $value );
 					}
 					break;
 			}
@@ -1061,23 +1067,24 @@ class Anime_Sync_Entity_Migrator {
 				continue;
 			}
 
+			/* 同一問題見 fetch_bgm_character_detail() 的說明：統一在取用時轉換。 */
 			switch ( $key ) {
 				case '生日':
-					$birthday = $value;
+					$birthday = $convert( $value );
 					break;
 				case '血型':
-					$bloodtype = $value;
+					$bloodtype = $convert( $value );
 					break;
 				case '身高':
 				case '身長':
 					if ( $height === '' ) {
-						$height = $value;
+						$height = $convert( $value );
 					}
 					break;
 				case '性别':
 				case '性別':
 					if ( $gender === '' ) {
-						$gender = $value;
+						$gender = $convert( $value );
 					}
 					break;
 			}
