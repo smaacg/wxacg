@@ -982,12 +982,26 @@ while ( have_posts() ) :
 		! empty( $tw_streaming_items )
 		|| ! empty( $dub_items_all );
 
-	$google_search_url =
-		! $has_tw_stream
-		&& $tw_no_stream_google !== ''
-		&& wp_http_validate_url( $tw_no_stream_google )
-			? $tw_no_stream_google
-			: '';
+	/*
+	 * 台灣查無上架平台時的 Google 搜尋連結。
+	 *
+	 * 人工在 ACF 填了就用填的；留空則以作品名稱自動組一組搜尋連結——
+	 * 這是該欄位說明一直寫著「留空的話，前台可自動用作品名稱組出
+	 * 搜尋連結」但先前並未實作的行為。
+	 *
+	 * 未播出作品不自動組：作品還沒開播，「線上看」搜尋只會導向盜版或
+	 * 空結果，也給讀者錯誤期待。已人工填連結者不受此限，尊重人工判斷。
+	 */
+	$google_search_url = '';
+
+	if ( ! $has_tw_stream ) {
+		if ( $tw_no_stream_google !== '' && wp_http_validate_url( $tw_no_stream_google ) ) {
+			$google_search_url = $tw_no_stream_google;
+		} elseif ( ! $is_not_aired ) {
+			$google_search_url = 'https://www.google.com/search?q='
+				. urlencode( $display_title . ' 線上看' );
+		}
+	}
 
 	$has_stream_section =
 		$has_any_stream
