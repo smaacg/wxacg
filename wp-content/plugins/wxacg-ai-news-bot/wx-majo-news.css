@@ -7,6 +7,7 @@
 .wx-majo-news{max-width:900px;margin:0 auto;padding:34px 22px 46px;background:radial-gradient(circle at top,var(--wx-bg1) 0%,var(--wx-bg2) 48%,var(--wx-bg3) 100%);color:var(--wx-text);font-family:"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;line-height:1.9;border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.6);border:1px solid var(--wx-border);}
 .wx-majo-news .tagline{display:inline-block;background:linear-gradient(90deg,var(--wx-accent2),var(--wx-accent));color:#fff;font-size:14px;font-weight:700;letter-spacing:.5px;padding:6px 14px;border-radius:999px;margin-bottom:18px;}
 .wx-majo-news h1{font-size:27px;font-weight:800;line-height:1.5;margin:0 0 20px;color:var(--wx-heading);text-shadow:0 2px 10px rgba(0,0,0,.5);}
+.wx-majo-news h2{font-size:19px;font-weight:800;line-height:1.5;margin:28px 0 14px;color:var(--wx-heading);}
 .wx-majo-news .lead{font-size:16.5px;color:var(--wx-text);margin:0 0 24px;padding-left:14px;border-left:4px solid var(--wx-accent);}
 .wx-majo-news figure{margin:0 0 26px;}
 .wx-majo-news figure img{max-width:100%;height:auto;border-radius:14px;display:block;margin:0 auto;box-shadow:0 8px 24px rgba(0,0,0,.5);}
