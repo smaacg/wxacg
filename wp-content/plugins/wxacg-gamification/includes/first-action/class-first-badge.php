@@ -69,6 +69,7 @@ class First_Badge {
 
 	private function __construct() {
 		add_filter( 'smacg_exp_rules', [ __CLASS__, 'register_exp_rules' ] );
+		add_filter( 'smacg_exp_reason_labels', [ __CLASS__, 'register_reason_labels' ] );
 
 		add_action( 'wp_login',                  [ __CLASS__, 'on_login' ], 10, 2 );
 		add_action( 'comment_post',              [ __CLASS__, 'on_comment' ], 10, 2 );
@@ -95,6 +96,18 @@ class First_Badge {
 			];
 		}
 		return $rules;
+	}
+
+	/**
+	 * 把 first_* 規則的中文 label 掛進 EXP 紀錄的原因說明表，
+	 * 否則 Exp_Events::get_reason_label() 找不到對應會 fallback 成
+	 * 「EXP: first_xxx」這種原始 action key（點數紀錄頁面看到的 bug）。
+	 */
+	public static function register_reason_labels( $labels ) {
+		foreach ( self::$rules as $key => $r ) {
+			$labels[ $key ] = $r['label'];
+		}
+		return $labels;
 	}
 
 	/* =========================================================
