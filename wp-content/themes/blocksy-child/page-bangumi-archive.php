@@ -91,9 +91,17 @@ add_action( 'wp_head', function () use ( $seo_ctx ) {
 	smacg_bangumi_render_og( $seo_ctx );
 }, 1 );
 
+/*
+ * 優先度 99 不可省。
+ *
+ * Rank Math 也掛了 pre_get_document_title（優先度 15，見
+ * seo-by-rank-math/includes/frontend/class-head.php:69），用預設的 10
+ * 會被它後蓋掉，標題變成網站預設的「微笑動漫 | 動漫新聞…」。
+ * 與 page-bangumi-index.php、page-bangumi.php 的作法一致。
+ */
 add_filter( 'pre_get_document_title', function () use ( $seo_ctx ) {
 	return $seo_ctx['title'];
-} );
+}, 99 );
 
 /* ============================================================
  * 4. 結構化資料 @graph（CollectionPage + WebSite + BreadcrumbList）
