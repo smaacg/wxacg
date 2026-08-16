@@ -241,6 +241,44 @@ add_filter( 'rank_math/opengraph/twitter/description', function( $description ) 
 }, 20 );
 
 /* ============================================================
+ * 9.5. Helper：寫入 Rank Math SEO meta，但保留使用者手動修改過的內容
+ *
+ * 判斷邏輯：目前值若等於「上次我們自動寫入的值」（或還沒有值），代表
+ * 沒被手動改過，可放心覆寫成最新自動產生內容，並更新追蹤值；若不相等，
+ * 代表使用者已在 Rank Math 後台手動調整過該欄位，跳過不覆寫，避免
+ * 每次儲存/回填都把手動內容蓋掉。
+ * ============================================================ */
+if ( ! function_exists( 'wx_asp_write_seo_meta_protected' ) ) {
+	function wx_asp_write_seo_meta_protected( int $post_id, string $focus_keyword, string $seo_title, string $seo_desc ): void {
+		$tracking_keys = [
+			'rank_math_focus_keyword' => '_wx_asp_last_auto_keyword',
+			'rank_math_title'         => '_wx_asp_last_auto_title',
+			'rank_math_description'   => '_wx_asp_last_auto_desc',
+		];
+		$new_values = [
+			'rank_math_focus_keyword' => $focus_keyword,
+			'rank_math_title'         => $seo_title,
+			'rank_math_description'   => $seo_desc,
+		];
+
+		foreach ( $tracking_keys as $meta_key => $tracking_key ) {
+			$new_value = $new_values[ $meta_key ];
+			$current   = (string) get_post_meta( $post_id, $meta_key, true );
+			$last_auto = (string) get_post_meta( $post_id, $tracking_key, true );
+
+			$is_manual = ( '' !== $current && $current !== $last_auto );
+
+			if ( $is_manual ) {
+				continue;
+			}
+
+			update_post_meta( $post_id, $meta_key, $new_value );
+			update_post_meta( $post_id, $tracking_key, $new_value );
+		}
+	}
+}
+
+/* ============================================================
  * 10. 儲存 anime 時，自動寫入 Rank Math 後台欄位
  * 只處理已發布 publish
  * ============================================================ */
@@ -270,9 +308,7 @@ add_action( 'save_post_anime', function( $post_id ) {
 	$seo_title = wx_asp_get_anime_seo_title( $post_id );
 	$seo_desc  = wx_asp_get_anime_seo_desc( $post_id );
 
-	update_post_meta( $post_id, 'rank_math_focus_keyword', $anime_title );
-	update_post_meta( $post_id, 'rank_math_title', $seo_title );
-	update_post_meta( $post_id, 'rank_math_description', $seo_desc );
+	wx_asp_write_seo_meta_protected( $post_id, $anime_title, $seo_title, $seo_desc );
 }, 30 );
 
 /* ============================================================
@@ -365,9 +401,7 @@ if ( is_admin() ) {
 			$seo_title = wx_asp_get_anime_seo_title( $post_id );
 			$seo_desc  = wx_asp_get_anime_seo_desc( $post_id );
 
-			update_post_meta( $post_id, 'rank_math_focus_keyword', $anime_title );
-			update_post_meta( $post_id, 'rank_math_title', $seo_title );
-			update_post_meta( $post_id, 'rank_math_description', $seo_desc );
+			wx_asp_write_seo_meta_protected( $post_id, $anime_title, $seo_title, $seo_desc );
 
 			return true;
 		}
