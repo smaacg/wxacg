@@ -634,10 +634,27 @@ class Anime_Sync_ID_Mapper {
         return array_keys( $cleaned );
     }
 
+    /**
+     * BangumiExtLinker 名稱索引比對。
+     *
+     * 這個索引原本完全沒有季號驗證，跟 match_best_result() 那個 bug 是
+     * 同一種問題的另一個入口：build_search_variants() 會產生「保留季號」
+     * 與「季號剝掉」兩種變體，逐一比對、命中第一個索引鍵就直接回傳。
+     * 若 ExtLinker 資料集還沒收錄正確那季（新續作常見，該資料集是社群
+     * 維護、更新有延遲），保留季號的變體找不到，落到季號剝掉的變體時，
+     * 命中的多半是第一季——而這裡完全沒有檢查就直接採用。
+     *
+     * 修法比照 match_best_result()：變體本身有沒有保留季號文字決定信心
+     * 等級。變體標了跟輸入相符的季號才視為確認，直接採用；標了不同季號
+     * 直接跳過（不該是這篇要的）；變體沒有季號文字則列為備援，不搶在
+     * 「確認命中」前面，等全部變體找完都沒有確認命中才退而求其次。
+     */
     private function resolve_bgm_ext_name_match( string $title, int $season_year, string $season = '' ): ?int {
         if ( $title === '' ) return null;
 
         $this->load_bgm_ext_name_index();
+        $input_signal = $this->extract_season_signal( $title );
+        $fallback_id  = null;
 
         foreach ( $this->build_search_variants( $title ) as $variant ) {
             $key   = $this->normalize_name_light( $variant );
@@ -649,10 +666,25 @@ class Anime_Sync_ID_Mapper {
             if ( $bgm_id <= 0 ) continue;
             if ( $season_year > 0 && $ext_year > 0 && abs( $ext_year - $season_year ) > 2 ) continue;
 
-            return $bgm_id;
+            if ( empty( $input_signal['number'] ) ) {
+                return $bgm_id;
+            }
+
+            $variant_signal = $this->extract_season_signal( $variant );
+
+            if ( ! empty( $variant_signal['number'] ) ) {
+                if ( (int) $variant_signal['number'] === (int) $input_signal['number'] ) {
+                    return $bgm_id;
+                }
+                continue; // 變體標了不同季號，確定不是要的
+            }
+
+            if ( $fallback_id === null ) {
+                $fallback_id = $bgm_id;
+            }
         }
 
-        return null;
+        return $fallback_id;
     }
 
     private function query_bangumi_search( string $keyword ): array {
@@ -920,6 +952,8 @@ class Anime_Sync_ID_Mapper {
     }
 
     private function strip_season_markers( string $title ): string {
+        // 中文數字先轉阿拉伯數字，下面「第\d+…」的 pattern 才抓得到「第二季」
+        $title = $this->convert_cn_season_numerals( $title );
         $title = preg_replace(
             [
                 '/\b\d+(?:st|nd|rd|th)\s+season\b/ui',
@@ -937,9 +971,58 @@ class Anime_Sync_ID_Mapper {
         return trim( (string) $title );
     }
 
+    /**
+     * 把「第X季/期/部/クール」裡的中文數字換成阿拉伯數字，只在這個結構
+     * 內轉換——不是整段標題全域替換數字字元，避免誤動標題裡剛好含
+     * 「六」「十」等字但跟季號無關的其他文字（例如作品名字本身）。
+     *
+     * 這個網站是繁體中文站，title_chinese 常態走「第二季」「第三季」
+     * 這種中文數字寫法（原本 extract_season_signal() 的 \d+ pattern
+     * 完全抓不到），而 title_chinese 是比對鏈的 Layer 4a，抓不到訊號
+     * 時季號保護就對這條路徑完全沒作用。
+     */
+    private function convert_cn_season_numerals( string $title ): string {
+        static $cn_num = [
+            '十' => 10, '一' => 1, '二' => 2, '三' => 3, '四' => 4,
+            '五' => 5,  '六' => 6, '七' => 7, '八' => 8, '九' => 9,
+        ];
+
+        return preg_replace_callback(
+            '/第\s*([一二三四五六七八九十]+)\s*(期|季|部|クール)/u',
+            static function ( $m ) use ( $cn_num ) {
+                $number = $cn_num[ $m[1] ] ?? 0; // 只認個位數與「十」，不處理十一以上的組合寫法
+                return $number > 0 ? "第{$number}{$m[2]}" : $m[0];
+            },
+            $title
+        );
+    }
+
     private function extract_season_signal( string $title ): array {
         $title = mb_strtolower( trim( $title ), 'UTF-8' );
         if ( $title === '' ) return [];
+
+        /*
+         * 全形數字先轉半形、羅馬數字與中文數字先轉阿拉伯數字，再跑季號
+         * 比對——否則「２期」「Ⅱ期」「第二季」這類寫法會直接跳過所有
+         * pattern，回傳空訊號，等同於「沒有季號要求」，讓過濾與加分
+         * 邏輯失去作用。
+         *
+         * 羅馬數字用直接查表、不呼叫 roman_to_int()：那個方法是解析
+         * "II" 這種 ASCII 字母組合，餵單一個特殊 Unicode 字符（如 ⅱ）
+         * 進去，PHP 非多位元組安全的 strtoupper() 加上按位元組切割會把
+         * 這個字元切散成無效片段，逐一比對 ASCII 字母都對不上，永遠
+         * 回傳 0。大小寫兩種形式都收，不依賴 mb_strtolower() 對這個
+         * Unicode 區塊的大小寫摺疊行為（不同環境表現可能不一致）。
+         */
+        $title = strtr( $title, [
+            '０'=>'0','１'=>'1','２'=>'2','３'=>'3','４'=>'4',
+            '５'=>'5','６'=>'6','７'=>'7','８'=>'8','９'=>'9',
+            'ⅰ'=>'1','ⅱ'=>'2','ⅲ'=>'3','ⅳ'=>'4','ⅴ'=>'5',
+            'ⅵ'=>'6','ⅶ'=>'7','ⅷ'=>'8','ⅸ'=>'9','ⅹ'=>'10','ⅺ'=>'11','ⅻ'=>'12',
+            'Ⅰ'=>'1','Ⅱ'=>'2','Ⅲ'=>'3','Ⅳ'=>'4','Ⅴ'=>'5',
+            'Ⅵ'=>'6','Ⅶ'=>'7','Ⅷ'=>'8','Ⅸ'=>'9','Ⅹ'=>'10','Ⅺ'=>'11','Ⅻ'=>'12',
+        ] );
+        $title = $this->convert_cn_season_numerals( $title );
 
         $patterns = [
             '/\b(\d+)(?:st|nd|rd|th)\s+season\b/u' => 'season',
@@ -947,6 +1030,12 @@ class Anime_Sync_ID_Mapper {
             '/\bpart\s*(\d+)\b/u'                 => 'part',
             '/\bcour\s*(\d+)\b/u'                 => 'cour',
             '/第\s*(\d+)\s*(?:期|季|部|クール)\b/u' => 'season',
+            /*
+             * 「２期」「2期」這類不帶「第」的裸季號寫法，日文條目常見。
+             * 不用擔心跟上面「第N期」重複判定——這個迴圈命中第一個 pattern
+             * 就回傳，「第N期」排在前面，帶「第」的標題不會落到這條。
+             */
+            '/\b(\d+)\s*期\b/u'                    => 'season',
             '/\bact\s*([ivxlcdm]+|\d+)\b/u'       => 'act',
         ];
 
