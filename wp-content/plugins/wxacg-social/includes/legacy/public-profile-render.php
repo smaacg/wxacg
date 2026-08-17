@@ -699,3 +699,141 @@ function smacg_pp_render_anime_card( $pid, $extra = [] ) {
     <?php
 }
 endif;
+
+/* ========================================================================
+ * Reviews Tab — 這位會員發表過的評論
+ *
+ * 資料來自 anime-sync-pro 的 wxacg_review：post_parent 指向被評論的
+ * 目標（動漫／漫畫／新聞／角色／人物載體），因此這裡只依作者撈取，
+ * 再各自連回目標頁。回覆（有 _wxacg_review_reply_to）不列入，
+ * 個人頁要呈現的是「這個人發表的評論」，不是他在別人串下的回話。
+ * ====================================================================== */
+
+if ( ! function_exists( 'smacg_pp_render_reviews' ) ) :
+function smacg_pp_render_reviews( $uid ) {
+    $uid = (int) $uid;
+
+    if ( ! post_type_exists( 'wxacg_review' ) ) {
+        echo '<section class="pp-section"><p class="pp-empty">評論功能尚未啟用</p></section>';
+        return;
+    }
+
+    $reviews = get_posts( [
+        'post_type'      => 'wxacg_review',
+        'post_status'    => 'publish',
+        'author'         => $uid,
+        'posts_per_page' => 30,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+        'no_found_rows'  => true,
+        'meta_query'     => [
+            [ 'key' => '_wxacg_review_reply_to', 'compare' => 'NOT EXISTS' ],
+        ],
+    ] );
+
+    if ( empty( $reviews ) ) {
+        echo '<section class="pp-section"><p class="pp-empty">尚未發表任何評論</p></section>';
+        return;
+    }
+    ?>
+    <section class="pp-section pp-reviews">
+        <p class="pp-section-info">共 <strong><?php echo count( $reviews ); ?></strong> 則評論</p>
+
+        <div class="pp-review-list">
+            <?php foreach ( $reviews as $rv ) :
+                $target_id = (int) $rv->post_parent;
+                $target    = $target_id ? get_post( $target_id ) : null;
+
+                // 目標被刪除時仍顯示評論內容，只是沒有連結可去
+                $title = '';
+                $url   = '';
+                if ( $target ) {
+                    $title = get_post_meta( $target_id, 'anime_title_chinese', true ) ?: get_the_title( $target_id );
+                    $url   = get_permalink( $target_id );
+                }
+
+                $track   = get_post_meta( $rv->ID, '_wxacg_review_track', true ) ?: 'short';
+                $episode = (int) get_post_meta( $rv->ID, '_wxacg_review_episode', true );
+                $spoiler = (bool) get_post_meta( $rv->ID, '_wxacg_review_spoiler', true );
+
+                $excerpt = wp_strip_all_tags( $rv->post_content );
+                if ( mb_strlen( $excerpt ) > 140 ) {
+                    $excerpt = mb_substr( $excerpt, 0, 140 ) . '…';
+                }
+                ?>
+                <article class="pp-review-item">
+                    <div class="pp-review-head">
+                        <?php if ( $url ) : ?>
+                            <a class="pp-review-target" href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $title ); ?></a>
+                        <?php else : ?>
+                            <span class="pp-review-target pp-review-target--gone">（作品已移除）</span>
+                        <?php endif; ?>
+
+                        <?php if ( $track === 'long' ) : ?>
+                            <span class="pp-review-tag">長評</span>
+                        <?php endif; ?>
+                        <?php if ( $episode > 0 ) : ?>
+                            <span class="pp-review-tag">第 <?php echo $episode; ?> 集</span>
+                        <?php endif; ?>
+                        <?php if ( $spoiler ) : ?>
+                            <span class="pp-review-tag pp-review-tag--spoiler">含雷</span>
+                        <?php endif; ?>
+
+                        <time class="pp-review-date" datetime="<?php echo esc_attr( get_the_date( 'c', $rv ) ); ?>">
+                            <?php echo esc_html( get_the_date( 'Y-m-d', $rv ) ); ?>
+                        </time>
+                    </div>
+
+                    <?php if ( $track === 'long' && $rv->post_title ) : ?>
+                        <h4 class="pp-review-title"><?php echo esc_html( $rv->post_title ); ?></h4>
+                    <?php endif; ?>
+
+                    <p class="pp-review-text<?php echo $spoiler ? ' is-spoiler' : ''; ?>">
+                        <?php echo esc_html( $excerpt ); ?>
+                    </p>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php
+}
+endif;
+
+/* 評論分頁樣式 */
+if ( ! function_exists( 'smacg_pp_reviews_css' ) ) :
+function smacg_pp_reviews_css() {
+    if ( ! is_page_template( 'page-public-profile.php' ) && ! get_query_var( 'smacg_pp_user' ) ) {
+        return;
+    }
+    ?>
+    <style>
+    .pp-review-list { display: flex; flex-direction: column; gap: 10px; }
+    .pp-review-item {
+        background: rgba(255,255,255,.03);
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 10px;
+        padding: 12px 14px;
+    }
+    .pp-review-head {
+        display: flex; align-items: center; gap: 8px;
+        flex-wrap: wrap; margin-bottom: 6px;
+    }
+    .pp-review-target { color: #63a8ff; font-weight: 600; text-decoration: none; font-size: 14px; }
+    .pp-review-target:hover { text-decoration: underline; }
+    .pp-review-target--gone { color: #888; font-style: italic; }
+    .pp-review-tag {
+        background: rgba(255,255,255,.08);
+        border-radius: 4px; color: #bbb;
+        font-size: 11px; padding: 2px 6px;
+    }
+    .pp-review-tag--spoiler { background: rgba(214,54,56,.18); color: #ff8a8c; }
+    .pp-review-date { color: #888; font-size: 11px; margin-left: auto; }
+    .pp-review-title { font-size: 14px; margin: 0 0 4px; }
+    .pp-review-text { color: #ccc; font-size: 13px; line-height: 1.7; margin: 0; }
+    .pp-review-text.is-spoiler { filter: blur(4px); transition: filter .15s; cursor: pointer; }
+    .pp-review-text.is-spoiler:hover { filter: none; }
+    </style>
+    <?php
+}
+add_action( 'wp_head', 'smacg_pp_reviews_css', 20 );
+endif;

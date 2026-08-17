@@ -103,7 +103,7 @@ $activity = ( $can_view_activity && function_exists( 'smacg_get_recent_activity'
 
 // 預設 tab
 $active_tab = get_query_var( 'smacg_pp_tab' ) ?: 'overview';
-$valid_tabs = [ 'overview', 'watchlist', 'ratings', 'achievements', 'activity' ];
+$valid_tabs = [ 'overview', 'watchlist', 'ratings', 'reviews', 'achievements', 'activity' ];
 if ( ! in_array( $active_tab, $valid_tabs, true ) ) {
     $active_tab = 'overview';
 }
@@ -166,6 +166,7 @@ get_header(); ?>
                 'overview'  => [ '📊', '總覽', true ],
                 'watchlist' => [ '🎬', '清單', $can_view_watchlist ],
                 'ratings'   => [ '⭐', '評分', $can_view_ratings ],
+                'reviews'   => [ '📝', '評論', $can_view_profile ],
                 'achievements' => [ '🏆', '成就', $can_view_profile ],
                 'activity'  => [ '📡', '動態', $can_view_activity ],
             ];
@@ -198,6 +199,16 @@ get_header(); ?>
             <?php if ( $can_view_ratings ) : ?>
             <section class="pp-panel<?php echo $active_tab === 'ratings' ? ' active' : ''; ?>" data-panel="ratings">
                 <?php smacg_pp_render_ratings( $ratings ); ?>
+            </section>
+            <?php endif; ?>
+
+            <?php if ( $can_view_profile ) : ?>
+            <section class="pp-panel<?php echo $active_tab === 'reviews' ? ' active' : ''; ?>" data-panel="reviews">
+                <?php
+                if ( function_exists( 'smacg_pp_render_reviews' ) ) {
+                    smacg_pp_render_reviews( $uid );
+                }
+                ?>
             </section>
             <?php endif; ?>
 
