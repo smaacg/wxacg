@@ -532,6 +532,23 @@ add_action( 'admin_menu', function () {
 }, 11 );
 
 /* ============================================================
+ * 給 AI 的短評指令
+ *
+ * 與 class-acf-fields.php 的 build_editorial_ai_prompt() 一致：
+ * 一句話請 AI 產出，複製貼上後由編輯自行查證再貼回欄位。
+ * ============================================================ */
+
+function wxacg_editorial_prompt( $title ) {
+	$title = trim( (string) $title );
+
+	if ( '' === $title ) {
+		return '';
+	}
+
+	return '給我 ' . $title . ' 的動漫短評';
+}
+
+/* ============================================================
  * 短評存檔
  *
  * 與 class-acf-fields.php 的 auto_assign_editorial_reviewer() 行為一致：
@@ -846,7 +863,12 @@ function wxacg_ai_editorial_page() {
 								placeholder="撰寫編輯短評（建議 120～160 字）"><?php
 								echo esc_textarea( $summary );
 							?></textarea>
-							<div class="wxacg-ed-msg" style="font-size:11px;margin-top:2px;min-height:14px;"></div>
+							<div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
+								<button type="button" class="button button-small wxacg-ed-copy"
+									data-prompt="<?php echo esc_attr( wxacg_editorial_prompt( $title ) ); ?>"
+									title="複製後貼到 AI 對話視窗，產出的內容請自行查證再貼回左邊欄位">📋 複製指令</button>
+								<span class="wxacg-ed-msg" style="font-size:11px;min-height:14px;"></span>
+							</div>
 						</td>
 						<td>
 							<span class="wxacg-ed-count" style="color:#666;font-size:12px;">
@@ -919,6 +941,38 @@ function wxacg_ai_editorial_page() {
 			$(this).attr('rows', 6);
 		}).on('blur', '.wxacg-ed-text', function () {
 			$(this).attr('rows', 2);
+		});
+
+		// 複製指令：貼到 AI 對話視窗用
+		$(document).on('click', '.wxacg-ed-copy', function () {
+			var $btn = $(this);
+			var $msg = $btn.closest('td').find('.wxacg-ed-msg');
+			var text = $btn.data('prompt') || '';
+
+			if (!text) {
+				$msg.css('color', '#d63638').text('這部作品沒有標題，無法產生指令');
+				return;
+			}
+
+			var done = function () {
+				$btn.text('✅ 已複製');
+				$msg.css('color', '#666').text('貼給 AI → 查證後把短評貼回左邊欄位');
+				setTimeout(function () { $btn.text('📋 複製指令'); }, 1500);
+			};
+
+			var fallback = function () {
+				var $tmp = $('<textarea>').val(text).css({position:'fixed', opacity:0}).appendTo('body');
+				$tmp[0].select();
+				try { document.execCommand('copy'); done(); }
+				catch (e) { $msg.css('color', '#d63638').text('複製失敗，請手動複製'); }
+				$tmp.remove();
+			};
+
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(text).then(done).catch(fallback);
+			} else {
+				fallback();
+			}
 		});
 
 		$(document).on('click', '.wxacg-ed-save', function () {
