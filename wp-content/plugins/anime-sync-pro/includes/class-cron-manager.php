@@ -1834,13 +1834,23 @@ class Anime_Sync_Cron_Manager {
                 }
             } elseif ( $status === 'FINISHED' ) {
                 $end = (int) get_post_meta( $id, 'anime_end_date', true );
-                if ( $end > 0 && $end >= $cutoff_ymd ) {
+                if ( ( $end > 0 && $end >= $cutoff_ymd ) || $this->themes_still_empty( $id ) ) {
                     $items[] = [ 'id' => $id, 'prio' => self::PRIO_FINISHED, 'sort' => $end ];
                 }
             }
         }
 
         return self::sort_queue_new_first( $items );
+    }
+
+    /**
+     * 已完結作品若主題曲仍是空陣列，即使完結超過 30 天也繼續排進候選名單
+     * （AnimeThemes 常常是作品完結後才慢慢補資料）；一旦抓到資料就自動畢業，
+     * 不會再被排入。
+     */
+    private function themes_still_empty( int $post_id ): bool {
+        $themes = json_decode( (string) get_post_meta( $post_id, 'anime_themes', true ), true );
+        return ! is_array( $themes ) || count( $themes ) === 0;
     }
 
     private function sync_themes_for_post( int $post_id ): int {
