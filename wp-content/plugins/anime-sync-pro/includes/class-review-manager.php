@@ -58,7 +58,12 @@ class Anime_Sync_Review_Manager {
 	 * @return string[]
 	 */
 	public static function allowed_post_types(): array {
-		return (array) apply_filters( 'wxacg_review_post_types', [ 'anime', 'post' ] );
+		return (array) apply_filters( 'wxacg_review_post_types', [
+			'anime',
+			'post',              // 新聞
+			'manga',             // 漫畫
+			'asa_char_comments', // 角色頁的留言載體（角色本身不是文章，用影子文章掛載）
+		] );
 	}
 
 	/**

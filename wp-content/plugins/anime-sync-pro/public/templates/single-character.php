@@ -714,37 +714,28 @@ get_header();
             </section>
 
             <?php if ( $character_comment_post_id > 0 ) : ?>
+                <?php
+                /*
+                 * 留言：改用自建評論系統（原 wpDiscuz 於 2026-08-18 移除）。
+                 *
+                 * 原本為了讓 wpDiscuz 的 is_singular() 通過，得先把 $post 換成
+                 * 影子文章、再偽造 $wp_query 的 is_singular／queried_object，
+                 * 輸出後又要逐項還原。自建系統只需要把載體 ID 當屬性傳給前端，
+                 * 那整段偽裝與還原都不再需要。
+                 */
+                ?>
                 <section class="asa-entity-comments" id="asa-sec-comments">
                     <h2 class="asa-section-title">💬 留言</h2>
-                    <?php
-                    global $post, $wp_query;
-                    $__asa_original_post = $post;
-
-                    $post = get_post( $character_comment_post_id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride
-                    setup_postdata( $post );
-
-                    // 暫時把主查詢偽裝成 singular,讓 wpDiscuz 的 is_singular() 通過
-                    $__asa_saved_is_singular     = $wp_query->is_singular;
-                    $__asa_saved_is_single       = $wp_query->is_single;
-                    $__asa_saved_queried_obj     = $wp_query->queried_object;
-                    $__asa_saved_queried_obj_id  = $wp_query->queried_object_id;
-
-                    $wp_query->is_singular       = true;
-                    $wp_query->is_single         = true;
-                    $wp_query->queried_object    = $post;
-                    $wp_query->queried_object_id = $post->ID;
-
-                    comments_template();
-
-                    // 還原
-                    $wp_query->is_singular       = $__asa_saved_is_singular;
-                    $wp_query->is_single         = $__asa_saved_is_single;
-                    $wp_query->queried_object    = $__asa_saved_queried_obj;
-                    $wp_query->queried_object_id = $__asa_saved_queried_obj_id;
-
-                    $post = $__asa_original_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
-                    wp_reset_postdata();
-                    ?>
+                    <div
+                        class="asd-review-root"
+                        id="asd-review-root"
+                        data-anime-id="<?php echo (int) $character_comment_post_id; ?>"
+                        data-episodes="[]"
+                        data-tracks="short"
+                        data-noun="留言"
+                    >
+                        <p class="asd-review-loading">留言載入中…</p>
+                    </div>
                 </section>
             <?php endif; ?>
 

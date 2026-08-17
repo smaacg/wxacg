@@ -1287,11 +1287,18 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </section>
                 <?php endif; ?>
 
-                <?php /* 留言 */ ?>
+                <?php /* 留言：改用自建評論系統（原 wpDiscuz 於 2026-08-18 移除） */ ?>
                 <section class="asd-section asd-comments" id="asd-sec-comments">
                     <h2 class="asd-section-title">💬 留言</h2>
-                    <div class="asd-comments-inner">
-                        <?php comments_template(); ?>
+                    <div
+                        class="asd-review-root"
+                        id="asd-review-root"
+                        data-anime-id="<?php echo (int) get_the_ID(); ?>"
+                        data-episodes="[]"
+                        data-tracks="short"
+                        data-noun="留言"
+                    >
+                        <p class="asd-review-loading">留言載入中…</p>
                     </div>
                 </section>
 

@@ -161,12 +161,14 @@ $related_query = new WP_Query([
                 <?php endif; ?>
             </nav>
 
-            <!-- 留言（沿用主題 comments） -->
-            <?php if ( comments_open() || get_comments_number() ) : ?>
-                <div class="ann-single-comments">
-                    <?php comments_template(); ?>
-                </div>
-            <?php endif; ?>
+            <?php
+            /*
+             * 留言區已於 2026-08-18 移除：站上並沒有註冊 announcement 這個
+             * 文章類型，本模板實際不會被 WordPress 路由到，這段留言輸出等同
+             * 死碼；wpDiscuz 也已停用。若日後真的要啟用公告單篇，改掛自建
+             * 評論系統即可（把類型加進 Anime_Sync_Review_Manager::allowed_post_types()）。
+             */
+            ?>
 
         </main>
 
