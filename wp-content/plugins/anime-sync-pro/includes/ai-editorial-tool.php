@@ -889,7 +889,11 @@ function wxacg_editorial_prompt( $post_id ) {
 	// 只列出真的有值的欄位，避免把「（空）」餵給模型當成事實。
 	$facts = array();
 
-	$year   = $get( 'anime_season_year' );
+	/*
+	 * 年份存的是字串，未知時可能是 '0' 而非空字串；直接用 '' !== 判斷會
+	 * 產出「播出：0」這種垃圾事實餵給模型，因此先正規化成整數再判斷。
+	 */
+	$year   = (int) $get( 'anime_season_year' ) > 0 ? $get( 'anime_season_year' ) : '';
 	$season = $get( 'anime_season' );
 
 	if ( '' !== $year || '' !== $season ) {
