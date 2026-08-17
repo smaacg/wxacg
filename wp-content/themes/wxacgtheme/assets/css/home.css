@@ -15,21 +15,12 @@
 }
 
 /*
- * 主標題斷行：標記裡已用 <br> 指定要在哪裡換行，但瀏覽器認定中文
- * 每個字之間都可以斷，容器一窄就會在句中再斷一次（例如「繁體中文動 /
- * 漫資料庫」）。keep-all 讓中文不在字元間任意換行，只在 <br> 處換，
- * 三行語意就能各自完整。
+ * 主標題斷行只在窄螢幕處理，見檔案下方的 max-width 媒體查詢。
+ *
+ * 桌機版字級上限是 62px（style.css），9 個字就要約 558px，但左欄只有
+ * 約 470px。若在這裡全域套用 word-break: keep-all，長句無法換行會直接
+ * 溢出左欄、壓到右側卡片上，所以桌機維持瀏覽器預設的斷行行為。
  */
-.hero-title {
-    word-break: keep-all;
-    text-wrap: balance;
-}
-
-/* 每行獨立成塊，寬度才不會互相牽動 */
-.hero-title .line-gradient,
-.hero-title .line-accent {
-    display: inline-block;
-}
 
 .chip.chip-link {
     text-decoration: none;
@@ -881,9 +872,12 @@ body {
     .hero-section .hero-title {
         margin-bottom: 8px !important;
         /*
-         * 最長的一行是 9 個字（繁體中文動漫資料庫）。搭配 keep-all 後這行
-         * 不會再被拆開，因此字級上限要壓到窄螢幕也放得下，否則會溢出。
+         * 標記已用 <br> 指定三行斷點，但瀏覽器認定中文每字之間都可換行，
+         * 窄螢幕會在句中再斷一次（「繁體中文動／漫資料庫」）。keep-all
+         * 讓它只在 <br> 處換行；配套是字級上限要壓到最長那行（9 個字）
+         * 放得下，否則不能換行就會溢出。
          */
+        word-break: keep-all;
         font-size: clamp(1.15rem, 5vw, 1.6rem) !important;
         line-height: 1.35 !important;
     }
