@@ -1,75 +1,26 @@
 <?php
 /**
- * 微笑動漫 — AI 編輯短評批次產生工具
+ * 微笑動漫 — 編輯短評控管工具
  *
  * Path: wp-content/plugins/anime-sync-pro/includes/ai-editorial-tool.php
  *
- * @version 1.11.0 (2026-08-13)
+ * @version 2.0.0 (2026-08-17)
  *
- * v1.11.0（改為全人工）：
- *   - 移除「🚀 開始批次產生」按鈕，改為全人工貼上流程說明（API 產生幻覺過多）。
- *     後端 AJAX 端點暫時保留（未觸發即不執行）；設定頁與統計卡仍可查看。
+ * v2.0.0（移除 AI 生成，改為人工快速編輯）：
+ *   - 移除整套 AI 產生功能：Gemini／Groq API Key 管理、金鑰池與冷卻、
+ *     額度偵測、批次產生 AJAX、每日上限、prompt 組裝與模型請求。
+ *     原因：AI 產出幻覺過多，實務上已改為全人工撰寫（見 v1.11.0）。
+ *   - 頁面改為「短評控管」：列出作品並可直接就地編輯 ACF 短評欄位，
+ *     省去逐篇進文章編輯頁的往返。
+ *   - 存檔行為與 class-acf-fields.php 的 auto_assign_editorial_reviewer()
+ *     一致：自動帶入審核者、審核日期，並標記為已發布。
+ *   - 保留：季度／人氣排序與篩選子句、待處理計數、文字正規化與平台防呆。
  *
- * v1.10.0（資料正確性與用詞規範）：
- *   1) 平台幻覺防護 wxacg_editorial_platform_guard()：短評若出現「台灣合法串流」
- *      欄位以外的平台名，或用「其他合法平台／各大串流」等籠統說法規避限制，
- *      一律判定為軟錯誤走既有重試（與字數硬牆同一路徑），不再靜默進草稿
- *   2) prompt 第 4 條改嚴：平台名僅能逐字取用欄位值，禁止籠統帶過
- *   3) prompt 新增第 10、11 條：敏感題材語氣中性只做提醒不推薦；禁用罐頭套語
- *   4) 提高 WXACG_EDITORIAL_PROMPT_VERSION → 1.10.0，覆蓋模式將以新規則重跑
- *
- * v1.9.1（可續跑修正）：
- *   1) 覆蓋模式改以 anime_editorial_prompt_version 為水位標記，重寫過的作品自動離開
- *      查詢集合，offset 恆為 0，可跨工作階段／跨日續跑，進度條與完成判斷同步修正
- *   2) wxacg_count_remaining() 新增 $overwrite 參數，統計與查詢共用同一組條件
- *   3) 補上 set_time_limit／ignore_user_abort，並在 usleep 前先判斷時間預算，
- *      避免 45s HTTP timeout + sleep 疊加撞上 max_execution_time 造成 504
- *   4) 拆除 wxacg_build_sort_clauses() 內的巢狀 $wpdb->prepare()
- *   5) 題材類型上限 6 個；每筆間隔改依「未冷卻」的 Key 計算容量
- *
- * v1.9.0: 對齊 class-acf-fields.php（field key 參照、串流標籤、studios meta 優先）
- * v1.8.0: 排序改為可組合子句，新增本季／下季／最近匯入
- * v1.7.0: 同時支援 Gemini 與 Groq，跨供應商 Key 池輪替
- * v1.6.0: 改寫入 anime_editor_summary，一律標記待人工審核草稿
- * v1.5.0: 每把 Key 獨立冷卻管理
- * v1.4.0: 支援多把 API Key 輪替
+ * 歷史版本（v1.x）為 AI 批次產生器，相關程式已於 v2.0.0 移除。
  */
 
 defined( 'ABSPATH' ) || exit;
 
-/* ============================================================
- * 常數
- * ============================================================ */
-
-if ( ! defined( 'WXACG_GEMINI_MODEL' ) ) {
-	define( 'WXACG_GEMINI_MODEL', 'gemini-3.6-flash' );
-}
-
-if ( ! defined( 'WXACG_GROQ_MODEL_DEFAULT' ) ) {
-	define( 'WXACG_GROQ_MODEL_DEFAULT', 'openai/gpt-oss-120b' );
-}
-
-/**
- * Prompt 版本。
- *
- * 覆蓋模式以此值判斷「這部是否已用目前版本重寫過」。
- * 調整 prompt 內容時才需要提高版本號；提高後覆蓋模式會重跑全部作品。
- */
-if ( ! defined( 'WXACG_EDITORIAL_PROMPT_VERSION' ) ) {
-	define( 'WXACG_EDITORIAL_PROMPT_VERSION', '1.10.0' );
-}
-
-if ( ! defined( 'WXACG_BATCH_TIME_BUDGET' ) ) {
-	define( 'WXACG_BATCH_TIME_BUDGET', 25 );
-}
-
-if ( ! defined( 'WXACG_COOLDOWN_OPTION' ) ) {
-	define( 'WXACG_COOLDOWN_OPTION', 'wxacg_gemini_key_cooldowns' );
-}
-
-if ( ! defined( 'WXACG_DAILY_COUNTER_OPTION' ) ) {
-	define( 'WXACG_DAILY_COUNTER_OPTION', 'wxacg_ai_daily_counter' );
-}
 
 if ( ! defined( 'WXACG_EDITORIAL_META' ) ) {
 	define( 'WXACG_EDITORIAL_META', 'anime_editor_summary' );
@@ -116,30 +67,6 @@ function wxacg_update_acf_meta( $post_id, $key, $value ) {
 function wxacg_delete_acf_meta( $post_id, $key ) {
 	delete_post_meta( $post_id, $key );
 	delete_post_meta( $post_id, '_' . $key );
-}
-
-function wxacg_provider_safe_rpm( $provider ) {
-	return ( 'groq' === $provider ) ? 20 : 4;
-}
-
-function wxacg_groq_model_choices() {
-	return array(
-		'openai/gpt-oss-120b'     => 'openai/gpt-oss-120b（品質較佳，建議）',
-		'openai/gpt-oss-20b'      => 'openai/gpt-oss-20b（速度最快）',
-		'llama-3.3-70b-versatile' => 'llama-3.3-70b-versatile（中文尚可）',
-		'qwen/qwen3.6-27b'        => 'qwen/qwen3.6-27b（中文表現佳）',
-	);
-}
-
-function wxacg_get_groq_model() {
-	$model   = (string) get_option( 'wxacg_groq_model', WXACG_GROQ_MODEL_DEFAULT );
-	$choices = wxacg_groq_model_choices();
-
-	if ( ! isset( $choices[ $model ] ) ) {
-		$model = WXACG_GROQ_MODEL_DEFAULT;
-	}
-
-	return $model;
 }
 
 /* ============================================================
@@ -291,521 +218,6 @@ function wxacg_editorial_platform_guard( $text, $allowed ) {
 /* ============================================================
  * 後台選單
  * ============================================================ */
-
-add_action( 'admin_menu', function () {
-	add_submenu_page(
-		'anime-sync-pro',
-		'AI 編輯短評產生器',
-		'✍️ AI 短評產生',
-		'manage_options',
-		'wxacg-ai-editorial',
-		'wxacg_ai_editorial_page'
-	);
-}, 11 );
-
-/* ============================================================
- * API Key 取得與 Key 池
- * ============================================================ */
-
-function wxacg_get_gemini_api_keys() {
-	$keys = get_option( 'wxacg_gemini_api_keys', array() );
-
-	if ( empty( $keys ) ) {
-		$legacy = get_option( 'wxacg_gemini_api_key', '' );
-
-		if ( ! empty( $legacy ) ) {
-			$keys = array( $legacy );
-		}
-	}
-
-	if ( ! is_array( $keys ) ) {
-		$keys = array();
-	}
-
-	$keys = array_map( 'trim', $keys );
-	$keys = array_filter( $keys );
-
-	return array_values( array_unique( $keys ) );
-}
-
-function wxacg_get_groq_api_keys() {
-	$keys = get_option( 'wxacg_groq_api_keys', array() );
-
-	if ( ! is_array( $keys ) ) {
-		$keys = array();
-	}
-
-	$keys = array_map( 'trim', $keys );
-	$keys = array_filter( $keys );
-
-	return array_values( array_unique( $keys ) );
-}
-
-/**
- * 取得編輯畫面 AI 面板（user meta）已存的金鑰，供一鍵匯入。
- */
-function wxacg_get_asp_user_keys( $user_id = 0 ) {
-	$user_id = $user_id ? (int) $user_id : get_current_user_id();
-
-	if ( $user_id <= 0 ) {
-		return array();
-	}
-
-	$raw = (string) get_user_meta( $user_id, 'asp_ai_api_key', true );
-
-	if ( '' === trim( $raw ) ) {
-		return array();
-	}
-
-	$keys = preg_split( '/[\r\n]+/', $raw );
-	$keys = array_map( 'trim', $keys );
-
-	return array_values( array_unique( array_filter( $keys ) ) );
-}
-
-function wxacg_provider_order_choices() {
-	return array(
-		'auto'         => '🔀 自動交錯（兩家輪流，最平均）',
-		'groq_first'   => '⚡ Groq 優先（用完才換 Gemini）',
-		'gemini_first' => '💎 Gemini 優先（用完才換 Groq）',
-		'groq'         => '僅使用 Groq',
-		'gemini'       => '僅使用 Gemini',
-	);
-}
-
-function wxacg_get_ai_key_pool( $mode = 'auto' ) {
-	$gemini_keys = wxacg_get_gemini_api_keys();
-	$groq_keys   = wxacg_get_groq_api_keys();
-
-	$gemini = array();
-	$groq   = array();
-
-	foreach ( $gemini_keys as $index => $key ) {
-		$gemini[] = array(
-			'provider' => 'gemini',
-			'key'      => $key,
-			'label'    => sprintf( 'Gemini #%d', $index + 1 ),
-		);
-	}
-
-	foreach ( $groq_keys as $index => $key ) {
-		$groq[] = array(
-			'provider' => 'groq',
-			'key'      => $key,
-			'label'    => sprintf( 'Groq #%d', $index + 1 ),
-		);
-	}
-
-	if ( 'gemini' === $mode ) {
-		return $gemini;
-	}
-
-	if ( 'groq' === $mode ) {
-		return $groq;
-	}
-
-	if ( 'gemini_first' === $mode ) {
-		return array_merge( $gemini, $groq );
-	}
-
-	if ( 'groq_first' === $mode ) {
-		return array_merge( $groq, $gemini );
-	}
-
-	$pool  = array();
-	$count = max( count( $groq ), count( $gemini ) );
-
-	for ( $i = 0; $i < $count; $i++ ) {
-		if ( isset( $groq[ $i ] ) ) {
-			$pool[] = $groq[ $i ];
-		}
-
-		if ( isset( $gemini[ $i ] ) ) {
-			$pool[] = $gemini[ $i ];
-		}
-	}
-
-	return $pool;
-}
-
-function wxacg_mask_api_key( $key ) {
-	$key = trim( (string) $key );
-
-	if ( '' === $key ) {
-		return '';
-	}
-
-	$length = strlen( $key );
-
-	if ( $length <= 10 ) {
-		return substr( $key, 0, 2 ) . '••••••';
-	}
-
-	return substr( $key, 0, 6 ) . '••••••••' . substr( $key, -4 );
-}
-
-/* ============================================================
- * Key 冷卻狀態管理
- * ============================================================ */
-
-function wxacg_key_fp( $provider, $key ) {
-	return substr( md5( (string) $provider . '|' . (string) $key ), 0, 12 );
-}
-
-function wxacg_entry_fp( $entry ) {
-	return wxacg_key_fp( $entry['provider'], $entry['key'] );
-}
-
-function wxacg_get_key_cooldowns() {
-	$data = get_option( WXACG_COOLDOWN_OPTION, array() );
-
-	if ( ! is_array( $data ) ) {
-		$data = array();
-	}
-
-	$now     = time();
-	$changed = false;
-
-	foreach ( $data as $fp => $row ) {
-		if (
-			! is_array( $row ) ||
-			empty( $row['until'] ) ||
-			(int) $row['until'] <= $now
-		) {
-			unset( $data[ $fp ] );
-			$changed = true;
-		}
-	}
-
-	if ( $changed ) {
-		update_option( WXACG_COOLDOWN_OPTION, $data, false );
-	}
-
-	return $data;
-}
-
-function wxacg_set_key_cooldown( $entry, $until_ts, $reason ) {
-	$data = wxacg_get_key_cooldowns();
-	$fp   = wxacg_entry_fp( $entry );
-
-	if (
-		isset( $data[ $fp ]['until'] ) &&
-		(int) $data[ $fp ]['until'] > (int) $until_ts
-	) {
-		return;
-	}
-
-	$data[ $fp ] = array(
-		'until'    => (int) $until_ts,
-		'reason'   => sanitize_key( $reason ),
-		'provider' => sanitize_key( $entry['provider'] ),
-		'set_at'   => time(),
-	);
-
-	update_option( WXACG_COOLDOWN_OPTION, $data, false );
-}
-
-function wxacg_key_is_cooling( $entry, $cooldowns ) {
-	$fp = wxacg_entry_fp( $entry );
-
-	return (
-		isset( $cooldowns[ $fp ]['until'] ) &&
-		(int) $cooldowns[ $fp ]['until'] > time()
-	);
-}
-
-function wxacg_next_pacific_midnight() {
-	try {
-		$tz   = new DateTimeZone( 'America/Los_Angeles' );
-		$now  = new DateTime( 'now', $tz );
-		$next = new DateTime( $now->format( 'Y-m-d' ) . ' 00:00:00', $tz );
-
-		$next->modify( '+1 day' );
-
-		return $next->getTimestamp();
-	} catch ( Exception $e ) {
-		return time() + ( 3 * HOUR_IN_SECONDS );
-	}
-}
-
-function wxacg_next_utc_midnight() {
-	$next = strtotime( gmdate( 'Y-m-d', time() + DAY_IN_SECONDS ) . ' 00:00:00 UTC' );
-
-	return $next ? (int) $next : ( time() + ( 3 * HOUR_IN_SECONDS ) );
-}
-
-function wxacg_provider_daily_reset_ts( $provider ) {
-	return ( 'groq' === $provider )
-		? wxacg_next_utc_midnight()
-		: wxacg_next_pacific_midnight();
-}
-
-function wxacg_parse_reset_duration( $text ) {
-	$text = strtolower( trim( (string) $text ) );
-
-	if ( '' === $text ) {
-		return 0;
-	}
-
-	if ( is_numeric( $text ) ) {
-		return (int) ceil( (float) $text );
-	}
-
-	$total   = 0;
-	$matched = false;
-
-	if ( preg_match_all( '/([\d.]+)\s*(ms|h|m|s)/', $text, $matches, PREG_SET_ORDER ) ) {
-		foreach ( $matches as $part ) {
-			$value   = (float) $part[1];
-			$matched = true;
-
-			switch ( $part[2] ) {
-				case 'h':
-					$total += $value * 3600;
-					break;
-				case 'm':
-					$total += $value * 60;
-					break;
-				case 's':
-					$total += $value;
-					break;
-				case 'ms':
-					$total += $value / 1000;
-					break;
-			}
-		}
-	}
-
-	return $matched ? (int) ceil( $total ) : 0;
-}
-
-function wxacg_classify_quota_error( $decoded, $raw_body ) {
-	$out = array(
-		'scope'       => 'unknown',
-		'retry_after' => 0,
-		'quota_id'    => '',
-	);
-
-	$details = (
-		isset( $decoded['error']['details'] ) &&
-		is_array( $decoded['error']['details'] )
-	)
-		? $decoded['error']['details']
-		: array();
-
-	foreach ( $details as $detail ) {
-		if ( ! is_array( $detail ) ) {
-			continue;
-		}
-
-		$type = isset( $detail['@type'] ) ? (string) $detail['@type'] : '';
-
-		if ( false !== strpos( $type, 'RetryInfo' ) && ! empty( $detail['retryDelay'] ) ) {
-			$out['retry_after'] = (int) ceil( (float) $detail['retryDelay'] );
-		}
-
-		if (
-			false !== strpos( $type, 'QuotaFailure' ) &&
-			! empty( $detail['violations'] ) &&
-			is_array( $detail['violations'] )
-		) {
-			foreach ( $detail['violations'] as $violation ) {
-				if ( ! is_array( $violation ) ) {
-					continue;
-				}
-
-				$quota_id = isset( $violation['quotaId'] ) ? (string) $violation['quotaId'] : '';
-				$metric   = isset( $violation['quotaMetric'] ) ? (string) $violation['quotaMetric'] : '';
-
-				if ( '' !== $quota_id ) {
-					$out['quota_id'] = $quota_id;
-				}
-
-				$haystack = strtolower( $quota_id . ' ' . $metric );
-
-				if (
-					false !== strpos( $haystack, 'perday' ) ||
-					false !== strpos( $haystack, 'per_day' )
-				) {
-					$out['scope'] = 'day';
-				} elseif (
-					'day' !== $out['scope'] &&
-					(
-						false !== strpos( $haystack, 'perminute' ) ||
-						false !== strpos( $haystack, 'per_minute' )
-					)
-				) {
-					$out['scope'] = 'minute';
-				}
-			}
-		}
-	}
-
-	if ( 'unknown' === $out['scope'] ) {
-		$lower_body = strtolower( (string) $raw_body );
-
-		if (
-			false !== strpos( $lower_body, 'per day' ) ||
-			false !== strpos( $lower_body, 'perday' ) ||
-			false !== strpos( $lower_body, 'daily' )
-		) {
-			$out['scope'] = 'day';
-		} elseif ( $out['retry_after'] > 0 ) {
-			$out['scope'] = 'minute';
-		}
-	}
-
-	return $out;
-}
-
-function wxacg_classify_groq_quota( $response, $raw_body ) {
-	$out = array(
-		'scope'       => 'unknown',
-		'retry_after' => 0,
-		'quota_id'    => '',
-	);
-
-	$retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
-
-	if ( '' !== $retry_after && null !== $retry_after ) {
-		$out['retry_after'] = wxacg_parse_reset_duration( $retry_after );
-	}
-
-	$lower = strtolower( (string) $raw_body );
-
-	if (
-		false !== strpos( $lower, 'per day' ) ||
-		false !== strpos( $lower, '(rpd)' ) ||
-		false !== strpos( $lower, '(tpd)' )
-	) {
-		$out['scope']    = 'day';
-		$out['quota_id'] = ( false !== strpos( $lower, '(tpd)' ) ) ? 'TPD' : 'RPD';
-	} elseif (
-		false !== strpos( $lower, 'per minute' ) ||
-		false !== strpos( $lower, '(rpm)' ) ||
-		false !== strpos( $lower, '(tpm)' ) ||
-		false !== strpos( $lower, '(itpm)' ) ||
-		false !== strpos( $lower, '(otpm)' )
-	) {
-		$out['scope']    = 'minute';
-		$out['quota_id'] = ( false !== strpos( $lower, '(rpm)' ) ) ? 'RPM' : 'TPM';
-	} elseif ( $out['retry_after'] > 0 && $out['retry_after'] <= 300 ) {
-		$out['scope'] = 'minute';
-	}
-
-	if ( 'day' === $out['scope'] ) {
-		$reset_seconds = wxacg_parse_reset_duration(
-			wp_remote_retrieve_header( $response, 'x-ratelimit-reset-requests' )
-		);
-
-		if ( $reset_seconds > 0 ) {
-			$out['retry_after'] = $reset_seconds;
-		}
-	}
-
-	return $out;
-}
-
-function wxacg_build_key_status( $pool ) {
-	$cooldowns = wxacg_get_key_cooldowns();
-	$ready     = 0;
-	$daily     = 0;
-	$lines     = array();
-	$soonest   = 0;
-
-	foreach ( $pool as $entry ) {
-		$fp    = wxacg_entry_fp( $entry );
-		$label = $entry['label'];
-		$mask  = wxacg_mask_api_key( $entry['key'] );
-
-		if ( ! isset( $cooldowns[ $fp ] ) ) {
-			$ready++;
-			$lines[] = sprintf( '%s（%s）：✅ 可用', $label, $mask );
-			continue;
-		}
-
-		$until  = (int) $cooldowns[ $fp ]['until'];
-		$reason = isset( $cooldowns[ $fp ]['reason'] ) ? $cooldowns[ $fp ]['reason'] : 'unknown';
-
-		$soonest = ( 0 === $soonest ) ? $until : min( $soonest, $until );
-
-		if ( 'daily' === $reason ) {
-			$daily++;
-			$lines[] = sprintf( '%s（%s）：🛑 今日配額用盡（%s 恢復）', $label, $mask, wp_date( 'm/d H:i', $until ) );
-		} elseif ( 'minute' === $reason ) {
-			$lines[] = sprintf( '%s（%s）：⏳ 分鐘配額冷卻中（%s 恢復）', $label, $mask, wp_date( 'H:i:s', $until ) );
-		} elseif ( 'invalid' === $reason ) {
-			$daily++;
-			$lines[] = sprintf( '%s（%s）：🚫 Key 無效或被拒絕（%s 後重試）', $label, $mask, wp_date( 'm/d H:i', $until ) );
-		} else {
-			$lines[] = sprintf( '%s（%s）：⏳ 冷卻中／原因不明（%s 恢復）', $label, $mask, wp_date( 'H:i:s', $until ) );
-		}
-	}
-
-	return array(
-		'ready'     => $ready,
-		'daily'     => $daily,
-		'lines'     => $lines,
-		'soonest'   => $soonest,
-		'all_daily' => ( count( $pool ) > 0 && $daily === count( $pool ) ),
-	);
-}
-
-/* ============================================================
- * 每日產生上限（伺服器端強制）
- * ============================================================ */
-
-function wxacg_get_daily_cap() {
-	$cap = (int) get_option( 'wxacg_ai_daily_cap', 50 );
-
-	return max( 0, min( 2000, $cap ) );
-}
-
-function wxacg_get_daily_usage() {
-	$data  = get_option( WXACG_DAILY_COUNTER_OPTION, array() );
-	$today = wp_date( 'Ymd' );
-
-	if (
-		! is_array( $data ) ||
-		! isset( $data['date'] ) ||
-		$data['date'] !== $today
-	) {
-		return array(
-			'date'  => $today,
-			'count' => 0,
-		);
-	}
-
-	return array(
-		'date'  => $today,
-		'count' => max( 0, (int) $data['count'] ),
-	);
-}
-
-function wxacg_bump_daily_usage( $amount = 1 ) {
-	$usage = wxacg_get_daily_usage();
-
-	$usage['count'] += max( 0, (int) $amount );
-
-	update_option( WXACG_DAILY_COUNTER_OPTION, $usage, false );
-
-	return $usage['count'];
-}
-
-/**
- * 今日剩餘可產生數量；0 代表已達上限，PHP_INT_MAX 代表不限。
- */
-function wxacg_daily_room() {
-	$cap = wxacg_get_daily_cap();
-
-	if ( $cap <= 0 ) {
-		return PHP_INT_MAX;
-	}
-
-	$usage = wxacg_get_daily_usage();
-
-	return max( 0, $cap - $usage['count'] );
-}
 
 /* ============================================================
  * 排序：季度輔助與子句產生
@@ -1105,1444 +517,251 @@ function wxacg_count_remaining( $sort = '', $protect = true, $overwrite = false 
 }
 
 /* ============================================================
- * AI 草稿 Meta 寫入
+ * 後台選單
  * ============================================================ */
 
-function wxacg_save_editorial_ai_draft( $post_id, $editorial, $provider = 'gemini', $model = '' ) {
-	$post_id   = (int) $post_id;
-	$editorial = trim( (string) $editorial );
-
-	if ( $post_id <= 0 || '' === $editorial ) {
-		return false;
-	}
-
-	if ( '' === $model ) {
-		$model = ( 'groq' === $provider ) ? wxacg_get_groq_model() : WXACG_GEMINI_MODEL;
-	}
-
-	wxacg_update_acf_meta( $post_id, WXACG_EDITORIAL_META, $editorial );
-	wxacg_update_acf_meta( $post_id, 'anime_editorial_status', 'draft' );
-	wxacg_update_acf_meta( $post_id, 'anime_editorial_ai_generated', 1 );
-	wxacg_update_acf_meta( $post_id, 'anime_editorial_ai_needs_review', 1 );
-	wxacg_update_acf_meta(
-		$post_id,
-		'anime_editorial_ai_model',
-		sanitize_text_field( $provider . ':' . $model )
+add_action( 'admin_menu', function () {
+	add_submenu_page(
+		'anime-sync-pro',
+		'編輯短評控管',
+		'✍️ 短評控管',
+		'manage_options',
+		'wxacg-ai-editorial',
+		'wxacg_ai_editorial_page'
 	);
-	wxacg_update_acf_meta(
-		$post_id,
-		'anime_editorial_ai_generated_at',
-		current_time( 'mysql' )
-	);
-
-	// 覆蓋模式的續跑水位，務必最後寫入。
-	wxacg_update_acf_meta(
-		$post_id,
-		WXACG_PROMPT_VERSION_META,
-		WXACG_EDITORIAL_PROMPT_VERSION
-	);
-
-	// 非 ACF 欄位，純粹供後台查詢與統計使用。
-	update_post_meta( $post_id, 'anime_editorial_ai_provider', sanitize_key( $provider ) );
-
-	// 新草稿尚未經人工審核，不可沿用舊的審核身分與日期。
-	wxacg_delete_acf_meta( $post_id, 'anime_editorial_author_id' );
-	wxacg_delete_acf_meta( $post_id, 'anime_editorial_reviewed_at' );
-
-	return true;
-}
+}, 11 );
 
 /* ============================================================
- * AJAX：批次產生
- * ============================================================ */
-
-add_action( 'wp_ajax_wxacg_ai_generate_batch', 'wxacg_ai_generate_batch_handler' );
-
-function wxacg_ai_generate_batch_handler() {
-	// 單筆最壞情況：HTTP 45s + 輪替 sleep + 每筆間隔，預設 30s 上限會被砍成 504。
-	if ( function_exists( 'set_time_limit' ) ) {
-		@set_time_limit( 120 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-	}
-
-	ignore_user_abort( true );
-
-	try {
-		check_ajax_referer( 'wxacg_ai_editorial_nonce', 'nonce' );
-
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => '權限不足' ) );
-		}
-
-		$order_choices = wxacg_provider_order_choices();
-
-		$provider_mode = sanitize_key(
-			isset( $_POST['provider'] ) ? wp_unslash( $_POST['provider'] ) : ''
-		);
-
-		if ( ! isset( $order_choices[ $provider_mode ] ) ) {
-			$provider_mode = (string) get_option( 'wxacg_ai_provider_order', 'auto' );
-		}
-
-		if ( ! isset( $order_choices[ $provider_mode ] ) ) {
-			$provider_mode = 'auto';
-		}
-
-		$pool = wxacg_get_ai_key_pool( $provider_mode );
-
-		if ( empty( $pool ) ) {
-			wp_send_json_error(
-				array( 'message' => '目前選擇的供應商沒有可用的 API Key，請先於上方設定。' )
-			);
-		}
-
-		$key_count = count( $pool );
-
-		$sort         = sanitize_key( isset( $_POST['sort'] ) ? wp_unslash( $_POST['sort'] ) : 'season' );
-		$sort_choices = wxacg_sort_choices();
-
-		if ( ! isset( $sort_choices[ $sort ] ) ) {
-			$sort = 'season';
-		}
-
-		$overwrite = ! empty( $_POST['overwrite'] );
-		$protect   = ! empty( $_POST['protect'] );
-
-		$offset = max( 0, (int) ( isset( $_POST['offset'] ) ? $_POST['offset'] : 0 ) );
-
-		$requested_size = min(
-			max( 1, (int) ( isset( $_POST['batch_size'] ) ? $_POST['batch_size'] : 3 ) ),
-			30
-		);
-
-		// 本次工作階段剩餘額度（0 或未傳代表不限）。
-		$session_left = (int) ( isset( $_POST['session_left'] ) ? $_POST['session_left'] : 0 );
-
-		if ( $session_left <= 0 ) {
-			$session_left = PHP_INT_MAX;
-		}
-
-		$daily_room = wxacg_daily_room();
-		$daily_cap  = wxacg_get_daily_cap();
-		$daily_used = wxacg_get_daily_usage();
-
-		if ( $daily_room <= 0 ) {
-			wp_send_json_success(
-				array(
-					'results'         => array(),
-					'processed'       => 0,
-					'succeeded'       => 0,
-					'failed'          => 0,
-					'total_remaining' => wxacg_count_remaining( '', $protect, $overwrite ),
-					'scope_remaining' => wxacg_count_remaining( $sort, $protect, $overwrite ),
-					'scope_label'     => $sort_choices[ $sort ],
-					'next_offset'     => $offset,
-					'next_key_cursor' => 0,
-					'key_count'       => $key_count,
-					'keys_ready'      => 0,
-					'key_status'      => array(),
-					'rate_limited'    => false,
-					'daily_exhausted' => false,
-					'daily_cap_hit'   => true,
-					'daily_cap'       => $daily_cap,
-					'daily_used'      => $daily_used['count'],
-					'reset_text'      => '',
-					'cooldown_sec'    => 0,
-					'item_delay_ms'   => 0,
-				)
-			);
-		}
-
-		$batch_size = (int) min( $requested_size, $daily_room, $session_left );
-		$batch_size = max( 1, $batch_size );
-
-		$item_delay_ms = (int) ( isset( $_POST['item_delay'] ) ? $_POST['item_delay'] : 0 );
-
-		if ( $item_delay_ms <= 0 ) {
-			$item_delay_ms = wxacg_auto_item_delay_ms( $pool, true );
-		}
-
-		$item_delay_ms = min( max( $item_delay_ms, 100 ), 15000 );
-
-		$key_cursor = ( (int) ( isset( $_POST['key_cursor'] ) ? $_POST['key_cursor'] : 0 ) ) % $key_count;
-
-		if ( $key_cursor < 0 ) {
-			$key_cursor += $key_count;
-		}
-
-		$pre_status = wxacg_build_key_status( $pool );
-
-		if ( $pre_status['all_daily'] ) {
-			wp_send_json_success(
-				array(
-					'results'         => array(),
-					'processed'       => 0,
-					'succeeded'       => 0,
-					'failed'          => 0,
-					'total_remaining' => wxacg_count_remaining( '', $protect, $overwrite ),
-					'scope_remaining' => wxacg_count_remaining( $sort, $protect, $overwrite ),
-					'scope_label'     => $sort_choices[ $sort ],
-					'next_offset'     => $offset,
-					'next_key_cursor' => $key_cursor,
-					'key_count'       => $key_count,
-					'keys_ready'      => 0,
-					'key_status'      => $pre_status['lines'],
-					'rate_limited'    => false,
-					'daily_exhausted' => true,
-					'daily_cap_hit'   => false,
-					'daily_cap'       => $daily_cap,
-					'daily_used'      => $daily_used['count'],
-					'reset_text'      => $pre_status['soonest'] ? wp_date( 'm/d H:i', $pre_status['soonest'] ) : '',
-					'cooldown_sec'    => 0,
-					'item_delay_ms'   => $item_delay_ms,
-				)
-			);
-		}
-
-		global $wpdb;
-
-		$clauses     = wxacg_build_sort_clauses( $sort );
-		$protect_sql = $protect ? wxacg_protect_clause() : '';
-		$scope_sql   = wxacg_scope_clause( $overwrite );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$sql = $wpdb->prepare(
-			"SELECT p.ID, p.post_title, p.comment_count {$clauses['select']}
-			 FROM {$wpdb->posts} p
-			 {$clauses['join']}
-			 WHERE p.post_type = 'anime'
-			   AND p.post_status = 'publish'
-			   {$scope_sql}
-			   {$protect_sql}
-			 GROUP BY p.ID, p.post_title, p.comment_count, p.post_date
-			 {$clauses['having']}
-			 {$clauses['order']}
-			 LIMIT %d OFFSET %d",
-			$batch_size,
-			$offset
-		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$posts = $wpdb->get_results( $sql );
-
-		if ( ! empty( $wpdb->last_error ) ) {
-			wp_send_json_error( array( 'message' => 'SQL 錯誤：' . $wpdb->last_error ) );
-		}
-
-		$results         = array();
-		$rate_limited    = false;
-		$daily_exhausted = false;
-		$reset_text      = '';
-		$attempted       = 0;
-		$saved_count     = 0;
-		$started_at      = microtime( true );
-		$post_total      = count( $posts );
-
-		foreach ( $posts as $post ) {
-			if (
-				$attempted > 0 &&
-				( microtime( true ) - $started_at ) > WXACG_BATCH_TIME_BUDGET
-			) {
-				break;
-			}
-
-			$post_id = (int) $post->ID;
-			$data    = wxacg_gather_anime_data_for_editorial( $post_id );
-
-			$start_index = ( $key_cursor + $attempted ) % $key_count;
-			$result      = wxacg_call_ai_editorial_multi( $pool, $start_index, $data );
-
-			if ( is_wp_error( $result ) ) {
-				$error_code = $result->get_error_code();
-
-				$results[] = array(
-					'id'      => $post_id,
-					'title'   => $post->post_title,
-					'status'  => 'error',
-					'message' => $result->get_error_message(),
-				);
-
-				$attempted++;
-
-				if ( 'ai_quota_daily' === $error_code ) {
-					$daily_exhausted = true;
-					$error_data      = $result->get_error_data();
-
-					$reset_text = ( is_array( $error_data ) && isset( $error_data['reset_text'] ) )
-						? $error_data['reset_text']
-						: '';
-
-					break;
-				}
-
-				if ( 'ai_quota' === $error_code ) {
-					$rate_limited = true;
-					break;
-				}
-			} else {
-				$saved = wxacg_save_editorial_ai_draft(
-					$post_id,
-					$result['text'],
-					$result['provider'],
-					$result['model']
-				);
-
-				if ( ! $saved ) {
-					$results[] = array(
-						'id'      => $post_id,
-						'title'   => $post->post_title,
-						'status'  => 'error',
-						'message' => '短評產生成功，但寫入草稿欄位失敗。',
-					);
-				} else {
-					$saved_count++;
-
-					$results[] = array(
-						'id'        => $post_id,
-						'title'     => $post->post_title,
-						'status'    => 'success',
-						'editorial' => $result['text'],
-						'source'    => $result['label'] . '／' . $result['model'],
-						'edit_url'  => get_edit_post_link( $post_id, 'raw' ),
-					);
-				}
-
-				$attempted++;
-			}
-
-			// 已接近時間預算就不要再空睡，直接把結果交給前端接續。
-			$elapsed_after_sleep = ( microtime( true ) - $started_at ) + ( $item_delay_ms / 1000 );
-
-			if ( $attempted < $post_total && $elapsed_after_sleep < WXACG_BATCH_TIME_BUDGET ) {
-				usleep( $item_delay_ms * 1000 );
-			}
-		}
-
-		if ( $saved_count > 0 ) {
-			wxacg_bump_daily_usage( $saved_count );
-		}
-
-		$error_count = 0;
-
-		foreach ( $results as $row ) {
-			if ( isset( $row['status'] ) && 'error' === $row['status'] ) {
-				$error_count++;
-			}
-		}
-
-		$status       = wxacg_build_key_status( $pool );
-		$cooldown_sec = 0;
-
-		if ( $rate_limited && $status['soonest'] > 0 ) {
-			$cooldown_sec = max( 5, min( 180, $status['soonest'] - time() + 2 ) );
-		}
-
-		$daily_used_now = wxacg_get_daily_usage();
-
-		wp_send_json_success(
-			array(
-				'results'         => $results,
-				'processed'       => count( $results ),
-				'succeeded'       => $saved_count,
-				'failed'          => $error_count,
-				'total_remaining' => wxacg_count_remaining( '', $protect, $overwrite ),
-				'scope_remaining' => wxacg_count_remaining( $sort, $protect, $overwrite ),
-				'scope_label'     => $sort_choices[ $sort ],
-
-				// 兩種模式的成功項目都會離開查詢集合，offset 僅需跳過仍留下的失敗項目。
-				'next_offset'     => $offset + $error_count,
-
-				'next_key_cursor' => ( $key_cursor + $attempted ) % $key_count,
-				'key_count'       => $key_count,
-				'keys_ready'      => $status['ready'],
-				'key_status'      => $status['lines'],
-				'rate_limited'    => $rate_limited,
-				'daily_exhausted' => $daily_exhausted,
-				'daily_cap_hit'   => ( $daily_cap > 0 && $daily_used_now['count'] >= $daily_cap ),
-				'daily_cap'       => $daily_cap,
-				'daily_used'      => $daily_used_now['count'],
-				'reset_text'      => $reset_text,
-				'cooldown_sec'    => $cooldown_sec,
-				'item_delay_ms'   => $item_delay_ms,
-			)
-		);
-	} catch ( Exception $e ) {
-		wp_send_json_error(
-			array(
-				'message' => sprintf(
-					'PHP 例外：%s（%s:%d）',
-					$e->getMessage(),
-					$e->getFile(),
-					$e->getLine()
-				),
-			)
-		);
-	} catch ( Error $e ) {
-		wp_send_json_error(
-			array(
-				'message' => sprintf(
-					'PHP 錯誤：%s（%s:%d）',
-					$e->getMessage(),
-					$e->getFile(),
-					$e->getLine()
-				),
-			)
-		);
-	}
-}
-
-/**
- * 依 Key 池容量推算每筆間隔。
+ * 短評存檔
  *
- * @param array $pool
- * @param bool  $only_ready 只計算目前未冷卻的 Key，避免剩一把時間隔仍算得太短。
- */
-function wxacg_auto_item_delay_ms( $pool, $only_ready = false ) {
-	$cooldowns = $only_ready ? wxacg_get_key_cooldowns() : array();
-	$capacity  = 0;
-
-	foreach ( $pool as $entry ) {
-		if ( $only_ready && wxacg_key_is_cooling( $entry, $cooldowns ) ) {
-			continue;
-		}
-
-		$capacity += wxacg_provider_safe_rpm( $entry['provider'] );
-	}
-
-	if ( $capacity < 1 ) {
-		$capacity = 1;
-	}
-
-	return (int) ceil( 60000 / $capacity );
-}
-
-/* ============================================================
- * 蒐集動漫資料（對齊 class-acf-fields.php 定義）
+ * 與 class-acf-fields.php 的 auto_assign_editorial_reviewer() 行為一致：
+ * 短評內容有變更時，自動帶入審核者、審核日期並標記為已發布。
+ * 該 hook 掛在 acf/save_post，本頁不經 ACF 表單送出，因此在這裡
+ * 明確補上相同欄位，避免兩條路徑存出來的資料不一致。
  * ============================================================ */
 
-/**
- * 台灣串流平台 key → 中文標籤。
- */
-function wxacg_streaming_label_map() {
-	if (
-		class_exists( 'Anime_Sync_Streaming_Registry' ) &&
-		method_exists( 'Anime_Sync_Streaming_Registry', 'get_acf_choices' )
-	) {
-		$choices = Anime_Sync_Streaming_Registry::get_acf_choices();
-
-		if ( is_array( $choices ) ) {
-			return $choices;
-		}
-	}
-
-	return array();
-}
-
-function wxacg_distributor_label_map() {
-	return array(
-		'muse'      => '木棉花',
-		'medialink' => '曼迪傳播',
-		'linbang'   => '羚邦',
-		'tropic'    => '回歸線娛樂',
-		'proware'   => '普威爾',
-		'kadokawa'  => '台灣角川',
-		'gungho'    => '群英社',
-		'tien'      => '提恩傳媒',
-		'garage'    => '車庫娛樂',
-		'carsun'    => '采昌國際',
-		'jbf'       => '日本橋文化',
-		'righttime' => '利得時代',
-		'aniplus'   => 'ANIPLUS Asia',
-		'tongli'    => '東立出版社',
-		'remow'     => 'REMOW',
-		'gaga'      => 'GaGa OOLala',
-		'liying'    => '麗嬰國際',
-	);
-}
-
-function wxacg_format_label( $format ) {
-	$map = array(
-		'TV'       => '電視動畫',
-		'TV_SHORT' => '短篇電視動畫',
-		'MOVIE'    => '劇場版',
-		'SPECIAL'  => '特別篇',
-		'OVA'      => 'OVA',
-		'ONA'      => 'ONA（網路動畫）',
-		'MUSIC'    => '音樂 MV',
-	);
-
-	$format = strtoupper( trim( (string) $format ) );
-
-	return isset( $map[ $format ] ) ? $map[ $format ] : $format;
-}
-
-function wxacg_source_label( $source ) {
-	$map = array(
-		'ORIGINAL'           => '原創',
-		'MANGA'              => '漫畫改編',
-		'LIGHT_NOVEL'        => '輕小說改編',
-		'VISUAL_NOVEL'       => '視覺小說改編',
-		'VIDEO_GAME'         => '電子遊戲改編',
-		'GAME'               => '桌遊／卡牌改編',
-		'NOVEL'              => '小說改編',
-		'WEB_NOVEL'          => '網路小說改編',
-		'WEB_MANGA'          => '網路漫畫改編',
-		'DOUJINSHI'          => '同人誌改編',
-		'ANIME'              => '動畫',
-		'COMIC'              => '歐美漫畫改編',
-		'LIVE_ACTION'        => '真人影視改編',
-		'MULTIMEDIA_PROJECT' => '多媒體企劃',
-		'PICTURE_BOOK'       => '繪本改編',
-		'OTHER'              => '其他',
-	);
-
-	$source = strtoupper( trim( (string) $source ) );
-
-	return isset( $map[ $source ] ) ? $map[ $source ] : $source;
-}
-
-function wxacg_gather_anime_data_for_editorial( $post_id ) {
+function wxacg_editorial_save_summary( $post_id, $summary ) {
 	$post_id = (int) $post_id;
 
-	// 簡介：anime_synopsis_chinese 為 ACF textarea，new_lines=br。
-	$synopsis = trim( (string) get_post_meta( $post_id, 'anime_synopsis_chinese', true ) );
-
-	if ( '' === $synopsis ) {
-		$synopsis = trim( (string) get_post_meta( $post_id, 'anime_synopsis', true ) );
+	if ( $post_id <= 0 || get_post_type( $post_id ) !== 'anime' ) {
+		return new WP_Error( 'bad_post', '找不到這篇動漫' );
 	}
 
-	$synopsis = wp_strip_all_tags( $synopsis );
-	$synopsis = trim( preg_replace( "/\s+/u", ' ', $synopsis ) );
-	$synopsis = wxacg_editorial_substr( $synopsis, 0, 420 );
+	$before = trim( (string) get_post_meta( $post_id, WXACG_EDITORIAL_META, true ) );
+	$after  = wxacg_normalize_editorial_text( $summary );
 
-	// 製作公司：anime_studios 為逗號分隔 text 欄位。
-	$studio_meta = get_post_meta( $post_id, 'anime_studios', true );
-
-	if ( is_array( $studio_meta ) ) {
-		$studio_meta = implode( '、', array_filter( array_map( 'sanitize_text_field', $studio_meta ) ) );
+	if ( $before === $after ) {
+		return array(
+			'changed' => false,
+			'length'  => wxacg_editorial_strlen( $after ),
+		);
 	}
 
-	$studios = trim( wp_strip_all_tags( (string) $studio_meta ) );
-	$studios = str_replace( array( ', ', ',' ), '、', $studios );
+	wxacg_update_acf_meta( $post_id, WXACG_EDITORIAL_META, $after );
 
-	if ( '' === $studios ) {
-		$studio_terms = get_the_terms( $post_id, 'anime_studio_tax' );
+	// 清空短評：一併清掉審核資訊，避免留下「已發布但沒內容」的狀態。
+	if ( '' === $after ) {
+		wxacg_delete_acf_meta( $post_id, 'anime_editorial_author_id' );
+		wxacg_delete_acf_meta( $post_id, 'anime_editorial_author' );
+		wxacg_delete_acf_meta( $post_id, 'anime_editorial_reviewed_at' );
+		wxacg_delete_acf_meta( $post_id, 'anime_editorial_status' );
 
-		if ( is_array( $studio_terms ) && ! is_wp_error( $studio_terms ) ) {
-			$names = array();
+		return array(
+			'changed'  => true,
+			'length'   => 0,
+			'cleared'  => true,
+		);
+	}
 
-			foreach ( $studio_terms as $term ) {
-				if ( isset( $term->name ) ) {
-					$names[] = $term->name;
-				}
-			}
+	$user_id = get_current_user_id();
 
-			$studios = implode( '、', array_values( array_unique( $names ) ) );
+	if ( $user_id > 0 ) {
+		wxacg_update_acf_meta( $post_id, 'anime_editorial_author_id', $user_id );
+
+		$user = get_userdata( $user_id );
+		if ( $user ) {
+			wxacg_update_acf_meta( $post_id, 'anime_editorial_author', $user->display_name );
 		}
 	}
 
-	// 類型 taxonomy：站台可能使用不同註冊名，依序嘗試。
-	$genres = '';
-
-	foreach ( array( 'anime_genre_tax', 'anime_genre', 'genre' ) as $taxonomy ) {
-		if ( ! taxonomy_exists( $taxonomy ) ) {
-			continue;
-		}
-
-		$terms = get_the_terms( $post_id, $taxonomy );
-
-		if ( ! is_array( $terms ) || is_wp_error( $terms ) || empty( $terms ) ) {
-			continue;
-		}
-
-		$names = array();
-
-		foreach ( $terms as $term ) {
-			if ( isset( $term->name ) ) {
-				$names[] = $term->name;
-			}
-		}
-
-		if ( ! empty( $names ) ) {
-			// 上限 6 個：類型太多會撐大 prompt 又稀釋重點。
-			$names  = array_slice( array_values( array_unique( $names ) ), 0, 6 );
-			$genres = implode( '、', $names );
-			break;
-		}
-	}
-
-	// 台灣串流：anime_tw_streaming 為 checkbox 存 key。
-	$labels    = wxacg_streaming_label_map();
-	$tw_keys   = get_post_meta( $post_id, 'anime_tw_streaming', true );
-	$streaming = array();
-
-	if ( is_array( $tw_keys ) ) {
-		foreach ( $tw_keys as $key ) {
-			$key = (string) $key;
-
-			if ( '' === $key ) {
-				continue;
-			}
-
-			$streaming[] = isset( $labels[ $key ] ) ? $labels[ $key ] : $key;
-		}
-	} elseif ( is_string( $tw_keys ) && '' !== trim( $tw_keys ) ) {
-		$streaming[] = isset( $labels[ $tw_keys ] ) ? $labels[ $tw_keys ] : trim( $tw_keys );
-	}
-
-	$other = trim( (string) get_post_meta( $post_id, 'anime_tw_streaming_other', true ) );
-
-	if ( '' !== $other ) {
-		foreach ( preg_split( '/[,，、]+/u', $other ) as $item ) {
-			$item = trim( $item );
-
-			if ( '' !== $item ) {
-				$streaming[] = $item;
-			}
-		}
-	}
-
-	$streaming = array_values( array_unique( array_filter( $streaming ) ) );
-
-	// 台灣代理商。
-	$distributor_key = trim( (string) get_post_meta( $post_id, 'anime_tw_distributor', true ) );
-	$distributor_map = wxacg_distributor_label_map();
-	$distributor     = '';
-
-	if ( 'other' === $distributor_key ) {
-		$distributor = trim( (string) get_post_meta( $post_id, 'anime_tw_distributor_custom', true ) );
-	} elseif ( '' !== $distributor_key ) {
-		$distributor = isset( $distributor_map[ $distributor_key ] )
-			? $distributor_map[ $distributor_key ]
-			: $distributor_key;
-	}
-
-	$year = trim( (string) get_post_meta( $post_id, 'anime_season_year', true ) );
-
-	// ACF 允許 0 代表尚未公布檔期。
-	if ( '0' === $year ) {
-		$year = '';
-	}
+	wxacg_update_acf_meta( $post_id, 'anime_editorial_reviewed_at', current_time( 'Ymd' ) );
+	wxacg_update_acf_meta( $post_id, 'anime_editorial_status', 'published' );
 
 	return array(
-		'post_id'     => $post_id,
-		'title'       => get_the_title( $post_id ),
-		'title_ja'    => trim( (string) get_post_meta( $post_id, 'anime_title_native', true ) ),
-		'synopsis'    => $synopsis,
-		'genres'      => $genres,
-		'episodes'    => trim( (string) get_post_meta( $post_id, 'anime_episodes', true ) ),
-		'year'        => $year,
-		'season'      => wxacg_season_label( get_post_meta( $post_id, 'anime_season', true ) ),
-		'format'      => wxacg_format_label( get_post_meta( $post_id, 'anime_format', true ) ),
-		'source'      => wxacg_source_label( get_post_meta( $post_id, 'anime_source', true ) ),
-		'score_al'    => trim( (string) get_post_meta( $post_id, 'anime_score_anilist', true ) ),
-		'score_mal'   => trim( (string) get_post_meta( $post_id, 'anime_score_mal', true ) ),
-		'score_bgm'   => trim( (string) get_post_meta( $post_id, 'anime_score_bangumi', true ) ),
-		'streaming'   => implode( '、', $streaming ),
-		'studio'      => $studios,
-		'distributor' => $distributor,
+		'changed' => true,
+		'length'  => wxacg_editorial_strlen( $after ),
 	);
 }
 
 /* ============================================================
- * 供應商請求層（統一回傳格式）
+ * AJAX：就地儲存單篇短評
  * ============================================================ */
 
-function wxacg_request_gemini( $api_key, $parts ) {
-	$endpoint = sprintf(
-		'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s',
-		rawurlencode( WXACG_GEMINI_MODEL ),
-		rawurlencode( $api_key )
-	);
+add_action( 'wp_ajax_wxacg_editorial_save', 'wxacg_editorial_save_handler' );
 
-	$request_body = array(
-		'contents'           => array(
-			array(
-				'role'  => 'user',
-				'parts' => array(
-					array( 'text' => $parts['user'] ),
-				),
-			),
-		),
-		'system_instruction' => array(
-			'parts' => array(
-				array( 'text' => $parts['system'] ),
-			),
-		),
-		'generationConfig'   => array(
-			'maxOutputTokens' => 512,
-			'temperature'     => 0.9,
-			'thinkingConfig'  => array(
-				'thinkingLevel' => 'minimal',
-			),
-		),
-		'safetySettings'     => array(
-			array(
-				'category'  => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-				'threshold' => 'BLOCK_NONE',
-			),
-			array(
-				'category'  => 'HARM_CATEGORY_HATE_SPEECH',
-				'threshold' => 'BLOCK_NONE',
-			),
-			array(
-				'category'  => 'HARM_CATEGORY_HARASSMENT',
-				'threshold' => 'BLOCK_NONE',
-			),
-			array(
-				'category'  => 'HARM_CATEGORY_DANGEROUS_CONTENT',
-				'threshold' => 'BLOCK_NONE',
-			),
-		),
-	);
+function wxacg_editorial_save_handler() {
+	check_ajax_referer( 'wxacg_editorial_save' );
 
-	$response = wp_remote_post(
-		$endpoint,
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => '權限不足' ) );
+	}
+
+	$post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
+	$summary = isset( $_POST['summary'] ) ? wp_unslash( $_POST['summary'] ) : '';
+
+	$result = wxacg_editorial_save_summary( $post_id, $summary );
+
+	if ( is_wp_error( $result ) ) {
+		wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+	}
+
+	// 平台幻覺防呆：短評提到欄位以外的串流平台時提醒，但不阻擋儲存。
+	$warning = '';
+	$allowed = get_post_meta( $post_id, 'anime_tw_streaming', true );
+	if ( $allowed && function_exists( 'wxacg_editorial_platform_guard' ) ) {
+		$guard = wxacg_editorial_platform_guard( (string) $summary, (array) $allowed );
+		if ( is_array( $guard ) && ! empty( $guard['bad'] ) ) {
+			$warning = '注意：內文出現未列於本作串流欄位的平台名稱（'
+				. implode( '、', array_slice( (array) $guard['bad'], 0, 3 ) ) . '）';
+		}
+	}
+
+	wp_send_json_success(
 		array(
-			'timeout' => 45,
-			'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
-			'body'    => wp_json_encode( $request_body, JSON_UNESCAPED_UNICODE ),
+			'changed'   => ! empty( $result['changed'] ),
+			'cleared'   => ! empty( $result['cleared'] ),
+			'length'    => (int) ( $result['length'] ?? 0 ),
+			'warning'   => $warning,
+			'reviewer'  => wp_get_current_user()->display_name,
+			'reviewed'  => date_i18n( 'Y-m-d' ),
 		)
 	);
-
-	if ( is_wp_error( $response ) ) {
-		return array(
-			'status'  => 'soft_error',
-			'message' => '連線失敗：' . $response->get_error_message(),
-		);
-	}
-
-	$code = (int) wp_remote_retrieve_response_code( $response );
-	$body = wp_remote_retrieve_body( $response );
-
-	if ( 200 === $code ) {
-		$decoded = json_decode( $body, true );
-		$text    = '';
-
-		if (
-			isset( $decoded['candidates'][0]['content']['parts'] ) &&
-			is_array( $decoded['candidates'][0]['content']['parts'] )
-		) {
-			foreach ( $decoded['candidates'][0]['content']['parts'] as $part ) {
-				if ( is_array( $part ) && isset( $part['text'] ) ) {
-					$text .= (string) $part['text'];
-				}
-			}
-		}
-
-		$text = trim( $text );
-
-		if ( '' === $text ) {
-			$finish = isset( $decoded['candidates'][0]['finishReason'] )
-				? $decoded['candidates'][0]['finishReason']
-				: '未知';
-
-			return array(
-				'status'  => 'soft_error',
-				'message' => sprintf( '回傳空白（finishReason：%s）', $finish ),
-			);
-		}
-
-		return array(
-			'status' => 'ok',
-			'text'   => $text,
-			'model'  => WXACG_GEMINI_MODEL,
-		);
-	}
-
-	$decoded = json_decode( $body, true );
-	$message = isset( $decoded['error']['message'] ) ? $decoded['error']['message'] : 'HTTP ' . $code;
-
-	if ( 429 === $code ) {
-		$quota = wxacg_classify_quota_error( $decoded, $body );
-
-		return array(
-			'status'      => 'quota',
-			'scope'       => $quota['scope'],
-			'retry_after' => $quota['retry_after'],
-			'message'     => $quota['quota_id'] ? sprintf( '%s（%s）', $message, $quota['quota_id'] ) : $message,
-		);
-	}
-
-	if ( 401 === $code || 403 === $code ) {
-		return array(
-			'status'  => 'key_invalid',
-			'message' => sprintf( 'HTTP %d：%s', $code, $message ),
-		);
-	}
-
-	if ( $code >= 500 ) {
-		return array(
-			'status'  => 'soft_error',
-			'message' => sprintf( '伺服器暫時錯誤 %d：%s', $code, $message ),
-		);
-	}
-
-	return array(
-		'status'  => 'fatal',
-		'message' => sprintf( 'Gemini API 錯誤 %d：%s', $code, $message ),
-	);
-}
-
-function wxacg_request_groq( $api_key, $parts ) {
-	$model = wxacg_get_groq_model();
-
-	$request_body = array(
-		'model'                 => $model,
-		'messages'              => array(
-			array(
-				'role'    => 'system',
-				'content' => $parts['system'],
-			),
-			array(
-				'role'    => 'user',
-				'content' => $parts['user'],
-			),
-		),
-		'temperature'           => 0.9,
-		'top_p'                 => 0.95,
-		'max_completion_tokens' => 1200,
-		'stream'                => false,
-	);
-
-	if ( 0 === strpos( $model, 'openai/gpt-oss' ) || 0 === strpos( $model, 'qwen/' ) ) {
-		$request_body['reasoning_effort'] = 'low';
-	}
-
-	$response = wp_remote_post(
-		'https://api.groq.com/openai/v1/chat/completions',
-		array(
-			'timeout' => 45,
-			'headers' => array(
-				'Content-Type'  => 'application/json; charset=utf-8',
-				'Authorization' => 'Bearer ' . $api_key,
-			),
-			'body'    => wp_json_encode( $request_body, JSON_UNESCAPED_UNICODE ),
-		)
-	);
-
-	if ( is_wp_error( $response ) ) {
-		return array(
-			'status'  => 'soft_error',
-			'message' => '連線失敗：' . $response->get_error_message(),
-		);
-	}
-
-	$code = (int) wp_remote_retrieve_response_code( $response );
-	$body = wp_remote_retrieve_body( $response );
-
-	if ( 200 === $code ) {
-		$decoded = json_decode( $body, true );
-
-		$text = isset( $decoded['choices'][0]['message']['content'] )
-			? (string) $decoded['choices'][0]['message']['content']
-			: '';
-
-		$text = trim( $text );
-
-		if ( '' === $text ) {
-			$finish = isset( $decoded['choices'][0]['finish_reason'] )
-				? $decoded['choices'][0]['finish_reason']
-				: '未知';
-
-			return array(
-				'status'  => 'soft_error',
-				'message' => sprintf( '回傳空白（finish_reason：%s，可能思考佔滿 token）', $finish ),
-			);
-		}
-
-		return array(
-			'status' => 'ok',
-			'text'   => $text,
-			'model'  => $model,
-		);
-	}
-
-	$decoded = json_decode( $body, true );
-	$message = isset( $decoded['error']['message'] ) ? $decoded['error']['message'] : 'HTTP ' . $code;
-
-	if ( 429 === $code ) {
-		$quota = wxacg_classify_groq_quota( $response, $body );
-
-		return array(
-			'status'      => 'quota',
-			'scope'       => $quota['scope'],
-			'retry_after' => $quota['retry_after'],
-			'message'     => $quota['quota_id'] ? sprintf( '%s（%s）', $message, $quota['quota_id'] ) : $message,
-		);
-	}
-
-	if ( 401 === $code || 403 === $code ) {
-		return array(
-			'status'  => 'key_invalid',
-			'message' => sprintf( 'HTTP %d：%s', $code, $message ),
-		);
-	}
-
-	if ( 498 === $code || 499 === $code || $code >= 500 ) {
-		return array(
-			'status'  => 'soft_error',
-			'message' => sprintf( '伺服器暫時錯誤 %d：%s', $code, $message ),
-		);
-	}
-
-	return array(
-		'status'  => 'fatal',
-		'message' => sprintf( 'Groq API 錯誤 %d：%s', $code, $message ),
-	);
 }
 
 /* ============================================================
- * 跨供應商輪替呼叫
- * ============================================================ */
-
-function wxacg_call_ai_editorial_multi( $pool, $start_idx, $data ) {
-	$parts     = wxacg_build_editorial_prompt_parts( $data );
-	$key_count = count( $pool );
-
-	if ( $key_count < 1 ) {
-		return new WP_Error( 'ai_no_key', '沒有可用的 API Key' );
-	}
-
-	$last_error    = null;
-	$saw_non_quota = false;
-	$max_rounds    = 2;
-
-	for ( $round = 0; $round < $max_rounds; $round++ ) {
-		$cooldowns  = wxacg_get_key_cooldowns();
-		$tried      = 0;
-		$wait_hint  = 0;
-		$only_quota = true;
-
-		for ( $offset = 0; $offset < $key_count; $offset++ ) {
-			$entry = $pool[ ( $start_idx + $offset ) % $key_count ];
-
-			if ( wxacg_key_is_cooling( $entry, $cooldowns ) ) {
-				continue;
-			}
-
-			$tried++;
-
-			$provider = $entry['provider'];
-			$label    = $entry['label'];
-
-			$result = ( 'groq' === $provider )
-				? wxacg_request_groq( $entry['key'], $parts )
-				: wxacg_request_gemini( $entry['key'], $parts );
-
-			if ( 'ok' === $result['status'] ) {
-				$normalized = wxacg_normalize_editorial_text( $result['text'] );
-
-				if ( is_wp_error( $normalized ) ) {
-					$last_error = new WP_Error(
-						$normalized->get_error_code(),
-						sprintf( '%s：%s', $label, $normalized->get_error_message() )
-					);
-
-					$saw_non_quota = true;
-					$only_quota    = false;
-					continue;
-				}
-
-				// 平台幻覺防護：出現欄位外平台名或籠統說法 → 當成軟錯誤，走既有重試。
-				$bad_platform = wxacg_editorial_platform_guard( $normalized, $data['streaming'] );
-
-				if ( '' !== $bad_platform ) {
-					$last_error = new WP_Error(
-						'ai_platform_hallucination',
-						sprintf( '%s：短評出現未授權平台或籠統平台說法「%s」，已重新產生。', $label, $bad_platform )
-					);
-
-					$saw_non_quota = true;
-					$only_quota    = false;
-					continue;
-				}
-
-				return array(
-					'text'     => $normalized,
-					'provider' => $provider,
-					'model'    => $result['model'],
-					'label'    => $label,
-				);
-			}
-
-			if ( 'quota' === $result['status'] ) {
-				$scope = isset( $result['scope'] ) ? $result['scope'] : 'unknown';
-
-				if ( 'day' === $scope ) {
-					$retry = isset( $result['retry_after'] ) ? (int) $result['retry_after'] : 0;
-
-					$until = ( $retry > 0 )
-						? ( time() + $retry )
-						: wxacg_provider_daily_reset_ts( $provider );
-
-					wxacg_set_key_cooldown( $entry, $until, 'daily' );
-
-					$last_error = new WP_Error(
-						'ai_quota_single',
-						sprintf( '%s 今日配額用盡，停用至 %s', $label, wp_date( 'm/d H:i', $until ) )
-					);
-				} elseif ( 'minute' === $scope ) {
-					$retry = isset( $result['retry_after'] ) ? (int) $result['retry_after'] : 0;
-					$wait  = max( 5, min( 90, $retry > 0 ? $retry : 20 ) );
-
-					$wait_hint = max( $wait_hint, $wait );
-
-					wxacg_set_key_cooldown( $entry, time() + $wait, 'minute' );
-
-					$last_error = new WP_Error(
-						'ai_quota_single',
-						sprintf( '%s 分鐘配額已滿，冷卻 %d 秒', $label, $wait )
-					);
-				} else {
-					wxacg_set_key_cooldown( $entry, time() + ( 15 * MINUTE_IN_SECONDS ), 'unknown' );
-
-					$last_error = new WP_Error(
-						'ai_quota_single',
-						sprintf( '%s 配額錯誤（類型不明，冷卻 15 分鐘）：%s', $label, $result['message'] )
-					);
-				}
-
-				continue;
-			}
-
-			if ( 'key_invalid' === $result['status'] ) {
-				wxacg_set_key_cooldown( $entry, time() + ( 6 * HOUR_IN_SECONDS ), 'invalid' );
-
-				$last_error = new WP_Error(
-					'ai_key_invalid',
-					sprintf( '%s Key 無效或被拒絕：%s', $label, $result['message'] )
-				);
-
-				$saw_non_quota = true;
-				$only_quota    = false;
-				continue;
-			}
-
-			if ( 'soft_error' === $result['status'] ) {
-				$last_error = new WP_Error(
-					'ai_soft_error',
-					sprintf( '%s：%s', $label, $result['message'] )
-				);
-
-				$saw_non_quota = true;
-				$only_quota    = false;
-				continue;
-			}
-
-			return new WP_Error( 'ai_error', sprintf( '%s：%s', $label, $result['message'] ) );
-		}
-
-		if ( 0 === $tried || ! $only_quota ) {
-			break;
-		}
-
-		if ( $round < ( $max_rounds - 1 ) ) {
-			sleep( min( 15, max( 5, $wait_hint ) ) );
-		}
-	}
-
-	$status = wxacg_build_key_status( $pool );
-
-	if ( $status['all_daily'] ) {
-		$error = new WP_Error(
-			'ai_quota_daily',
-			sprintf(
-				'全部 %d 把 Key 今日配額皆已用盡或無效，最快可於 %s 恢復。',
-				$key_count,
-				$status['soonest'] ? wp_date( 'm/d H:i', $status['soonest'] ) : '隔日'
-			)
-		);
-
-		$error->add_data(
-			array(
-				'reset_at'   => $status['soonest'],
-				'reset_text' => $status['soonest'] ? wp_date( 'm/d H:i', $status['soonest'] ) : '',
-			)
-		);
-
-		return $error;
-	}
-
-	if ( $saw_non_quota && $status['ready'] > 0 && $last_error ) {
-		return $last_error;
-	}
-
-	return new WP_Error(
-		'ai_quota',
-		'目前所有 Key 皆在冷卻中：' .
-		( $last_error ? $last_error->get_error_message() : '未知原因' ) .
-		( $status['soonest'] ? sprintf( '（最快 %s 恢復）', wp_date( 'H:i:s', $status['soonest'] ) ) : '' )
-	);
-}
-
-/* ============================================================
- * Prompt 建構
- * ============================================================ */
-
-function wxacg_build_editorial_prompt_parts( $data ) {
-	$system  = "你是「微笑動漫」（weixiaoacg.com）的資深動漫編輯，筆名「笑編」，有超過十年動漫評論資歷。你的文字風格是：\n";
-	$system .= "- 使用台灣動漫圈自然口吻，親切、有觀點，但不武斷\n";
-	$system .= "- 可以帶一點幽默或個人感受，但不得誇大或捏造\n";
-	$system .= "- 避免教條式套話，直接分享對作品的具體觀感\n";
-	$system .= "- 句子不要過長，閱讀節奏自然\n";
-	$system .= "- 使用台灣慣用詞，例如聲優、追番、新番、動畫、劇場版\n";
-	$system .= "- 資料不足時不要自行杜撰角色、聲優、製作人或獎項\n";
-	$system .= "- 一律輸出繁體中文，且只輸出短評本文，不要任何前言、標題或說明";
-
-	$scores = array();
-
-	if ( '' !== $data['score_al'] ) {
-		$scores[] = 'AniList ' . round( (float) $data['score_al'] / 10, 1 );
-	}
-
-	if ( '' !== $data['score_mal'] ) {
-		$scores[] = 'MAL ' . round( (float) $data['score_mal'] / 10, 1 );
-	}
-
-	if ( '' !== $data['score_bgm'] ) {
-		$scores[] = 'Bangumi ' . round( (float) $data['score_bgm'] / 10, 1 );
-	}
-
-	$score_text = ! empty( $scores ) ? implode( '、', $scores ) . '（滿分 10）' : '暫無對外評分資料';
-
-	$air_info = trim( $data['year'] . ' ' . $data['season'] );
-
-	if ( '' === $air_info ) {
-		$air_info = '播出時間尚未公布';
-	}
-
-	$episodes_text = ( '' !== $data['episodes'] && '0' !== $data['episodes'] )
-		? $data['episodes'] . ' 集'
-		: '集數未定';
-
-	$streaming_text = ( '' !== $data['streaming'] )
-		? '台灣合法串流：' . $data['streaming']
-		: '目前無台灣官方授權串流資訊';
-
-	$opening_styles = array(
-		'用這部作品最讓你印象深刻的一個細節開頭（不要劇透關鍵情節）',
-		'用評分或市場反應來帶出這部作品的定位',
-		'先說這部適合什麼口味的觀眾，再延伸到作品本身',
-		'從類型或題材的角度切入，說說這部的與眾不同之處',
-		'先給一個對這部作品的直覺評價，再用具體理由支撐',
-		'從製作公司或原作來源的角度說起（僅限資料足夠時）',
-	);
-
-	$post_id = isset( $data['post_id'] ) ? (int) $data['post_id'] : 0;
-	$style   = $opening_styles[ $post_id % count( $opening_styles ) ];
-
-	$title_text = $data['title'];
-
-	if ( '' !== $data['title_ja'] && $data['title_ja'] !== $data['title'] ) {
-		$title_text .= '（' . $data['title_ja'] . '）';
-	}
-
-	// 缺值時的描述不要寫成「資料不足」，否則模型偶爾會把這四個字寫進短評。
-	$genre_text = ( '' !== $data['genres'] )
-		? $data['genres']
-		: '（未標註，請依劇情簡介自行判斷，不要在短評中提及缺少分類）';
-
-	$studio_text = ( '' !== $data['studio'] )
-		? $data['studio']
-		: '（未標註，不要在短評中提及製作公司）';
-
-	$user  = "請為以下作品撰寫一段 120～160 字的繁體中文「AI 編輯短評草稿」，之後會交由人工編輯審核：\n\n";
-	$user .= "【作品資料】\n";
-	$user .= '- 標題：' . $title_text . "\n";
-	$user .= '- 作品類型：' . ( '' !== $data['format'] ? $data['format'] : '未標註' ) . "\n";
-	$user .= '- 原作來源：' . ( '' !== $data['source'] ? $data['source'] : '未標註' ) . "\n";
-	$user .= '- 題材類型：' . $genre_text . "\n";
-	$user .= '- 集數：' . $episodes_text . "\n";
-	$user .= '- 播出：' . $air_info . "\n";
-	$user .= '- 製作公司：' . $studio_text . "\n";
-
-	if ( '' !== $data['distributor'] ) {
-		$user .= '- 台灣代理：' . $data['distributor'] . "\n";
-	}
-
-	$user .= '- 外部評分：' . $score_text . "\n";
-	$user .= '- ' . $streaming_text . "\n";
-	$user .= '- 劇情簡介：' . ( '' !== $data['synopsis'] ? $data['synopsis'] : '暫無完整劇情簡介' ) . "\n\n";
-	$user .= "【本次開頭方向】\n";
-	$user .= $style . "\n\n";
-	$user .= "【輸出規則】\n";
-	$user .= "1. 只輸出短評本文，不加標題、引號、Markdown、署名或說明文字\n";
-	$user .= "2. 不要以「這部動畫」、「本作」、「如果你喜歡」開頭\n";
-	$user .= "3. 不要照抄劇情簡介，要加入具體但不劇透的編輯觀點\n";
-	$user .= "4. 平台名稱僅能逐字使用【台灣合法串流】欄位列出的名稱；不得使用「Crunchyroll」「Netflix」「Bilibili 國際版」「LINE TV」等未列於該欄位的平台名，也不得用「其他合法平台」「各大串流」這類籠統說法規避此限制；欄位為空時完全不要提及任何觀看平台\n";
-	$user .= "5. 字數控制在 120～160 個繁體中文字，低於 90 字視為不合格\n";
-	$user .= "6. 不得捏造資料中沒有提供的角色、聲優、製作人、獎項或觀看平台\n";
-	$user .= "7. 不要把外部評分當作本站評分，也不要宣稱評分保證作品品質\n";
-	$user .= "8. 若為劇場版或續作，敘述時要與 TV 版區分清楚，不可混淆季別\n";
-	$user .= "9. 不要在短評中提及任何欄位「未標註」或「資料不足」這件事\n";
-	$user .= "10. 若題材涉及情色、成人向或敏感內容，語氣須客觀中性、只做分級提醒不做推薦，禁止「值得一看」「意外的治癒」「輕色情調」「若能接受少量成人暗示」等帶有招攬點閱意味的措辭\n";
-	$user .= "11. 避免使用以下已用濫的套語：「依舊保留前作的高品質作畫」「光影處理」「細膩」「不自覺期待」「值得一看」，改用具體、非重複的描述\n";
-
-	return array(
-		'system' => $system,
-		'user'   => $user,
-	);
-}
-
-/* ============================================================
- * 後台頁面 UI
+ * 控管頁面
  * ============================================================ */
 
 function wxacg_ai_editorial_page() {
+
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( '您沒有權限存取此頁面。', 'anime-sync-pro' ) );
+		wp_die( '權限不足' );
 	}
-
-	// 儲存設定。
-	if ( isset( $_POST['wxacg_save_apikey'] ) && check_admin_referer( 'wxacg_ai_editorial_save' ) ) {
-		$messages = array();
-
-		$fields = array(
-			'wxacg_gemini_api_keys' => array(
-				'option' => 'wxacg_gemini_api_keys',
-				'name'   => 'Gemini',
-			),
-			'wxacg_groq_api_keys'   => array(
-				'option' => 'wxacg_groq_api_keys',
-				'name'   => 'Groq',
-			),
-		);
-
-		$keys_changed = false;
-
-		foreach ( $fields as $field => $meta ) {
-			$raw = isset( $_POST[ $field ] ) ? trim( (string) wp_unslash( $_POST[ $field ] ) ) : '';
-
-			if ( '' === $raw ) {
-				continue;
-			}
-
-			$keys = preg_split( '/[\r\n]+/', $raw );
-			$keys = array_map( 'sanitize_text_field', $keys );
-			$keys = array_map( 'trim', $keys );
-			$keys = array_values( array_unique( array_filter( $keys ) ) );
-
-			update_option( $meta['option'], $keys, false );
-
-			if ( 'wxacg_gemini_api_keys' === $field ) {
-				delete_option( 'wxacg_gemini_api_key' );
-			}
-
-			$keys_changed = true;
-
-			$messages[] = sprintf( '已更新 %s：共 %d 把 Key。', $meta['name'], count( $keys ) );
-		}
-
-		if ( $keys_changed ) {
-			delete_option( WXACG_COOLDOWN_OPTION );
-		}
-
-		$order   = sanitize_key( isset( $_POST['wxacg_ai_provider_order'] ) ? wp_unslash( $_POST['wxacg_ai_provider_order'] ) : 'auto' );
-		$choices = wxacg_provider_order_choices();
-
-		if ( ! isset( $choices[ $order ] ) ) {
-			$order = 'auto';
-		}
-
-		update_option( 'wxacg_ai_provider_order', $order, false );
-
-		$groq_model    = isset( $_POST['wxacg_groq_model'] )
-			? sanitize_text_field( wp_unslash( $_POST['wxacg_groq_model'] ) )
-			: WXACG_GROQ_MODEL_DEFAULT;
-		$model_choices = wxacg_groq_model_choices();
-
-		if ( ! isset( $model_choices[ $groq_model ] ) ) {
-			$groq_model = WXACG_GROQ_MODEL_DEFAULT;
-		}
-
-		update_option( 'wxacg_groq_model', $groq_model, false );
-
-		$daily_cap = isset( $_POST['wxacg_ai_daily_cap'] ) ? (int) $_POST['wxacg_ai_daily_cap'] : 50;
-		$daily_cap = max( 0, min( 2000, $daily_cap ) );
-
-		update_option( 'wxacg_ai_daily_cap', $daily_cap, false );
-
-		$messages[] = sprintf(
-			'Groq 模型：%s，每日上限：%s。',
-			$groq_model,
-			$daily_cap > 0 ? $daily_cap . ' 部' : '不限'
-		);
-
-		if ( ! $keys_changed ) {
-			$messages[] = 'API Key 欄位留空，已保留原有設定。';
-		}
-
-		echo '<div class="notice notice-success is-dismissible"><p>✅ ' .
-			esc_html( implode( ' ', $messages ) ) . '</p></div>';
-	}
-
-	// 從編輯畫面 AI 面板匯入金鑰。
-	if ( isset( $_POST['wxacg_import_user_keys'] ) && check_admin_referer( 'wxacg_ai_editorial_save' ) ) {
-		$target = sanitize_key( wp_unslash( $_POST['wxacg_import_user_keys'] ) );
-		$source = wxacg_get_asp_user_keys();
-
-		if ( empty( $source ) ) {
-			echo '<div class="notice notice-warning is-dismissible"><p>⚠️ 您的編輯畫面 AI 面板尚未儲存任何金鑰，無可匯入項目。</p></div>';
-		} else {
-			$option   = ( 'groq' === $target ) ? 'wxacg_groq_api_keys' : 'wxacg_gemini_api_keys';
-			$existing = ( 'groq' === $target ) ? wxacg_get_groq_api_keys() : wxacg_get_gemini_api_keys();
-
-			$merged = array_values( array_unique( array_merge( $existing, $source ) ) );
-
-			update_option( $option, $merged, false );
-			delete_option( WXACG_COOLDOWN_OPTION );
-
-			echo '<div class="notice notice-success is-dismissible"><p>✅ 已從編輯畫面匯入 ' .
-				esc_html( count( $source ) ) . ' 把金鑰，目前 ' .
-				esc_html( 'groq' === $target ? 'Groq' : 'Gemini' ) . ' 共 ' .
-				esc_html( count( $merged ) ) . ' 把。</p></div>';
-		}
-	}
-
-	// 清除 API Keys。
-	if ( isset( $_POST['wxacg_clear_apikeys'] ) && check_admin_referer( 'wxacg_ai_editorial_save' ) ) {
-		$target = sanitize_key( wp_unslash( $_POST['wxacg_clear_apikeys'] ) );
-
-		if ( 'groq' === $target ) {
-			delete_option( 'wxacg_groq_api_keys' );
-			$label = 'Groq';
-		} elseif ( 'gemini' === $target ) {
-			delete_option( 'wxacg_gemini_api_keys' );
-			delete_option( 'wxacg_gemini_api_key' );
-			$label = 'Gemini';
-		} else {
-			delete_option( 'wxacg_groq_api_keys' );
-			delete_option( 'wxacg_gemini_api_keys' );
-			delete_option( 'wxacg_gemini_api_key' );
-			$label = '全部';
-		}
-
-		delete_option( WXACG_COOLDOWN_OPTION );
-
-		echo '<div class="notice notice-success is-dismissible"><p>✅ 已清除 ' .
-			esc_html( $label ) . ' API Keys 與相關冷卻紀錄。</p></div>';
-	}
-
-	// 清除冷卻紀錄。
-	if ( isset( $_POST['wxacg_clear_cooldown'] ) && check_admin_referer( 'wxacg_ai_editorial_save' ) ) {
-		delete_option( WXACG_COOLDOWN_OPTION );
-
-		echo '<div class="notice notice-success is-dismissible"><p>✅ 已清除所有 Key 冷卻紀錄。</p></div>';
-	}
-
-	// 重設今日用量。
-	if ( isset( $_POST['wxacg_reset_daily'] ) && check_admin_referer( 'wxacg_ai_editorial_save' ) ) {
-		delete_option( WXACG_DAILY_COUNTER_OPTION );
-
-		echo '<div class="notice notice-success is-dismissible"><p>✅ 已重設今日產生用量計數。</p></div>';
-	}
-
-	$gemini_keys   = wxacg_get_gemini_api_keys();
-	$groq_keys     = wxacg_get_groq_api_keys();
-	$user_keys     = wxacg_get_asp_user_keys();
-	$provider_mode = (string) get_option( 'wxacg_ai_provider_order', 'auto' );
-
-	$order_choices = wxacg_provider_order_choices();
-
-	if ( ! isset( $order_choices[ $provider_mode ] ) ) {
-		$provider_mode = 'auto';
-	}
-
-	$pool      = wxacg_get_ai_key_pool( $provider_mode );
-	$key_count = count( $pool );
-	$nonce     = wp_create_nonce( 'wxacg_ai_editorial_nonce' );
-	$status    = wxacg_build_key_status( $pool );
-
-	$auto_delay = $key_count > 0 ? wxacg_auto_item_delay_ms( $pool ) : 0;
-
-	$daily_cap   = wxacg_get_daily_cap();
-	$daily_usage = wxacg_get_daily_usage();
 
 	global $wpdb;
 
+	$filter   = isset( $_GET['filter'] ) ? sanitize_key( $_GET['filter'] ) : 'missing';
+	$sort     = isset( $_GET['sort'] ) ? sanitize_key( $_GET['sort'] ) : 'season';
+	$paged    = isset( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
+	$per_page = 30;
+
+	$sort_choices = wxacg_sort_choices();
+	if ( ! isset( $sort_choices[ $sort ] ) ) {
+		$sort = 'season';
+	}
+
+	$filter_choices = array(
+		'missing' => '待撰寫（尚無短評）',
+		'has'     => '已有短評',
+		'all'     => '全部作品',
+	);
+	if ( ! isset( $filter_choices[ $filter ] ) ) {
+		$filter = 'missing';
+	}
+
+	// ── 統計 ──
 	$total_anime = (int) $wpdb->get_var(
-		"SELECT COUNT(*) FROM {$wpdb->posts}
-		 WHERE post_type = 'anime' AND post_status = 'publish'"
+		"SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'anime' AND post_status = 'publish'"
+	);
+	$has_summary = (int) $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT COUNT(DISTINCT p.ID)
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID
+			 WHERE p.post_type = 'anime' AND p.post_status = 'publish'
+			   AND m.meta_key = %s AND m.meta_value <> ''",
+			WXACG_EDITORIAL_META
+		)
+	);
+	$need_write = max( 0, $total_anime - $has_summary );
+
+	// ── 清單查詢 ──
+	$where = "p.post_type = 'anime' AND p.post_status = 'publish'";
+
+	if ( 'missing' === $filter ) {
+		$where .= $wpdb->prepare(
+			" AND NOT EXISTS (
+				SELECT 1 FROM {$wpdb->postmeta} mm
+				WHERE mm.post_id = p.ID AND mm.meta_key = %s AND mm.meta_value <> ''
+			)",
+			WXACG_EDITORIAL_META
+		);
+	} elseif ( 'has' === $filter ) {
+		$where .= $wpdb->prepare(
+			" AND EXISTS (
+				SELECT 1 FROM {$wpdb->postmeta} mm
+				WHERE mm.post_id = p.ID AND mm.meta_key = %s AND mm.meta_value <> ''
+			)",
+			WXACG_EDITORIAL_META
+		);
+	}
+
+	$clauses  = wxacg_build_sort_clauses( $sort );
+	$join     = isset( $clauses['join'] ) ? $clauses['join'] : '';
+	$order_by = isset( $clauses['orderby'] ) && $clauses['orderby'] ? $clauses['orderby'] : 'p.post_date DESC';
+	if ( ! empty( $clauses['where'] ) ) {
+		$where .= ' AND ' . $clauses['where'];
+	}
+
+	$found = (int) $wpdb->get_var(
+		"SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p {$join} WHERE {$where}"
 	);
 
-	$need_generate = wxacg_count_remaining( '', true, false );
-	$has_summary   = max( 0, $total_anime - $need_generate );
+	$offset = ( $paged - 1 ) * $per_page;
+	$rows   = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT DISTINCT p.ID, p.post_title
+			 FROM {$wpdb->posts} p {$join}
+			 WHERE {$where}
+			 ORDER BY {$order_by}
+			 LIMIT %d OFFSET %d",
+			$per_page,
+			$offset
+		)
+	);
 
-	// 覆蓋模式下「尚未用目前版本重寫」的總數，供說明文字使用。
-	$rewrite_pending = wxacg_count_remaining( '', true, true );
-
-	$default_sort  = 'season';
-	$scope_default = wxacg_count_remaining( $default_sort, true, false );
+	$total_pages = $per_page > 0 ? (int) ceil( $found / $per_page ) : 1;
+	$base_url    = admin_url( 'admin.php?page=wxacg-ai-editorial' );
 	?>
 	<div class="wrap">
-		<h1>✍️ AI 編輯短評批次產生器</h1>
+		<h1>✍️ 編輯短評控管</h1>
 
 		<p style="color:#666;">
-			支援 <strong>Google Gemini</strong>（<code><?php echo esc_html( WXACG_GEMINI_MODEL ); ?></code>）
-			與 <strong>Groq</strong>（<code><?php echo esc_html( wxacg_get_groq_model() ); ?></code>），
-			產出寫入 ACF 欄位 <code>anime_editor_summary</code>，並自動標記為
-			<strong>draft／待人工審核</strong>，不會填入審核者與審核日期。
+			在這裡直接撰寫或修改各作品的編輯短評（ACF 欄位
+			<code><?php echo esc_html( WXACG_EDITORIAL_META ); ?></code>），
+			不用逐篇進文章編輯頁。儲存後會自動帶入審核者、審核日期並標記為
+			<strong>已發布</strong>，與文章編輯頁的行為一致。
 		</p>
-
 		<p style="color:#666;">
-			💡 設有「每日上限」與「本次工作階段上限」雙層煞車，可以分很多天慢慢補齊。
-			覆蓋模式會以 prompt 版本
-			<code><?php echo esc_html( WXACG_EDITORIAL_PROMPT_VERSION ); ?></code>
-			為進度標記，關掉瀏覽器隔天再跑也會自動接續，不會重複處理同一批。
+			💡 建議 120～160 字。短評請自行查證後再貼上，避免錯誤資訊。
 		</p>
 
 		<div style="display:flex;gap:14px;margin:20px 0;flex-wrap:wrap;">
 			<?php
 			$cards = array(
+				array( 'label' => '動漫總數', 'value' => $total_anime, 'color' => '#2271b1' ),
+				array( 'label' => '已有短評', 'value' => $has_summary, 'color' => '#00a32a' ),
 				array(
-					'label' => '動漫總數',
-					'value' => $total_anime,
-					'color' => '#2271b1',
-				),
-				array(
-					'label' => '已有短評',
-					'value' => $has_summary,
-					'color' => '#00a32a',
-				),
-				array(
-					'label' => '待產生',
-					'value' => $need_generate,
-					'color' => $need_generate > 0 ? '#d63638' : '#00a32a',
-				),
-				array(
-					'label' => '待重寫（覆蓋）',
-					'value' => $rewrite_pending,
-					'color' => '#8250df',
-				),
-				array(
-					'label' => '今日已產生',
-					'value' => $daily_cap > 0
-						? $daily_usage['count'] . ' / ' . $daily_cap
-						: $daily_usage['count'],
-					'color' => ( $daily_cap > 0 && $daily_usage['count'] >= $daily_cap ) ? '#d63638' : '#8250df',
-				),
-				array(
-					'label' => 'Gemini Key',
-					'value' => count( $gemini_keys ),
-					'color' => count( $gemini_keys ) > 0 ? '#8250df' : '#888',
-				),
-				array(
-					'label' => 'Groq Key',
-					'value' => count( $groq_keys ),
-					'color' => count( $groq_keys ) > 0 ? '#f2711c' : '#888',
-				),
-				array(
-					'label' => '可用 Key',
-					'value' => $status['ready'],
-					'color' => $status['ready'] > 0 ? '#00a32a' : '#d63638',
+					'label' => '待撰寫',
+					'value' => $need_write,
+					'color' => $need_write > 0 ? '#d63638' : '#00a32a',
 				),
 			);
-
 			foreach ( $cards as $card ) :
 				?>
 				<div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:18px 22px;text-align:center;min-width:120px;box-shadow:0 1px 3px rgba(0,0,0,.07);">
 					<div style="font-size:30px;font-weight:700;color:<?php echo esc_attr( $card['color'] ); ?>;">
-						<?php echo esc_html( $card['value'] ); ?>
+						<?php echo esc_html( number_format_i18n( $card['value'] ) ); ?>
 					</div>
 					<div style="color:#555;margin-top:4px;font-size:13px;">
 						<?php echo esc_html( $card['label'] ); ?>
@@ -2551,609 +770,203 @@ function wxacg_ai_editorial_page() {
 			<?php endforeach; ?>
 		</div>
 
-		<div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:24px;margin-bottom:20px;">
-			<h2 style="margin-top:0;">🔑 API Key 與供應商設定</h2>
-
-			<form method="post">
-				<?php wp_nonce_field( 'wxacg_ai_editorial_save' ); ?>
-
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="wxacg-gemini-api-keys">Gemini API Keys</label></th>
-						<td>
-							<textarea
-								id="wxacg-gemini-api-keys"
-								name="wxacg_gemini_api_keys"
-								rows="4"
-								autocomplete="off"
-								spellcheck="false"
-								style="width:460px;max-width:100%;font-family:monospace;"
-								placeholder="留空＝保留目前設定。要更換請一行一把貼上。"
-							></textarea>
-
-							<p class="description">
-								目前 <strong><?php echo (int) count( $gemini_keys ); ?></strong> 把。
-								申請：<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>
-							</p>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row"><label for="wxacg-groq-api-keys">Groq API Keys</label></th>
-						<td>
-							<textarea
-								id="wxacg-groq-api-keys"
-								name="wxacg_groq_api_keys"
-								rows="4"
-								autocomplete="off"
-								spellcheck="false"
-								style="width:460px;max-width:100%;font-family:monospace;"
-								placeholder="留空＝保留目前設定。要更換請一行一把貼上。"
-							></textarea>
-
-							<p class="description">
-								目前 <strong><?php echo (int) count( $groq_keys ); ?></strong> 把。
-								申請：<a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a>
-							</p>
-						</td>
-					</tr>
-
-					<?php if ( ! empty( $user_keys ) ) : ?>
-						<tr>
-							<th scope="row">從編輯畫面匯入</th>
-							<td>
-								<p class="description" style="margin-top:0;">
-									偵測到您在動畫編輯畫面的 AI 面板已存有
-									<strong><?php echo (int) count( $user_keys ); ?></strong> 把金鑰，可一鍵併入本工具。
-								</p>
-
-								<button type="submit" name="wxacg_import_user_keys" value="gemini" class="button">
-									匯入為 Gemini Keys
-								</button>
-
-								<button type="submit" name="wxacg_import_user_keys" value="groq" class="button" style="margin-left:8px;">
-									匯入為 Groq Keys
-								</button>
-							</td>
-						</tr>
-					<?php endif; ?>
-
-					<tr>
-						<th scope="row"><label for="wxacg-groq-model">Groq 模型</label></th>
-						<td>
-							<select id="wxacg-groq-model" name="wxacg_groq_model">
-								<?php foreach ( wxacg_groq_model_choices() as $value => $label ) : ?>
-									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( wxacg_get_groq_model(), $value ); ?>>
-										<?php echo esc_html( $label ); ?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row"><label for="wxacg-provider-order">供應商優先順序</label></th>
-						<td>
-							<select id="wxacg-provider-order" name="wxacg_ai_provider_order">
-								<?php foreach ( $order_choices as $value => $label ) : ?>
-									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $provider_mode, $value ); ?>>
-										<?php echo esc_html( $label ); ?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row"><label for="wxacg-daily-cap">每日產生上限</label></th>
-						<td>
-							<input
-								type="number"
-								id="wxacg-daily-cap"
-								name="wxacg_ai_daily_cap"
-								value="<?php echo (int) $daily_cap; ?>"
-								min="0"
-								max="2000"
-								step="5"
-								style="width:100px;"
-							>
-							<span style="color:#666;">部／天（填 0 表示不限）</span>
-
-							<p class="description">
-								伺服器端強制計算，開幾個分頁都算同一份額度，站台時區每日午夜自動歸零。
-								今日已用 <strong><?php echo (int) $daily_usage['count']; ?></strong> 部。
-							</p>
-						</td>
-					</tr>
-				</table>
-
-				<button type="submit" name="wxacg_save_apikey" class="button button-primary">儲存設定</button>
-
-				<button type="submit" name="wxacg_clear_cooldown" class="button" style="margin-left:8px;">
-					清除 Key 冷卻紀錄
-				</button>
-
-				<button type="submit" name="wxacg_reset_daily" class="button" style="margin-left:8px;">
-					重設今日用量
-				</button>
-
-				<button
-					type="submit"
-					name="wxacg_clear_apikeys"
-					value="all"
-					class="button"
-					style="margin-left:8px;color:#b32d2e;border-color:#b32d2e;"
-					onclick="return confirm('確定要清除全部 API Keys 嗎？此操作無法復原。');"
-				>
-					清除全部 Keys
-				</button>
-			</form>
-
-			<?php if ( $key_count > 0 ) : ?>
-				<div style="margin-top:16px;padding:12px 16px;background:#f6f7f7;border-radius:6px;font-family:monospace;font-size:12px;line-height:1.9;">
-					<?php foreach ( $status['lines'] as $line ) : ?>
-						<div><?php echo esc_html( $line ); ?></div>
+		<form method="get" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px 20px;margin-bottom:18px;">
+			<input type="hidden" name="page" value="wxacg-ai-editorial">
+			<label style="margin-right:16px;">
+				顯示
+				<select name="filter">
+					<?php foreach ( $filter_choices as $k => $label ) : ?>
+						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $filter, $k ); ?>>
+							<?php echo esc_html( $label ); ?>
+						</option>
 					<?php endforeach; ?>
-				</div>
-			<?php else : ?>
-				<p style="margin-top:16px;color:#d63638;">⚠️ 目前選擇的供應商尚未設定任何 API Key。</p>
-			<?php endif; ?>
-		</div>
+				</select>
+			</label>
+			<label style="margin-right:16px;">
+				排序
+				<select name="sort">
+					<?php foreach ( $sort_choices as $k => $label ) : ?>
+						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $sort, $k ); ?>>
+							<?php echo esc_html( $label ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+			<button type="submit" class="button">套用</button>
+			<span style="margin-left:12px;color:#666;">
+				符合條件：<strong><?php echo esc_html( number_format_i18n( $found ) ); ?></strong> 部
+			</span>
+		</form>
 
-		<?php if ( $key_count > 0 ) : ?>
-			<div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:24px;">
-				<h2 style="margin-top:0;">🚀 批次產生設定</h2>
-
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="wxacg-run-provider">本次使用</label></th>
-						<td>
-							<select id="wxacg-run-provider">
-								<?php foreach ( $order_choices as $value => $label ) : ?>
-									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $provider_mode, $value ); ?>>
-										<?php echo esc_html( $label ); ?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row"><label for="wxacg-sort-order">產生順序</label></th>
-						<td>
-							<select id="wxacg-sort-order">
-								<?php foreach ( wxacg_sort_choices() as $value => $label ) : ?>
-									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $default_sort, $value ); ?>>
-										<?php echo esc_html( $label ); ?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-
-							<p class="description">
-								「只跑本季」會嚴格過濾，跑完該季自動停止，適合每季開播前快速補齊。
-							</p>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row"><label for="wxacg-session-limit">本次工作階段上限</label></th>
-						<td>
-							<select id="wxacg-session-limit">
-								<option value="5">5 部（試跑）</option>
-								<option value="10" selected>10 部（建議）</option>
-								<option value="20">20 部</option>
-								<option value="30">30 部</option>
-								<option value="50">50 部</option>
-								<option value="0">不限（跑到配額或上限為止）</option>
-							</select>
-
-							<p class="description">
-								跑滿設定數量就自動停止並顯示成果，方便您抽查品質後再決定要不要繼續。
-							</p>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row"><label for="wxacg-batch-size">每批數量</label></th>
-						<td>
-							<select id="wxacg-batch-size">
-								<option value="1">1 部（最保守）</option>
-								<option value="2">2 部</option>
-								<option value="3" selected>3 部（建議）</option>
-								<option value="5">5 部</option>
-								<option value="10">10 部</option>
-							</select>
-
-							<p class="description">
-								單次請求最多執行 <?php echo (int) WXACG_BATCH_TIME_BUDGET; ?> 秒，超過會先回傳結果再由前端接續。
-							</p>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row"><label for="wxacg-item-delay">每筆間隔</label></th>
-						<td>
-							<select id="wxacg-item-delay">
-								<option value="0" selected>自動（約 <?php echo (int) $auto_delay; ?> ms）</option>
-								<option value="1000">1 秒</option>
-								<option value="3000">3 秒（穩健）</option>
-								<option value="6000">6 秒（非常保守）</option>
-							</select>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row">保護與覆蓋</th>
-						<td>
-							<label style="display:block;margin-bottom:8px;">
-								<input type="checkbox" id="wxacg-protect" checked>
-								<strong>保護已人工審核的作品</strong>（狀態為「已發布」或已填寫審核者時一律跳過）
-							</label>
-
-							<label style="display:block;">
-								<input type="checkbox" id="wxacg-overwrite">
-								覆蓋模式：連同已有短評的作品一起重新產生
-								（尚待重寫 <strong><?php echo (int) $rewrite_pending; ?></strong> 部）
-							</label>
-
-							<p class="description" style="color:#b32d2e;">
-								⚠️ 覆蓋會把內容重設為 AI 草稿並清除舊的審核者與審核日期。
-								建議保持上方「保護」勾選，避免蓋掉您親手寫過的短評。
-							</p>
-						</td>
-					</tr>
-				</table>
-
-				<div class="notice notice-warning inline" style="margin:8px 0 0;padding:12px 14px;">
-					<p style="margin:0;font-size:14px;line-height:1.7;">
-						<strong>🖐️ 已改為全人工模式：</strong>
-						API 批次自動產生按鈕已停用（避免模型幻覺）。
-						目前本範圍待補 <strong><?php echo (int) $scope_default; ?></strong> 部——
-						請於各動漫的編輯畫面「✍️ 人工編輯與品質審核」面板，
-						貼上你在 AI 對話視窗撰寫並核對過的短評，指定審核者與審核日期後改為「已發布」。
-					</p>
-				</div>
-
-				<div id="wxacg-progress" style="margin-top:20px;display:none;">
-					<div style="background:#f0f0f0;border-radius:6px;height:18px;overflow:hidden;">
-						<div id="wxacg-progress-bar" style="background:linear-gradient(90deg,#2271b1,#00a32a);height:100%;width:0;transition:width .4s;"></div>
-					</div>
-
-					<p id="wxacg-progress-text" style="margin:8px 0;color:#444;font-size:13px;"></p>
-				</div>
-
-				<div
-					id="wxacg-log"
-					style="display:none;margin-top:16px;max-height:450px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;padding:12px;font-family:monospace;font-size:12px;line-height:1.8;background:#1e1e2e;color:#cdd6f4;white-space:pre-wrap;word-break:break-all;"
-				></div>
+		<?php if ( ! $rows ) : ?>
+			<div class="notice notice-success" style="padding:14px;">
+				<p style="margin:0;">目前條件下沒有待處理的作品 🎉</p>
 			</div>
+		<?php else : ?>
+
+			<table class="wp-list-table widefat fixed striped" id="wxacg-editorial-list">
+				<thead>
+					<tr>
+						<th style="width:210px;">作品</th>
+						<th>編輯短評</th>
+						<th style="width:62px;">字數</th>
+						<th style="width:150px;">審核狀態</th>
+						<th style="width:120px;">操作</th>
+					</tr>
+				</thead>
+				<tbody>
+				<?php
+				foreach ( $rows as $row ) :
+					$pid     = (int) $row->ID;
+					$summary = (string) get_post_meta( $pid, WXACG_EDITORIAL_META, true );
+					$title   = get_post_meta( $pid, 'anime_title_chinese', true );
+					$title   = $title ? $title : $row->post_title;
+					$len     = wxacg_editorial_strlen( $summary );
+
+					$reviewer = get_post_meta( $pid, 'anime_editorial_author', true );
+					$reviewed = get_post_meta( $pid, 'anime_editorial_reviewed_at', true );
+					$year     = get_post_meta( $pid, 'anime_season_year', true );
+					$season   = get_post_meta( $pid, 'anime_season', true );
+					?>
+					<tr class="wxacg-ed-item" data-post="<?php echo esc_attr( $pid ); ?>">
+						<td>
+							<strong style="display:block;line-height:1.4;"><?php echo esc_html( $title ); ?></strong>
+							<span style="color:#888;font-size:11px;">
+								<?php
+								echo esc_html(
+									trim( ( $year ? $year . ' ' : '' ) . ( $season ? wxacg_season_label( $season ) : '' ) )
+									?: '—'
+								);
+								?>
+							</span>
+						</td>
+						<td>
+							<textarea class="wxacg-ed-text" rows="2"
+								style="width:100%;font-size:13px;line-height:1.6;"
+								placeholder="撰寫編輯短評（建議 120～160 字）"><?php
+								echo esc_textarea( $summary );
+							?></textarea>
+							<div class="wxacg-ed-msg" style="font-size:11px;margin-top:2px;min-height:14px;"></div>
+						</td>
+						<td>
+							<span class="wxacg-ed-count" style="color:#666;font-size:12px;">
+								<?php echo esc_html( $len ); ?>
+							</span>
+						</td>
+						<td style="font-size:11px;color:#666;line-height:1.5;">
+							<?php if ( $reviewer ) : ?>
+								<span style="color:#00a32a;">✓ 已發布</span><br>
+								<?php echo esc_html( $reviewer ); ?>
+								<?php echo $reviewed ? '<br>' . esc_html( $reviewed ) : ''; ?>
+							<?php else : ?>
+								<span style="color:#d63638;">待撰寫</span>
+							<?php endif; ?>
+						</td>
+						<td>
+							<button type="button" class="button button-primary button-small wxacg-ed-save"
+								style="width:100%;margin-bottom:4px;">儲存</button>
+							<a href="<?php echo esc_url( get_edit_post_link( $pid ) ); ?>"
+								class="button button-small" style="width:100%;text-align:center;"
+								target="_blank">完整編輯</a>
+						</td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+
+			<?php if ( $total_pages > 1 ) : ?>
+				<div class="tablenav"><div class="tablenav-pages">
+					<?php
+					echo paginate_links(
+						array(
+							'base'      => add_query_arg(
+								array(
+									'filter' => $filter,
+									'sort'   => $sort,
+									'paged'  => '%#%',
+								),
+								$base_url
+							),
+							'format'    => '',
+							'current'   => $paged,
+							'total'     => $total_pages,
+							'prev_text' => '‹',
+							'next_text' => '›',
+						)
+					);
+					?>
+				</div></div>
+			<?php endif; ?>
+
 		<?php endif; ?>
 	</div>
 
 	<script>
-	(function () {
-		'use strict';
+	jQuery(function ($) {
+		var ajaxNonce = <?php echo wp_json_encode( wp_create_nonce( 'wxacg_editorial_save' ) ); ?>;
 
-		var startBtn     = document.getElementById('wxacg-start-btn');
-		var stopBtn      = document.getElementById('wxacg-stop-btn');
-		var logEl        = document.getElementById('wxacg-log');
-		var progressEl   = document.getElementById('wxacg-progress');
-		var progressBar  = document.getElementById('wxacg-progress-bar');
-		var progressText = document.getElementById('wxacg-progress-text');
-
-		if (!startBtn) {
-			return;
-		}
-
-		var ajaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
-		var nonce   = '<?php echo esc_js( $nonce ); ?>';
-
-		var DEFAULT_COOLDOWN_MS = 65000;
-		var NORMAL_DELAY_MS     = 800;
-
-		var running      = false;
-		var offset       = 0;
-		var totalDone    = 0;
-		var totalFail    = 0;
-		var keyCursor    = 0;
-		var sessionLimit = 0;
-		var scopeStart   = 0;
-		var timer        = null;
-		var retryTimer   = null;
-
-		startBtn.addEventListener('click', function () {
-			if (running) {
-				return;
-			}
-
-			var overwrite = document.getElementById('wxacg-overwrite').checked;
-			var protect   = document.getElementById('wxacg-protect').checked;
-
-			if (overwrite && !protect &&
-				!window.confirm('您同時開啟了覆蓋模式並關閉保護，這會蓋掉已人工審核的短評。確定要繼續嗎？')) {
-				return;
-			}
-
-			if (overwrite && protect &&
-				!window.confirm('覆蓋模式會重新產生短評並重設為待審核草稿（已人工審核者仍受保護）。確定要繼續嗎？')) {
-				return;
-			}
-
-			running      = true;
-			offset       = 0;
-			totalDone    = 0;
-			totalFail    = 0;
-			keyCursor    = 0;
-			scopeStart   = 0;
-			sessionLimit = parseInt(document.getElementById('wxacg-session-limit').value, 10) || 0;
-
-			startBtn.style.display   = 'none';
-			stopBtn.style.display    = '';
-			progressEl.style.display = '';
-			logEl.style.display      = '';
-			logEl.textContent        = '';
-			progressBar.style.width  = '0%';
-			progressText.textContent = '';
-
-			addLog(
-				'🟢 開始產生。本次工作階段上限：' +
-				(sessionLimit > 0 ? sessionLimit + ' 部' : '不限') +
-				(overwrite ? '（覆蓋模式，已重寫過的會自動略過）' : ''),
-				'#89dceb'
-			);
-
-			runBatch();
+		// 即時字數；120～160 字為建議區間，超出以顏色提示
+		$(document).on('input', '.wxacg-ed-text', function () {
+			var $item = $(this).closest('.wxacg-ed-item');
+			var n     = [...$(this).val()].length;
+			$item.find('.wxacg-ed-count')
+				.text(n)
+				.css('color', (n === 0 || (n >= 120 && n <= 160)) ? '#666' : '#b26b00');
 		});
 
-		stopBtn.addEventListener('click', function () {
-			running = false;
-			clearTimers();
-
-			addLog('⏹ 已手動停止。本次完成 ' + totalDone + ' 筆，失敗 ' + totalFail + ' 筆。', '#fab387');
-			finish('▶ 繼續產生');
+		// 聚焦時放大編輯區，方便撰寫；離開後收合維持清單緊湊
+		$(document).on('focus', '.wxacg-ed-text', function () {
+			$(this).attr('rows', 6);
+		}).on('blur', '.wxacg-ed-text', function () {
+			$(this).attr('rows', 2);
 		});
 
-		function clearTimers() {
-			if (timer) {
-				clearInterval(timer);
-				timer = null;
-			}
+		$(document).on('click', '.wxacg-ed-save', function () {
+			var $btn   = $(this);
+			var $item  = $btn.closest('.wxacg-ed-item');
+			var $msg   = $item.find('.wxacg-ed-msg');
+			var postId = $item.data('post');
+			var text   = $item.find('.wxacg-ed-text').val();
 
-			if (retryTimer) {
-				clearTimeout(retryTimer);
-				retryTimer = null;
-			}
-		}
+			$btn.prop('disabled', true).text('儲存中…');
+			$msg.css('color', '#666').text('');
 
-		function finish(label) {
-			running = false;
-			clearTimers();
-
-			startBtn.textContent   = label;
-			startBtn.style.display = '';
-			stopBtn.style.display  = 'none';
-		}
-
-		function sessionLeft() {
-			if (sessionLimit <= 0) {
-				return 0;
-			}
-
-			return Math.max(0, sessionLimit - totalDone);
-		}
-
-		function runBatch() {
-			if (!running) {
-				return;
-			}
-
-			if (sessionLimit > 0 && totalDone >= sessionLimit) {
-				addLog('🏁 已達本次工作階段上限 ' + sessionLimit + ' 部，自動停止。', '#89dceb');
-				finish('▶ 再跑一輪');
-				return;
-			}
-
-			var fd = new FormData();
-
-			fd.append('action', 'wxacg_ai_generate_batch');
-			fd.append('nonce', nonce);
-			fd.append('batch_size', document.getElementById('wxacg-batch-size').value);
-			fd.append('item_delay', document.getElementById('wxacg-item-delay').value);
-			fd.append('sort', document.getElementById('wxacg-sort-order').value);
-			fd.append('provider', document.getElementById('wxacg-run-provider').value);
-			fd.append('overwrite', document.getElementById('wxacg-overwrite').checked ? '1' : '0');
-			fd.append('protect', document.getElementById('wxacg-protect').checked ? '1' : '0');
-			fd.append('offset', offset);
-			fd.append('key_cursor', keyCursor);
-			fd.append('session_left', sessionLeft());
-
-			fetch(ajaxUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-				.then(function (response) {
-					return response.text();
-				})
-				.then(function (text) {
-					var response;
-
-					try {
-						response = JSON.parse(text);
-					} catch (error) {
-						addLog('❌ 伺服器回傳非 JSON，可能發生 PHP 錯誤或執行逾時：\n' + text.substring(0, 800), '#f38ba8');
-						finish('▶ 繼續產生');
-						return;
-					}
-
-					if (!response.success) {
-						addLog('❌ 錯誤：' + ((response.data && response.data.message) || JSON.stringify(response)), '#f38ba8');
-						finish('▶ 繼續產生');
-						return;
-					}
-
-					handleResult(response.data || {});
-				})
-				.catch(function (error) {
-					addLog('❌ fetch 錯誤：' + error.message + '（30 秒後自動重試）', '#f38ba8');
-
-					if (running) {
-						retryTimer = setTimeout(runBatch, 30000);
-					}
-				});
-		}
-
-		function handleResult(data) {
-			offset    = parseInt(data.next_offset || 0, 10);
-			keyCursor = parseInt(data.next_key_cursor || 0, 10);
-			totalDone += parseInt(data.succeeded || 0, 10);
-			totalFail += parseInt(data.failed || 0, 10);
-
-			(data.results || []).forEach(function (row) {
-				if (row.status === 'success') {
-					var editorial = row.editorial || '';
-					var preview = editorial.length > 70 ? editorial.substring(0, 70) + '…' : editorial;
-
-					addLog(
-						'✅ [' + row.id + '] ' + row.title +
-						'\n   › ' + preview +
-						'\n   › 來源：' + (row.source || '') + '　已存為待人工審核草稿',
-						'#a6e3a1'
-					);
-				} else {
-					addLog('❌ [' + row.id + '] ' + row.title + '\n   › ' + row.message, '#f38ba8');
-				}
-			});
-
-			var scopeRemaining = parseInt(data.scope_remaining || 0, 10);
-
-			if (scopeStart === 0) {
-				scopeStart = scopeRemaining + totalDone;
-			}
-
-			var percent = scopeStart > 0
-				? Math.min(Math.max((scopeStart - scopeRemaining) / scopeStart * 100, 0), 100)
-				: 0;
-
-			progressBar.style.width = percent + '%';
-
-			setProgress(
-				scopeRemaining,
-				percent,
-				'今日 ' + (data.daily_used || 0) +
-				(data.daily_cap > 0 ? '/' + data.daily_cap : '') +
-				'　可用 Key ' + (data.keys_ready || 0) + '/' + (data.key_count || 0) +
-				'　間隔 ' + (data.item_delay_ms || 0) + 'ms'
-			);
-
-			if (data.daily_cap_hit) {
-				addLog(
-					'🛑 已達每日上限 ' + data.daily_cap + ' 部，今天到此為止。' +
-					'本次完成 ' + totalDone + ' 筆，範圍內尚餘 ' + scopeRemaining + ' 部。',
-					'#f9e2af'
-				);
-
-				finish('▶ 明天繼續');
-				return;
-			}
-
-			if (data.daily_exhausted) {
-				addLog(
-					'🛑 所有 API Key 今日配額已用盡' +
-					(data.reset_text ? '，約 ' + data.reset_text + ' 後恢復' : '') + '。',
-					'#f38ba8'
-				);
-
-				if (data.key_status && data.key_status.length) {
-					addLog('   › ' + data.key_status.join('\n   › '), '#9399b2');
-				}
-
-				finish('▶ 配額恢復後繼續');
-				return;
-			}
-
-			// 覆蓋模式同樣有水位標記，剩餘數歸零即代表本範圍完成。
-			if (scopeRemaining <= 0) {
-				addLog('🎉 本範圍全部完成！共產生 ' + totalDone + ' 筆待審核短評草稿。', '#89dceb');
-				finish('🚀 重新檢查');
-				return;
-			}
-
-			if (parseInt(data.processed || 0, 10) === 0) {
-				addLog('ℹ️ 沒有更多可處理項目。完成 ' + totalDone + ' 筆，失敗 ' + totalFail + ' 筆。', '#f9e2af');
-				finish('🚀 重新開始');
-				return;
-			}
-
-			if (sessionLimit > 0 && totalDone >= sessionLimit) {
-				addLog(
-					'🏁 已達本次工作階段上限 ' + sessionLimit + ' 部。' +
-					'建議先抽查幾篇品質，滿意再按繼續。範圍內尚餘 ' + scopeRemaining + ' 部。',
-					'#89dceb'
-				);
-
-				finish('▶ 再跑一輪');
-				return;
-			}
-
-			if (!running) {
-				return;
-			}
-
-			if (data.rate_limited) {
-				var waitMs = data.cooldown_sec ? parseInt(data.cooldown_sec, 10) * 1000 : DEFAULT_COOLDOWN_MS;
-
-				addLog('⏳ 目前所有 Key 都在冷卻，' + Math.round(waitMs / 1000) + ' 秒後自動繼續。', '#f9e2af');
-				countdownThen(waitMs, scopeRemaining, percent);
-				return;
-			}
-
-			retryTimer = setTimeout(runBatch, NORMAL_DELAY_MS);
-		}
-
-		function countdownThen(ms, remaining, percent) {
-			var left = ms;
-
-			if (timer) {
-				clearInterval(timer);
-			}
-
-			timer = setInterval(function () {
-				if (!running) {
-					clearInterval(timer);
-					timer = null;
+			$.post(ajaxurl, {
+				action:   'wxacg_editorial_save',
+				_ajax_nonce: ajaxNonce,
+				post_id:  postId,
+				summary:  text
+			}).done(function (res) {
+				if (!res || !res.success) {
+					$msg.css('color', '#d63638')
+						.text('✕ ' + ((res && res.data && res.data.message) || '儲存失敗'));
 					return;
 				}
-
-				left -= 1000;
-
-				if (left <= 0) {
-					clearInterval(timer);
-					timer = null;
-
-					setProgress(remaining, percent, '恢復中…');
-					runBatch();
+				var d = res.data || {};
+				if (!d.changed) {
+					$msg.css('color', '#666').text('內容沒有變更');
+				} else if (d.cleared) {
+					$msg.css('color', '#d63638').text('✓ 已清空並移除審核資訊');
+					$item.find('td').eq(3).html('<span style="color:#d63638;">待撰寫</span>');
 				} else {
-					setProgress(remaining, percent, '冷卻中，' + Math.ceil(left / 1000) + ' 秒後繼續');
+					$msg.css('color', '#00a32a').text('✓ 已儲存');
+					// 同步更新審核狀態欄，不必重整頁面
+					$item.find('td').eq(3).html(
+						'<span style="color:#00a32a;">✓ 已發布</span><br>' +
+						$('<div>').text(d.reviewer).html() + '<br>' +
+						$('<div>').text(d.reviewed).html()
+					);
 				}
-			}, 1000);
-		}
-
-		function setProgress(remaining, percent, note) {
-			progressText.textContent =
-				'本次完成：' + totalDone +
-				(sessionLimit > 0 ? '/' + sessionLimit : '') +
-				' 筆　失敗：' + totalFail +
-				' 筆　本範圍尚餘：' + remaining +
-				' 部　(' + percent.toFixed(1) + '%)　' + (note || '');
-		}
-
-		function addLog(message, color) {
-			var span = document.createElement('span');
-
-			span.style.color = color || '#cdd6f4';
-			span.textContent = message + '\n';
-
-			logEl.appendChild(span);
-			logEl.scrollTop = logEl.scrollHeight;
-		}
-	})();
+				if (d.warning) {
+					$msg.css('color', '#b26b00').append(document.createTextNode('　' + d.warning));
+				}
+			}).fail(function () {
+				$msg.css('color', '#d63638').text('✕ 網路錯誤，請重試');
+			}).always(function () {
+				$btn.prop('disabled', false).text('儲存');
+			});
+		});
+	});
 	</script>
 	<?php
 }
