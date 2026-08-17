@@ -14,6 +14,23 @@
     align-items: center;
 }
 
+/*
+ * 主標題斷行：標記裡已用 <br> 指定要在哪裡換行，但瀏覽器認定中文
+ * 每個字之間都可以斷，容器一窄就會在句中再斷一次（例如「繁體中文動 /
+ * 漫資料庫」）。keep-all 讓中文不在字元間任意換行，只在 <br> 處換，
+ * 三行語意就能各自完整。
+ */
+.hero-title {
+    word-break: keep-all;
+    text-wrap: balance;
+}
+
+/* 每行獨立成塊，寬度才不會互相牽動 */
+.hero-title .line-gradient,
+.hero-title .line-accent {
+    display: inline-block;
+}
+
 .chip.chip-link {
     text-decoration: none;
     background: rgba(255, 255, 255, 0.06);
@@ -863,8 +880,12 @@ body {
 
     .hero-section .hero-title {
         margin-bottom: 8px !important;
-        font-size: clamp(1.45rem, 6vw, 2rem) !important;
-        line-height: 1.3 !important;
+        /*
+         * 最長的一行是 9 個字（繁體中文動漫資料庫）。搭配 keep-all 後這行
+         * 不會再被拆開，因此字級上限要壓到窄螢幕也放得下，否則會溢出。
+         */
+        font-size: clamp(1.15rem, 5vw, 1.6rem) !important;
+        line-height: 1.35 !important;
     }
 
     .hero-section .hero-subtitle {
