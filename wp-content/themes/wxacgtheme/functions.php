@@ -436,6 +436,10 @@ function wxacg_text_length( $value ): int {
  *                           純簡介（尤其自動匯入的短簡介）不再單獨解除空洞，
  *                           以符合 AdSense「auto-generated / thin content」政策。
  * WXACG_THIN_EDITORIAL_MIN：人工／AI 短評達此字數即視為獨立編輯價值，可單獨解除。
+ * WXACG_ADSENSE_EDITORIAL_MIN：短評達此字數（且經人工審核）才取得廣告資格。
+ *                           刻意高於 THIN 門檻：能被收錄不代表足以放廣告。
+ *                           ⚠ 撰寫工具給的建議字數必須 ≥ 此值，否則照建議寫出來的
+ *                             短評解除得了 noindex、卻永遠拿不到廣告資格。
  */
 if ( ! defined( 'WXACG_THIN_SYNOPSIS_RICH' ) ) {
 	define( 'WXACG_THIN_SYNOPSIS_RICH', 300 );
@@ -443,6 +447,10 @@ if ( ! defined( 'WXACG_THIN_SYNOPSIS_RICH' ) ) {
 
 if ( ! defined( 'WXACG_THIN_EDITORIAL_MIN' ) ) {
 	define( 'WXACG_THIN_EDITORIAL_MIN', 120 );
+}
+
+if ( ! defined( 'WXACG_ADSENSE_EDITORIAL_MIN' ) ) {
+	define( 'WXACG_ADSENSE_EDITORIAL_MIN', 180 );
 }
 
 function wxacg_is_thin_anime_page( int $post_id ): bool {
@@ -754,7 +762,7 @@ function wxacg_is_anime_adsense_eligible( int $post_id ): bool {
 	);
 
 	$eligible = (
-		( $editorial_length >= 180 && $has_author ) ||
+		( $editorial_length >= WXACG_ADSENSE_EDITORIAL_MIN && $has_author ) ||
 		$post_content_length >= 500 ||
 		$feature_count > 0 ||
 		$review_count > 0

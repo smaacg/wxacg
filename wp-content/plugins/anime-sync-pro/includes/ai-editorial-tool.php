@@ -75,6 +75,21 @@ function wxacg_editorial_text( $post_id ) {
 	return is_string( $value ) ? $value : '';
 }
 
+/**
+ * 撰寫短評的建議字數下限。
+ *
+ * ★ 直接沿用主題的廣告資格門檻 WXACG_ADSENSE_EDITORIAL_MIN，不另外寫死數字。
+ *   原因：這裡原本建議 120～160 字，但 wxacg_is_anime_adsense_eligible()
+ *   要求 180 字以上才有廣告資格。照建議寫出來的短評足以解除 noindex、
+ *   會被 Google 收錄，卻永遠不會顯示廣告——流量進得來卻沒有收益。
+ *   兩邊共用同一個常數，就不會再各自漂移。
+ *
+ * @return int
+ */
+function wxacg_editorial_min_chars() {
+	return defined( 'WXACG_ADSENSE_EDITORIAL_MIN' ) ? (int) WXACG_ADSENSE_EDITORIAL_MIN : 180;
+}
+
 function wxacg_update_acf_meta( $post_id, $key, $value ) {
 	update_post_meta( $post_id, $key, $value );
 
@@ -290,6 +305,7 @@ function wxacg_sort_choices() {
 		'recent'      => '🆕 最近匯入的頁面（依建立時間倒序）',
 		'new'         => '📅 新番優先（年份＋季度倒序）',
 		'airing'      => '📺 連載中優先',
+		'gsc'         => '🔍 Google 曝光優先（Search Console 近 90 天）',
 		'views'       => '👁️ 站內瀏覽數優先（近 60 天實際流量）',
 		'popular'     => '⭐ 熱門優先（站內留言數及 AniList 評分）',
 		'default'     => '🔢 預設順序（文章 ID）',
@@ -314,6 +330,28 @@ function wxacg_stats_pages_table() {
 	}
 
 	$name  = $wpdb->prefix . 'statistics_pages';
+	$table = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $name ) ) ? $name : '';
+
+	return $table;
+}
+
+/**
+ * 取得 Rank Math 同步下來的 Search Console 資料表名稱。
+ *
+ * 未連接 Search Console 或資料表不存在時回傳空字串。
+ *
+ * @return string 資料表名稱，不存在時為空字串。
+ */
+function wxacg_gsc_table() {
+	global $wpdb;
+
+	static $table = null;
+
+	if ( null !== $table ) {
+		return $table;
+	}
+
+	$name  = $wpdb->prefix . 'rank_math_analytics_gsc';
 	$table = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $name ) ) ? $name : '';
 
 	return $table;
@@ -444,6 +482,37 @@ function wxacg_build_sort_clauses( $sort ) {
 				'join'   => $join_reviews . ' ' . $join_score,
 				'having' => '',
 				'order'  => 'ORDER BY s_reviews DESC, s_score DESC, p.ID ASC',
+			);
+
+		case 'gsc':
+			$gsc_table = wxacg_gsc_table();
+
+			// 未連接 Search Console 時退回站內瀏覽數排序。
+			if ( '' === $gsc_table ) {
+				return wxacg_build_sort_clauses( 'views' );
+			}
+
+			/*
+			 * Rank Math 的 page 欄位存的是路徑（例：/anime/oni-no-hanayome/），
+			 * 因此以文章代稱組出相同格式比對。
+			 *
+			 * 為什麼用曝光數而非站內瀏覽數：兩者可能差距極大。實測「尼古喵喵」
+			 * 站內 30,885 次瀏覽，但 Google 只帶進 165 次點擊、曝光 3,944；
+			 * 而「鬼的新娘」站內僅 1,171 次，Google 曝光卻有 19,572。
+			 * 要決定「先補哪篇短評對搜尋排名最有幫助」，曝光數才是對的訊號。
+			 */
+			$join_gsc = sprintf(
+				"LEFT JOIN {$gsc_table} gs
+				        ON gs.page = CONCAT( '/anime/', p.post_name, '/' )
+				       AND gs.created >= '%s'",
+				esc_sql( gmdate( 'Y-m-d', strtotime( '-90 days' ) ) )
+			);
+
+			return array(
+				'select' => ', COALESCE( SUM( gs.impressions ), 0 ) AS s_impressions',
+				'join'   => $join_gsc,
+				'having' => '',
+				'order'  => 'ORDER BY s_impressions DESC, p.ID ASC',
 			);
 
 		case 'views':
@@ -891,7 +960,10 @@ function wxacg_ai_editorial_page() {
 			<strong>已發布</strong>，與文章編輯頁的行為一致。
 		</p>
 		<p style="color:#666;">
-			💡 建議 120～160 字。短評請自行查證後再貼上，避免錯誤資訊。
+			💡 建議 <?php echo (int) wxacg_editorial_min_chars(); ?>～240 字。
+			未達 <strong><?php echo (int) wxacg_editorial_min_chars(); ?> 字</strong>
+			的短評雖然能讓頁面被 Google 收錄，但不符合廣告顯示資格。
+			短評請自行查證後再貼上，避免錯誤資訊。
 		</p>
 
 		<div style="display:flex;gap:14px;margin:20px 0;flex-wrap:wrap;">
@@ -991,7 +1063,7 @@ function wxacg_ai_editorial_page() {
 						<td>
 							<textarea class="wxacg-ed-text" rows="2"
 								style="width:100%;font-size:13px;line-height:1.6;"
-								placeholder="撰寫編輯短評（建議 120～160 字）"><?php
+								placeholder="撰寫編輯短評（建議 <?php echo (int) wxacg_editorial_min_chars(); ?>～240 字）"><?php
 								echo esc_textarea( $summary );
 							?></textarea>
 							<div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
