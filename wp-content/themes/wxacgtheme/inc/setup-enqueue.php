@@ -177,6 +177,18 @@ add_action( 'wp_enqueue_scripts', function () {
         }
     }
 
+    /*
+     * 新聞（post）也用同一套評論系統。
+     * 這裡不能沿用上面那段：那段的 review.css 相依 smacg-anime-status，
+     * 而該樣式只在 anime/manga 載入，掛到新聞頁會因相依缺失而不輸出。
+     */
+    if ( is_singular( 'post' ) ) {
+        $rv_css = weixiaoacg_THEME_DIR . '/assets/css/review.css';
+        if ( file_exists( $rv_css ) ) {
+            wp_enqueue_style( 'wxacg-review', weixiaoacg_THEME_URL . '/assets/css/review.css', [], filemtime( $rv_css ) );
+        }
+    }
+
     $p = weixiaoacg_THEME_DIR . '/assets/css/admin-sync.css';
     if ( file_exists( $p ) && filesize( $p ) > 0 ) {
         wp_enqueue_style( 'weixiaoacg-admin-sync', weixiaoacg_THEME_URL . '/assets/css/admin-sync.css', [ 'weixiaoacg-style' ], filemtime( $p ) );
@@ -283,6 +295,33 @@ add_action( 'wp_enqueue_scripts', function () {
             'userName'       => is_user_logged_in() ? wp_get_current_user()->display_name : '',
             'commentRatings' => $smacg_comment_ratings,
         ] );
+    }
+
+    /*
+     * 新聞（post）的評論：與動漫共用 review.js。
+     *
+     * 動漫頁的 SmacgConfig 是 localize 在 smacg-anime-status 上，而該腳本
+     * 只在 anime/manga 載入，所以新聞頁必須自己補一份，否則 review.js 取不到
+     * apiUrl / nonce 會靜默失效。這裡不帶 commentRatings（那是動漫評分專用）。
+     */
+    if ( is_singular( 'post' ) ) {
+        $rv_js = weixiaoacg_THEME_DIR . '/assets/js/review.js';
+        if ( file_exists( $rv_js ) ) {
+            wp_enqueue_script( 'wxacg-review', weixiaoacg_THEME_URL . '/assets/js/review.js', [ 'weixiaoacg-api' ], filemtime( $rv_js ), true );
+
+            wp_localize_script( 'wxacg-review', 'SmacgConfig', [
+                'apiUrl'    => esc_url_raw( rest_url( 'weixiaoacg/v1/' ) ),
+                'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+                'nonce'     => wp_create_nonce( 'wp_rest' ),
+                'ajaxNonce' => wp_create_nonce( 'smacg_nonce' ),
+                'loggedIn'  => is_user_logged_in(),
+                'loginUrl'  => function_exists( 'um_get_core_page' ) ? um_get_core_page( 'login' ) : wp_login_url( get_permalink() ),
+                'postId'    => get_the_ID(),
+                'permalink' => get_permalink(),
+                'title'     => get_the_title(),
+                'userName'  => is_user_logged_in() ? wp_get_current_user()->display_name : '',
+            ] );
+        }
     }
 
     if ( is_page_template( 'page-ranking.php' ) ) {

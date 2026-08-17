@@ -34,6 +34,37 @@ class Anime_Sync_Review_Manager {
 	const MAX_LEN_EXCERPT = 60;
 	const MIN_LEN_EXCERPT = 20;
 
+	/**
+	 * 可以留評論的文章類型。
+	 *
+	 * 資料層本來就是通用的（用 post_parent 指向目標文章），只有驗證寫死了
+	 * anime，因此擴展到新聞只需放寬這裡。之後要再加其他類型，改這個清單或
+	 * 掛 wxacg_review_post_types 篩選器即可，不必再動驗證邏輯。
+	 *
+	 * @return string[]
+	 */
+	public static function allowed_post_types(): array {
+		return (array) apply_filters( 'wxacg_review_post_types', [ 'anime', 'post' ] );
+	}
+
+	/**
+	 * 目標文章是否可以被評論。
+	 *
+	 * @param int  $post_id          目標文章 ID。
+	 * @param bool $require_publish  是否要求已發布（發表時要求，讀取時不要求）。
+	 */
+	public static function is_reviewable( int $post_id, bool $require_publish = false ): bool {
+		if ( $post_id <= 0 ) {
+			return false;
+		}
+
+		if ( ! in_array( get_post_type( $post_id ), self::allowed_post_types(), true ) ) {
+			return false;
+		}
+
+		return ! $require_publish || get_post_status( $post_id ) === 'publish';
+	}
+
 	const VOTE_LIKE    = 1;
 	const VOTE_DISLIKE = -1;
 
@@ -125,8 +156,8 @@ class Anime_Sync_Review_Manager {
 
 	public function api_list( WP_REST_Request $req ) {
 		$anime_id = (int) $req['anime_id'];
-		if ( get_post_type( $anime_id ) !== 'anime' ) {
-			return new WP_Error( 'invalid_anime', '找不到這部動漫', [ 'status' => 404 ] );
+		if ( ! self::is_reviewable( $anime_id ) ) {
+			return new WP_Error( 'invalid_target', '找不到這篇內容', [ 'status' => 404 ] );
 		}
 
 		$track   = $req->get_param( 'track' );
@@ -250,8 +281,8 @@ class Anime_Sync_Review_Manager {
 
 	public function api_submit( WP_REST_Request $req ) {
 		$anime_id = (int) $req['anime_id'];
-		if ( get_post_type( $anime_id ) !== 'anime' || get_post_status( $anime_id ) !== 'publish' ) {
-			return new WP_Error( 'invalid_anime', '找不到這部動漫', [ 'status' => 404 ] );
+		if ( ! self::is_reviewable( $anime_id, true ) ) {
+			return new WP_Error( 'invalid_target', '找不到這篇內容', [ 'status' => 404 ] );
 		}
 
 		$uid = get_current_user_id();

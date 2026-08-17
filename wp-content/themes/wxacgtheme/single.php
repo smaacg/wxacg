@@ -429,7 +429,30 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
     </div>
   </nav>
 
-  <!-- ── 留言（在延伸閱讀之前） ── -->
+  <!-- ── 評論（自建系統，與動漫頁共用）── -->
+  <?php if ( class_exists( 'Anime_Sync_Review_Manager' )
+      && Anime_Sync_Review_Manager::is_reviewable( get_the_ID() ) ) : ?>
+  <section class="single-comments" aria-label="評論區">
+    <h2 class="asd-section-title">📝 評論</h2>
+    <?php
+    /*
+     * 沿用動漫頁的容器與 review.js。新聞沒有集數概念，data-episodes 給空陣列，
+     * 前端就不會顯示集數選單；data-anime-id 是既有屬性名，前端已在讀，
+     * 這裡沿用以免同時改前後端，等系統統一完成後再一起正名。
+     */
+    ?>
+    <div
+      class="asd-review-root"
+      id="asd-review-root"
+      data-anime-id="<?php echo (int) get_the_ID(); ?>"
+      data-episodes="[]"
+    >
+      <p class="asd-review-loading">評論載入中…</p>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <!-- ── 留言（wpDiscuz，待評論系統統一後移除）── -->
   <?php if ( comments_open() || get_comments_number() ) : ?>
   <section class="single-comments" aria-label="留言區">
     <?php comments_template(); ?>
