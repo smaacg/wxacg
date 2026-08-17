@@ -484,8 +484,12 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
               <div class="guide-badge-icon">
                 <?php if ( $thumb ): ?>
                   <img src="<?php echo esc_url( $thumb ); ?>" alt="<?php echo esc_attr( $b->post_title ); ?>" loading="lazy">
-                <?php else: ?>
-                  <i class="fa-solid fa-trophy"></i>
+                <?php else:
+                  $b_icon = function_exists( 'wxacg_get_achievement_icon' )
+                      ? wxacg_get_achievement_icon( $b->post_name )
+                      : 'fa-solid fa-trophy';
+                ?>
+                  <i class="<?php echo esc_attr( $b_icon ); ?>"></i>
                 <?php endif; ?>
               </div>
               <div class="guide-badge-name"><?php echo esc_html( $b->post_title ); ?></div>

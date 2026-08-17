@@ -127,6 +127,7 @@ add_action( 'wp_enqueue_scripts', function () {
     if ( is_page_template( 'page-cosplay.php' ) )                       $cond['weixiaoacg-cosplay']    = 'cosplay.css';
     if ( is_search() )                                                  $cond['weixiaoacg-search']     = 'search.css';
     if ( is_404() )                                                     $cond['weixiaoacg-404']        = '404.css';
+    if ( is_singular( 'achievements' ) )                                $cond['weixiaoacg-achievements'] = 'achievements.css';
     if ( is_page( [ 'about', 'contact', 'disclaimer', 'sources', 'privacy', 'terms', 'join' ] ) || is_page_template( 'page-join.php' ) ) {
         $cond['weixiaoacg-static'] = 'static.css';
     }

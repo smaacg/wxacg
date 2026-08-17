@@ -744,8 +744,12 @@ function smacg_render_badges( $uid ) {
                     <div class="mc-badge-icon">
                         <?php if ( $thumb ): ?>
                             <img src="<?php echo esc_url( $thumb ); ?>" alt="<?php echo esc_attr( $badge->post_title ); ?>" loading="lazy">
-                        <?php else: ?>
-                            <i class="fa-solid fa-trophy"></i>
+                        <?php else:
+                            $badge_icon = function_exists( 'wxacg_get_achievement_icon' )
+                                ? wxacg_get_achievement_icon( $badge->post_name )
+                                : 'fa-solid fa-trophy';
+                        ?>
+                            <i class="<?php echo esc_attr( $badge_icon ); ?>"></i>
                         <?php endif; ?>
                         <?php if ( ! $is_unlocked ): ?>
                             <span class="mc-badge-lock"><i class="fa-solid fa-lock"></i></span>

@@ -49,6 +49,11 @@ class Gamipress_Bridge {
         // GamiPress 內建的「You have earned this %s!」中英混雜翻譯，
         // 用官方開放的 filter 蓋掉，不改套件原始檔案（更新會被蓋回去）。
         add_filter( 'gamipress_earned_achievement_message', [ __CLASS__, 'override_earned_message' ], 10, 3 );
+
+        // 「View Credential」連結文字沒有中文翻譯，同樣用官方 filter 蓋掉。
+        add_filter( 'gamipress_credential_link_label', function () {
+            return '查看憑證';
+        } );
     }
 
     public static function override_earned_message( $message, $achievement_id, $user_id ) {

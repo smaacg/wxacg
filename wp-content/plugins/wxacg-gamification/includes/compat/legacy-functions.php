@@ -67,6 +67,31 @@ if ( ! function_exists( 'smacg_get_user_badge_count' ) ) {
 if ( ! function_exists( 'smacg_award_badge' ) ) {
     function smacg_award_badge( $uid, $badge_post_id ) { return Gamipress_Bridge::award_badge( $uid, $badge_post_id ); }
 }
+if ( ! function_exists( 'wxacg_get_achievement_icon' ) ) {
+    /**
+     * 依成就貼文的 post_name（slug）給對應的 Font Awesome 圖示 class，
+     * 沒有縮圖時取代原本統一的 fa-trophy。找不到對應項目時回退 fa-trophy。
+     *
+     * @param string $slug 成就貼文的 post_name，例如 badge-first-favorite
+     * @return string 完整的 fa-solid fa-xxx class
+     */
+    function wxacg_get_achievement_icon( $slug ) {
+        $map = [
+            'badge-first-login'              => 'fa-right-to-bracket',
+            'badge-first-follow'              => 'fa-user-plus',
+            'badge-first-watchlist-add'       => 'fa-bookmark',
+            'badge-first-favorite'            => 'fa-heart',
+            'badge-first-comment'             => 'fa-comment',
+            'badge-first-rating'              => 'fa-star',
+            'badge-first-watchlist-complete'  => 'fa-flag-checkered',
+            'badge-first-forum-post'          => 'fa-comments',
+            'badge-first-dice-roll'           => 'fa-dice',
+            'badge-first-career-change'       => 'fa-briefcase',
+            'badge-first-review'              => 'fa-pen-to-square',
+        ];
+        return 'fa-solid ' . ( $map[ $slug ] ?? 'fa-trophy' );
+    }
+}
 
 /* ========================================================== Level ========================================================== */
 if ( ! function_exists( 'smacg_calc_user_level' ) ) {
