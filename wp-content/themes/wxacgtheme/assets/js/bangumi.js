@@ -252,14 +252,9 @@
         if (currentDay && currentDay !== 'all') {
             if (String(card.dataset.day || '0') !== String(currentDay)) return false;
         }
-        // 新作／續作／跨季續播
+        // 本季新番／跨季續播
         if (currentNewness && currentNewness !== 'all') {
-            var newness = card.dataset.newness || 'brand_new';
-            if (currentNewness === 'this_season') {
-                if (newness === 'continuing') return false;
-            } else if (newness !== currentNewness) {
-                return false;
-            }
+            if ((card.dataset.newness || 'brand_new') !== currentNewness) return false;
         }
         // platform
         if (filterState.platform) {

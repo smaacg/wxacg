@@ -2,17 +2,20 @@
 /**
  * Template Name: 番組表 - 季度詳細列表
  * File: blocksy-child/page-bangumi.php
- * Version: 1.7.0
+ * Version: 1.7.1
  * Date: 2026-08-17
  *
  * Changelog
- *  v1.7.0 (2026-08-17) 新作／續作／跨季續播分頁
+ *  v1.7.1 (2026-08-17) 緊急修正：移除拖垮頁面的即時 AniList 查詢
+ *    - [Fix] v1.7.0 的「新作／續作」細分會在每次頁面載入時，對本季所有
+ *            作品（75 部）同步呼叫 AniList API 判斷有無 PREQUEL，導致
+ *            頁面組不出來直接逾時。移除該細分與 wxacg_bgm_has_prequel()，
+ *            只保留純資料庫判斷的「本季新番／跨季續播」。
+ *  v1.7.0 (2026-08-17) 跨季續播分頁
  *    - [Feature] WP_Query 加入「跨季續播」分支：RELEASING 且結束日落在
  *                本季（含）之後的作品，即使 anime_season 標籤是前一季也撈得到。
- *    - [Feature] 新增 wxacg_bgm_has_prequel()：查 AniList 關聯判斷是否有
- *                PREQUEL，用來把本季新登場作品再細分「新作」／「續作」。
- *    - [UI] 新增「全部／本季新番／新作／續作／跨季續播」分頁列，篩選邏輯
- *           整合進既有 bgm-card data-* 篩選架構，不影響原有篩選/排序/搜尋。
+ *    - [UI] 新增「全部／本季新番／跨季續播」分頁列，篩選邏輯整合進既有
+ *           bgm-card data-* 篩選架構，不影響原有篩選/排序/搜尋。
  *  v1.6.0 (2026-07-04) 日期格式相容 + 時間表優化
  *    - [Fix] anime_start_date 純數字 YYYYMMDD 格式無法被 strtotime 解析，
  *            導致 weekday 落回「待定」；新增 smacg_bgm_norm_date() 正規化。
@@ -42,57 +45,6 @@ if ( ! function_exists( 'smacg_bgm_norm_date_ts' ) ) {
         }
         $ts = strtotime( $raw );
         return $ts ? (int) $ts : 0;
-    }
-}
-
-/* ============================================================
- * [1.7.0] Helper：判斷是否為「續作」（AniList 上有 PREQUEL 關聯）
- * 用於新番表「新作／續作」分頁，快取 7 天（前作關係不會變動）。
- * ============================================================ */
-if ( ! function_exists( 'wxacg_bgm_has_prequel' ) ) {
-    function wxacg_bgm_has_prequel( int $anilist_id ): bool {
-        if ( $anilist_id <= 0 ) return false;
-
-        $cache_key = 'wxacg_bgm_prequel_' . $anilist_id;
-        $cached    = get_transient( $cache_key );
-        if ( $cached !== false ) return (bool) $cached;
-
-        $query = '
-        query ($id: Int) {
-          Media(id: $id, type: ANIME) {
-            relations {
-              edges {
-                relationType
-                node { type }
-              }
-            }
-          }
-        }';
-
-        $response = wp_remote_post( 'https://graphql.anilist.co', [
-            'timeout' => 8,
-            'headers' => [ 'Content-Type' => 'application/json', 'Accept' => 'application/json' ],
-            'body'    => wp_json_encode( [ 'query' => $query, 'variables' => [ 'id' => $anilist_id ] ] ),
-        ] );
-
-        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
-            // 查詢失敗不快取，下次照樣重試。
-            return false;
-        }
-
-        $body  = json_decode( wp_remote_retrieve_body( $response ), true );
-        $edges = $body['data']['Media']['relations']['edges'] ?? [];
-
-        $has_prequel = false;
-        foreach ( $edges as $edge ) {
-            if ( ( $edge['relationType'] ?? '' ) === 'PREQUEL' && ( $edge['node']['type'] ?? '' ) === 'ANIME' ) {
-                $has_prequel = true;
-                break;
-            }
-        }
-
-        set_transient( $cache_key, $has_prequel, 7 * DAY_IN_SECONDS );
-        return $has_prequel;
     }
 }
 
@@ -234,7 +186,6 @@ if ( $q->have_posts() ) {
             'format'         => $m['anime_format'][0]             ?? '',
             'status'         => $m['anime_status'][0]             ?? '',
             'official'       => $m['anime_official_site'][0]      ?? '',
-            'anilist_id'     => (int) ( $m['anime_anilist_id'][0] ?? 0 ),
             'is_new'         => ( ( $m['anime_season'][0] ?? '' ) === $season_key )
                                  && ( (int) ( $m['anime_season_year'][0] ?? 0 ) === $year ),
             'user_status'    => '',
@@ -477,8 +428,6 @@ $stat_owned       = 0;
 $stat_watching    = 0;
 $stat_completed   = 0;
 $stat_this_season = 0;
-$stat_brand_new   = 0;
-$stat_sequel      = 0;
 $stat_continuing  = 0;
 $score_sum      = 0;
 $score_cnt      = 0;
@@ -514,14 +463,8 @@ foreach ( $rows as $r ) {
         $is_today = ( date_i18n( 'Y-m-d', $na_ts ) === $today_ymd );
     }
 
-    /* [1.7.0] 新作／續作／跨季續播分類 */
-    if ( ! $r['is_new'] ) {
-        $newness = 'continuing';
-    } elseif ( wxacg_bgm_has_prequel( $r['anilist_id'] ) ) {
-        $newness = 'sequel';
-    } else {
-        $newness = 'brand_new';
-    }
+    /* [1.7.1] 本季新番／跨季續播分類（純資料庫判斷，不呼叫外部 API） */
+    $newness = $r['is_new'] ? 'brand_new' : 'continuing';
 
     $title_cn   = $r['title_cn'] ?: ( $r['title_en'] ?: ( $r['title_romaji'] ?: $r['post_title'] ) );
     $score      = $r['score'] !== null ? (float) $r['score'] : null;
@@ -601,7 +544,7 @@ foreach ( $rows as $r ) {
     if ( ! $first_cover && $item['cover'] ) $first_cover = $item['cover'];
 
     if ( $newness === 'continuing' ) { $stat_continuing++; }
-    else { $stat_this_season++; if ( $newness === 'sequel' ) { $stat_sequel++; } else { $stat_brand_new++; } }
+    else { $stat_this_season++; }
 }
 
 $avg_score        = $score_cnt > 0 ? round( $score_sum / $score_cnt / 10, 1 ) : null;
@@ -858,31 +801,19 @@ get_header();
         </div>
     </section>
 
-    <!-- ===== 工具列：新作／續作／跨季續播分頁 ===== -->
-    <?php if ( $stat_continuing > 0 || $stat_sequel > 0 ) : ?>
+    <!-- ===== 工具列：本季新番／跨季續播分頁 ===== -->
+    <?php if ( $stat_continuing > 0 ) : ?>
     <section class="bgm-toolbar" data-view-show="grid list">
-        <div class="bgm-newness-tabs" role="tablist" aria-label="依新作／續作篩選">
+        <div class="bgm-newness-tabs" role="tablist" aria-label="依本季新番／跨季續播篩選">
             <button class="bgm-newness-tab is-active" data-newness="all" role="tab" aria-selected="true">
                 全部<span class="bgm-day-n">(<?php echo (int) $stat_total; ?>)</span>
             </button>
-            <button class="bgm-newness-tab" data-newness="this_season" role="tab" aria-selected="false">
+            <button class="bgm-newness-tab" data-newness="brand_new" role="tab" aria-selected="false">
                 本季新番<span class="bgm-day-n">(<?php echo (int) $stat_this_season; ?>)</span>
             </button>
-            <?php if ( $stat_brand_new > 0 ) : ?>
-                <button class="bgm-newness-tab" data-newness="brand_new" role="tab" aria-selected="false">
-                    新作<span class="bgm-day-n">(<?php echo (int) $stat_brand_new; ?>)</span>
-                </button>
-            <?php endif; ?>
-            <?php if ( $stat_sequel > 0 ) : ?>
-                <button class="bgm-newness-tab" data-newness="sequel" role="tab" aria-selected="false">
-                    續作<span class="bgm-day-n">(<?php echo (int) $stat_sequel; ?>)</span>
-                </button>
-            <?php endif; ?>
-            <?php if ( $stat_continuing > 0 ) : ?>
-                <button class="bgm-newness-tab" data-newness="continuing" role="tab" aria-selected="false">
-                    跨季續播<span class="bgm-day-n">(<?php echo (int) $stat_continuing; ?>)</span>
-                </button>
-            <?php endif; ?>
+            <button class="bgm-newness-tab" data-newness="continuing" role="tab" aria-selected="false">
+                跨季續播<span class="bgm-day-n">(<?php echo (int) $stat_continuing; ?>)</span>
+            </button>
         </div>
     </section>
     <?php endif; ?>
