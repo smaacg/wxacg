@@ -1342,9 +1342,12 @@ while ( have_posts() ) :
 	 * 這些欄位應與自動同步欄位分開，避免同步程序覆蓋。
 	 */
 	// 優先讀新欄位（AI 批次工具寫入），fallback 舊欄位（共 129 筆舊資料）。
-	$editorial_note = trim(
-		(string) $get_meta( 'anime_editor_summary' )
-	);
+	/*
+	 * 只認字串：這個欄位曾被寫入 WP_Error 物件，(string) 轉型會直接
+	 * 致命錯誤讓整頁 500。寫入端已修，這裡再擋一次，最壞情況只是短評空白。
+	 */
+	$editorial_raw  = $get_meta( 'anime_editor_summary' );
+	$editorial_note = trim( is_string( $editorial_raw ) ? $editorial_raw : '' );
 
 	if ( '' === $editorial_note ) {
 		$editorial_note = trim(

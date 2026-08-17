@@ -54,6 +54,27 @@ function wxacg_acf_field_key_map() {
 	);
 }
 
+/**
+ * 安全讀取短評：只認字串，其餘一律視為空值。
+ *
+ * ★ 為什麼需要這道防線：舊版 AI 產生器在模型回傳空白時，把 WP_Error
+ *   物件本身存進了短評欄位。讀出來是物件，前台一做 (string) 轉型就是
+ *   「Object of class WP_Error could not be converted to string」致命錯誤，
+ *   整頁 500（實際發生過，K-ON！輕音部「計畫！」那篇）。
+ *
+ *   產生錯誤資料的程式已於 v2.0.0 移除，但欄位本身仍可能被其他外掛或
+ *   日後的程式寫入非字串值。與其相信寫入端都正確，不如在讀取端擋住：
+ *   最壞情況只是短評顯示為空，不會讓整個頁面掛掉。
+ *
+ * @param int $post_id 文章 ID。
+ * @return string
+ */
+function wxacg_editorial_text( $post_id ) {
+	$value = get_post_meta( (int) $post_id, WXACG_EDITORIAL_META, true );
+
+	return is_string( $value ) ? $value : '';
+}
+
 function wxacg_update_acf_meta( $post_id, $key, $value ) {
 	update_post_meta( $post_id, $key, $value );
 
@@ -564,8 +585,25 @@ function wxacg_editorial_save_summary( $post_id, $summary ) {
 		return new WP_Error( 'bad_post', '找不到這篇動漫' );
 	}
 
-	$before = trim( (string) get_post_meta( $post_id, WXACG_EDITORIAL_META, true ) );
-	$after  = wxacg_normalize_editorial_text( $summary );
+	$before = trim( wxacg_editorial_text( $post_id ) );
+
+	/*
+	 * ★ 不可改用 wxacg_normalize_editorial_text()：那是為 AI 產出設計的，
+	 *   內容空白或字數超出 90～240 時會回傳 WP_Error。先前這裡直接把它的
+	 *   回傳值寫進資料庫，於是「清空短評再儲存」會把 WP_Error 物件存成
+	 *   短評，前台 (string) 轉型即致命錯誤、整頁 500。
+	 *
+	 *   人工編輯的規則不同：清空是正常操作，字數只給建議不強制。因此改為
+	 *   在這裡自行清理，且保證寫入的一定是字串。
+	 */
+	$after = sanitize_textarea_field( wp_strip_all_tags( (string) $summary ) );
+	$after = preg_replace( "/\R{3,}/u", "\n\n", $after );
+	$after = trim( $after );
+
+	// 上限僅防呆，避免異常長度灌爆欄位；正常撰寫遠不會觸及
+	if ( wxacg_editorial_strlen( $after ) > 2000 ) {
+		return new WP_Error( 'too_long', '短評過長（上限 2000 字）' );
+	}
 
 	if ( $before === $after ) {
 		return array(
@@ -835,7 +873,7 @@ function wxacg_ai_editorial_page() {
 				<?php
 				foreach ( $rows as $row ) :
 					$pid     = (int) $row->ID;
-					$summary = (string) get_post_meta( $pid, WXACG_EDITORIAL_META, true );
+					$summary = wxacg_editorial_text( $pid );
 					$title   = get_post_meta( $pid, 'anime_title_chinese', true );
 					$title   = $title ? $title : $row->post_title;
 					$len     = wxacg_editorial_strlen( $summary );
