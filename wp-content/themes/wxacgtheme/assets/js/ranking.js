@@ -172,7 +172,14 @@ function rankInitPlatformTabs() {
    ============================================================ */
 function applyPlatformUIState() {
   const isSite       = rankState.platform === 'site';
-  const showPeriod   = !isSite || rankState.rankType === 'views';
+
+  /*
+   * Bangumi 不顯示時間週期：其 API（/v0/subjects）只提供 rank／heat 這類
+   * 整體排序，沒有「今日／本週／本月」的時間維度，四個按鈕點下去拿到的
+   * 是同一份歷史總排行。留著等於謊稱有四種排行，使用者會以為壞掉。
+   */
+  const isBangumi    = rankState.platform === 'bangumi';
+  const showPeriod   = !isBangumi && ( !isSite || rankState.rankType === 'views' );
   const periodRow    = document.getElementById('period-btns');
   const siteSubRow   = document.getElementById('site-sub-tabs');
   const siteNote     = document.getElementById('site-rank-note');
@@ -644,11 +651,19 @@ function updateCountInfo(count, status) {
     if (rankType === 'favorites') label = '收藏排行';
     else if (rankType === 'views') label = `${periodLabels[period] || '本月'}瀏覽排行`;
     countEl.textContent = `微笑動漫 ${label} · Top ${count}`;
-  } else if (status === 'error') {
-    /* v1.5.0：外部平台掛掉時顯示「Top 0」會讓人以為是真的沒有作品上榜 */
-    countEl.textContent = `${periodLabels[period] || '本週'} ${p?.label || ''} 排行 · 暫時無法取得`;
   } else {
-    countEl.textContent = `${periodLabels[period] || '本週'} ${p?.label || ''} 排行 · Top ${count}`;
+    /*
+     * Bangumi 的來源只有整體排行、沒有時間維度（見 applyPlatformUIState），
+     * 標題就不能冠上「本週」之類的字眼，否則等於標錯資料範圍。
+     */
+    const prefix = platform === 'bangumi'
+      ? '總'
+      : (periodLabels[period] || '本週');
+
+    /* v1.5.0：外部平台掛掉時顯示「Top 0」會讓人以為是真的沒有作品上榜 */
+    countEl.textContent = status === 'error'
+      ? `${prefix} ${p?.label || ''} 排行 · 暫時無法取得`
+      : `${prefix} ${p?.label || ''} 排行 · Top ${count}`;
   }
 }
 
