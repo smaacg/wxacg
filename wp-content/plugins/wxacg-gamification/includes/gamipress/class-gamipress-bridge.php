@@ -45,6 +45,28 @@ class Gamipress_Bridge {
         add_action( 'activated_plugin',           $clear );
         add_action( 'deactivated_plugin',         $clear );
         add_action( 'switch_theme',               $clear );
+
+        // GamiPress 內建的「You have earned this %s!」中英混雜翻譯，
+        // 用官方開放的 filter 蓋掉，不改套件原始檔案（更新會被蓋回去）。
+        add_filter( 'gamipress_earned_achievement_message', [ __CLASS__, 'override_earned_message' ], 10, 3 );
+    }
+
+    public static function override_earned_message( $message, $achievement_id, $user_id ) {
+        if ( ! function_exists( 'gamipress_has_user_earned_achievement' )
+            || ! gamipress_has_user_earned_achievement( $achievement_id, $user_id ) ) {
+            return $message;
+        }
+
+        $earned_message = '<div class="gamipress-achievement-earned"><p>🎉 你已經解鎖這個成就！</p></div>';
+
+        $congrats_text = function_exists( 'gamipress_get_post_meta' )
+            ? gamipress_get_post_meta( $achievement_id, '_gamipress_congratulations_text' )
+            : '';
+        if ( $congrats_text ) {
+            $earned_message .= '<div class="gamipress-achievement-congratulations">' . wpautop( $congrats_text ) . '</div>';
+        }
+
+        return $earned_message;
     }
 
     /* ==========================================================
