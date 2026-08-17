@@ -1,25 +1,35 @@
 /* ============================================================
    微笑動漫 — 單一成就頁樣式
    路徑：/wxacgtheme/assets/css/achievements.css
-   版本：1.0 — 2026-08-17
+   版本：1.1 — 2026-08-17
 
    GamiPress 的成就內容是透過 the_content filter 塞進我們自己
    index.php 保底樣板的 .single-content 裡（成就 CPT 沒有專屬
    樣板），這裡只針對 GamiPress 自己輸出的語意 class 上色，
    不動 .single-content/.single-wrap 這些共用容器本身。
+
+   v1.1：GamiPress 自己的 gamipress.css 有一條三層 class 疊加的
+   選擇器（.single-achievement.gamipress-layout-left .gamipress-
+   achievement-image {width:20%}），優先度比原本兩層 class 的寫法
+   高，圖示尺寸被蓋成卡片寬度的 20%、跟 border-radius:50% 疊加變成
+   橢圓。改用 !important 蓋掉這個固定尺寸，並整體加強質感（漸層光暈、
+   已解鎖徽色分隔線、更清楚的字級層次）。
    ============================================================ */
 
 .single-content .gamipress-achievement-earned {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 20px;
   padding: 14px 18px;
   border: 1px solid rgba(52, 211, 153, .35);
   border-radius: 12px;
-  background: rgba(52, 211, 153, .1);
+  background: linear-gradient(135deg, rgba(52, 211, 153, .14), rgba(52, 211, 153, .05));
 }
 
 .single-content .gamipress-achievement-earned p {
   margin: 0;
-  color: #34D399;
+  color: #6EE7B7;
   font-size: 15px;
   font-weight: 700;
 }
@@ -27,31 +37,36 @@
 .single-content .achievement-wrap {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
-  align-items: flex-start;
-  padding: 24px;
+  gap: 28px;
+  align-items: center;
+  padding: 32px;
   border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, .04);
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .02));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
 }
 
 .single-content .gamipress-achievement-image {
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  height: 96px;
+  width: 100px !important;
+  height: 100px !important;
   flex: 0 0 auto;
+  padding: 0 !important;
+  border: 1px solid rgba(99, 168, 255, .3);
   border-radius: 50%;
-  background: rgba(99, 168, 255, .12);
+  background: radial-gradient(circle at 35% 30%, rgba(99, 168, 255, .28), rgba(99, 168, 255, .08) 70%);
+  box-shadow: 0 0 0 6px rgba(99, 168, 255, .06);
 }
 
 .single-content .gamipress-achievement-image:empty::before {
   content: "\f091"; /* fa-trophy */
   font-family: "Font Awesome 6 Free";
   font-weight: 900;
-  font-size: 34px;
-  color: #63A8FF;
+  font-size: 36px;
+  color: #8FBFFF;
+  text-shadow: 0 0 18px rgba(99, 168, 255, .5);
 }
 
 .single-content .gamipress-achievement-image img {
@@ -68,36 +83,47 @@
 
 .single-content .gamipress-achievement-description p {
   margin: 0;
-  color: #D0D7E0;
-  font-size: 15px;
-  line-height: 1.7;
+  color: #C7CFDA;
+  font-size: 15.5px;
+  line-height: 1.75;
 }
 
 .single-content .gamipress-credentials-links {
-  margin-top: 20px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
 }
 
 .single-content .gamipress-credential-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 20px;
+  padding: 10px 22px;
   color: #fff;
   font-size: 14px;
   font-weight: 700;
   text-decoration: none;
   border-radius: 999px;
-  background: #63A8FF;
+  background: linear-gradient(135deg, #63A8FF, #4d8ee0);
+  box-shadow: 0 6px 16px rgba(99, 168, 255, .25);
+  transition: transform .15s ease, box-shadow .15s ease;
 }
 
 .single-content .gamipress-credential-link:hover {
-  background: #4d8ee0;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(99, 168, 255, .35);
 }
 
 @media (max-width: 560px) {
   .single-content .achievement-wrap {
     flex-direction: column;
     align-items: center;
+    padding: 26px 20px;
+    text-align: center;
+  }
+
+  .single-content .gamipress-credentials-links {
     text-align: center;
   }
 }
