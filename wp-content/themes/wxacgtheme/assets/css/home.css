@@ -690,6 +690,12 @@ body {
     overflow-x: hidden;
 }
 
+/* 這一區內容偏少（一段文字＋等級進度條），沿用全站 .section 的
+   64px 上下留白顯得太空，縮小成 40px */
+.member-cta-section {
+    padding: 40px 0;
+}
+
 .hero-section {
     isolation: auto !important;
     transform: none !important;
