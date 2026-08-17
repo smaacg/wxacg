@@ -872,14 +872,11 @@ body {
     .hero-section .hero-title {
         margin-bottom: 8px !important;
         /*
-         * 標記已用 <br> 指定三行斷點，但瀏覽器認定中文每字之間都可換行，
-         * 窄螢幕會在句中再斷一次（「繁體中文動／漫資料庫」）。keep-all
-         * 讓它只在 <br> 處換行；配套是字級上限要壓到最長那行（9 個字）
-         * 放得下，否則不能換行就會溢出。
+         * keep-all 已在 style.css 的 .hero-title 全域套用，這裡只調字級。
+         * 五行版最長一行 5 個字，窄螢幕放得下，字級不必再壓得太小。
          */
-        word-break: keep-all;
-        font-size: clamp(1.15rem, 5vw, 1.6rem) !important;
-        line-height: 1.35 !important;
+        font-size: clamp(1.45rem, 7vw, 2.2rem) !important;
+        line-height: 1.3 !important;
     }
 
     .hero-section .hero-subtitle {
