@@ -753,17 +753,41 @@ function wxacg_editorial_format_label( $format ) {
  * @param int $post_id 文章 ID。
  * @return string
  */
-function wxacg_editorial_angle( $post_id ) {
-	$angles = array(
-		'從「這部在演什麼」切入，把故事的起點講清楚。',
-		'從改編幅度切入：跟原作相比，動畫版做了什麼取捨。',
-		'從角色關係切入：誰跟誰之間的張力撐起這部作品。',
-		'從節奏切入：這部是慢熱還是一開場就抓人。',
-		'從美術或演出切入：畫面上有什麼值得一提的地方。',
-		'從觀眾期待切入：衝著什麼來看的人會滿意，衝著什麼來的人會失望。',
-	);
+function wxacg_editorial_angle( $post_id, $unreleased = false ) {
+	/*
+	 * 未播出作品必須用另一套角度：作畫、節奏、演出這些都要看過才寫得出來，
+	 * 沿用已播出的角度等於直接要求模型編造。
+	 */
+	$angles = $unreleased
+		? array(
+			'從原作切入：原作連載到哪，這次動畫預計改編哪一段。',
+			'從前作切入：前一季（或前作）結束在什麼地方，留下什麼懸念。',
+			'從製作班底切入：製作公司與主創過去做過什麼。',
+			'從卡司切入：已公布的主要聲優陣容。',
+			'從已公開情報切入：目前釋出的視覺圖或 PV 透露了什麼。',
+		)
+		: array(
+			'從「這部在演什麼」切入，把故事的起點講清楚。',
+			'從改編幅度切入：跟原作相比，動畫版做了什麼取捨。',
+			'從角色關係切入：誰跟誰之間的張力撐起這部作品。',
+			'從節奏切入：這部是慢熱還是一開場就抓人。',
+			'從美術或演出切入：畫面上有什麼值得一提的地方。',
+			'從觀眾期待切入：衝著什麼來看的人會滿意，衝著什麼來的人會失望。',
+		);
 
 	return $angles[ (int) $post_id % count( $angles ) ];
+}
+
+/**
+ * 作品是否尚未播出。
+ *
+ * @param int $post_id 文章 ID。
+ * @return bool
+ */
+function wxacg_editorial_is_unreleased( $post_id ) {
+	$status = strtoupper( trim( (string) get_post_meta( (int) $post_id, 'anime_status', true ) ) );
+
+	return 'NOT_YET_RELEASED' === $status;
 }
 
 /**
@@ -798,6 +822,8 @@ function wxacg_editorial_prompt( $post_id ) {
 		return trim( (string) $value );
 	};
 
+	$unreleased = wxacg_editorial_is_unreleased( $post_id );
+
 	// 只列出真的有值的欄位，避免把「（空）」餵給模型當成事實。
 	$facts = array();
 
@@ -805,7 +831,12 @@ function wxacg_editorial_prompt( $post_id ) {
 	$season = $get( 'anime_season' );
 
 	if ( '' !== $year || '' !== $season ) {
-		$facts[] = '播出：' . trim( $year . ' ' . ( '' !== $season ? wxacg_season_label( $season ) : '' ) );
+		$facts[] = ( $unreleased ? '預定播出：' : '播出：' )
+			. trim( $year . ' ' . ( '' !== $season ? wxacg_season_label( $season ) : '' ) );
+	}
+
+	if ( $unreleased ) {
+		$facts[] = '狀態：尚未播出';
 	}
 
 	$format = wxacg_editorial_format_label( $get( 'anime_format' ) );
@@ -828,8 +859,9 @@ function wxacg_editorial_prompt( $post_id ) {
 		$facts[] = '原文標題：' . $native;
 	}
 
+	// 劇場版的集數固定是 1，列出來只會讓模型寫成「共 1 集」，反而不自然。
 	$episodes = (int) $get( 'anime_episodes' );
-	if ( $episodes > 0 ) {
+	if ( $episodes > 0 && 'MOVIE' !== strtoupper( $get( 'anime_format' ) ) ) {
 		$facts[] = '集數：' . $episodes;
 	}
 
@@ -850,20 +882,46 @@ function wxacg_editorial_prompt( $post_id ) {
 
 	$lines[] = '【要求】';
 	$lines[] = '1. 繁體中文、台灣用語，' . $min . '～240 字，一段到底不分段。';
-	$lines[] = '2. ' . wxacg_editorial_angle( $post_id );
+	$lines[] = '2. ' . wxacg_editorial_angle( $post_id, $unreleased );
 	$lines[] = '3. 開頭直接進入作品，不要用「本作改編自」「本作是」這類句子起頭。';
-	$lines[] = '4. 必須寫出一個具體的場景、設定或橋段，讓人看得出你知道這部在演什麼。';
-	$lines[] = '5. 必須有一句主觀判斷：哪裡做得好，或哪裡可能讓人看不下去。';
-	$lines[] = '6. 結尾說「什麼樣的人適合看」，不要用「是一部…的佳作」收尾。';
-	$lines[] = '';
-	$lines[] = '【禁止】';
+
+	if ( $unreleased ) {
+		/*
+		 * ★ 未播出作品不能沿用已播出的要求。原本一律要求「寫出具體場景」
+		 *   與「給出主觀判斷」，但作品都還沒播，這兩條等於直接命令模型
+		 *   編造劇情與演出評價。全站有 187 部處於此狀態，且 Google 曝光
+		 *   前段班就有好幾部，影響不小。
+		 *
+		 *   改為只寫查證得到的事實，並明確要求承認未知。
+		 */
+		$lines[] = '4. 這部尚未播出，開頭要讓讀者知道它還沒播，以及預定什麼時候。';
+		$lines[] = '5. 只寫查證得到的事實作為期待理由：原作連載進度、前作評價、';
+		$lines[] = '   製作班底過去的作品、已公布的卡司。不確定的一律不要寫。';
+		$lines[] = '6. 結尾說「什麼樣的人該追蹤這部」，不要用「是一部…的佳作」收尾。';
+		$lines[] = '';
+		$lines[] = '【禁止】';
+		$lines[] = '- 描述任何劇情場景、戰鬥畫面、演出效果或作畫表現（作品還沒播，你沒看過）';
+		$lines[] = '- 對成品品質下判斷（好不好看目前無人知道）';
+		$lines[] = '- 編造上映日期、集數或播出平台';
+	} else {
+		$lines[] = '4. 必須寫出一個具體的場景、設定或橋段，讓人看得出你知道這部在演什麼。';
+		$lines[] = '5. 必須有一句主觀判斷：哪裡做得好，或哪裡可能讓人看不下去。';
+		$lines[] = '6. 結尾說「什麼樣的人適合看」，不要用「是一部…的佳作」收尾。';
+		$lines[] = '';
+		$lines[] = '【禁止】';
+		$lines[] = '- 劇透結局';
+	}
+
 	$lines[] = '- 「不僅…更…」「在保持…的同時」這類轉折句型';
 	$lines[] = '- 空泛形容詞堆疊（極具魅力、天馬行空、充滿感動、令人動容）';
 	$lines[] = '- 任何串流平台名稱（系統會擋下來）';
-	$lines[] = '- 劇透結局';
 	$lines[] = '';
 	$lines[] = '【自我檢查】';
 	$lines[] = '寫完把作品名遮住再讀一次。如果換成同類型的另一部作品也講得通，重寫。';
+
+	if ( $unreleased ) {
+		$lines[] = '再檢查一次：整段裡有沒有任何一句是「看過才寫得出來」的？有就刪掉。';
+	}
 
 	return implode( "\n", $lines );
 }
