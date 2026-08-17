@@ -2335,6 +2335,46 @@ class Anime_Sync_API_Handler {
      * @return array [ 'slug' => string, 'themes' => array ]
      */
     /**
+     * 這位歌手的正式名稱本來就是拉丁字母，不該被換成日文寫法。
+     *
+     * 多數日本歌手的拉丁名只是轉寫（Konomi Suzuki ↔ 鈴木このみ），換成日文
+     * 才是正確的；但有一類歌手的官方名稱本身就是拉丁字母，MusicBrainz 卻
+     * 給了片假名（Aimer → エメ、RIIZE → ライズ、muque → ムク），照著顯示
+     * 反而是錯的。判斷準則：拉丁名若是日文的轉寫，兩者發音會對得上
+     * （エメ 轉回羅馬字是 Eme，與 Aimer 對不上）；要程式自動比對得先做
+     * 片假名轉羅馬字，成本與誤判率都不低，數量又少，因此用明列的方式處理。
+     *
+     * 需要增補時可用 wxacg_artist_latin_names 篩選器，不必改動程式碼。
+     *
+     * @param string $name AnimeThemes 提供的歌手名。
+     */
+    private function artist_keeps_latin_name( string $name ): bool {
+        static $set = null;
+
+        if ( $set === null ) {
+            $list = (array) apply_filters( 'wxacg_artist_latin_names', [
+                // MusicBrainz 目前會給片假名、但官方名是拉丁字母的
+                'Aimer', 'RIIZE', 'muque', 'Lucky Kilimanjaro', 'Polkadot Stingray',
+                // 官方名即拉丁字母，先列出避免日後來源資料變動而被改寫
+                'LiSA', 'KOTOKO', 'ClariS', 'fripSide', 'EGOIST', 'ReoNa', 'milet',
+                'YOASOBI', 'RADWIMPS', 'Ado', 'Eve', 'ZAQ', 'ASCA', 'TrySail',
+                'GARNiDELiA', 'MYTH & ROID', 'FLOW', 'ONE OK ROCK', 'BUMP OF CHICKEN',
+                'SPYAIR', 'UVERworld', 'King Gnu', 'Vaundy', 'Aqours', 'DECO*27',
+            ] );
+
+            $set = [];
+            foreach ( $list as $n ) {
+                $key = mb_strtolower( preg_replace( '/\s+/u', '', (string) $n ) );
+                if ( $key !== '' ) {
+                    $set[ $key ] = true;
+                }
+            }
+        }
+
+        return isset( $set[ mb_strtolower( preg_replace( '/\s+/u', '', $name ) ) ] );
+    }
+
+    /**
      * 查站內既有資料中，這位歌手是否已經有原文名。
      *
      * 對照表由所有 anime_themes 掃出來，以正規化後的羅馬字名為鍵。
@@ -2444,13 +2484,16 @@ class Anime_Sync_API_Handler {
 
                     $name_native = trim( (string) ( $mb['name_native'] ?? '' ) );
 
-                    /*
-                     * MusicBrainz 用名字查有時對不到（拼法差異、同名藝人、
-                     * 資料缺漏），該歌手就只剩羅馬字可顯示。但同一位歌手很可能
-                     * 在別部作品已經查到過原文，這裡改查站內既有資料當後援，
-                     * 讓「查過一次就一直有」而不是每次重新賭 MB 查不查得到。
-                     */
-                    if ( $name_native === '' ) {
+                    if ( $this->artist_keeps_latin_name( $name ) ) {
+                        // 官方名就是拉丁字母，清掉日文寫法讓顯示端退回原名
+                        $name_native = '';
+                    } elseif ( $name_native === '' ) {
+                        /*
+                         * MusicBrainz 用名字查有時對不到（拼法差異、同名藝人、
+                         * 資料缺漏），該歌手就只剩羅馬字可顯示。但同一位歌手很可能
+                         * 在別部作品已經查到過原文，這裡改查站內既有資料當後援，
+                         * 讓「查過一次就一直有」而不是每次重新賭 MB 查不查得到。
+                         */
                         $name_native = $this->lookup_known_artist_native( $name );
                     }
 
