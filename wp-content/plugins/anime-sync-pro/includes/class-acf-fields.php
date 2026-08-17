@@ -935,6 +935,21 @@ class Anime_Sync_ACF_Fields {
                     'default_value' => 'FINISHED',
                     'wrapper'       => [ 'width' => '33' ],
                 ],
+                [
+                    'key'           => 'field_anime_has_prequel',
+                    'label'         => '作品類型（新作／續作）',
+                    'name'          => 'anime_has_prequel',
+                    'type'          => 'select',
+                    'instructions'  => '番組表「新作／續作」分頁使用。由每日 cron 依 AniList 前作（PREQUEL）關聯自動判斷；'
+                                       . '若判斷結果有誤可在此手動修正，並到下方「同步控制」把 anime_has_prequel 加入鎖定欄位，之後 cron 就不會覆寫。',
+                    'required'      => 0,
+                    'choices'       => [
+                        '0' => '新作',
+                        '1' => '續作',
+                    ],
+                    'default_value' => '0',
+                    'wrapper'       => [ 'width' => '33' ],
+                ],
              [
     'key'           => 'field_anime_source',
     'label'         => '原作來源',
@@ -2044,6 +2059,7 @@ $cast_prompt .= "以下是 JSON:\n";
                         'anime_cast_json'        => 'CAST 角色資料',
                         'anime_staff_json'       => 'STAFF 製作資料',
                         'anime_episodes_json'    => '集數列表',
+                        'anime_has_prequel'      => '作品類型(新作/續作)',
                     ],
                     'layout'        => 'horizontal',
                     'toggle'        => 0,

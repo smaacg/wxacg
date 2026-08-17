@@ -2,10 +2,16 @@
 /**
  * Template Name: 番組表 - 季度詳細列表
  * File: blocksy-child/page-bangumi.php
- * Version: 1.7.3
+ * Version: 1.8.0
  * Date: 2026-08-17
  *
  * Changelog
+ *  v1.8.0 (2026-08-17) 分頁改為 全部／新作／續作
+ *    - [Feature] 改讀 anime_has_prequel 欄位判斷新作／續作。該欄位由
+ *                anime-sync-pro 的每小時 cron 搭既有 AniList 查詢順風車
+ *                寫入（不額外發送 API 請求），前台只讀欄位、零外部請求。
+ *    - [Change] 移除「跨季續播」分頁；跨季作品仍會出現在列表中，只是改
+ *               依有無前作歸入新作或續作，不再單獨分頁。
  *  v1.7.3 (2026-08-17) 修正跨季續播漏抓大量作品
  *    - [Fix] 原本用「anime_end_date >= 本季開始」判斷跨季續播，但多數
  *            正在播出的作品結束日是 0（未定），導致 17 部跨季作品裡有
@@ -246,6 +252,8 @@ if ( ! empty( $bgm_post_objects ) ) {
             'official'       => $m['anime_official_site'][0]      ?? '',
             'is_new'         => ( ( $m['anime_season'][0] ?? '' ) === $season_key )
                                  && ( (int) ( $m['anime_season_year'][0] ?? 0 ) === $year ),
+            /* [1.8.0] 由 cron 依 AniList PREQUEL 關聯寫入；尚未取得資料的先當新作 */
+            'has_prequel'    => (int) ( $m['anime_has_prequel'][0] ?? 0 ) === 1,
             'user_status'    => '',
             'user_progress'  => 0,
         ];
@@ -485,8 +493,8 @@ $stat_total       = 0;
 $stat_owned       = 0;
 $stat_watching    = 0;
 $stat_completed   = 0;
-$stat_this_season = 0;
-$stat_continuing  = 0;
+$stat_brand_new   = 0;
+$stat_sequel      = 0;
 $score_sum      = 0;
 $score_cnt      = 0;
 $first_cover    = '';
@@ -521,8 +529,8 @@ foreach ( $rows as $r ) {
         $is_today = ( date_i18n( 'Y-m-d', $na_ts ) === $today_ymd );
     }
 
-    /* [1.7.1] 本季新番／跨季續播分類（純資料庫判斷，不呼叫外部 API） */
-    $newness = $r['is_new'] ? 'brand_new' : 'continuing';
+    /* [1.8.0] 新作／續作分類（純讀資料庫欄位，不呼叫外部 API） */
+    $newness = $r['has_prequel'] ? 'sequel' : 'brand_new';
 
     $title_cn   = $r['title_cn'] ?: ( $r['title_en'] ?: ( $r['title_romaji'] ?: $r['post_title'] ) );
     $score      = $r['score'] !== null ? (float) $r['score'] : null;
@@ -601,8 +609,8 @@ foreach ( $rows as $r ) {
     if ( $score !== null && $score > 0 ) { $score_sum += $score; $score_cnt++; }
     if ( ! $first_cover && $item['cover'] ) $first_cover = $item['cover'];
 
-    if ( $newness === 'continuing' ) { $stat_continuing++; }
-    else { $stat_this_season++; }
+    if ( $newness === 'sequel' ) { $stat_sequel++; }
+    else { $stat_brand_new++; }
 }
 
 $avg_score        = $score_cnt > 0 ? round( $score_sum / $score_cnt / 10, 1 ) : null;
@@ -859,18 +867,18 @@ get_header();
         </div>
     </section>
 
-    <!-- ===== 工具列：本季新番／跨季續播分頁 ===== -->
-    <?php if ( $stat_continuing > 0 ) : ?>
+    <!-- ===== 工具列：新作／續作分頁 ===== -->
+    <?php if ( $stat_sequel > 0 ) : ?>
     <section class="bgm-toolbar" data-view-show="grid list">
-        <div class="bgm-newness-tabs" role="tablist" aria-label="依本季新番／跨季續播篩選">
+        <div class="bgm-newness-tabs" role="tablist" aria-label="依新作／續作篩選">
             <button class="bgm-newness-tab is-active" data-newness="all" role="tab" aria-selected="true">
                 全部<span class="bgm-day-n">(<?php echo (int) $stat_total; ?>)</span>
             </button>
             <button class="bgm-newness-tab" data-newness="brand_new" role="tab" aria-selected="false">
-                本季新番<span class="bgm-day-n">(<?php echo (int) $stat_this_season; ?>)</span>
+                新作<span class="bgm-day-n">(<?php echo (int) $stat_brand_new; ?>)</span>
             </button>
-            <button class="bgm-newness-tab" data-newness="continuing" role="tab" aria-selected="false">
-                跨季續播<span class="bgm-day-n">(<?php echo (int) $stat_continuing; ?>)</span>
+            <button class="bgm-newness-tab" data-newness="sequel" role="tab" aria-selected="false">
+                續作<span class="bgm-day-n">(<?php echo (int) $stat_sequel; ?>)</span>
             </button>
         </div>
     </section>

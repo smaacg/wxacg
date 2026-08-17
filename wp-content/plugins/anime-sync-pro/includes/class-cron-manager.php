@@ -829,6 +829,32 @@ class Anime_Sync_Cron_Manager {
 
         $diff = [];
 
+        /*
+         * 新作／續作判斷：AniList 上有指向「動畫」的 PREQUEL 關聯即視為續作。
+         *
+         * 這份資料是搭 fetch_anilist_dynamic() 既有查詢的順風車一起取回的
+         * （同一個請求多要一個欄位），不額外發送任何 API 請求。
+         * 供番組表「新作／續作」分頁使用，前台只讀這個欄位、不查外部 API。
+         *
+         * 使用者若在後台手動修正過（欄位被鎖定），這裡不覆寫。
+         */
+        if ( ! $is_locked( 'anime_has_prequel' ) && isset( $media['relations']['edges'] ) ) {
+            $has_prequel = 0;
+            foreach ( (array) $media['relations']['edges'] as $edge ) {
+                if ( ( $edge['relationType'] ?? '' ) === 'PREQUEL'
+                     && ( $edge['node']['type'] ?? '' ) === 'ANIME' ) {
+                    $has_prequel = 1;
+                    break;
+                }
+            }
+
+            $old_prequel = get_post_meta( $post_id, 'anime_has_prequel', true );
+            if ( $old_prequel === '' || (int) $old_prequel !== $has_prequel ) {
+                update_post_meta( $post_id, 'anime_has_prequel', $has_prequel );
+                $diff[] = '作品類型 ' . ( $has_prequel ? '續作' : '新作' );
+            }
+        }
+
         if ( ! $is_locked( 'anime_status' ) && isset( $media['status'] ) && $media['status'] !== '' ) {
             $old_val = (string) get_post_meta( $post_id, 'anime_status', true );
             $new_val = (string) $media['status'];
@@ -1103,6 +1129,12 @@ class Anime_Sync_Cron_Manager {
                 nextAiringEpisode { airingAt episode }
                 staff { pageInfo { total } }
                 characters { pageInfo { total } }
+                relations {
+                    edges {
+                        relationType
+                        node { type }
+                    }
+                }
             }
         }
         GQL;
