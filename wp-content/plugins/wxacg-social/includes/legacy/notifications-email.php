@@ -63,13 +63,13 @@ function smacg_notif_schedule_email_cron() {
 /* =========================================================
  * 3. Cron Handlers
  * ========================================================= */
-add_action( 'smacg_notif_email_daily',  function() { smacg_notif_send_digest( 'daily' );  } );
-add_action( 'smacg_notif_email_weekly', function() { smacg_notif_send_digest( 'weekly' ); } );
+add_action( 'smacg_notif_email_daily',  function() { wxacg_notif_send_digest( 'daily' );  } );
+add_action( 'smacg_notif_email_weekly', function() { wxacg_notif_send_digest( 'weekly' ); } );
 
 /* =========================================================
  * 4. 寄送摘要主邏輯
  * ========================================================= */
-function smacg_notif_send_digest( $frequency = 'daily' ) {
+function wxacg_notif_send_digest( $frequency = 'daily' ) {
     global $wpdb;
     $table = $wpdb->prefix . 'wxacg_notifications';
 
@@ -214,6 +214,6 @@ add_action( 'admin_init', function() {
     $freq = sanitize_text_field( $_GET['smacg_notif_test_digest'] );
     if ( ! in_array( $freq, array( 'daily', 'weekly' ), true ) ) return;
 
-    $sent = smacg_notif_send_digest( $freq );
+    $sent = wxacg_notif_send_digest( $freq );
     wp_die( sprintf( '✅ Test digest (%s) executed. Emails sent: %d', esc_html( $freq ), (int) $sent ) );
 } );

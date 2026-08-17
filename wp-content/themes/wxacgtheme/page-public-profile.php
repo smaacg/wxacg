@@ -54,11 +54,11 @@ $is_logged_in = is_user_logged_in();
 // ---------- 隱私 ----------
 $privacy = function_exists( 'smacg_get_user_privacy' ) ? smacg_get_user_privacy( $uid ) : [];
 
-$can_view_profile   = smacg_can_view_profile_section( $uid, 'profile' );
-$can_view_watchlist = smacg_can_view_profile_section( $uid, 'watchlist' );
-$can_view_ratings   = smacg_can_view_profile_section( $uid, 'ratings' );
-$can_view_activity  = smacg_can_view_profile_section( $uid, 'activity' );
-$can_view_email     = smacg_can_view_profile_section( $uid, 'email' );
+$can_view_profile   = wxacg_can_view_profile_section( $uid, 'profile' );
+$can_view_watchlist = wxacg_can_view_profile_section( $uid, 'watchlist' );
+$can_view_ratings   = wxacg_can_view_profile_section( $uid, 'ratings' );
+$can_view_activity  = wxacg_can_view_profile_section( $uid, 'activity' );
+$can_view_email     = wxacg_can_view_profile_section( $uid, 'email' );
 
 // ---------- 基本資料 ----------
 $display  = $user->display_name ?: $user->user_login;

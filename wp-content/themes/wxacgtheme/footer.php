@@ -58,7 +58,7 @@ $site_desc = get_bloginfo( 'description' )
  * noindex 處理，已經在 category.php / tag.php 裡做掉了。
  * 這裡只負責擋掉「頁面本身被刪除/下架」這種情況。
  */
-function smacg_footer_link_is_valid( $url ) {
+function wxacg_footer_link_is_valid( $url ) {
     static $cache = [];
     if ( isset( $cache[ $url ] ) ) {
         return $cache[ $url ];
@@ -212,7 +212,7 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
         // 過濾掉指向已刪除/未發佈頁面的連結
         $valid_links = array_filter(
             $col['links'],
-            static function ( $url ) { return smacg_footer_link_is_valid( $url ); }
+            static function ( $url ) { return wxacg_footer_link_is_valid( $url ); }
         );
         if ( empty( $valid_links ) ) continue;
       ?>

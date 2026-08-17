@@ -2335,7 +2335,7 @@ function wxacg_staff_role( $role ): string {
  * 多語言搜尋 Blob
  * ============================================================ */
 
-function smacg_search_title_keys(): array {
+function wxacg_search_title_keys(): array {
 	return [
 		'anime_title_chinese',
 		'anime_title_simplified',
@@ -2345,7 +2345,7 @@ function smacg_search_title_keys(): array {
 	];
 }
 
-function smacg_build_search_blob( int $post_id ): string {
+function wxacg_build_search_blob( int $post_id ): string {
 	if (
 		$post_id <= 0 ||
 		! in_array(
@@ -2359,7 +2359,7 @@ function smacg_build_search_blob( int $post_id ): string {
 
 	$parts = [];
 
-	foreach ( smacg_search_title_keys() as $key ) {
+	foreach ( wxacg_search_title_keys() as $key ) {
 		$value = get_post_meta(
 			$post_id,
 			$key,
@@ -2427,7 +2427,7 @@ function smacg_acf_rebuild_search_blob( $post_id ): void {
 		return;
 	}
 
-	smacg_build_search_blob( $post_id );
+	wxacg_build_search_blob( $post_id );
 }
 add_action(
 	'acf/save_post',
@@ -2451,7 +2451,7 @@ function smacg_save_post_rebuild_search_blob(
 		return;
 	}
 
-	smacg_build_search_blob( $post_id );
+	wxacg_build_search_blob( $post_id );
 }
 add_action(
 	'save_post_anime',
@@ -2646,7 +2646,7 @@ function smacg_rebuild_search_blob_page(): void {
 		$done = 0;
 
 		foreach ( $ids as $post_id ) {
-			smacg_build_search_blob(
+			wxacg_build_search_blob(
 				(int) $post_id
 			);
 

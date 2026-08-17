@@ -10,7 +10,7 @@
  *
  * 提供：
  *   smacg_render_notifications_tab()  會員中心通知 tab 內容
- *   smacg_render_notification_item()  單則通知卡片（共用）
+ *   wxacg_render_notification_item()  單則通知卡片（共用）
  */
 defined( 'ABSPATH' ) || exit;
 
@@ -21,8 +21,8 @@ function smacg_render_notifications_tab() {
 	$uid = get_current_user_id();
 	if ( ! $uid ) return;
 
-	$initial = smacg_get_notifications( $uid, [ 'limit' => 20, 'offset' => 0 ] );
-	$unread  = smacg_get_unread_count( $uid );
+	$initial = wxacg_get_notifications( $uid, [ 'limit' => 20, 'offset' => 0 ] );
+	$unread  = wxacg_get_unread_count( $uid );
 	?>
 	<div class="smacg-notif-page" data-uid="<?php echo (int) $uid; ?>">
 
@@ -50,7 +50,7 @@ function smacg_render_notifications_tab() {
 				</div>
 			<?php else : ?>
 				<?php foreach ( $initial as $n ) : ?>
-					<?php smacg_render_notification_item( $n ); ?>
+					<?php wxacg_render_notification_item( $n ); ?>
 				<?php endforeach; ?>
 			<?php endif; ?>
 		</div>
@@ -72,7 +72,7 @@ function smacg_render_notifications_tab() {
  *
  * @param array $n  通知陣列（含 data 已 decode）
  */
-function smacg_render_notification_item( $n ) {
+function wxacg_render_notification_item( $n ) {
 	$data    = is_array( $n['data'] ) ? $n['data'] : [];
 	$title   = $data['title']   ?? '';
 	$excerpt = $data['excerpt'] ?? '';

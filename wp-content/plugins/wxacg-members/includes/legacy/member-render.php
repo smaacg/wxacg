@@ -17,7 +17,7 @@
  *   1.2.0 (2026-05-22)
  *     - smacg_render_settings()：基本資料新增生日輸入區 + 獨立 nonce + AJAX。
  *   1.1.0 (2026-05-16)
- *     - smacg_render_notification_prefs_card() / smacg_render_settings()
+ *     - wxacg_render_notification_prefs_card() / smacg_render_settings()
  *       的 fallback 預設值改呼叫資料層 defaults。
  *   1.0.0 (2026-05-15) 首版。
  */
@@ -28,12 +28,12 @@ if ( ! defined( 'SMACG_PAGE_SIZE' ) )         define( 'SMACG_PAGE_SIZE', 20 );
 if ( ! defined( 'SMACG_COMMENT_PAGE_SIZE' ) ) define( 'SMACG_COMMENT_PAGE_SIZE', 20 );
 
 /* ========== 共用：單張 anime 卡片 ========== */
-function smacg_render_anime_card( $pid, $extra = [] ) {
+function wxacg_render_anime_card( $pid, $extra = [] ) {
     if ( ! $pid || get_post_status( $pid ) !== 'publish' ) return;
 
     $title     = get_the_title( $pid );
     $permalink = get_permalink( $pid );
-    $thumb     = smacg_get_card_thumb_url( $pid );
+    $thumb     = wxacg_get_card_thumb_url( $pid );
     $score     = get_post_meta( $pid, 'anime_score_anilist', true );
     $score     = $score ? round( $score / 10, 1 ) : null;
     $year      = (int) get_post_meta( $pid, 'anime_season_year', true );
@@ -92,7 +92,7 @@ function smacg_render_anime_card( $pid, $extra = [] ) {
 }
 
 /* ========== 縮圖 fallback ========== */
-function smacg_get_card_thumb_url( $pid ) {
+function wxacg_get_card_thumb_url( $pid ) {
     if ( has_post_thumbnail( $pid ) ) return get_the_post_thumbnail_url( $pid, 'medium' );
     $meta = get_post_meta( $pid, 'anime_cover_image', true );
     if ( $meta ) return esc_url( $meta );
@@ -115,7 +115,7 @@ function smacg_render_dashboard( $watchlist, $stats, $recent_cmt, $points_log, $
             <h3>🎬 追番中 <small>（最近 6 部）</small></h3>
             <?php if ( $watching ): ?>
                 <div class="mc-card-grid mc-card-grid--compact">
-                    <?php foreach ( $watching as $w ) smacg_render_anime_card( $w['post_id'], $w ); ?>
+                    <?php foreach ( $watching as $w ) wxacg_render_anime_card( $w['post_id'], $w ); ?>
                 </div>
             <?php else: ?>
                 <p class="mc-empty">尚未追番，<a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>">去找喜歡的作品</a> →</p>
@@ -179,14 +179,14 @@ function smacg_render_dashboard( $watchlist, $stats, $recent_cmt, $points_log, $
     <?php if ( ! empty( $activity ) ): ?>
         <div class="mc-widget mc-widget--timeline">
             <h3>📜 最近活動 <small>（最新 15 筆）</small></h3>
-            <?php smacg_render_activity_timeline( $activity ); ?>
+            <?php wxacg_render_activity_timeline( $activity ); ?>
         </div>
     <?php endif; ?>
     <?php
 }
 
 /* ===== 最近活動時間軸 ===== */
-function smacg_render_activity_timeline( $events ) {
+function wxacg_render_activity_timeline( $events ) {
     if ( empty( $events ) ) {
         echo '<p class="mc-empty">最近沒有活動，開始追番吧！</p>';
         return;
@@ -251,7 +251,7 @@ function smacg_render_watchlist( $watchlist, $counts ) {
     </div>
 
     <div class="mc-card-grid" id="mc-watchlist-grid">
-        <?php foreach ( $first as $w ) smacg_render_anime_card( $w['post_id'], $w ); ?>
+        <?php foreach ( $first as $w ) wxacg_render_anime_card( $w['post_id'], $w ); ?>
     </div>
 
     <?php if ( $total > SMACG_PAGE_SIZE ): ?>
@@ -398,7 +398,7 @@ function smacg_render_stats( $s ) {
             <div class="mc-stats-card">
                 <h3>🏆 我給高分的作品</h3>
                 <div class="mc-card-grid mc-card-grid--compact">
-                    <?php foreach ( $r['top3'] as $row ) smacg_render_anime_card( $row['post_id'], [ 'user_score' => $row['score'] ] ); ?>
+                    <?php foreach ( $r['top3'] as $row ) wxacg_render_anime_card( $row['post_id'], [ 'user_score' => $row['score'] ] ); ?>
                 </div>
             </div>
         <?php endif; ?>
@@ -406,7 +406,7 @@ function smacg_render_stats( $s ) {
             <div class="mc-stats-card">
                 <h3>👀 我給低分的作品</h3>
                 <div class="mc-card-grid mc-card-grid--compact">
-                    <?php foreach ( $r['bottom3'] as $row ) smacg_render_anime_card( $row['post_id'], [ 'user_score' => $row['score'] ] ); ?>
+                    <?php foreach ( $r['bottom3'] as $row ) wxacg_render_anime_card( $row['post_id'], [ 'user_score' => $row['score'] ] ); ?>
                 </div>
             </div>
         <?php endif; ?>
@@ -440,7 +440,7 @@ function smacg_render_ratings( $ratings, $rating_stats ) {
     </div>
 
     <div class="mc-card-grid" id="mc-ratings-grid">
-        <?php foreach ( $first as $r ) smacg_render_anime_card( (int) $r['anime_id'], [ 'user_score' => (float) $r['overall_score'] ] ); ?>
+        <?php foreach ( $first as $r ) wxacg_render_anime_card( (int) $r['anime_id'], [ 'user_score' => (float) $r['overall_score'] ] ); ?>
     </div>
 
     <?php if ( $total > SMACG_PAGE_SIZE ): ?>
@@ -1074,7 +1074,7 @@ function smacg_render_settings( $user, $privacy = null, $is_owner = true ) {
             </div>
         </div>
 
-        <?php smacg_render_notification_prefs_card( $user->ID ); ?>
+        <?php wxacg_render_notification_prefs_card( $user->ID ); ?>
 
         <div class="mc-set-card">
             <h3 class="mc-set-title"><i class="fa-solid fa-key"></i> 帳號安全</h3>
@@ -1151,7 +1151,7 @@ function smacg_render_settings( $user, $privacy = null, $is_owner = true ) {
 }
 
 /* ===== 通知偏好卡片（v1.1.0 — 與你原本檔案完全相同）===== */
-function smacg_render_notification_prefs_card( $uid ) {
+function wxacg_render_notification_prefs_card( $uid ) {
     $uid = (int) $uid;
     if ( $uid <= 0 ) return;
 
@@ -1291,7 +1291,7 @@ function smacg_render_continue_watching( $watchlist ) {
                 $pid       = (int) $w['post_id'];
                 $title     = get_the_title( $pid );
                 $permalink = get_permalink( $pid );
-                $thumb     = smacg_get_card_thumb_url( $pid );
+                $thumb     = wxacg_get_card_thumb_url( $pid );
                 $total     = (int) $w['_total'];
                 $prog      = (int) $w['progress'];
                 $percent   = (int) $w['_percent'];

@@ -62,7 +62,7 @@ function smacg_build_watchlist($uid) {
 
     // 批次預載 post（解 N+1）
     $ids = array_column($rows, 'anime_id');
-    smacg_prime_posts($ids);
+    wxacg_prime_posts($ids);
 
     $list = [];
     foreach ($rows as $r) {
@@ -95,7 +95,7 @@ function smacg_build_watchlist($uid) {
 }
 
 /* 批次預載 post（避免 get_the_title 等觸發 N 次 SQL）*/
-function smacg_prime_posts(array $ids) {
+function wxacg_prime_posts(array $ids) {
     $ids = array_unique(array_filter(array_map('intval', $ids)));
     if (!$ids) return;
     _prime_post_caches($ids, true, true); // WP core,會一次抓 post + meta + term
@@ -141,7 +141,7 @@ function smacg_get_user_ratings($uid) {
         ];
     }
 
-    smacg_prime_posts(array_column($normalized, 'anime_id'));
+    wxacg_prime_posts(array_column($normalized, 'anime_id'));
     return $normalized;
 }
 
@@ -511,7 +511,7 @@ function smacg_calc_year_review( $uid, $year ) {
     $uid  = (int) $uid;
     $year = (int) $year;
     if ( $uid <= 0 || $year < 2020 ) {
-        return smacg_year_review_empty();
+        return wxacg_year_review_empty();
     }
 
     // ---- Cache 查詢 ----
@@ -622,7 +622,7 @@ function smacg_calc_year_review( $uid, $year ) {
     }
 
     // ---- 徽章 ----
-    $badges = smacg_calc_year_badges( [
+    $badges = wxacg_calc_year_badges( [
         'total_completed' => $total_completed,
         'total_watching'  => $total_watching,
         'total_rated'     => $total_rated,
@@ -661,7 +661,7 @@ function smacg_calc_year_review( $uid, $year ) {
 /**
  * 年度回顧:無資料時的預設回傳結構
  */
-function smacg_year_review_empty() {
+function wxacg_year_review_empty() {
     return [
         'year'             => (int) date( 'Y' ),
         'total_completed'  => 0,
@@ -686,7 +686,7 @@ function smacg_year_review_empty() {
 /**
  * 年度回顧:計算徽章
  */
-function smacg_calc_year_badges( $s ) {
+function wxacg_calc_year_badges( $s ) {
     $badges = [];
 
     // 看完數量徽章

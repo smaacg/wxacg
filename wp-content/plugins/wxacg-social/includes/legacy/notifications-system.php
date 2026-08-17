@@ -12,7 +12,7 @@
  * v1.1.0 變更：
  *   - 預設偏好調整：站內全開、Email 全關、digest='off'
  *   - 刪除無效的 register_activation_hook(__FILE__,...)
- *   - smacg_should_notify() 對 email channel 加 force 支援
+ *   - wxacg_should_notify() 對 email channel 加 force 支援
  *
  * 通知類型（type 欄位）：
  *   follow          - 被追蹤
@@ -144,7 +144,7 @@ function smacg_update_notification_prefs( $user_id, $partial ) {
 	return update_user_meta( $user_id, 'smacg_notification_prefs', $merged );
 }
 
-function smacg_should_notify( $user_id, $type, $channel = 'site' ) {
+function wxacg_should_notify( $user_id, $type, $channel = 'site' ) {
 	$prefs = smacg_get_notification_prefs( $user_id );
 	$key   = $type . '_' . $channel;
 	return ! empty( $prefs[ $key ] );
@@ -191,7 +191,7 @@ function wxacg_create_notification( $args ) {
 		return new WP_Error( 'smacg_notif_self', '不通知自己' );
 	}
 
-	if ( ! $args['force'] && ! smacg_should_notify( $user_id, $type, 'site' ) ) {
+	if ( ! $args['force'] && ! wxacg_should_notify( $user_id, $type, 'site' ) ) {
 		return new WP_Error( 'smacg_notif_disabled', '使用者已關閉此類通知' );
 	}
 
@@ -221,7 +221,7 @@ function wxacg_create_notification( $args ) {
 
 	$notif_id = (int) $wpdb->insert_id;
 
-	smacg_clear_notification_cache( $user_id );
+	wxacg_clear_notification_cache( $user_id );
 
 	do_action( 'smacg_notification_created', $notif_id, $user_id, $type, $args );
 
@@ -231,7 +231,7 @@ function wxacg_create_notification( $args ) {
 /* ============================================================
    查詢通知
    ============================================================ */
-function smacg_get_notifications( $user_id, $args = [] ) {
+function wxacg_get_notifications( $user_id, $args = [] ) {
 	global $wpdb;
 
 	$user_id = absint( $user_id );
@@ -278,7 +278,7 @@ function smacg_get_notifications( $user_id, $args = [] ) {
 	return $rows;
 }
 
-function smacg_get_unread_count( $user_id ) {
+function wxacg_get_unread_count( $user_id ) {
 	global $wpdb;
 
 	$user_id = absint( $user_id );
@@ -303,7 +303,7 @@ function smacg_get_unread_count( $user_id ) {
 /* ============================================================
    標記已讀
    ============================================================ */
-function smacg_mark_notification_read( $notif_id, $user_id ) {
+function wxacg_mark_notification_read( $notif_id, $user_id ) {
 	global $wpdb;
 
 	$notif_id = absint( $notif_id );
@@ -318,12 +318,12 @@ function smacg_mark_notification_read( $notif_id, $user_id ) {
 	);
 
 	if ( $updated ) {
-		smacg_clear_notification_cache( $user_id );
+		wxacg_clear_notification_cache( $user_id );
 	}
 	return (bool) $updated;
 }
 
-function smacg_mark_all_read( $user_id ) {
+function wxacg_mark_all_read( $user_id ) {
 	global $wpdb;
 
 	$user_id = absint( $user_id );
@@ -337,7 +337,7 @@ function smacg_mark_all_read( $user_id ) {
 	);
 
 	if ( false !== $updated ) {
-		smacg_clear_notification_cache( $user_id );
+		wxacg_clear_notification_cache( $user_id );
 	}
 	return (int) $updated;
 }
@@ -345,7 +345,7 @@ function smacg_mark_all_read( $user_id ) {
 /* ============================================================
    刪除
    ============================================================ */
-function smacg_delete_notification( $notif_id, $user_id ) {
+function wxacg_delete_notification( $notif_id, $user_id ) {
 	global $wpdb;
 
 	$notif_id = absint( $notif_id );
@@ -359,7 +359,7 @@ function smacg_delete_notification( $notif_id, $user_id ) {
 	);
 
 	if ( $deleted ) {
-		smacg_clear_notification_cache( $user_id );
+		wxacg_clear_notification_cache( $user_id );
 	}
 	return (bool) $deleted;
 }
@@ -391,7 +391,7 @@ add_action( 'init', function() {
 /* ============================================================
    快取清理
    ============================================================ */
-function smacg_clear_notification_cache( $user_id ) {
+function wxacg_clear_notification_cache( $user_id ) {
 	wp_cache_delete( "smacg_unread_count_{$user_id}", 'wxacg_notifications' );
 }
 

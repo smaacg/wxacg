@@ -69,7 +69,7 @@ add_action( 'template_redirect', function () {
 	if ( $view === 'current' ) {
 		add_filter( 'rank_math/frontend/disable_integration', '__return_true' );
 		remove_all_actions( 'rank_math/head' );
-		smacg_bangumi_restore_title_tag();
+		wxacg_bangumi_restore_title_tag();
 
 		$tpl = get_stylesheet_directory() . '/page-bangumi-index.php';
 		if ( file_exists( $tpl ) ) { include $tpl; exit; }
@@ -81,7 +81,7 @@ add_action( 'template_redirect', function () {
 	if ( $view === 'archive' ) {
 		add_filter( 'rank_math/frontend/disable_integration', '__return_true' );
 		remove_all_actions( 'rank_math/head' );
-		smacg_bangumi_restore_title_tag();
+		wxacg_bangumi_restore_title_tag();
 
 		$tpl = get_stylesheet_directory() . '/page-bangumi-archive.php';
 		if ( file_exists( $tpl ) ) { include $tpl; exit; }
@@ -98,7 +98,7 @@ add_action( 'template_redirect', function () {
 
 		add_filter( 'rank_math/frontend/disable_integration', '__return_true' );
 		remove_all_actions( 'rank_math/head' );
-		smacg_bangumi_restore_title_tag();
+		wxacg_bangumi_restore_title_tag();
 
 		$tpl = get_stylesheet_directory() . '/page-bangumi.php';
 		if ( file_exists( $tpl ) ) { include $tpl; exit; }
@@ -196,7 +196,7 @@ function smacg_bangumi_shift_ym( string $ym, int $delta ): string {
  * 這裡把它掛回 wp_head；標題內容仍由各模板的 pre_get_document_title
  * （優先度 99）決定，與原設計一致。
  */
-function smacg_bangumi_restore_title_tag(): void {
+function wxacg_bangumi_restore_title_tag(): void {
 	if ( ! has_action( 'wp_head', '_wp_render_title_tag' ) ) {
 		add_action( 'wp_head', '_wp_render_title_tag', 1 );
 	}

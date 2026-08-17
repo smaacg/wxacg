@@ -245,7 +245,7 @@ function smacg_get_register_ip() {
  * 寄發驗證信
  * @return bool
  */
-function smacg_send_verify_email( $user_id, $email, $token ) {
+function wxacg_send_verify_email( $user_id, $email, $token ) {
     $user = get_userdata( $user_id );
     if ( ! $user ) return false;
 
@@ -400,7 +400,7 @@ add_action( 'wp_ajax_nopriv_weixiaoacg_ajax_register', function () {
     set_transient( $count_key, $count + 1, DAY_IN_SECONDS );
 
     /* ===== Step 7: 寄驗證信（背景照寄，不阻擋登入）===== */
-    $sent = smacg_send_verify_email( $user_id, $email, $token );
+    $sent = wxacg_send_verify_email( $user_id, $email, $token );
 
     /* ===== Step 8: 自動登入（驗證非強制，使用者自行決定是否驗證）===== */
     wp_set_current_user( $user_id );
@@ -487,7 +487,7 @@ add_action( 'wp_ajax_smacg_resend_verify_email', function () {
     update_user_meta( $uid, 'smacg_email_verify_token',   $token );
     update_user_meta( $uid, 'smacg_email_verify_expires', time() + SMACG_REGISTER_VERIFY_EXPIRE );
 
-    $sent = smacg_send_verify_email( $uid, $user->user_email, $token );
+    $sent = wxacg_send_verify_email( $uid, $user->user_email, $token );
     set_transient( $cooldown_key, 1, 5 * MINUTE_IN_SECONDS );
 
     $sent
@@ -652,9 +652,9 @@ add_action( 'wp_ajax_smacg_member_loadmore', function () {
     ob_start();
     foreach ( $slice as $row ) {
         if ( $type === 'watchlist' ) {
-            smacg_render_anime_card( $row['post_id'], $row );
+            wxacg_render_anime_card( $row['post_id'], $row );
         } else {
-            smacg_render_anime_card( (int) $row['anime_id'], [ 'user_score' => (float) $row['overall_score'] ] );
+            wxacg_render_anime_card( (int) $row['anime_id'], [ 'user_score' => (float) $row['overall_score'] ] );
         }
     }
     wp_send_json_success( [
@@ -914,7 +914,7 @@ add_action( 'wp_ajax_smacg_update_birthday', function () {
    ============================================================ */
 
 /** 由 id_or_email 解析出 user_id（共用） */
-function smacg_resolve_avatar_uid( $id_or_email ) {
+function wxacg_resolve_avatar_uid( $id_or_email ) {
     if ( is_numeric( $id_or_email ) ) {
         return (int) $id_or_email;
     } elseif ( $id_or_email instanceof WP_User ) {
@@ -932,7 +932,7 @@ function smacg_resolve_avatar_uid( $id_or_email ) {
 
 /* 讓 get_avatar_url 全站優先讀 smacg_avatar_id（含 cache-bust） */
 add_filter( 'get_avatar_url', function ( $url, $id_or_email, $args ) {
-    $uid = smacg_resolve_avatar_uid( $id_or_email );
+    $uid = wxacg_resolve_avatar_uid( $id_or_email );
     if ( ! $uid ) return $url;
 
     $aid = (int) get_user_meta( $uid, 'smacg_avatar_id', true );
@@ -947,7 +947,7 @@ add_filter( 'get_avatar_url', function ( $url, $id_or_email, $args ) {
 
 /* 攔截整個 get_avatar HTML 輸出 */
 add_filter( 'get_avatar', function ( $html, $id_or_email, $size, $default, $alt, $args ) {
-    $uid = smacg_resolve_avatar_uid( $id_or_email );
+    $uid = wxacg_resolve_avatar_uid( $id_or_email );
     if ( ! $uid ) return $html;
 
     $aid = (int) get_user_meta( $uid, 'smacg_avatar_id', true );
@@ -980,7 +980,7 @@ add_filter( 'um_user_avatar_url_filter', function ( $avatar_uri, $user_id ) {
 
 /* 移除 UM 對 <img> 加的 um-avatar-default class */
 add_filter( 'get_avatar', function ( $html, $id_or_email ) {
-    $uid = smacg_resolve_avatar_uid( $id_or_email );
+    $uid = wxacg_resolve_avatar_uid( $id_or_email );
     if ( ! $uid ) return $html;
     if ( ! get_user_meta( $uid, 'smacg_avatar_id', true ) ) return $html;
 

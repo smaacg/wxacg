@@ -13,7 +13,7 @@
  *     user_meta 永久寫入 wp_usermeta，無此風險。
  *     - 新 key：user_meta 'wxacg_follow_daily' = [ 'date' => 'YYYYMMDD', 'count' => N ]
  *     - 過期靠當日 date 比對：日期變了視為 0，舊資料保留待 GC
- *     - 提供 smacg_cleanup_follow_daily_meta() 一次性清理用（uninstall 已覆蓋）
+ *     - 提供 wxacg_cleanup_follow_daily_meta() 一次性清理用（uninstall 已覆蓋）
  *
  * v1.1.0 變更：
  *   - Bug #3 修正：daily limit 改用 transient 計數器（被 v1.2.0 取代）
@@ -22,12 +22,12 @@
  * 提供功能：
  * - wp_wxacg_follows 資料表自動建立 / 升級（dbDelta）
  * - wxacg_follow_user( $follower, $following )
- * - smacg_unfollow_user( $follower, $following )
+ * - wxacg_unfollow_user( $follower, $following )
  * - wxacg_is_following( $follower, $following )
  * - smacg_get_following_count( $user_id )
  * - smacg_get_followers_count( $user_id )
- * - smacg_get_following_ids( $user_id, $limit, $offset )
- * - smacg_get_followers_ids( $user_id, $limit, $offset )
+ * - wxacg_get_following_ids( $user_id, $limit, $offset )
+ * - wxacg_get_followers_ids( $user_id, $limit, $offset )
  *
  * Action hooks：
  * - do_action( 'smacg_user_followed',   $follower_id, $following_id )
@@ -112,7 +112,7 @@ function wxacg_follow_user( $follower_id, $following_id ) {
 	}
 
 	// 單日上限（user_meta，無法被快取清除繞過）
-	$today_count = smacg_get_follow_today_count( $follower_id );
+	$today_count = wxacg_get_follow_today_count( $follower_id );
 	if ( $today_count >= WXACG_FOLLOW_DAILY_LIMIT ) {
 		return new WP_Error(
 			'wxacg_follow_daily_limit',
@@ -141,10 +141,10 @@ function wxacg_follow_user( $follower_id, $following_id ) {
 	}
 
 	// 成功後：增加 daily 計數、設定冷卻
-	smacg_increment_follow_today_count( $follower_id );
+	wxacg_increment_follow_today_count( $follower_id );
 	set_transient( $cd_key, 1, WXACG_FOLLOW_COOLDOWN );
 
-	smacg_clear_follow_cache( $follower_id, $following_id );
+	wxacg_clear_follow_cache( $follower_id, $following_id );
 
 	do_action( 'smacg_user_followed', $follower_id, $following_id );
 
@@ -154,7 +154,7 @@ function wxacg_follow_user( $follower_id, $following_id ) {
 /**
  * 取消追蹤
  */
-function smacg_unfollow_user( $follower_id, $following_id ) {
+function wxacg_unfollow_user( $follower_id, $following_id ) {
 	global $wpdb;
 
 	$follower_id  = absint( $follower_id );
@@ -181,7 +181,7 @@ function smacg_unfollow_user( $follower_id, $following_id ) {
 		return new WP_Error( 'smacg_not_following', '尚未追蹤' );
 	}
 
-	smacg_clear_follow_cache( $follower_id, $following_id );
+	wxacg_clear_follow_cache( $follower_id, $following_id );
 
 	do_action( 'smacg_user_unfollowed', $follower_id, $following_id );
 
@@ -267,7 +267,7 @@ function smacg_get_followers_count( $user_id ) {
 	return $count;
 }
 
-function smacg_get_following_ids( $user_id, $limit = 20, $offset = 0 ) {
+function wxacg_get_following_ids( $user_id, $limit = 20, $offset = 0 ) {
 	global $wpdb;
 
 	$user_id = absint( $user_id );
@@ -289,7 +289,7 @@ function smacg_get_following_ids( $user_id, $limit = 20, $offset = 0 ) {
 	return array_map( 'intval', $ids ?: [] );
 }
 
-function smacg_get_followers_ids( $user_id, $limit = 20, $offset = 0 ) {
+function wxacg_get_followers_ids( $user_id, $limit = 20, $offset = 0 ) {
 	global $wpdb;
 
 	$user_id = absint( $user_id );
@@ -319,7 +319,7 @@ function smacg_get_followers_ids( $user_id, $limit = 20, $offset = 0 ) {
    日期變了視為 0（自動 reset），無需 cron 清理。
    舊資料只佔一筆 user_meta（單行 ≤ 50 bytes），可忽略。
    ============================================================ */
-function smacg_get_follow_today_count( $user_id ) {
+function wxacg_get_follow_today_count( $user_id ) {
 	$user_id = absint( $user_id );
 	if ( ! $user_id ) return 0;
 
@@ -332,7 +332,7 @@ function smacg_get_follow_today_count( $user_id ) {
 	return (int) ( $meta['count'] ?? 0 );
 }
 
-function smacg_increment_follow_today_count( $user_id ) {
+function wxacg_increment_follow_today_count( $user_id ) {
 	$user_id = absint( $user_id );
 	if ( ! $user_id ) return;
 
@@ -351,7 +351,7 @@ function smacg_increment_follow_today_count( $user_id ) {
  * （可選）一次性清理所有 user_meta daily 計數
  * 例如賽季重置、惡意刷分後 reset 用。uninstall.php 已涵蓋。
  */
-function smacg_cleanup_follow_daily_meta() {
+function wxacg_cleanup_follow_daily_meta() {
 	global $wpdb;
 	return (int) $wpdb->delete(
 		$wpdb->usermeta,
@@ -363,7 +363,7 @@ function smacg_cleanup_follow_daily_meta() {
 /* ============================================================
    快取清理
    ============================================================ */
-function smacg_clear_follow_cache( $follower_id, $following_id ) {
+function wxacg_clear_follow_cache( $follower_id, $following_id ) {
 	wp_cache_delete( "wxacg_is_following_{$follower_id}_{$following_id}", 'wxacg_follows' );
 	wp_cache_delete( "wxacg_following_count_{$follower_id}",              'wxacg_follows' );
 	wp_cache_delete( "wxacg_followers_count_{$following_id}",             'wxacg_follows' );

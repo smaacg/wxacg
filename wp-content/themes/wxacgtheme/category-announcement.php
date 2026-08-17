@@ -69,7 +69,7 @@ $faq_query = new WP_Query([
 /**
  * 渲染單則公告（列表項目）
  */
-function smacg_render_announcement_item( $is_sticky = false ) {
+function wxacg_render_announcement_item( $is_sticky = false ) {
     $post_id   = get_the_ID();
     $permalink = get_permalink();
     $title     = get_the_title();
@@ -127,7 +127,7 @@ function smacg_render_announcement_item( $is_sticky = false ) {
                     </h2>
                     <div class="ann-list">
                         <?php while ( $sticky_query->have_posts() ) : $sticky_query->the_post();
-                            smacg_render_announcement_item( true );
+                            wxacg_render_announcement_item( true );
                         endwhile; wp_reset_postdata(); ?>
                     </div>
                 </section>
@@ -142,7 +142,7 @@ function smacg_render_announcement_item( $is_sticky = false ) {
                 <?php if ( $main_query->have_posts() ) : ?>
                     <div class="ann-list">
                         <?php while ( $main_query->have_posts() ) : $main_query->the_post();
-                            smacg_render_announcement_item( false );
+                            wxacg_render_announcement_item( false );
                         endwhile; ?>
                     </div>
 

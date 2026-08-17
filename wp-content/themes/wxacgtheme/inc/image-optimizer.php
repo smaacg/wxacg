@@ -38,7 +38,7 @@ function smacg_generate_webp_on_upload( $metadata, $attachment_id ) {
 
     // 原圖
     $original = $base_dir . $metadata['file'];
-    smacg_convert_to_webp( $original );
+    wxacg_convert_to_webp( $original );
 
     // 各種尺寸
     if ( ! empty( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
@@ -47,7 +47,7 @@ function smacg_generate_webp_on_upload( $metadata, $attachment_id ) {
                 continue;
             }
             $size_path = $file_dir . $size_data['file'];
-            smacg_convert_to_webp( $size_path );
+            wxacg_convert_to_webp( $size_path );
         }
     }
 
@@ -61,7 +61,7 @@ add_filter( 'wp_generate_attachment_metadata', 'smacg_generate_webp_on_upload', 
  * @param string $source 原始檔案絕對路徑
  * @return string|false  成功回傳 webp 路徑，失敗回 false
  */
-function smacg_convert_to_webp( $source ) {
+function wxacg_convert_to_webp( $source ) {
     if ( ! file_exists( $source ) ) {
         return false;
     }
@@ -171,7 +171,7 @@ add_action( 'delete_attachment', 'smacg_delete_webp_files' );
  * @param string $url
  * @return string|false  存在則回傳 webp url，否則 false
  */
-function smacg_get_webp_url( $url ) {
+function wxacg_get_webp_url( $url ) {
     if ( empty( $url ) ) {
         return false;
     }
@@ -248,8 +248,8 @@ function smacg_picture_tag( $post_id, $size = 'medium', $alt = '', $class = '', 
     $extra_attr = implode( ' ', $attr_parts );
 
     // 嘗試取得 WebP srcset
-    $webp_srcset = smacg_build_webp_srcset( $thumb_id, $size );
-    $webp_main   = smacg_get_webp_url( $src );
+    $webp_srcset = wxacg_build_webp_srcset( $thumb_id, $size );
+    $webp_main   = wxacg_get_webp_url( $src );
 
     ob_start();
     ?>
@@ -279,7 +279,7 @@ function smacg_picture_tag( $post_id, $size = 'medium', $alt = '', $class = '', 
 /**
  * 為某張圖片的 srcset 字串建立 WebP 版本
  */
-function smacg_build_webp_srcset( $thumb_id, $size ) {
+function wxacg_build_webp_srcset( $thumb_id, $size ) {
     $srcset = wp_get_attachment_image_srcset( $thumb_id, $size );
     if ( ! $srcset ) {
         return '';
@@ -293,7 +293,7 @@ function smacg_build_webp_srcset( $thumb_id, $size ) {
         if ( count( $parts ) !== 2 ) {
             continue;
         }
-        $webp_url = smacg_get_webp_url( $parts[0] );
+        $webp_url = wxacg_get_webp_url( $parts[0] );
         if ( $webp_url ) {
             $webp_pairs[] = $webp_url . ' ' . $parts[1];
         }
@@ -326,7 +326,7 @@ function smacg_wrap_content_images_with_picture( $content ) {
             // 若上層已是 picture，不重複包
             // （這個簡化邏輯靠 preg_replace_callback 後處理：見下）
 
-            $webp = smacg_get_webp_url( $src );
+            $webp = wxacg_get_webp_url( $src );
             if ( ! $webp ) {
                 return $matches[0];
             }
@@ -374,7 +374,7 @@ add_action( 'admin_action_smacg_bulk_webp', function () {
     foreach ( $q->posts as $aid ) {
         $file = get_attached_file( $aid );
         if ( $file && file_exists( $file ) ) {
-            smacg_convert_to_webp( $file );
+            wxacg_convert_to_webp( $file );
 
             // 各尺寸
             $meta = wp_get_attachment_metadata( $aid );
@@ -382,7 +382,7 @@ add_action( 'admin_action_smacg_bulk_webp', function () {
                 $dir = trailingslashit( dirname( $file ) );
                 foreach ( $meta['sizes'] as $s ) {
                     if ( ! empty( $s['file'] ) ) {
-                        smacg_convert_to_webp( $dir . $s['file'] );
+                        wxacg_convert_to_webp( $dir . $s['file'] );
                     }
                 }
             }

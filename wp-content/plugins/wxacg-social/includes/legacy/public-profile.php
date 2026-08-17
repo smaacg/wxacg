@@ -71,9 +71,9 @@
  *   wxacg_get_public_profile_url( $user_id_or_login )
  *   wxacg_get_public_profile_user()
  *   smacg_is_public_profile_page()
- *   smacg_can_view_profile_section( $user_id, $section )
- *   smacg_pp_is_owner()
- *   smacg_pp_has_seo_plugin()
+ *   wxacg_can_view_profile_section( $user_id, $section )
+ *   wxacg_pp_is_owner()
+ *   wxacg_pp_has_seo_plugin()
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -333,7 +333,7 @@ function smacg_pp_render_meta_tags() {
     printf( "<meta name=\"twitter:image\" content=\"%s\">\n", esc_url( $avatar ) );
 
     // v1.1.0：只有在沒裝 SEO 外掛時才自前發 canonical
-    if ( ! smacg_pp_has_seo_plugin() ) {
+    if ( ! wxacg_pp_has_seo_plugin() ) {
         printf( "<link rel=\"canonical\" href=\"%s\">\n", esc_url( $url ) );
     }
     echo "<!-- /SMACG Public Profile Meta -->\n\n";
@@ -342,7 +342,7 @@ function smacg_pp_render_meta_tags() {
 /**
  * v1.1.0 helper：偵測是否有主流 SEO 外掛
  */
-function smacg_pp_has_seo_plugin() {
+function wxacg_pp_has_seo_plugin() {
     return defined( 'WPSEO_VERSION' )                 // Yoast
         || defined( 'RANK_MATH_VERSION' )              // Rank Math
         || defined( 'AIOSEO_VERSION' )                 // All in One SEO
@@ -416,7 +416,7 @@ function smacg_is_public_profile_page() {
 /**
  * 判斷觀看者能否看到某使用者的某區塊
  */
-function smacg_can_view_profile_section( $owner_id, $section ) {
+function wxacg_can_view_profile_section( $owner_id, $section ) {
     $owner_id = (int) $owner_id;
     if ( ! $owner_id ) return false;
 
@@ -451,7 +451,7 @@ function smacg_can_view_profile_section( $owner_id, $section ) {
 /**
  * 判斷觀看者是否為頁面擁有者本人
  */
-function smacg_pp_is_owner() {
+function wxacg_pp_is_owner() {
     $user = wxacg_get_public_profile_user();
     if ( ! $user ) return false;
     return get_current_user_id() === (int) $user->ID;

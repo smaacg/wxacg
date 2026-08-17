@@ -220,7 +220,7 @@ function smacg_broadcast_system_notification( $title, $excerpt = '', $url = '', 
 
     if ( ! $opts['force'] ) {
         $user_ids = array_values( array_filter( $user_ids, function( $uid ) {
-            return smacg_should_notify( $uid, 'system', 'site' );
+            return wxacg_should_notify( $uid, 'system', 'site' );
         } ) );
         if ( empty( $user_ids ) ) return 0;
     }
@@ -251,7 +251,7 @@ function smacg_broadcast_system_notification( $title, $excerpt = '', $url = '', 
         }
 
         foreach ( $batch as $uid ) {
-            smacg_clear_notification_cache( $uid );
+            wxacg_clear_notification_cache( $uid );
         }
 
         do_action( 'smacg_system_notification_broadcast_batch', $batch, $title, $data_json );

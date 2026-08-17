@@ -84,7 +84,7 @@ add_action( 'wp_ajax_smacg_unfollow', function () {
 	$target_id   = wxacg_follow_ajax_validate();
 	$follower_id = get_current_user_id();
 
-	$result = smacg_unfollow_user( $follower_id, $target_id );
+	$result = wxacg_unfollow_user( $follower_id, $target_id );
 	if ( is_wp_error( $result ) ) {
 		wp_send_json_error( [
 			'code'    => $result->get_error_code(),
