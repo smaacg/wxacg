@@ -652,3 +652,26 @@
   padding: 5px 14px;
 }
 .asd-review-edit-save:disabled { opacity: .6; cursor: default; }
+
+/* ============================================================
+   作者連結（頭像與名稱可點進個人頁）
+   ============================================================ */
+
+.asd-review-author-link {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.asd-review-author-link:hover .asd-review-avatar {
+  opacity: .85;
+}
+
+a.asd-review-author {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.asd-review-author:hover {
+  color: var(--rv-primary);
+  text-decoration: underline;
+}

@@ -133,7 +133,12 @@ class Anime_Sync_Review_Manager {
 	 * @return string[]
 	 */
 	public static function allowed_tracks( int $post_id ): array {
-		$tracks = get_post_type( $post_id ) === 'anime'
+		/*
+		 * 只有「作品」開放長評：動漫與漫畫都會有人想寫完整心得，
+		 * 新聞、角色、人物則是純聊天，長評那套（標題、80 字下限）
+		 * 用不上。
+		 */
+		$tracks = in_array( get_post_type( $post_id ), [ 'anime', 'manga' ], true )
 			? [ self::TRACK_SHORT, self::TRACK_LONG ]
 			: [ self::TRACK_SHORT ];
 
@@ -622,6 +627,8 @@ class Anime_Sync_Review_Manager {
 				'date'       => get_the_date( 'c', $post ),
 				'author_id'  => $author_id,
 				'author'     => get_the_author_meta( 'display_name', $author_id ),
+				// 供前端把作者名與頭像連到個人頁；站上個人頁網址是 /u/{nicename}/
+				'author_url' => home_url( '/u/' . get_the_author_meta( 'user_nicename', $author_id ) . '/' ),
 				'avatar'     => get_avatar_url( $author_id, [ 'size' => 48 ] ),
 				'score'      => $score,
 				'watch_status' => $watch_status,

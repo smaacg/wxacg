@@ -1287,18 +1287,23 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </section>
                 <?php endif; ?>
 
-                <?php /* 留言：改用自建評論系統（原 wpDiscuz 於 2026-08-18 移除） */ ?>
+                <?php
+                /*
+                 * 評論：比照動漫頁採吐槽（短評）＋評論（長評）雙軌——漫畫同樣是
+                 * 「作品」，會有人想寫完整心得；新聞、角色、人物才是純聊天。
+                 * 漫畫沒有集數概念，data-episodes 給空陣列，前端就不顯示集數選單。
+                 */
+                ?>
                 <section class="asd-section asd-comments" id="asd-sec-comments">
-                    <h2 class="asd-section-title">💬 留言</h2>
+                    <h2 class="asd-section-title">📝 評論</h2>
                     <div
                         class="asd-review-root"
                         id="asd-review-root"
                         data-anime-id="<?php echo (int) get_the_ID(); ?>"
                         data-episodes="[]"
-                        data-tracks="short"
-                        data-noun="留言"
+                        data-tracks="short,long"
                     >
-                        <p class="asd-review-loading">留言載入中…</p>
+                        <p class="asd-review-loading">評論載入中…</p>
                     </div>
                 </section>
 

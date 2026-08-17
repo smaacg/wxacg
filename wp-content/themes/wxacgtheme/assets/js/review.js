@@ -445,9 +445,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 // 編輯時要回填原始純文字，不能用顯示後的 HTML
                 '" data-raw="' + escapeHtml(item.content) + '">' +
                 '<div class="asd-review-card-head">' +
-                    '<img class="asd-review-avatar" src="' + escapeHtml(item.avatar) + '" alt="" loading="lazy">' +
+                    // 頭像與名稱都連到個人頁，方便從留言認識發言者
+                    '<a class="asd-review-author-link" href="' + escapeHtml(item.author_url || '#') + '">' +
+                        '<img class="asd-review-avatar" src="' + escapeHtml(item.avatar) + '" alt="" loading="lazy">' +
+                    '</a>' +
                     '<div class="asd-review-card-meta">' +
-                        '<span class="asd-review-author">' + escapeHtml(item.author) + '</span>' +
+                        '<a class="asd-review-author" href="' + escapeHtml(item.author_url || '#') + '">' +
+                            escapeHtml(item.author) +
+                        '</a>' +
                         episodeTag + statusTag + scoreTag + editedTag +
                     '</div>' +
                     deleteBtn +
