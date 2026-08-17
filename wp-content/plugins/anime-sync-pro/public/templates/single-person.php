@@ -459,6 +459,24 @@ get_header();
 
             <header class="asa-entity-header">
                 <span class="asa-entity-label"><?php echo $is_cv ? '🎙️ 聲優個人頁' : '🛠️ 製作人員個人頁'; ?></span>
+
+                <?php
+                /*
+                 * 動作列：與角色頁一致。兩個都是頁內錨點，對應下方的
+                 * #asa-sec-corrections 與 #asa-sec-comments。
+                 * 未登入時糾錯改導向登入頁並帶回原網址與錨點。
+                 */
+                $person_permalink = home_url( '/person/' . $person_bgm_id . '/' );
+                ?>
+                <div class="asa-entity-actions">
+                    <?php if ( is_user_logged_in() ) : ?>
+                        <a href="#asa-sec-corrections" class="asa-action-btn">✏ 糾錯回報</a>
+                    <?php else : ?>
+                        <a href="<?php echo esc_url( wp_login_url( $person_permalink . '#asa-sec-corrections' ) ); ?>" class="asa-action-btn">✏ 糾錯回報</a>
+                    <?php endif; ?>
+
+                    <a href="#asa-sec-comments" class="asa-action-btn">💬 留言</a>
+                </div>
             </header>
 
             <?php if ( current_user_can( 'manage_options' ) ) : ?>
@@ -696,6 +714,33 @@ get_header();
 
             $person_comment_post_id = asa_get_person_comment_post_id( $person );
             ?>
+
+            <?php
+            /*
+             * 糾錯回報：與角色頁相同做法。表單靠 $post 取得回報對象，
+             * 人物本身不是文章，因此暫時把 $post 換成留言載體再輸出，
+             * 之後立即還原，避免影響頁面其餘部分。
+             */
+            ?>
+            <section class="asa-entity-corrections" id="asa-sec-corrections">
+                <h2 class="asa-section-title">✏ 糾錯回報</h2>
+                <?php
+                if ( $person_comment_post_id > 0 ) {
+                    global $post;
+                    $__asa_original_post = $post;
+
+                    $post = get_post( $person_comment_post_id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride
+                    setup_postdata( $post );
+
+                    echo do_shortcode( '[wxacg_correction_form]' );
+
+                    $post = $__asa_original_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
+                    wp_reset_postdata();
+                } else {
+                    echo '<p style="color:var(--asa-text-dim);font-size:.85rem;">糾錯表單暫時無法載入，請稍後再試。</p>';
+                }
+                ?>
+            </section>
 
             <?php if ( $person_comment_post_id > 0 ) : ?>
                 <section class="asa-entity-comments" id="asa-sec-comments">
