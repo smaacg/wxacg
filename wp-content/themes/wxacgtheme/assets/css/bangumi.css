@@ -1,0 +1,2764 @@
+/**
+ * Bangumi 番組表樣式
+ * File: blocksy-child/assets/css/bangumi.css
+ * Version: 1.7.0 (2026-06-21)
+ *
+ * Changelog
+ *  v1.7.0 (2026-06-21) 補完 archive / index 頁樣式
+ *    - 新增 .bgm-arc-* 完整樣式（index 與 archive 頁共用：Hero、年份卡、季度卡）
+ *    - 新增 .bgm-index-* 完整樣式（index 頁專屬：精選封面、依季度瀏覽、介紹文）
+ *    - 新增 body:has(.bgm-arc-main) 全寬修正（這兩頁 <body> 沒有
+ *      is-bangumi-season class，原本只對該 class 生效的全寬修正完全沒套用，
+ *      是 /bangumi/ 與 /bangumi/archive/ 跑版的根本原因）
+ *    - 移除舊版結尾零散、不完整的 .bgm-index-* 補丁（只有 13 行、缺 archive
+ *      樣式、缺全寬修正），改為本次完整版本
+ *  v1.6.0 (2026-05-25) 跑版修正 + 網格優化
+ *    - 修正 .bgm-detail[hidden] 被 display:grid 覆蓋導致內容噴出（核心 bug）
+ *    - .bgm-detail 預設 display:none，需 .is-open 才顯示（雙保險）
+ *    - .bgm-grid 加 align-items: start，卡片頂端對齊
+ *    - .bgm-card-trigger / .bgm-card 加 min-width: 0，修 grid 溢出
+ *    - 父容器強制滿寬（.bgm-main / 父層 .ct-container / .entry-content）
+ *    - 桌機欄寬 180px → 170px，1024px 寬度可排 5 欄
+ *    - 手機端網格、卡片字體、內距重新調整
+ *    - 篩選工具列 sticky top 60px → 64px（避開 header）
+ *  v1.5.0 (2026-05-19) P0 + P1 完整升級
+ *  v1.4.0 (2026-05-18) 四季氛圍化
+ *  v1.3.2 acgsecrets 風卡片
+ *  v1.3.0 初版
+ */
+
+/* ============================================================
+ * 0. 父容器滿寬修正 — v1.6.1 強化版
+ *   針對 Blocksy 主題的所有可能容器，強制全寬、隱藏側欄
+ *   （此區塊只對季度詳細頁 page-bangumi.php 生效，因為只有它
+ *    的 <body> 會被加上 is-bangumi-season class）
+ * ============================================================ */
+
+
+/* 強制 body 上的 Blocksy 配置改為無側欄、全寬 */
+body.is-bangumi-season {
+    --has-sidebar: 0;
+}
+
+/* 隱藏所有可能的 Blocksy 側邊欄 */
+body.is-bangumi-season aside[class*="sidebar"],
+body.is-bangumi-season .ct-sidebar,
+body.is-bangumi-season #right-sidebar,
+body.is-bangumi-season #left-sidebar,
+body.is-bangumi-season [data-sidebar],
+body.is-bangumi-season .sidebar {
+    display: none !important;
+}
+
+/* 把所有 Blocksy 包裹層改為全寬 */
+body.is-bangumi-season #main-container,
+body.is-bangumi-season .ct-container,
+body.is-bangumi-season .ct-container-narrow,
+body.is-bangumi-season .entry-content,
+body.is-bangumi-season .ct-main-content,
+body.is-bangumi-season .ct-page-content,
+body.is-bangumi-season main[id="main"],
+body.is-bangumi-season article,
+body.is-bangumi-season .page article,
+body.is-bangumi-season [data-content-area],
+body.is-bangumi-season [data-row="content"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    grid-template-columns: 1fr !important;  /* 移除側欄欄 */
+    display: block !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    float: none !important;
+}
+
+/* Blocksy 卡片樣式包覆（避免 entry-content 給卡片邊距） */
+body.is-bangumi-season .entry-content > * {
+    max-width: 100%;
+}
+
+/* ============================================================
+ * 0.1 父容器滿寬修正（index / archive 頁專用）
+ *   page-bangumi-index.php 與 page-bangumi-archive.php 的
+ *   <body> 沒有 is-bangumi-season class，改用容器選擇器
+ *   .bgm-arc-main 是否存在來判斷，達到同樣的全寬 / 隱藏側欄效果
+ * ============================================================ */
+body:has(.bgm-arc-main) aside[class*="sidebar"],
+body:has(.bgm-arc-main) .ct-sidebar,
+body:has(.bgm-arc-main) #right-sidebar,
+body:has(.bgm-arc-main) #left-sidebar,
+body:has(.bgm-arc-main) [data-sidebar],
+body:has(.bgm-arc-main) .sidebar {
+    display: none !important;
+}
+
+body:has(.bgm-arc-main) #main-container,
+body:has(.bgm-arc-main) .ct-container,
+body:has(.bgm-arc-main) .ct-container-narrow,
+body:has(.bgm-arc-main) .entry-content,
+body:has(.bgm-arc-main) .ct-main-content,
+body:has(.bgm-arc-main) .ct-page-content,
+body:has(.bgm-arc-main) main[id="main"],
+body:has(.bgm-arc-main) article,
+body:has(.bgm-arc-main) .page article,
+body:has(.bgm-arc-main) [data-content-area],
+body:has(.bgm-arc-main) [data-row="content"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    grid-template-columns: 1fr !important;
+    display: block !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    float: none !important;
+}
+
+body:has(.bgm-arc-main) .entry-content > * {
+    max-width: 100%;
+}
+
+/* ============================================================
+ * 1. CSS 變數
+ * ============================================================ */
+.is-bangumi-season {
+    --bgm-text:       #e5e7eb;
+    --bgm-text-soft:  #cbd5e1;
+    --bgm-text-mute:  #94a3b8;
+    --bgm-bg:         #0f172a;
+    --bgm-bg-card:    #1e293b;
+    --bgm-bg-hover:   #273449;
+    --bgm-border:     rgba(255,255,255,0.08);
+    --bgm-border-h:   rgba(255,255,255,0.16);
+    --bgm-shadow:     0 1px 3px rgba(0,0,0,0.3);
+    --bgm-shadow-lg:  0 10px 30px rgba(0,0,0,0.4);
+    --bgm-radius:     12px;
+    --bgm-radius-sm:  6px;
+    --bgm-gap:        16px;
+    --bgm-accent:     var(--bgm-main);
+    --bgm-glow:       rgba(249,168,212,.4);
+    --bgm-today:      #fbbf24;
+    --bgm-today-glow: rgba(251,191,36,.5);
+}
+
+.is-bangumi-season[style*="#f9a8d4"],
+.is-bangumi-season {
+    --bgm-glow: rgba(249,168,212,.45);
+}
+
+/* ============================================================
+ * 2. 主容器 + 麵包屑
+ * ============================================================ */
+.bgm-main {
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 16px 80px;
+    color: var(--bgm-text);
+    box-sizing: border-box;
+}
+
+.bgm-main * { box-sizing: border-box; }
+
+.bgm-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0;
+    font-size: 13px;
+    color: var(--bgm-text-soft);
+    flex-wrap: wrap;
+}
+
+.bgm-breadcrumb a {
+    color: var(--bgm-text-soft);
+    text-decoration: none;
+    transition: color .15s;
+}
+
+.bgm-breadcrumb a:hover { color: var(--bgm-main); }
+
+.bgm-breadcrumb span[aria-current] {
+    color: var(--bgm-text);
+    font-weight: 600;
+}
+
+/* ============================================================
+ * 3. Hero
+ * ============================================================ */
+.bgm-hero {
+    position: relative;
+    padding: 48px 36px 40px;
+    margin-bottom: 28px;
+    border: 1px solid var(--bgm-border);
+    border-radius: 18px;
+    overflow: hidden;
+    color: #fff;
+    background:
+        linear-gradient(135deg, var(--bgm-soft) 0%, rgba(15,23,42,.45) 65%, rgba(15,23,42,.75) 100%),
+        var(--bgm-bg-card);
+    isolation: isolate;
+}
+
+.bgm-hero::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 560px;
+    height: 560px;
+    background: radial-gradient(circle, var(--bgm-main) 0%, transparent 65%);
+    opacity: .28;
+    pointer-events: none;
+    z-index: 0;
+    animation: bgmHeroGlow 8s ease-in-out infinite;
+}
+
+@keyframes bgmHeroGlow {
+    0%, 100% { transform: scale(1) translateY(0); opacity: .28; }
+    50%      { transform: scale(1.15) translateY(20px); opacity: .42; }
+}
+
+.bgm-hero-inner { position: relative; z-index: 2; }
+
+.bgm-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 16px var(--bgm-glow);
+    animation: bgmBadgePulse 3s ease-in-out infinite;
+}
+
+@keyframes bgmBadgePulse {
+    0%, 100% { box-shadow: 0 4px 16px var(--bgm-glow); }
+    50%      { box-shadow: 0 4px 24px var(--bgm-glow), 0 0 0 6px rgba(255,255,255,0); }
+}
+
+.bgm-hero-title {
+    font-size: clamp(28px, 4.2vw, 42px);
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: #ffffff;
+    line-height: 1.15;
+    letter-spacing: .5px;
+    text-shadow: 0 2px 16px rgba(0,0,0,.5), 0 0 40px var(--bgm-glow);
+}
+
+.bgm-hero-sub {
+    font-size: 14px;
+    color: rgba(255,255,255,.88);
+    margin: 0 0 28px;
+    max-width: 780px;
+    line-height: 1.7;
+    text-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+
+/* ============================================================
+ * 4. Hero 季節裝飾層
+ * ============================================================ */
+.bgm-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: .9;
+}
+
+/* 春 */
+.bgm-season-spring::after {
+    background-image:
+        radial-gradient(ellipse 8px 6px at 10% 20%, rgba(249,168,212,.85), transparent 70%),
+        radial-gradient(ellipse 6px 5px at 25% 60%, rgba(252,231,243,.7), transparent 70%),
+        radial-gradient(ellipse 7px 5px at 40% 30%, rgba(249,168,212,.6), transparent 70%),
+        radial-gradient(ellipse 5px 4px at 60% 75%, rgba(252,231,243,.8), transparent 70%),
+        radial-gradient(ellipse 8px 6px at 75% 25%, rgba(249,168,212,.7), transparent 70%),
+        radial-gradient(ellipse 6px 5px at 85% 55%, rgba(252,231,243,.65), transparent 70%),
+        radial-gradient(ellipse 7px 6px at 90% 85%, rgba(249,168,212,.6), transparent 70%),
+        radial-gradient(ellipse 5px 4px at 15% 90%, rgba(252,231,243,.75), transparent 70%),
+        radial-gradient(ellipse 6px 5px at 50% 10%, rgba(249,168,212,.5), transparent 70%),
+        radial-gradient(ellipse 7px 5px at 70% 95%, rgba(252,231,243,.7), transparent 70%);
+    animation: bgmFallSpring 14s linear infinite;
+}
+
+@keyframes bgmFallSpring {
+    0%   { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%; }
+    100% { background-position: -8% 110%, 6% 110%, -4% 110%, 8% 110%, -6% 110%, 4% 110%, -2% 110%, 10% 110%, -8% 110%, 6% 110%; }
+}
+
+/* 夏 */
+.bgm-season-summer::after {
+    background-image:
+        conic-gradient(from 0deg at 85% 15%, transparent 0deg, rgba(255,255,180,.18) 5deg, transparent 10deg, rgba(255,255,180,.12) 30deg, transparent 35deg, rgba(255,255,180,.18) 60deg, transparent 65deg, rgba(255,255,180,.1) 90deg, transparent 95deg),
+        radial-gradient(ellipse 200% 60px at 0% 100%, transparent 40%, rgba(96,165,250,.25) 50%, transparent 60%),
+        radial-gradient(ellipse 200% 40px at 0% 95%, transparent 40%, rgba(125,211,252,.2) 50%, transparent 60%);
+    animation: bgmShimmerSummer 6s ease-in-out infinite;
+}
+
+@keyframes bgmShimmerSummer {
+    0%, 100% { opacity: .9; transform: translateX(0); }
+    50%      { opacity: 1; transform: translateX(-20px); }
+}
+
+/* 秋 */
+.bgm-season-fall::after {
+    background-image:
+        radial-gradient(ellipse 8px 8px at 12% 25%, rgba(251,146,60,.85), transparent 65%),
+        radial-gradient(ellipse 7px 7px at 28% 55%, rgba(220,38,38,.7), transparent 65%),
+        radial-gradient(ellipse 9px 9px at 45% 35%, rgba(251,146,60,.65), transparent 65%),
+        radial-gradient(ellipse 6px 6px at 62% 70%, rgba(217,119,6,.75), transparent 65%),
+        radial-gradient(ellipse 8px 8px at 78% 28%, rgba(251,146,60,.7), transparent 65%),
+        radial-gradient(ellipse 7px 7px at 88% 60%, rgba(220,38,38,.65), transparent 65%),
+        radial-gradient(ellipse 9px 9px at 18% 88%, rgba(217,119,6,.6), transparent 65%),
+        radial-gradient(ellipse 6px 6px at 52% 92%, rgba(251,146,60,.7), transparent 65%),
+        radial-gradient(circle 200px at 90% 90%, rgba(251,146,60,.2), transparent 70%);
+    animation: bgmFallAutumn 18s linear infinite;
+}
+
+@keyframes bgmFallAutumn {
+    0%   { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0 0; }
+    100% { background-position: -10% 110%, 8% 110%, -6% 110%, 12% 110%, -8% 110%, 6% 110%, -12% 110%, 10% 110%, 0 0; }
+}
+
+/* 冬 */
+.bgm-season-winter::after {
+    background-image:
+        radial-gradient(circle 3px at 10% 20%, rgba(255,255,255,.9), transparent),
+        radial-gradient(circle 2px at 25% 45%, rgba(255,255,255,.7), transparent),
+        radial-gradient(circle 4px at 40% 25%, rgba(255,255,255,.85), transparent),
+        radial-gradient(circle 2px at 55% 65%, rgba(255,255,255,.7), transparent),
+        radial-gradient(circle 3px at 70% 30%, rgba(255,255,255,.8), transparent),
+        radial-gradient(circle 2px at 85% 55%, rgba(255,255,255,.7), transparent),
+        radial-gradient(circle 4px at 92% 80%, rgba(255,255,255,.85), transparent),
+        radial-gradient(circle 3px at 15% 88%, rgba(255,255,255,.8), transparent),
+        radial-gradient(circle 2px at 50% 12%, rgba(255,255,255,.65), transparent),
+        radial-gradient(circle 3px at 75% 95%, rgba(255,255,255,.75), transparent),
+        radial-gradient(circle 200px at 50% 50%, rgba(186,230,253,.15), transparent 70%);
+    animation: bgmFallWinter 22s linear infinite;
+}
+
+@keyframes bgmFallWinter {
+    0%   { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0 0; }
+    100% { background-position: 2% 110%, -4% 110%, 6% 110%, -2% 110%, 4% 110%, -6% 110%, 2% 110%, -4% 110%, 6% 110%, -2% 110%, 0 0; }
+}
+
+/* ============================================================
+ * 5. Hero 內元素（按鈕、統計）
+ * ============================================================ */
+.bgm-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 28px;
+}
+
+.bgm-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 9px 18px;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all .2s;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+}
+
+.bgm-nav-btn:hover {
+    background: rgba(255,255,255,.2);
+    border-color: var(--bgm-main);
+    color: var(--bgm-main);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--bgm-glow);
+}
+
+.bgm-nav-btn.is-current {
+    background: var(--bgm-main);
+    border-color: var(--bgm-main);
+    color: #1a1a1a;
+    box-shadow: 0 4px 16px var(--bgm-glow);
+}
+
+.bgm-nav-btn.is-archive {
+    margin-left: auto;
+    background: rgba(255,255,255,.06);
+}
+
+.bgm-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 14px;
+    max-width: 720px;
+}
+
+.bgm-stat {
+    background: rgba(0,0,0,.4);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 12px;
+    padding: 18px 14px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+
+.bgm-stat:hover {
+    transform: translateY(-3px);
+    border-color: var(--bgm-main);
+    box-shadow: 0 8px 24px var(--bgm-glow);
+}
+
+.bgm-stat-n {
+    display: block;
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--bgm-main);
+    line-height: 1;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 12px var(--bgm-glow);
+    animation: bgmStatPulse 4s ease-in-out infinite;
+}
+
+@keyframes bgmStatPulse {
+    0%, 100% { text-shadow: 0 2px 12px var(--bgm-glow); }
+    50%      { text-shadow: 0 2px 20px var(--bgm-glow), 0 0 30px var(--bgm-glow); }
+}
+
+.bgm-stat-l {
+    display: block;
+    font-size: 12px;
+    color: rgba(255,255,255,.78);
+    letter-spacing: .5px;
+}
+
+/* ============================================================
+ * 6. 篩選工具列
+ * ============================================================ */
+.bgm-filters {
+    background: var(--bgm-bg-card);
+    border: 1px solid var(--bgm-border);
+    border-radius: var(--bgm-radius);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    position: sticky;
+    top: 64px;
+    z-index: 60;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.bgm-filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.bgm-filters-row + .bgm-filters-row {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--bgm-border);
+}
+
+/* 搜尋框 */
+.bgm-search-wrap {
+    position: relative;
+    flex: 1 1 280px;
+    min-width: 0;
+}
+
+.bgm-search-icon {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: var(--bgm-text-mute);
+    pointer-events: none;
+}
+
+.bgm-search {
+    width: 100%;
+    padding: 9px 36px 9px 34px;
+    background: var(--bgm-bg-hover);
+    border: 1px solid var(--bgm-border);
+    border-radius: 10px;
+    color: var(--bgm-text);
+    font-size: 14px;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.bgm-search:focus {
+    outline: none;
+    border-color: var(--bgm-main);
+    box-shadow: 0 0 0 3px var(--bgm-glow);
+}
+
+.bgm-search::placeholder {
+    color: var(--bgm-text-mute);
+}
+
+.bgm-search-clear {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    background: var(--bgm-bg-hover);
+    border: 1px solid var(--bgm-border);
+    border-radius: 50%;
+    color: var(--bgm-text-soft);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all .15s;
+}
+
+.bgm-search-clear:hover {
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    border-color: var(--bgm-main);
+}
+
+/* 視圖切換 */
+.bgm-views {
+    display: inline-flex;
+    background: var(--bgm-bg-hover);
+    border: 1px solid var(--bgm-border);
+    border-radius: 10px;
+    padding: 3px;
+    flex-shrink: 0;
+}
+
+.bgm-view-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    color: var(--bgm-text-soft);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.bgm-view-btn:hover {
+    color: var(--bgm-text);
+    background: rgba(255,255,255,.05);
+}
+
+.bgm-view-btn.is-active {
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    box-shadow: 0 2px 8px var(--bgm-glow);
+}
+
+.bgm-view-l { letter-spacing: .5px; }
+
+/* Select 篩選器 */
+.bgm-fil {
+    padding: 7px 28px 7px 12px;
+    background: var(--bgm-bg-hover);
+    border: 1px solid var(--bgm-border);
+    border-radius: 8px;
+    color: var(--bgm-text);
+    font-size: 13px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 10px;
+    max-width: 160px;
+    transition: border-color .15s;
+}
+
+.bgm-fil:focus {
+    outline: none;
+    border-color: var(--bgm-main);
+    box-shadow: 0 0 0 2px var(--bgm-glow);
+}
+
+.bgm-fil.is-active {
+    border-color: var(--bgm-main);
+    background-color: var(--bgm-soft);
+    color: #1a1a1a;
+}
+
+.bgm-fil-reset {
+    padding: 7px 14px;
+    background: transparent;
+    border: 1px solid var(--bgm-border);
+    border-radius: 8px;
+    color: var(--bgm-text-soft);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.bgm-fil-reset:hover {
+    background: var(--bgm-bg-hover);
+    color: var(--bgm-text);
+    border-color: var(--bgm-border-h);
+}
+
+.bgm-fil-reset.is-show {
+    background: var(--bgm-soft);
+    color: #1a1a1a;
+    border-color: var(--bgm-main);
+}
+
+/* 結果統計列 */
+.bgm-fil-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--bgm-border);
+    font-size: 12px;
+    color: var(--bgm-text-soft);
+}
+
+.bgm-result-count {
+    color: var(--bgm-text);
+    font-weight: 600;
+}
+
+.bgm-fil-hint {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* ============================================================
+ * 7. 工具列：星期
+ * ============================================================ */
+.bgm-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    background: var(--bgm-bg-card);
+    border: 1px solid var(--bgm-border);
+    border-radius: var(--bgm-radius);
+}
+
+.bgm-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.bgm-day {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid var(--bgm-border);
+    border-radius: 999px;
+    color: var(--bgm-text-soft);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.bgm-day:hover {
+    background: var(--bgm-bg-hover);
+    color: var(--bgm-text);
+    border-color: var(--bgm-border-h);
+}
+
+.bgm-day.is-active {
+    background: var(--bgm-main);
+    border-color: var(--bgm-main);
+    color: #1a1a1a;
+    box-shadow: 0 2px 8px var(--bgm-glow);
+}
+
+.bgm-day-n { margin-left: 4px; font-size: 11px; opacity: .75; }
+
+.bgm-days-empty { color: var(--bgm-text-soft); font-size: 14px; }
+
+.bgm-sort-wrap { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.bgm-sort-label { font-size: 13px; color: var(--bgm-text-soft); }
+
+.bgm-sort {
+    padding: 7px 28px 7px 12px;
+    background: var(--bgm-bg-hover);
+    border: 1px solid var(--bgm-border);
+    border-radius: 8px;
+    color: var(--bgm-text);
+    font-size: 13px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 10px;
+}
+
+.bgm-sort:focus { outline: 2px solid var(--bgm-main); outline-offset: 2px; }
+
+/* ============================================================
+ * 8. 卡片網格 — 關鍵修正
+ * ============================================================ */
+.bgm-grid-wrap {
+    margin-top: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.bgm-group {
+    margin-bottom: 36px;
+    width: 100%;
+    min-width: 0;
+}
+.bgm-group.is-flat { margin-bottom: 0; }
+
+.bgm-group-title {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--bgm-text);
+    margin: 0 0 16px;
+    padding-left: 14px;
+    border-left: 4px solid var(--bgm-main);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.bgm-group-n { font-size: 13px; font-weight: 500; color: var(--bgm-text-soft); }
+
+.bgm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: var(--bgm-gap);
+    width: 100%;
+    align-items: start;  /* 卡片頂端對齊，不會被某張高卡撐高整列 */
+}
+
+/* ============================================================
+ * 9. 卡片本體
+ * ============================================================ */
+.bgm-card {
+    position: relative;
+    background: var(--bgm-bg-card);
+    border: 1px solid var(--bgm-border);
+    border-radius: var(--bgm-radius);
+    overflow: hidden;
+    min-width: 0;        /* 修 grid 子項 min-width:auto 溢出 */
+    align-self: start;
+    transition: transform .25s cubic-bezier(.34,1.56,.64,1), border-color .2s, box-shadow .25s, opacity .2s;
+}
+
+.bgm-card:hover {
+    transform: translateY(-6px);
+    border-color: var(--bgm-main);
+    box-shadow:
+        0 12px 32px rgba(0,0,0,.4),
+        0 0 0 1px var(--bgm-main),
+        0 0 24px var(--bgm-glow);
+}
+
+.bgm-card.has-status { border-color: var(--bgm-main); }
+
+.bgm-card.status-watching::before,
+.bgm-card.status-want::before,
+.bgm-card.status-completed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--bgm-main);
+    z-index: 3;
+    box-shadow: 0 0 12px var(--bgm-glow);
+}
+
+/* 今日更新光暈 */
+.bgm-card.is-today {
+    border-color: var(--bgm-today);
+    box-shadow: 0 0 0 1px var(--bgm-today), 0 0 16px var(--bgm-today-glow);
+    animation: bgmTodayPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes bgmTodayPulse {
+    0%, 100% { box-shadow: 0 0 0 1px var(--bgm-today), 0 0 16px var(--bgm-today-glow); }
+    50%      { box-shadow: 0 0 0 2px var(--bgm-today), 0 0 28px var(--bgm-today-glow); }
+}
+
+.bgm-card.is-today:hover {
+    box-shadow:
+        0 12px 32px rgba(0,0,0,.4),
+        0 0 0 2px var(--bgm-today),
+        0 0 32px var(--bgm-today-glow);
+}
+
+/* 篩選隱藏 */
+.bgm-card.is-hidden-by-filter,
+.bgm-sched-item.is-hidden-by-filter {
+    display: none !important;
+}
+
+.bgm-group.is-empty-after-filter {
+    display: none;
+}
+
+.bgm-card-trigger {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+}
+
+.bgm-card-trigger:focus-visible {
+    outline: 2px solid var(--bgm-main);
+    outline-offset: 2px;
+}
+
+/* 封面 */
+.bgm-card-cover {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    background: linear-gradient(135deg, #1f2937, #111827);
+    overflow: hidden;
+}
+
+.bgm-card-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .4s cubic-bezier(.25,.46,.45,.94);
+}
+
+.bgm-card:hover .bgm-card-cover img { transform: scale(1.06); }
+
+.bgm-card-cover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 60%, var(--bgm-main) 130%);
+    opacity: 0;
+    transition: opacity .25s;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+}
+
+.bgm-card:hover .bgm-card-cover::after { opacity: .35; }
+
+.bgm-card-noimg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 48px;
+    color: var(--bgm-text-mute);
+}
+
+/* 評分徽章 */
+.bgm-card-score {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 9px;
+    background: rgba(0,0,0,0.78);
+    color: #fbbf24;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    backdrop-filter: blur(6px);
+    z-index: 2;
+}
+
+.bgm-card-score.is-hot {
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(239,68,68,.4);
+}
+
+.bgm-card-today {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 3px 8px;
+    background: var(--bgm-today);
+    color: #1a1a1a;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    z-index: 3;
+    box-shadow: 0 2px 8px var(--bgm-today-glow);
+    animation: bgmTodayBadge 1.6s ease-in-out infinite;
+}
+
+@keyframes bgmTodayBadge {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+}
+
+.bgm-card-chip {
+    position: absolute;
+    top: 36px;
+    right: 8px;
+    padding: 3px 8px;
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    z-index: 2;
+    box-shadow: 0 2px 8px var(--bgm-glow);
+}
+
+.bgm-card:not(.is-today) .bgm-card-chip { top: 8px; }
+
+.bgm-card-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(0,0,0,0.3);
+    z-index: 2;
+}
+
+.bgm-card-progress span {
+    display: block;
+    height: 100%;
+    background: var(--bgm-main);
+    box-shadow: 0 0 8px var(--bgm-glow);
+    transition: width .3s;
+}
+
+/* 卡片資訊 */
+.bgm-card-meta {
+    padding: 12px 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.bgm-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bgm-text);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.8em;
+    transition: color .2s;
+    word-break: break-word;
+}
+
+.bgm-card:hover .bgm-card-title { color: var(--bgm-main); }
+
+.bgm-card-jp {
+    font-size: 11px;
+    color: var(--bgm-text-mute);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bgm-card-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.bgm-card-pill {
+    display: inline-block;
+    padding: 1px 7px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--bgm-border);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--bgm-text-soft);
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.bgm-card-pill.is-day {
+    background: var(--bgm-soft);
+    color: var(--bgm-main);
+    border-color: var(--bgm-main);
+    opacity: .9;
+}
+
+.bgm-card-pill.is-source {
+    background: rgba(167,139,250,.15);
+    border-color: rgba(167,139,250,.4);
+    color: #c4b5fd;
+}
+
+.bgm-card-genres {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 1px;
+}
+
+.bgm-card-gtag {
+    display: inline-block;
+    padding: 1px 6px;
+    background: rgba(96,165,250,.12);
+    border: 1px solid rgba(96,165,250,.3);
+    border-radius: 999px;
+    font-size: 10px;
+    color: #93c5fd;
+    line-height: 1.5;
+}
+
+.bgm-card-studio {
+    font-size: 11px;
+    color: var(--bgm-text-soft);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.bgm-card-plats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 2px;
+}
+
+.bgm-card-syn {
+    display: none;
+    font-size: 12px;
+    color: var(--bgm-text-soft);
+    line-height: 1.55;
+    margin-top: 6px;
+}
+
+.bgm-plat-mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 18px;
+    padding: 0 5px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--bgm-border);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--bgm-text-soft);
+    letter-spacing: -.5px;
+}
+
+.bgm-plat-mini.is-more {
+    background: var(--bgm-soft);
+    color: var(--bgm-main);
+    border-color: var(--bgm-main);
+}
+
+/* 21 個平台色票（mini） */
+.bgm-plat-bahamut      { background: rgba(252,211,77,.18);  color: #fcd34d; border-color: rgba(252,211,77,.35); }
+.bgm-plat-hami         { background: rgba(56,189,248,.18);  color: #7dd3fc; border-color: rgba(56,189,248,.35); }
+.bgm-plat-myvideo      { background: rgba(250,204,21,.16);  color: #fde047; border-color: rgba(250,204,21,.35); }
+.bgm-plat-linetv       { background: rgba(34,197,94,.18);   color: #86efac; border-color: rgba(34,197,94,.35); }
+.bgm-plat-friday       { background: rgba(244,114,182,.18); color: #f9a8d4; border-color: rgba(244,114,182,.35); }
+.bgm-plat-ofiii        { background: rgba(168,85,247,.18);  color: #c4b5fd; border-color: rgba(168,85,247,.35); }
+.bgm-plat-catchplay    { background: rgba(20,184,166,.18);  color: #5eead4; border-color: rgba(20,184,166,.35); }
+.bgm-plat-bilibili     { background: rgba(125,211,252,.18); color: #7dd3fc; border-color: rgba(125,211,252,.35); }
+.bgm-plat-ani_one      { background: rgba(251,113,133,.18); color: #fda4af; border-color: rgba(251,113,133,.35); }
+.bgm-plat-muse         { background: rgba(249,168,212,.18); color: #f9a8d4; border-color: rgba(249,168,212,.35); }
+.bgm-plat-mighty       { background: rgba(248,113,113,.18); color: #fca5a5; border-color: rgba(248,113,113,.35); }
+.bgm-plat-ani_mi       { background: rgba(196,181,253,.18); color: #c4b5fd; border-color: rgba(196,181,253,.35); }
+.bgm-plat-netflix      { background: rgba(239,68,68,.18);   color: #f87171; border-color: rgba(239,68,68,.35); }
+.bgm-plat-disney       { background: rgba(96,165,250,.18);  color: #93c5fd; border-color: rgba(96,165,250,.35); }
+.bgm-plat-litv         { background: rgba(132,204,22,.18);  color: #bef264; border-color: rgba(132,204,22,.35); }
+.bgm-plat-tropicsanime { background: rgba(45,212,191,.18);  color: #5eead4; border-color: rgba(45,212,191,.35); }
+.bgm-plat-iqiyi        { background: rgba(34,197,94,.18);   color: #86efac; border-color: rgba(34,197,94,.35); }
+.bgm-plat-renta        { background: rgba(251,146,60,.18);  color: #fdba74; border-color: rgba(251,146,60,.35); }
+.bgm-plat-anipass      { background: rgba(217,70,239,.18);  color: #e879f9; border-color: rgba(217,70,239,.35); }
+.bgm-plat-amazon       { background: rgba(253,186,116,.18); color: #fdba74; border-color: rgba(253,186,116,.35); }
+.bgm-plat-crunchyroll  { background: rgba(251,146,60,.18);  color: #fdba74; border-color: rgba(251,146,60,.35); }
+
+/* ============================================================
+ * 10. List 視圖（橫向卡片）
+ * ============================================================ */
+.bgm-view-list-mode .bgm-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.bgm-view-list-mode .bgm-card {
+    overflow: hidden;
+}
+
+.bgm-view-list-mode .bgm-card-trigger {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 0;
+}
+
+.bgm-view-list-mode .bgm-card-cover {
+    aspect-ratio: auto;
+    height: 100%;
+    min-height: 160px;
+}
+
+.bgm-view-list-mode .bgm-card-meta {
+    padding: 14px 18px 14px 16px;
+    gap: 7px;
+}
+
+.bgm-view-list-mode .bgm-card-title {
+    font-size: 16px;
+    min-height: 0;
+    -webkit-line-clamp: 1;
+}
+
+.bgm-view-list-mode .bgm-card-jp {
+    display: block;
+}
+
+.bgm-view-list-mode .bgm-card-syn {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.bgm-view-list-mode .bgm-card-bar,
+.bgm-view-list-mode .bgm-card-genres,
+.bgm-view-list-mode .bgm-card-plats {
+    margin-top: 4px;
+}
+
+/* ============================================================
+ * 11. 長條詳情 — 關鍵修正
+ *   v1.6.0：預設 display:none，避免噴出來
+ *   只在 .is-open 或沒有 [hidden] 屬性時才顯示
+ * ============================================================ */
+.bgm-detail {
+    display: none;  /* 預設隱藏，雙保險 */
+    grid-column: 1 / -1;
+    background: var(--bgm-bg-card);
+    border: 1px solid var(--bgm-main);
+    border-radius: var(--bgm-radius);
+    padding: 28px;
+    margin-top: -8px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.4), 0 0 24px var(--bgm-glow);
+}
+
+/* 強制隱藏（覆蓋任何 display:grid/block） */
+.bgm-detail[hidden],
+.bgm-detail.is-hidden {
+    display: none !important;
+}
+
+/* 展開時：JS 加 .is-open 或移除 [hidden] 後顯示 */
+.bgm-detail.is-open,
+.bgm-detail:not([hidden]):not(.is-hidden) {
+    display: block;
+    animation: bgmDetailIn .35s cubic-bezier(.34,1.2,.64,1);
+}
+
+@keyframes bgmDetailIn {
+    from { opacity: 0; transform: translateY(-12px) scale(.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.bgm-d-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px 36px;
+}
+
+.bgm-d-header {
+    grid-column: 1 / -1;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--bgm-border);
+}
+
+.bgm-d-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--bgm-text);
+    margin: 0 0 6px;
+}
+
+.bgm-d-jp { font-size: 14px; color: var(--bgm-text-soft); margin-bottom: 2px; }
+.bgm-d-en { font-size: 12px; color: var(--bgm-text-mute); }
+
+.bgm-d-tags {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.bgm-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--bgm-border);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--bgm-text-soft);
+}
+
+.bgm-tag-source {
+    background: var(--bgm-soft);
+    color: var(--bgm-main);
+    border-color: var(--bgm-main);
+    font-weight: 600;
+    box-shadow: 0 1px 4px var(--bgm-glow);
+}
+
+.bgm-tag-score {
+    background: rgba(251,191,36,.18);
+    color: #fbbf24;
+    border-color: #fbbf24;
+    font-weight: 700;
+}
+
+.bgm-tag-genre {
+    background: rgba(96,165,250,.15);
+    color: #93c5fd;
+    border-color: rgba(96,165,250,.4);
+}
+
+.bgm-d-row {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    font-size: 13px;
+    border-left: 3px solid var(--bgm-main);
+}
+
+.bgm-d-label {
+    flex-shrink: 0;
+    width: 80px;
+    color: var(--bgm-text-soft);
+    font-weight: 600;
+}
+
+.bgm-d-value { color: var(--bgm-text); line-height: 1.7; }
+
+.bgm-d-section { min-width: 0; }
+.bgm-d-section:has(.bgm-d-syn) { grid-column: 1 / -1; }
+
+.bgm-d-h {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bgm-text);
+    margin: 0 0 10px;
+    padding-left: 10px;
+    border-left: 3px solid var(--bgm-main);
+}
+
+.bgm-d-syn {
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: var(--bgm-text-soft);
+}
+
+.bgm-d-syn p { margin: 0 0 8px; }
+.bgm-d-syn p:last-child { margin-bottom: 0; }
+
+.bgm-d-themes { display: flex; flex-direction: column; gap: 10px; }
+
+.bgm-theme-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--bgm-border);
+    border-radius: 8px;
+    font-size: 13px;
+    transition: border-color .15s, background .15s;
+}
+
+.bgm-theme-row:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: var(--bgm-border-h);
+}
+
+.bgm-theme-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bgm-theme-tag {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .5px;
+}
+
+.bgm-theme-op { background: linear-gradient(135deg,#fef3c7,#fcd34d); color: #92400e; }
+.bgm-theme-ed { background: linear-gradient(135deg,#ddd6fe,#a78bfa); color: #5b21b6; }
+
+.bgm-theme-title { color: var(--bgm-text); font-weight: 600; }
+.bgm-theme-artist {
+    color: var(--bgm-text-soft);
+    font-size: 12px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bgm-theme-mv {
+    margin-left: auto;
+    padding: 4px 10px;
+    background: var(--bgm-bg-hover);
+    border: 1px solid var(--bgm-border);
+    border-radius: 6px;
+    color: var(--bgm-text);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.bgm-theme-mv:hover {
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    border-color: var(--bgm-main);
+    box-shadow: 0 2px 8px var(--bgm-glow);
+}
+
+.bgm-theme-audio {
+    width: 100%;
+    height: 36px;
+    border-radius: 6px;
+    background: rgba(0,0,0,.3);
+    color-scheme: dark;
+}
+
+.bgm-theme-audio::-webkit-media-controls-panel {
+    background: rgba(30,41,59,.95);
+}
+
+/* MV Lightbox */
+.bgm-mv-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.bgm-mv-lightbox.is-open {
+    display: flex;
+    animation: bgmMvFadeIn .2s ease-out;
+}
+
+@keyframes bgmMvFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.bgm-mv-stage {
+    position: relative;
+    width: 100%;
+    max-width: 960px;
+    max-height: 90vh;
+    aspect-ratio: 16 / 9;
+}
+
+.bgm-mv-stage video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 12px 48px rgba(0,0,0,.6);
+}
+
+.bgm-mv-close {
+    position: absolute;
+    top: -44px;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.bgm-mv-close:hover { background: var(--bgm-main); color: #1a1a1a; }
+
+.bgm-mv-title {
+    position: absolute;
+    top: -36px;
+    left: 0;
+    color: rgba(255,255,255,.85);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.bgm-d-trailers {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}
+
+.bgm-pv {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border: 1px solid var(--bgm-border);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none;
+    transition: transform .2s, border-color .2s;
+}
+
+.bgm-pv:hover { transform: scale(1.03); border-color: var(--bgm-main); }
+
+.bgm-pv img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: .85;
+    transition: opacity .2s;
+}
+
+.bgm-pv:hover img { opacity: 1; }
+
+.bgm-pv-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    padding-left: 3px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    transition: transform .2s;
+}
+
+.bgm-pv:hover .bgm-pv-play { transform: translate(-50%,-50%) scale(1.1); }
+
+.bgm-pv-title {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 6px 8px;
+    background: linear-gradient(transparent, rgba(0,0,0,.85));
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.bgm-pv iframe { width: 100%; height: 100%; border: 0; }
+
+.bgm-d-platforms { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.bgm-plat {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    background: var(--bgm-bg-hover);
+    border: 1px solid var(--bgm-border);
+    border-radius: 8px;
+    color: var(--bgm-text);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all .15s;
+}
+
+.bgm-plat:hover {
+    background: var(--bgm-main);
+    color: #1a1a1a;
+    border-color: var(--bgm-main);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--bgm-glow);
+}
+
+.bgm-plat.is-nolink { opacity: .6; cursor: default; }
+.bgm-plat.is-other { background: rgba(255,255,255,0.05); color: var(--bgm-text-soft); border-style: dashed; }
+
+.bgm-d-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.bgm-d-li {
+    display: flex;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: background .15s;
+}
+
+.bgm-d-li:hover { background: rgba(255,255,255,0.05); }
+.bgm-d-role { flex-shrink: 0; color: var(--bgm-text-soft); font-weight: 600; }
+.bgm-d-name { color: var(--bgm-text); }
+
+.bgm-d-studios {
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--bgm-border);
+}
+
+.bgm-d-links { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.bgm-link {
+    display: inline-block;
+    padding: 5px 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--bgm-border);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--bgm-text);
+    text-decoration: none;
+    transition: all .15s;
+}
+
+.bgm-link:hover {
+    background: var(--bgm-bg-hover);
+    border-color: var(--bgm-main);
+    color: var(--bgm-main);
+}
+
+.bgm-d-cta {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding-top: 10px;
+    border-top: 1px solid var(--bgm-border);
+}
+
+.bgm-d-more {
+    display: inline-block;
+    padding: 12px 28px;
+    background: linear-gradient(135deg, var(--bgm-main), var(--bgm-soft));
+    color: #1a1a1a;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    text-decoration: none;
+    transition: all .2s;
+    box-shadow: 0 4px 16px var(--bgm-glow);
+}
+
+.bgm-d-more:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px var(--bgm-glow);
+}
+
+/* ============================================================
+ * 12. 時間表視圖
+ * ============================================================ */
+.bgm-schedule { display: none; }
+.bgm-schedule[hidden] { display: none !important; }
+
+.bgm-sched-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.bgm-sched-col {
+    background: var(--bgm-bg-card);
+    border: 1px solid var(--bgm-border);
+    border-radius: var(--bgm-radius);
+    padding: 12px 10px;
+    min-height: 200px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.bgm-sched-col.is-today-col {
+    border-color: var(--bgm-today);
+    box-shadow: 0 0 0 1px var(--bgm-today), 0 4px 20px var(--bgm-today-glow);
+}
+
+.bgm-sched-col.is-today-col .bgm-sched-h {
+    color: var(--bgm-today);
+}
+
+.bgm-sched-h {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bgm-text);
+    margin: 0 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--bgm-main);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.bgm-sched-n {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--bgm-text-soft);
+    padding: 1px 7px;
+    background: var(--bgm-bg-hover);
+    border-radius: 999px;
+}
+
+.bgm-sched-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.bgm-sched-empty {
+    color: var(--bgm-text-mute);
+    font-size: 12px;
+    text-align: center;
+    padding: 18px 0;
+    opacity: .6;
+}
+
+.bgm-sched-item {
+    display: grid;
+    grid-template-columns: 36px 36px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid transparent;
+    border-radius: 7px;
+    text-decoration: none;
+    color: var(--bgm-text);
+    position: relative;
+    transition: all .15s;
+}
+
+.bgm-sched-item:hover {
+    background: var(--bgm-bg-hover);
+    border-color: var(--bgm-main);
+    transform: translateX(2px);
+}
+
+.bgm-sched-item.is-today {
+    background: rgba(251,191,36,.08);
+    border-color: rgba(251,191,36,.4);
+}
+
+.bgm-sched-item.has-status::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--bgm-main);
+}
+
+.bgm-sched-time {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--bgm-main);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.bgm-sched-time.is-tba {
+    color: var(--bgm-text-mute);
+    font-weight: 500;
+}
+
+.bgm-sched-thumb {
+    width: 36px;
+    height: 36px;
+    background: #1f2937;
+    border-radius: 5px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.bgm-sched-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.bgm-sched-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.bgm-sched-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bgm-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bgm-sched-ep {
+    font-size: 10px;
+    color: var(--bgm-text-soft);
+}
+
+.bgm-sched-today {
+    font-size: 13px;
+}
+
+.bgm-sched-tba {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: var(--bgm-bg-card);
+    border: 1px dashed var(--bgm-border);
+    border-radius: var(--bgm-radius);
+}
+
+.bgm-sched-tba-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 6px;
+}
+
+/* ============================================================
+ * 12.1 桌機隱藏時間欄
+ * ============================================================ */
+@media (min-width: 769px) {
+    .bgm-sched-item {
+        grid-template-columns: 36px 1fr auto;
+    }
+    .bgm-sched-item .bgm-sched-time {
+        display: none;
+    }
+    .bgm-sched-item.is-today::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 6px;
+        bottom: 6px;
+        width: 3px;
+        background: var(--bgm-today);
+        border-radius: 0 2px 2px 0;
+    }
+}
+
+/* ============================================================
+ * 13. 手機 modal
+ * ============================================================ */
+.bgm-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .25s;
+}
+
+.bgm-sheet.is-open { pointer-events: auto; opacity: 1; }
+
+.bgm-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.65);
+    backdrop-filter: blur(6px);
+}
+
+.bgm-sheet-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 90vh;
+    background: var(--bgm-bg-card);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -12px 48px rgba(0,0,0,.5), 0 -2px 0 var(--bgm-main);
+    transform: translateY(100%);
+    transition: transform .35s cubic-bezier(.32,.72,0,1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.bgm-sheet.is-open .bgm-sheet-panel { transform: translateY(0); }
+
+.bgm-sheet-panel::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 4px;
+    background: var(--bgm-main);
+    border-radius: 2px;
+    opacity: .6;
+}
+
+.bgm-sheet-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 36px;
+    height: 36px;
+    background: var(--bgm-bg-hover);
+    border: 0;
+    border-radius: 50%;
+    color: var(--bgm-text);
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: background .15s;
+}
+
+.bgm-sheet-close:hover { background: var(--bgm-main); color: #1a1a1a; }
+
+.bgm-sheet-body {
+    padding: 36px 22px 28px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.bgm-sheet-body .bgm-d-inner { grid-template-columns: 1fr; }
+
+body.bgm-sheet-open { overflow: hidden; }
+
+/* ============================================================
+ * 14. 空狀態
+ * ============================================================ */
+.bgm-empty {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--bgm-text-soft);
+}
+
+.bgm-empty p { font-size: 16px; margin: 0 0 20px; }
+
+.bgm-empty-filter[hidden] { display: none; }
+
+/* ============================================================
+ * 15. 視圖切換的顯示/隱藏控制
+ * ============================================================ */
+body.bgm-view-schedule-mode [data-view-show~="grid"]:not([data-view-show~="schedule"]),
+body.bgm-view-schedule-mode [data-view-show~="list"]:not([data-view-show~="schedule"]) {
+    display: none !important;
+}
+
+body.bgm-view-schedule-mode .bgm-schedule,
+body.bgm-view-schedule-mode .bgm-schedule[hidden] {
+    display: block !important;
+}
+
+body:not(.bgm-view-schedule-mode) .bgm-schedule {
+    display: none !important;
+}
+
+/* ============================================================
+ * 16. RWD
+ * ============================================================ */
+@media (max-width: 1280px) {
+    .bgm-grid {
+        grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+    }
+}
+
+@media (max-width: 1024px) {
+    .bgm-grid {
+        grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+        gap: 12px;
+    }
+    .bgm-hero { padding: 36px 28px 32px; }
+    .bgm-sched-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    .bgm-d-inner {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .bgm-main { padding: 0 12px 60px; }
+
+    /* ↓↓↓ v1.6.5：手機 hero 高度縮小 ↓↓↓ */
+    .bgm-hero {
+        padding: 18px 18px 18px;   /* 原 28px 22px 26px → 縮小上下內距 */
+        margin-bottom: 18px;       /* 原 28px → 縮小與下方間距 */
+        border-radius: 14px;
+    }
+    .bgm-hero-title { font-size: 22px; margin: 0 0 6px; }   /* 標題小一點、下方間距縮小 */
+    .bgm-hero-sub { font-size: 12.5px; margin: 0 0 14px; line-height: 1.5; }  /* 副標下方間距縮小 */
+    .bgm-hero-badge { margin-bottom: 8px; padding: 4px 12px; }  /* 季節徽章縮小 */
+    .bgm-nav { margin-bottom: 14px; }                      /* 導覽列與統計間距縮小 */
+    .bgm-stat { padding: 12px 10px; }                      /* 統計方塊內距縮小 */
+    .bgm-stat-n { font-size: 26px; margin-bottom: 4px; }   /* 統計數字縮小 */
+    /* ↑↑↑ 新增結束 ↑↑↑ */
+
+    .bgm-nav-btn.is-archive { margin-left: 0; }
+
+    .bgm-hero::after { animation-duration: 30s; opacity: .6; }
+    .bgm-hero::before { animation: none; }
+    .bgm-stat-n { animation: none; }
+    .bgm-hero-badge { animation: none; }
+    .bgm-card.is-today { animation: none; }
+
+    .bgm-filters { position: static; padding: 12px; }
+    .bgm-filters-row-top { flex-direction: column; align-items: stretch; }
+
+    /* ↓↓↓ v1.6.4 新增：修正手機搜尋框被直向 flex 拉伸變超大 ↓↓↓ */
+    .bgm-filters-row-top .bgm-search-wrap {
+        flex: 0 0 auto;        /* 取消 flex-grow，避免在 column 容器內垂直被拉長 */
+        width: 100%;
+        align-self: stretch;
+    }
+    .bgm-search {
+        height: 40px;          /* 固定高度，避免被撐高 */
+        box-sizing: border-box;
+    }
+    /* ↑↑↑ 新增結束 ↑↑↑ */
+
+    .bgm-views { width: 100%; justify-content: space-between; }
+    .bgm-view-btn { flex: 1; justify-content: center; }
+    .bgm-fil { max-width: none; flex: 1 1 calc(50% - 5px); min-width: 0; }
+    .bgm-sort-wrap { flex: 1 1 100%; margin-left: 0; }
+    .bgm-sort { flex: 1; }
+    .bgm-fil-reset { flex: 1 1 100%; }
+
+    .bgm-toolbar { padding: 12px; }
+
+    .bgm-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 10px;
+    }
+
+    .bgm-card-meta { padding: 8px 10px 10px; }
+    .bgm-card-title { font-size: 13px; min-height: 2.6em; }
+    .bgm-card-jp { display: none; }
+
+    /* 手機完全用 sheet modal，禁用內嵌 detail */
+    .bgm-detail,
+    .bgm-detail.is-open,
+    .bgm-detail:not([hidden]) {
+        display: none !important;
+    }
+
+    .bgm-view-list-mode .bgm-card-trigger {
+        grid-template-columns: 90px 1fr;
+    }
+    .bgm-view-list-mode .bgm-card-cover { min-height: 130px; }
+
+    .bgm-theme-mv { padding: 6px 12px; font-size: 12px; }
+    .bgm-mv-stage { max-width: 100%; }
+    .bgm-mv-close { top: 4px; right: 4px; background: rgba(0,0,0,.6); }
+    .bgm-mv-title { display: none; }
+
+    .bgm-sched-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .bgm-sched-col {
+        min-height: 0;
+    }
+    .bgm-sched-tba-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .bgm-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .bgm-card-bar { gap: 3px; }
+    .bgm-card-pill { font-size: 9px; padding: 0 5px; }
+    .bgm-card-plats { display: none; }
+    .bgm-card-genres { display: none; }
+    .bgm-card-studio { font-size: 10px; }
+    .bgm-stats { grid-template-columns: 1fr 1fr; }
+    .bgm-stat-n { font-size: 24px; }
+
+    .bgm-view-list-mode .bgm-card-plats { display: flex; }
+    .bgm-view-list-mode .bgm-card-genres { display: flex; }
+}
+
+/* ============================================================
+ * 17. 減少動畫偏好
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+    .bgm-hero::before,
+    .bgm-hero::after,
+    .bgm-hero-badge,
+    .bgm-stat-n,
+    .bgm-card,
+    .bgm-card.is-today,
+    .bgm-card-today,
+    .bgm-card-cover img {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ============================================================
+ * 18. 列印
+ * ============================================================ */
+@media print {
+    .bgm-hero::before,
+    .bgm-hero::after,
+    .bgm-filters,
+    .bgm-toolbar,
+    .bgm-nav,
+    .bgm-sheet,
+    .bgm-card-trigger,
+    .bgm-schedule { display: none !important; }
+
+    .bgm-detail { display: block !important; break-inside: avoid; }
+    .bgm-card { break-inside: avoid; }
+}
+
+/* ============================================================
+ * v1.6.3 (2026-05-25) 桌機 sheet 對話框 — 尺寸修正
+ * ============================================================ */
+
+/* 確保 sheet 容器本身覆蓋整個視窗（提供背景遮罩定位錨點） */
+.bgm-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 背景遮罩：所有裝置都顯示 */
+.bgm-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, .72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+}
+
+/* 桌機（>768px）：置中對話框 */
+@media (min-width: 769px) {
+    .bgm-sheet-panel {
+        position: relative;       /* 改成 relative，由 flex 居中 */
+        top: auto;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        width: min(720px, 88vw);  /* 縮小到 720px */
+        max-width: 720px;
+        max-height: 82vh;
+        border-radius: 16px;
+        transform: scale(.94);
+        transition: transform .3s cubic-bezier(.32,.72,0,1);
+        box-shadow:
+            0 24px 80px rgba(0,0,0,.7),
+            0 0 0 1px var(--bgm-main),
+            0 0 50px var(--bgm-glow);
+        margin: 0;
+    }
+
+    .bgm-sheet.is-open .bgm-sheet-panel {
+        transform: scale(1);
+    }
+
+    /* 桌機隱藏「拖把柄」 */
+    .bgm-sheet-panel::before {
+        display: none;
+    }
+
+    .bgm-sheet-body {
+        padding: 28px 32px 32px;
+    }
+
+    /* 桌機 modal 內：雙欄佈局 */
+    .bgm-sheet-body .bgm-d-inner {
+        grid-template-columns: 1fr 1fr;
+        gap: 22px 28px;
+    }
+
+    /* 跨整列的區塊 */
+    .bgm-sheet-body .bgm-d-header,
+    .bgm-sheet-body .bgm-d-tags,
+    .bgm-sheet-body .bgm-d-row,
+    .bgm-sheet-body .bgm-d-cta {
+        grid-column: 1 / -1;
+    }
+
+    .bgm-sheet-body .bgm-d-section:has(.bgm-d-syn),
+    .bgm-sheet-body .bgm-d-section:has(.bgm-d-trailers) {
+        grid-column: 1 / -1;
+    }
+
+    /* 縮一點 PV 縮圖 */
+    .bgm-sheet-body .bgm-d-trailers {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+}
+
+/* 桌機更大螢幕（>1280px）：可以稍微寬一點 */
+@media (min-width: 1280px) {
+    .bgm-sheet-panel {
+        width: min(820px, 80vw);
+        max-width: 820px;
+    }
+}
+
+/* 手機（≤768px）：維持原本底部 sheet（從底部滑出） */
+@media (max-width: 768px) {
+    .bgm-sheet {
+        align-items: flex-end;
+        justify-content: stretch;
+    }
+
+    .bgm-sheet-panel {
+        position: relative;
+        width: 100%;
+        max-width: 100%;
+        max-height: 90vh;
+        border-radius: 18px 18px 0 0;
+        transform: translateY(100%);
+    }
+
+    .bgm-sheet.is-open .bgm-sheet-panel {
+        transform: translateY(0);
+    }
+}
+
+/* 修正 aria-hidden 警告 */
+.bgm-sheet:not(.is-open) {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.bgm-sheet.is-open {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ============================================================
+ * 19. Archive / Index 頁補完樣式 — v1.7.0 (2026-06-21)
+ *   原本只有結尾零散 13 行 .bgm-index-* 補丁，
+ *   缺 archive 頁樣式、缺全寬修正，導致 /bangumi/ 與
+ *   /bangumi/archive/ 完全沒套到版面與配色（跑版的根本原因）。
+ *   本區塊為完整覆蓋版本：
+ *     19.1 容器全寬修正（index / archive 頁專用，body 無
+ *          is-bangumi-season class，改用 .bgm-arc-main 判斷）
+ *     19.2 主容器 + 變數 + 麵包屑
+ *     19.3 Hero（.bgm-arc-hero — index 與 archive 共用）
+ *     19.4 年份 / 季度卡列表（.bgm-arc-list）
+ *     19.5 Index 頁：精選封面 / 依季度瀏覽 / 介紹文
+ *     19.6 RWD
+ * ============================================================ */
+
+/* ---------- 19.1 容器全寬修正 ---------- */
+body:has(.bgm-arc-main) aside[class*="sidebar"],
+body:has(.bgm-arc-main) .ct-sidebar,
+body:has(.bgm-arc-main) #right-sidebar,
+body:has(.bgm-arc-main) #left-sidebar,
+body:has(.bgm-arc-main) [data-sidebar],
+body:has(.bgm-arc-main) .sidebar {
+    display: none !important;
+}
+
+body:has(.bgm-arc-main) #main-container,
+body:has(.bgm-arc-main) .ct-container,
+body:has(.bgm-arc-main) .ct-container-narrow,
+body:has(.bgm-arc-main) .entry-content,
+body:has(.bgm-arc-main) .ct-main-content,
+body:has(.bgm-arc-main) .ct-page-content,
+body:has(.bgm-arc-main) main[id="main"],
+body:has(.bgm-arc-main) article,
+body:has(.bgm-arc-main) .page article,
+body:has(.bgm-arc-main) [data-content-area],
+body:has(.bgm-arc-main) [data-row="content"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    grid-template-columns: 1fr !important;
+    display: block !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    float: none !important;
+}
+
+body:has(.bgm-arc-main) .entry-content > * {
+    max-width: 100%;
+}
+
+/* ---------- 19.2 主容器 + 變數 + 麵包屑 ---------- */
+.bgm-arc-main {
+    --arc-text:      #e5e7eb;
+    --arc-text-soft: #cbd5e1;
+    --arc-text-mute: #94a3b8;
+    --arc-bg-card:   #1e293b;
+    --arc-bg-hover:  #273449;
+    --arc-border:    rgba(255,255,255,0.08);
+    --arc-border-h:  rgba(255,255,255,0.16);
+    --arc-radius:    12px;
+    --arc-main:      #f9a8d4;
+    --arc-glow:      rgba(249,168,212,.4);
+
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 16px 80px;
+    color: var(--arc-text);
+    box-sizing: border-box;
+}
+
+.bgm-arc-main * { box-sizing: border-box; }
+
+.bangumi-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0;
+    font-size: 13px;
+    color: var(--arc-text-soft, #cbd5e1);
+    flex-wrap: wrap;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.bangumi-breadcrumb a {
+    color: var(--arc-text-soft, #cbd5e1);
+    text-decoration: none;
+    transition: color .15s;
+}
+
+.bangumi-breadcrumb a:hover { color: var(--arc-main, #f9a8d4); }
+
+.bangumi-breadcrumb .bc-current {
+    color: var(--arc-text, #e5e7eb);
+    font-weight: 600;
+}
+
+/* ---------- 19.3 Hero ---------- */
+.bgm-arc-hero {
+    position: relative;
+    padding: 48px 36px 40px;
+    margin-bottom: 28px;
+    border: 1px solid var(--arc-border);
+    border-radius: 18px;
+    overflow: hidden;
+    color: #fff;
+    background:
+        linear-gradient(135deg, rgba(249,168,212,.22) 0%, rgba(15,23,42,.55) 65%, rgba(15,23,42,.85) 100%),
+        var(--arc-bg-card);
+    isolation: isolate;
+}
+
+.bgm-arc-hero::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 560px;
+    height: 560px;
+    background: radial-gradient(circle, var(--arc-main) 0%, transparent 65%);
+    opacity: .25;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.bgm-arc-hero-inner { position: relative; z-index: 2; }
+
+.bgm-arc-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    background: var(--arc-main);
+    color: #1a1a1a;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 16px var(--arc-glow);
+}
+
+.bgm-arc-hero-title {
+    font-size: clamp(28px, 4.2vw, 42px);
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: #ffffff;
+    line-height: 1.15;
+    letter-spacing: .5px;
+    text-shadow: 0 2px 16px rgba(0,0,0,.5), 0 0 40px var(--arc-glow);
+}
+
+.bgm-arc-hero-sub {
+    font-size: 14px;
+    color: rgba(255,255,255,.88);
+    margin: 0 0 24px;
+    max-width: 780px;
+    line-height: 1.7;
+}
+
+.bgm-arc-hero-sub strong { color: var(--arc-main); font-weight: 800; }
+
+.bgm-arc-back {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bgm-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 9px 18px;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all .2s;
+    cursor: pointer;
+}
+
+.bgm-nav-btn:hover {
+    background: rgba(255,255,255,.2);
+    border-color: var(--arc-main, var(--bgm-main));
+    color: var(--arc-main, var(--bgm-main));
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--arc-glow, var(--bgm-glow));
+}
+
+.bgm-nav-btn.is-current {
+    background: var(--arc-main, var(--bgm-main));
+    border-color: var(--arc-main, var(--bgm-main));
+    color: #1a1a1a;
+}
+
+.bgm-nav-btn.is-archive {
+    background: rgba(255,255,255,.06);
+}
+
+/* ---------- 19.4 年份 / 季度卡列表 ---------- */
+.bgm-arc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.bgm-arc-year {
+    background: var(--arc-bg-card);
+    border: 1px solid var(--arc-border);
+    border-radius: var(--arc-radius);
+    padding: 18px 20px;
+}
+
+.bgm-arc-year-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.bgm-arc-year-title {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.bgm-arc-year-num {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--arc-text);
+}
+
+.bgm-arc-year-suffix {
+    font-size: 14px;
+    color: var(--arc-text-soft);
+}
+
+.bgm-arc-year-count {
+    font-size: 13px;
+    color: var(--arc-text-soft);
+    white-space: nowrap;
+}
+
+.bgm-arc-seasons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.bgm-arc-season {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 8px;
+    border-radius: 10px;
+    text-decoration: none;
+    border: 1px solid var(--arc-border);
+    background: color-mix(in srgb, var(--s-color, var(--arc-main)) calc(var(--s-alpha, .2) * 100%), var(--arc-bg-hover));
+    transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+
+.bgm-arc-season:hover {
+    transform: translateY(-3px);
+    border-color: var(--s-color, var(--arc-main));
+    box-shadow: 0 8px 20px rgba(0,0,0,.3);
+}
+
+.bgm-arc-season.is-empty {
+    opacity: .4;
+    pointer-events: none;
+}
+
+.bgm-arc-season.is-current {
+    border-color: var(--arc-main);
+    box-shadow: 0 0 0 2px var(--arc-main);
+}
+
+.bgm-arc-season-icon { font-size: 20px; line-height: 1; }
+
+.bgm-arc-season-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--arc-text);
+}
+
+.bgm-arc-season-cnt {
+    font-size: 12px;
+    color: var(--arc-text-soft);
+}
+
+.bgm-arc-empty {
+    text-align: center;
+    padding: 64px 20px;
+    color: var(--arc-text-soft);
+}
+
+.bgm-arc-empty i {
+    font-size: 40px;
+    display: block;
+    margin-bottom: 12px;
+    opacity: .6;
+}
+
+/* ---------- 19.5 Index 頁專屬 ---------- */
+.bgm-index-h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--arc-text);
+    margin: 0 0 16px;
+    padding-left: 14px;
+    border-left: 4px solid var(--arc-main);
+}
+
+.bgm-index-feat {
+    margin: 36px 0;
+}
+
+.bgm-index-feat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+}
+
+.bgm-index-feat-card {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    background: var(--arc-bg-card);
+    border: 1px solid var(--arc-border);
+    border-radius: var(--arc-radius);
+    overflow: hidden;
+    transition: transform .25s, border-color .2s, box-shadow .25s;
+}
+
+.bgm-index-feat-card:hover {
+    transform: translateY(-6px);
+    border-color: var(--arc-main);
+    box-shadow: 0 12px 28px rgba(0,0,0,.4), 0 0 18px var(--arc-glow);
+}
+
+.bgm-index-feat-card img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    display: block;
+}
+
+.bgm-index-feat-title {
+    padding: 10px 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--arc-text);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.bgm-index-feat-more {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.bgm-index-feat-more a {
+    color: var(--arc-main);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: opacity .15s;
+}
+
+.bgm-index-feat-more a:hover { opacity: .75; text-decoration: underline; }
+
+.bgm-index-seasons {
+    margin: 40px 0;
+}
+
+.bgm-index-intro {
+    margin: 48px 0 0;
+    padding: 24px 24px 4px;
+    border-top: 1px solid var(--arc-border);
+}
+
+.bgm-index-intro h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--arc-text);
+    margin: 0 0 14px;
+}
+
+.bgm-index-intro p {
+    font-size: 14px;
+    line-height: 1.9;
+    color: var(--arc-text-soft);
+    margin: 0 0 14px;
+}
+
+/* ---------- 19.6 RWD ---------- */
+@media (max-width: 768px) {
+    .bgm-arc-main { padding: 0 12px 60px; }
+    .bgm-arc-hero { padding: 28px 20px 26px; margin-bottom: 18px; border-radius: 14px; }
+    .bgm-arc-hero-title { font-size: 24px; margin: 0 0 8px; }
+    .bgm-arc-hero-sub { font-size: 12.5px; margin: 0 0 16px; }
+    .bgm-arc-seasons { grid-template-columns: repeat(2, 1fr); }
+    .bgm-arc-year-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .bgm-index-feat-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+    .bgm-index-intro { padding: 18px 16px 4px; }
+}
+
+@media (max-width: 420px) {
+    .bgm-arc-seasons { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .bgm-arc-hero-title { font-size: 22px; }
+    .bgm-arc-season { padding: 10px 6px; }
+}
+
+.bgm-nav-btn.is-prev { background: #64748b; color: #fff; }
+.bgm-nav-btn.is-prev:hover { background: #475569; }
+.bgm-nav-btn.is-next { background: #f59e0b; color: #fff; }
+.bgm-nav-btn.is-next:hover { background: #d97706; }
+
+/* EXP 記錄標題顏色修正 */
+.mc-section-title {
+  color: var(--mc-text, #e6e8eb);
+  font-size: 16px;
+  font-weight: 700;
+  margin: 24px 0 4px;
+}
+.mc-section-hint {
+  color: var(--mc-text-2, #cbd5e1);
+  font-size: 12px;
+  margin: 0 0 14px;
+}
+
+/* ============================================================
+ * 20. 時間表桌面版緊湊化 — v1.8.0 (2026-07-04)
+ *   目的：時間表視圖七欄並排時每欄過長過擠，
+ *   縮小縮圖、字級、間距，讓單日多部作品也能清爽排列。
+ *   放檔案最尾端以覆蓋區段 12 的既有規則。
+ * ============================================================ */
+@media (min-width: 769px) {
+
+    /* 欄與欄的間距、欄內 padding 收窄 */
+    .bgm-sched-grid { gap: 8px; }
+    .bgm-sched-col  { padding: 8px 7px; min-height: 0; }
+    .bgm-sched-list { gap: 3px; }
+
+    /* item 本體：縮圖 28px + 標題 + 尾端徽章，時間欄已由區段 12.1 隱藏 */
+    .bgm-sched-item {
+        grid-template-columns: 28px 1fr auto;
+        gap: 6px;
+        padding: 3px 5px;
+        border-radius: 5px;
+    }
+
+    /* 縮圖縮小 */
+    .bgm-sched-item .bgm-sched-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    /* 標題單行省略、字級縮小 */
+    .bgm-sched-item .bgm-sched-title {
+        font-size: 11.5px;
+        line-height: 1.25;
+    }
+
+    /* 集數字級縮小、與標題擠在一起 */
+    .bgm-sched-item .bgm-sched-info { gap: 0; }
+    .bgm-sched-item .bgm-sched-ep   { font-size: 9px; opacity: .7; }
+
+    /* hover 位移取消（並排時左移會造成視覺跳動） */
+    .bgm-sched-item:hover { transform: none; }
+
+    /* 欄標題也收一點 */
+    .bgm-sched-h { font-size: 13px; margin-bottom: 8px; padding-bottom: 6px; }
+}
+
+/* 更大螢幕（≥1280px）可再放寬一點縮圖，維持可讀 */
+@media (min-width: 1280px) {
+    .bgm-sched-item { grid-template-columns: 32px 1fr auto; }
+    .bgm-sched-item .bgm-sched-thumb { width: 32px; height: 32px; }
+    .bgm-sched-item .bgm-sched-title { font-size: 12px; }
+}
+
+
+/* ============================================================
+ * 21. 卡片連結
+ *   原本這段被 <style> / </style> 包住——那是 HTML 標籤，寫在 .css
+ *   檔裡屬於無效語法，瀏覽器解析到就會把後面整條規則一起丟棄，
+ *   等於這個 fix 從來沒有生效過。移除標籤讓它真正套用。
+ * ============================================================ */
+.bgm-card-link {
+    display: block;
+    width: 100%;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+.bgm-card-link:hover,
+.bgm-card-link:focus { text-decoration: none; color: inherit; }
+
+/* ============================================================
+ * 22. Hero 季度切換按鈕放大
+ *   .bgm-nav-btn 同時用在「清除所有篩選」與空狀態按鈕上，因此限定
+ *   在 hero 的兩個容器內（.bgm-arc-back = 索引／存檔頁、
+ *   .bgm-nav = 季度頁），避免那些次要按鈕跟著放大。
+ * ============================================================ */
+.bgm-arc-back .bgm-nav-btn,
+.bgm-nav .bgm-nav-btn {
+    padding: 13px 24px;
+    font-size: 15px;
+    border-radius: 12px;
+}
+
+/* 本季：份量再加重一級，一眼看出目前在哪一季 */
+.bgm-arc-back .bgm-nav-btn.is-current,
+.bgm-nav .bgm-nav-btn.is-current {
+    padding: 15px 28px;
+    font-size: 16px;
+    font-weight: 800;
+    box-shadow: 0 6px 22px var(--arc-glow, var(--bgm-glow));
+}
+
+/* 手機：放大幅度收斂，避免三顆按鈕各自佔滿一行 */
+@media (max-width: 640px) {
+    .bgm-arc-back .bgm-nav-btn,
+    .bgm-nav .bgm-nav-btn {
+        padding: 11px 16px;
+        font-size: 13.5px;
+    }
+
+    .bgm-arc-back .bgm-nav-btn.is-current,
+    .bgm-nav .bgm-nav-btn.is-current {
+        padding: 12px 19px;
+        font-size: 14.5px;
+    }
+}
+

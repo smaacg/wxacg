@@ -1,0 +1,374 @@
+/**
+ * Leaderboard - /ranking-users/ 會員排行榜
+ * @version 1.1.0 (2026-07-26)
+ *
+ * v1.1.0 變更：
+ *   - 新增：.ranku-season-countdown（本季結算倒數，顯示在 tabs 列旁）
+ *   - .ranku-tabs-meta 補上 flex 排列，讓「排行標籤」與「倒數」並排顯示
+ *
+ * v1.0.0 (2026-05-14) Batch 2B-2
+ */
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.ranku-hero{
+  position:relative;
+  min-height:340px;
+  display:flex;align-items:center;
+  background: radial-gradient(ellipse at top, rgba(108,99,255,.25), transparent 60%),
+              linear-gradient(135deg, #1a1633 0%, #0f0c24 60%, #08061a 100%);
+  overflow:hidden;
+  margin-bottom:30px;
+}
+.ranku-hero__particles{position:absolute;inset:0;width:100%;height:100%;}
+.ranku-hero__overlay{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(2,169,255,.15), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(244,114,182,.12), transparent 40%);
+  pointer-events:none;
+}
+.ranku-hero__content{position:relative;z-index:2;text-align:center;padding:60px 0;}
+.ranku-hero__eyebrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;}
+.ranku-hero__title{
+  font-size:clamp(34px,5vw,52px);
+  font-weight:800;margin:0 0 10px;
+  letter-spacing:-.02em;
+  background: linear-gradient(90deg, #fff, #f4e2a1, #d4af37, #f4e2a1, #fff);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ranku-shine 6s linear infinite;
+}
+@keyframes ranku-shine { to { background-position: 200% center; } }
+.ranku-hero__trophy{display:inline-block;animation:ranku-bob 3s ease-in-out infinite;margin-right:8px;}
+@keyframes ranku-bob{50%{transform:translateY(-6px)}}
+.ranku-hero__subtitle{font-size:16px;color:rgba(255,255,255,.7);margin:0 0 24px;}
+
+.ranku-hero__me{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:10px 22px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:999px;
+  backdrop-filter:blur(10px);
+}
+.ranku-hero__me-label{font-size:13px;color:rgba(255,255,255,.7);}
+.ranku-hero__me-pos{
+  font-size:18px;font-weight:800;
+  background:linear-gradient(135deg,#fbbf24,#f59e0b);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+/* ============================================================
+   主體 Layout
+   ============================================================ */
+.ranku-body{padding-bottom:60px;}
+.ranku-layout{
+  display:grid;
+  grid-template-columns:1fr 320px;
+  gap:30px;
+  align-items:start;
+}
+@media (max-width:1024px){
+  .ranku-layout{grid-template-columns:1fr;}
+}
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+.ranku-tabs-row{
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:14px;margin-bottom:20px;
+}
+.ranku-tabs{
+  display:flex;gap:8px;flex-wrap:wrap;
+  background:rgba(255,255,255,.04);
+  padding:6px;border-radius:14px;
+  border:1px solid rgba(255,255,255,.06);
+}
+.ranku-tab{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 18px;
+  font-size:14px;font-weight:600;color:var(--text-muted,#9ca3af);
+  background:transparent;border:none;border-radius:10px;cursor:pointer;
+  transition:all .2s;
+}
+.ranku-tab:hover{color:#fff;background:rgba(255,255,255,.05);}
+.ranku-tab.active{
+  color:#fff;
+  background:linear-gradient(135deg,#6c63ff,#9b8cff);
+  box-shadow:0 4px 14px rgba(108,99,255,.4);
+}
+.ranku-tab i{font-size:13px;}
+.ranku-count-info{font-size:13px;color:var(--text-muted,#9ca3af);}
+
+/* ============================================================
+   ★ v1.1.0 新增：Tabs 旁 meta 區（排行標籤 + 倒數）
+   ============================================================ */
+.ranku-tabs-meta{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.ranku-season-countdown{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  font-weight:600;
+  padding:6px 12px;
+  border-radius:999px;
+  color:#ffd88a;
+  background:rgba(255,183,3,.12);
+  border:1px solid rgba(255,183,3,.3);
+  white-space:nowrap;
+}
+.ranku-season-countdown i{font-size:12px;}
+.ranku-season-countdown b{color:#ffe9a8;}
+
+/* ============================================================
+   列表
+   ============================================================ */
+.ranku-list{display:flex;flex-direction:column;gap:10px;}
+
+.ranku-row{
+  display:grid;
+  grid-template-columns:60px 56px 1fr auto;
+  gap:16px;align-items:center;
+  padding:14px 18px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:14px;
+  transition:all .25s ease;
+}
+.ranku-row:hover{
+  background:rgba(255,255,255,.07);
+  border-color:rgba(255,255,255,.12);
+  transform:translateY(-2px);
+}
+.ranku-row--me{
+  background:linear-gradient(135deg, rgba(108,99,255,.15), rgba(2,169,255,.08));
+  border-color:rgba(108,99,255,.4);
+}
+
+/* Top 3 醒目樣式 */
+.ranku-row--1{
+  background:linear-gradient(135deg, rgba(251,191,36,.18), rgba(245,158,11,.08));
+  border-color:rgba(251,191,36,.5);
+}
+.ranku-row--2{
+  background:linear-gradient(135deg, rgba(229,231,235,.15), rgba(156,163,175,.06));
+  border-color:rgba(229,231,235,.4);
+}
+.ranku-row--3{
+  background:linear-gradient(135deg, rgba(217,119,87,.18), rgba(180,83,45,.08));
+  border-color:rgba(217,119,87,.4);
+}
+
+.ranku-pos{
+  font-size:22px;font-weight:800;text-align:center;
+  color:var(--text-muted,#9ca3af);font-variant-numeric:tabular-nums;
+}
+.ranku-row--1 .ranku-pos{color:#fbbf24;font-size:28px;}
+.ranku-row--2 .ranku-pos{color:#e5e7eb;font-size:26px;}
+.ranku-row--3 .ranku-pos{color:#f59e72;font-size:24px;}
+.ranku-pos-medal{font-size:28px;line-height:1;display:inline-block;}
+
+.ranku-avatar{
+  width:56px;height:56px;border-radius:50%;
+  object-fit:cover;
+  border:2px solid rgba(255,255,255,.1);
+}
+.ranku-row--1 .ranku-avatar{border-color:#fbbf24;box-shadow:0 0 18px rgba(251,191,36,.4);}
+.ranku-row--2 .ranku-avatar{border-color:#e5e7eb;}
+.ranku-row--3 .ranku-avatar{border-color:#f59e72;}
+
+.ranku-userinfo{min-width:0;}
+.ranku-name{
+  font-size:15px;font-weight:700;color:#fff;
+  margin:0 0 4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.ranku-name a{color:inherit;text-decoration:none;transition:color .2s;}
+.ranku-name a:hover{color:var(--accent-cyan,#02a9ff);}
+.ranku-meta{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:12px;color:var(--text-muted,#9ca3af);
+}
+.ranku-lv{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;
+  background:rgba(108,99,255,.18);
+  color:#a5b4fc;
+  border-radius:999px;
+  font-weight:700;
+}
+.ranku-tier{font-size:12px;}
+
+/* 牌位 tab 的 tier badge（rank_season / rank_last_season 列表用） */
+.ranku-tier-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:12px;font-weight:700;
+  border:1px solid;
+}
+.ranku-tier-icon{font-size:13px;line-height:1;}
+.ranku-tier-label{white-space:nowrap;}
+
+.ranku-score-wrap{text-align:right;}
+.ranku-score{
+  font-size:20px;font-weight:800;
+  background:linear-gradient(135deg,#6c63ff,#02a9ff);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  font-variant-numeric:tabular-nums;
+}
+.ranku-row--1 .ranku-score{background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.ranku-score-unit{
+  display:block;
+  font-size:11px;color:var(--text-muted,#9ca3af);
+  font-weight:600;margin-top:2px;
+}
+
+/* Empty / Loading */
+.ranku-empty{
+  text-align:center;padding:60px 20px;
+  color:var(--text-muted,#9ca3af);
+}
+.ranku-empty i{font-size:48px;margin-bottom:14px;opacity:.5;}
+.ranku-empty-title{font-size:16px;font-weight:600;color:#fff;margin:0 0 6px;}
+.ranku-empty-desc{font-size:13px;margin:0;}
+
+/* Pagination */
+.ranku-pagination{
+  display:flex;justify-content:center;align-items:center;gap:14px;
+  margin-top:24px;
+}
+.ranku-page-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 16px;font-size:13px;font-weight:600;
+  color:#fff;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);border-radius:10px;
+  cursor:pointer;transition:all .2s;
+}
+.ranku-page-btn:hover:not(:disabled){background:rgba(108,99,255,.2);border-color:rgba(108,99,255,.5);}
+.ranku-page-btn:disabled{opacity:.4;cursor:not-allowed;}
+.ranku-page-info{font-size:13px;color:var(--text-muted,#9ca3af);font-variant-numeric:tabular-nums;}
+
+.ranku-updated-at{
+  text-align:center;font-size:12px;color:var(--text-muted,#9ca3af);
+  margin-top:20px;
+}
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+.ranku-sidebar{display:flex;flex-direction:column;gap:18px;}
+.ranku-sidebar-card{padding:20px;border-radius:16px;}
+.ranku-sidebar-title{
+  display:flex;align-items:center;gap:8px;
+  font-size:15px;font-weight:700;color:#fff;margin:0 0 14px;
+}
+.ranku-rules{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;}
+/*
+ * 圖示改為絕對定位，項目本身維持一般文字流。
+ *
+ * 原本 li 是 flex container，於是 <strong> 與後面的說明文字各自成為
+ * flex item，<strong> 被壓縮後會硬斷成「本季牌 / 排行」。
+ * 圖示抽離文字流後，標籤與說明回到同一段文字裡自然折行。
+ */
+.ranku-rules li{
+  position:relative;padding-left:24px;
+  font-size:12.5px;line-height:1.75;color:var(--text-muted,#9ca3af);
+}
+.ranku-rules li i{
+  position:absolute;left:0;top:4px;
+  width:16px;text-align:center;
+  color:var(--accent-cyan,#02a9ff);
+}
+/* 標籤本身不折行，說明文字才折 */
+.ranku-rules strong{color:#fff;font-weight:600;white-space:nowrap;}
+
+.ranku-priv-desc{font-size:13px;color:var(--text-muted,#9ca3af);margin:0 0 12px;}
+.ranku-priv-hint{
+  font-size:11px;color:var(--text-muted,#9ca3af);
+  margin:10px 0 0;line-height:1.6;display:flex;gap:6px;
+}
+.ranku-priv-hint i{margin-top:2px;}
+
+/* Toggle */
+.ranku-toggle{
+  display:flex;align-items:center;gap:12px;cursor:pointer;
+  padding:10px 0;
+}
+.ranku-toggle input{position:absolute;opacity:0;pointer-events:none;}
+.ranku-toggle-slider{
+  position:relative;width:44px;height:24px;
+  background:rgba(255,255,255,.15);border-radius:999px;
+  transition:background .2s;flex-shrink:0;
+}
+.ranku-toggle-slider::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:20px;height:20px;border-radius:50%;background:#fff;
+  transition:transform .2s;
+  box-shadow:0 2px 6px rgba(0,0,0,.3);
+}
+.ranku-toggle input:checked + .ranku-toggle-slider{
+  background:linear-gradient(135deg,#6c63ff,#02a9ff);
+}
+.ranku-toggle input:checked + .ranku-toggle-slider::after{
+  transform:translateX(20px);
+}
+.ranku-toggle-label{font-size:13px;font-weight:600;color:#fff;}
+
+/* CTA */
+.ranku-cta .btn{margin-top:6px;}
+.btn-block{display:block;width:100%;text-align:center;}
+
+/* ============================================================
+   Toast
+   ============================================================ */
+#ranku-toast-container{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:99999;}
+.ranku-toast{
+  padding:10px 22px;font-size:14px;font-weight:600;color:#fff;
+  border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.4);
+  margin-top:8px;opacity:0;transform:translateY(20px);
+  transition:opacity .25s, transform .25s;
+}
+.ranku-toast--show{opacity:1;transform:translateY(0);}
+.ranku-toast--ok{background:linear-gradient(135deg,#34d399,#10b981);}
+.ranku-toast--err{background:linear-gradient(135deg,#f87171,#ef4444);}
+
+/* ============================================================
+   Skeleton
+   ============================================================ */
+.skeleton{
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 100%);
+  background-size:200% 100%;
+  animation:ranku-shimmer 1.5s infinite;
+}
+@keyframes ranku-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ============================================================
+   響應式
+   ============================================================ */
+@media (max-width:640px){
+  .ranku-row{
+    grid-template-columns:44px 44px 1fr auto;
+    gap:10px;padding:12px 14px;
+  }
+  .ranku-avatar{width:44px;height:44px;}
+  .ranku-pos{font-size:18px;}
+  .ranku-row--1 .ranku-pos,
+  .ranku-row--2 .ranku-pos,
+  .ranku-row--3 .ranku-pos{font-size:22px;}
+  .ranku-score{font-size:16px;}
+  .ranku-tab{padding:8px 12px;font-size:13px;}
+  .ranku-season-countdown{font-size:12px;padding:5px 10px;}
+}

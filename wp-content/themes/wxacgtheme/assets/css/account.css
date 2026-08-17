@@ -1,0 +1,224 @@
+/* =====================================================
+   account.css — 帳號設定頁樣式（保留 UM 原生佈局）
+   ===================================================== */
+
+.um_request_name { display: none !important; }
+
+/* ── 整體容器置中 ── */
+.um-account {
+    max-width: 960px !important;
+    margin: 0 auto 80px auto !important;
+    padding: 0 24px !important;
+}
+
+/* ── 側欄 ── */
+.um-account-side {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 16px !important;
+    padding: 24px 16px !important;
+    backdrop-filter: blur(16px) !important;
+}
+
+/* 側欄頭像 */
+.um-account-side .um-account-meta {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+    padding: 0 0 20px 0 !important;
+    margin-bottom: 16px !important;
+    text-align: center !important;
+}
+.um-account-side .um-account-meta img,
+.um-account-side .um-account-meta-img img,
+.um-account-side .um-account-meta-img-b img {
+    border-radius: 50% !important;
+    border: 3px solid rgba(139,92,246,0.5) !important;
+    width: 80px !important;
+    height: 80px !important;
+    object-fit: cover !important;
+}
+.um-account-side .um-account-name a {
+    color: #fff !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+}
+.um-account-side .um-account-profile-link a,
+.um-account-side .um-link {
+    color: rgba(139,92,246,0.8) !important;
+    font-size: 12px !important;
+    text-decoration: none !important;
+}
+
+/* 側欄選單 */
+.um-account-side ul {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.um-account-side ul li {
+    margin: 2px 0 !important;
+}
+.um-account-side ul li a.um-account-link {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 10px 14px !important;
+    border-radius: 10px !important;
+    color: rgba(255,255,255,0.6) !important;
+    text-decoration: none !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    transition: all .2s !important;
+    background: transparent !important;
+    border: none !important;
+}
+.um-account-side ul li a.um-account-link:hover {
+    background: rgba(255,255,255,0.07) !important;
+    color: #fff !important;
+}
+.um-account-side ul li a.um-account-link.current {
+    background: rgba(139,92,246,0.2) !important;
+    color: #c4b5fd !important;
+    font-weight: 600 !important;
+}
+.um-account-arrow { margin-left: auto !important; opacity: 0.4; }
+
+/* 頭像 hover 效果 */
+.um-profile-photo-overlay {
+    opacity: 0 !important;
+    transition: opacity .2s !important;
+}
+.um-profile-photo:hover .um-profile-photo-overlay {
+    opacity: 1 !important;
+}
+
+/* ── 主要內容區 ── */
+.um-account-main {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 16px !important;
+    padding: 32px !important;
+    backdrop-filter: blur(16px) !important;
+}
+
+/* Tab 標題 */
+.um-account-tab-header {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    margin-bottom: 24px !important;
+    padding-bottom: 16px !important;
+    border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+/* 手機版 nav */
+.um-account-nav a {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 10px !important;
+    color: rgba(255,255,255,0.6) !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 4px !important;
+    text-decoration: none !important;
+}
+.um-account-nav a.current {
+    background: rgba(139,92,246,0.2) !important;
+    color: #c4b5fd !important;
+}
+
+/* 欄位 */
+.um-account-main .um-field-label label {
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+.um-account-main .um-field-area input[type="text"],
+.um-account-main .um-field-area input[type="email"],
+.um-account-main .um-field-area input[type="password"],
+.um-account-main .um-field-area textarea,
+.um-account-main .um-field-area select {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 10px !important;
+    color: #fff !important;
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    transition: border-color .2s !important;
+}
+.um-account-main .um-field-area input:focus,
+.um-account-main .um-field-area textarea:focus {
+    border-color: rgba(139,92,246,0.6) !important;
+    outline: none !important;
+}
+
+/* 按鈕 */
+.um-account-main .um-button,
+.um-account-main input[type="submit"],
+.um-account-main button[type="submit"] {
+    background: linear-gradient(135deg,#7c3aed,#4f46e5) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #fff !important;
+    padding: 11px 28px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: opacity .2s !important;
+    margin-top: 8px !important;
+}
+.um-account-main .um-button:hover,
+.um-account-main input[type="submit"]:hover { opacity: .85 !important; }
+
+/* 刪除帳號按鈕 */
+.um-account-tab-delete .um-button,
+.um-account-tab-delete input[type="submit"] {
+    background: rgba(239,68,68,0.15) !important;
+    border: 1px solid rgba(239,68,68,0.4) !important;
+    color: #f87171 !important;
+}
+
+/* 訊息 */
+.um-notice.notice-success, .um-success {
+    background: rgba(34,197,94,0.1) !important;
+    border: 1px solid rgba(34,197,94,0.3) !important;
+    border-radius: 10px !important;
+    color: #86efac !important;
+    padding: 12px 16px !important;
+    margin-bottom: 16px !important;
+}
+.um-notice.notice-error, .um-error, .um-field-error {
+    background: rgba(239,68,68,0.1) !important;
+    border: 1px solid rgba(239,68,68,0.3) !important;
+    border-radius: 10px !important;
+    color: #fca5a5 !important;
+    padding: 12px 16px !important;
+    margin-bottom: 16px !important;
+}
+
+/* Radio/Checkbox */
+.um-account-main .um-field-radio label,
+.um-account-main .um-field-checkbox label {
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 13px !important;
+}
+
+/* 連結 */
+.um-account-main .um-link,
+.um-account-side .um-link { color: rgba(139,92,246,0.8) !important; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .um-account { padding: 0 12px 60px !important; }
+    .um-account-main { padding: 20px !important; }
+}

@@ -1,0 +1,273 @@
+/**
+ * 微笑動漫 - 首頁「最新新聞」Tab 區塊樣式
+ *
+ * @package weixiaoacg
+ * @subpackage Home News Tabs
+ * @version 1.0.0 (2026-05-23)
+ *
+ * 對應 PHP：blocksy-child/front-page.php  新聞 section
+ * 包含內容：
+ *   1. Tab 切換按鈕列
+ *   2. Tab 面板顯示/隱藏控制
+ *   3. 4 欄 × 3 排卡片網格（共 12 張）
+ *   4. 卡片樣式（封面、文字、分類角標、hover 效果）
+ *   5. 空狀態與「查看更多」按鈕
+ *   6. 響應式：1024px / 768px / 540px
+ */
+
+
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  1. Tab 按鈕列                                            ║
+   ╚══════════════════════════════════════════════════════════╝ */
+.news-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 20px 0 4px;
+    padding: 6px;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(255, 255, 255, .06);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+}
+
+.news-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    color: rgba(220, 230, 245, .55);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all .2s ease;
+    white-space: nowrap;
+}
+.news-tab-btn:hover {
+    background: rgba(255, 255, 255, .06);
+    color: rgba(220, 230, 245, .92);
+}
+.news-tab-btn.active {
+    background: linear-gradient(135deg, rgba(99, 168, 255, .22), rgba(168, 99, 255, .18));
+    color: #ffffff;
+    box-shadow: 0 4px 16px rgba(99, 168, 255, .25);
+}
+.news-tab-btn i {
+    font-size: 13px;
+    opacity: .85;
+}
+.news-tab-count {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .10);
+    color: rgba(220, 230, 245, .70);
+    line-height: 1.5;
+}
+.news-tab-btn.active .news-tab-count {
+    background: rgba(255, 255, 255, .25);
+    color: #ffffff;
+}
+
+
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  2. Tab 面板                                              ║
+   ╚══════════════════════════════════════════════════════════╝ */
+.news-panel {
+    display: none;
+    margin-top: 18px;
+    animation: smacg-news-fade .25s ease;
+}
+.news-panel.active {
+    display: block;
+}
+.news-panel[hidden] {
+    display: none !important;
+}
+
+@keyframes smacg-news-fade {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  3. 卡片網格（4 欄 × 3 排 = 12 張）                       ║
+   ╚══════════════════════════════════════════════════════════╝ */
+.news-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+}
+
+@media (max-width: 1200px) {
+    .news-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+}
+@media (max-width: 900px) {
+    .news-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+}
+@media (max-width: 540px) {
+    .news-grid { grid-template-columns: 1fr; gap: 12px; }
+}
+
+
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  4. 卡片本體                                              ║
+   ╚══════════════════════════════════════════════════════════╝ */
+.news-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px;
+    overflow: hidden;
+    text-decoration: none;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid rgba(255, 255, 255, .07);
+    transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.news-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+    border-color: rgba(99, 168, 255, .35);
+}
+
+/* ── 封面圖 ── */
+.news-card__thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .06);
+    flex-shrink: 0;
+}
+.news-card__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .4s ease;
+}
+.news-card:hover .news-card__thumb img {
+    transform: scale(1.06);
+}
+
+.news-card__placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(99, 168, 255, .12), rgba(168, 99, 255, .10));
+    color: rgba(255, 255, 255, .25);
+    font-size: 36px;
+}
+
+/* ── 分類角標 ── */
+.news-card__cat {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(0, 0, 0, .65);
+    color: #ffffff;
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, .15);
+}
+
+/* ── 文字區 ── */
+.news-card__body {
+    padding: 12px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+.news-card__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(220, 230, 245, .92);
+    margin: 0;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.news-card__excerpt {
+    font-size: 12px;
+    color: rgba(220, 230, 245, .50);
+    margin: 0;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.news-card__meta {
+    margin-top: auto;
+    padding-top: 6px;
+    font-size: 11px;
+    color: rgba(220, 230, 245, .42);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.news-card__meta i {
+    font-size: 10px;
+}
+
+
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  5. 空狀態 & 查看更多                                     ║
+   ╚══════════════════════════════════════════════════════════╝ */
+.news-empty {
+    text-align: center;
+    padding: 50px 20px;
+    border-radius: 14px;
+    color: rgba(220, 230, 245, .55);
+}
+.news-empty p {
+    margin: 8px 0 0;
+    font-size: 14px;
+}
+
+.news-panel-more {
+    margin-top: 22px;
+    text-align: center;
+}
+.news-panel-more .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  6. 行動裝置 Tab 列                                       ║
+   ╚══════════════════════════════════════════════════════════╝ */
+@media (max-width: 540px) {
+    .news-tabs {
+        gap: 4px;
+        padding: 4px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .news-tabs::-webkit-scrollbar { display: none; }
+
+    .news-tab-btn {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+    .news-tab-btn i {
+        display: none;
+    }
+}

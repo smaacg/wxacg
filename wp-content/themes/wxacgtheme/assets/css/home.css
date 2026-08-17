@@ -1,0 +1,1072 @@
+/**
+ * 首頁專用樣式
+ * 無 Hero 時鐘版本
+ */
+
+/* ============================================================
+   Hero
+   ============================================================ */
+
+.hero-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.chip.chip-link {
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: rgba(220, 230, 245, 0.75);
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease;
+    cursor: pointer;
+}
+
+.chip.chip-link:hover {
+    background: rgba(99, 168, 255, 0.18);
+    border-color: rgba(99, 168, 255, 0.45);
+    color: #63a8ff;
+    transform: translateY(-1px);
+}
+
+.hero-site-description {
+    max-width: 650px;
+    line-height: 1.8;
+}
+
+.hero-quote {
+    max-width: 680px;
+    margin: 16px 0 22px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: 3px solid rgba(99, 168, 255, 0.55);
+    border-radius: 10px;
+    color: rgba(220, 230, 245, 0.66);
+    font-style: normal;
+}
+
+.hero-quote p {
+    margin: 0;
+    color: rgba(220, 230, 245, 0.78);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.hero-quote cite {
+    display: block;
+    margin-top: 6px;
+    color: rgba(220, 230, 245, 0.46);
+    font-size: 12px;
+    font-style: normal;
+}
+
+/* Hero 海報 CLS 防護 */
+.hero-posters .poster-item {
+    aspect-ratio: 5 / 9;
+}
+
+.hero-posters .poster-item img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+/* ============================================================
+   通用段落說明
+   ============================================================ */
+
+.section-description {
+    max-width: 840px;
+    margin: -4px 0 18px;
+    color: rgba(220, 230, 245, 0.56);
+    font-size: 13px;
+    line-height: 1.75;
+}
+
+.section-title i {
+    margin-right: 8px;
+}
+
+/* ============================================================
+   新聞 Tabs
+   ============================================================ */
+
+.news-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 18px 0 8px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+}
+
+.news-tab-btn {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 14px;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    color: rgba(220, 230, 245, 0.60);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+        background 0.18s ease,
+        color 0.18s ease;
+}
+
+.news-tab-btn:hover {
+    color: rgba(220, 230, 245, 0.90);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.news-tab-btn.active {
+    background: rgba(99, 168, 255, 0.18);
+    color: #63a8ff;
+}
+
+.news-tab-btn i {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.news-tab-count {
+    padding: 1px 7px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: rgba(220, 230, 245, 0.75);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.news-tab-btn.active .news-tab-count {
+    background: rgba(99, 168, 255, 0.25);
+    color: #8ec0ff;
+}
+
+.news-panel {
+    display: none;
+}
+
+.news-panel.active {
+    display: block;
+}
+
+.news-panel[hidden] {
+    display: none !important;
+}
+
+.news-panel-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 22px;
+}
+
+.news-panel-more .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.news-empty {
+    padding: 35px 20px;
+    text-align: center;
+}
+
+.news-empty-icon {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 2rem;
+}
+
+/* ============================================================
+   新聞跑馬燈
+   ============================================================ */
+
+.news-ticker-track a,
+.news-ticker-track a:visited {
+    color: inherit;
+    text-decoration: none;
+}
+
+.news-ticker-track a:hover {
+    color: #8ec0ff;
+}
+
+/* ============================================================
+   新聞卡片
+   ============================================================ */
+
+.news-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    margin-top: 24px;
+}
+
+.news-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    color: rgba(220, 230, 245, 0.90);
+    text-decoration: none;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.news-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.news-card__thumb {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.news-card__thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.35s ease;
+}
+
+.news-card:hover .news-card__thumb img {
+    transform: scale(1.06);
+}
+
+.news-card__placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background:
+        linear-gradient(135deg,
+            rgba(99, 168, 255, 0.12),
+            rgba(168, 99, 255, 0.10));
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 36px;
+}
+
+.news-card__cat {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.news-card__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px 16px;
+}
+
+.news-card__title {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: rgba(220, 230, 245, 0.90);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.news-card__title a,
+.news-card__title a:visited {
+    color: rgba(220, 230, 245, 0.90) !important;
+    text-decoration: none !important;
+}
+
+.news-card__title a:hover {
+    color: #8ec0ff !important;
+}
+
+.news-card__excerpt {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: rgba(220, 230, 245, 0.55);
+    font-size: 12px;
+    line-height: 1.55;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.news-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-top: auto;
+    color: rgba(220, 230, 245, 0.40);
+    font-size: 11px;
+}
+
+.news-card__meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: rgba(220, 230, 245, 0.40);
+}
+
+.news-card__author {
+    color: rgba(220, 230, 245, 0.52) !important;
+}
+
+/* ============================================================
+   新番星期 Tabs
+   ============================================================ */
+
+.weekday-tab-count {
+    margin-left: 3px;
+    font-size: 10px;
+    opacity: 0.65;
+}
+
+.season-card-ep {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+/* ============================================================
+   動漫作品卡片
+   ============================================================ */
+
+.wxacg-anime-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+}
+
+/*
+ * 未選取的分頁面板帶 hidden 屬性，但上面的 display:grid 會蓋掉瀏覽器原生的
+ * [hidden]{display:none}，導致初次載入時三個分頁 18 筆全部一次噴出。
+ * 這裡明確讓 [hidden] 生效，未啟用的分頁保持隱藏（JS 尚未執行也有效）。
+ */
+.wxacg-anime-grid[hidden] {
+    display: none !important;
+}
+
+.wxacg-anime-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    text-decoration: none;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.wxacg-anime-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.40);
+}
+
+.wxacg-card-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.wxacg-card-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.wxacg-anime-card:hover .wxacg-card-thumb img {
+    transform: scale(1.05);
+}
+
+.wxacg-card-fb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.30);
+    font-size: 28px;
+    font-weight: 800;
+}
+
+.wxacg-card-score {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 8px;
+    background: rgba(0, 0, 0, 0.75);
+    border-radius: 20px;
+    color: #ffd60a;
+    font-size: 12px;
+    font-weight: 700;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.wxacg-card-body {
+    padding: 10px 12px 12px;
+}
+
+.wxacg-card-title {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: rgba(220, 230, 245, 0.85);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.smacg-tab-btn {
+    padding: 6px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    color: rgba(220, 230, 245, 0.55);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease;
+}
+
+.smacg-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.10);
+    color: rgba(220, 230, 245, 0.85);
+}
+
+.smacg-tab-btn.active {
+    background: rgba(99, 168, 255, 0.20);
+    border-color: rgba(99, 168, 255, 0.45);
+    color: #63a8ff;
+}
+
+.smacg-tab-empty {
+    grid-column: 1 / -1;
+    padding: 40px 0;
+    color: rgba(220, 230, 245, 0.40);
+    font-size: 14px;
+    text-align: center;
+}
+
+/* ============================================================
+   內容原則
+   ============================================================ */
+
+#content-principles .coming-card {
+    height: 100%;
+}
+
+#content-principles .coming-card-title {
+    margin-top: 0;
+}
+
+#content-principles .coming-card-desc {
+    line-height: 1.75;
+}
+
+/* ============================================================
+   會員進度
+   ============================================================ */
+
+.member-level-progress-card {
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    background: rgba(99, 168, 255, 0.06);
+    border: 1px solid rgba(99, 168, 255, 0.20);
+    border-radius: 12px;
+}
+
+.mlp-row1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mlp-tier-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.mlp-row1-text {
+    flex: 1;
+}
+
+.mlp-tier-name {
+    color: rgba(220, 230, 245, 0.95);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.mlp-lv {
+    margin-left: 6px;
+    padding: 2px 8px;
+    background: rgba(99, 168, 255, 0.15);
+    border-radius: 10px;
+    color: #63a8ff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.mlp-exp-line {
+    margin-top: 4px;
+    color: rgba(220, 230, 245, 0.55);
+    font-size: 12px;
+}
+
+.mlp-exp-line strong {
+    color: rgba(220, 230, 245, 0.90);
+}
+
+.mlp-bar {
+    position: relative;
+    height: 6px;
+    margin-top: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+}
+
+.mlp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #63a8ff, #a663ff);
+    border-radius: 6px;
+    transition: width 0.6s ease;
+}
+
+.mlp-bar-percent {
+    margin-top: 4px;
+    color: rgba(220, 230, 245, 0.45);
+    font-size: 11px;
+    text-align: right;
+}
+
+.member-level-item {
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.member-level-item.member-level-current {
+    padding-left: 12px;
+    background: rgba(99, 168, 255, 0.10);
+    border-left: 3px solid #63a8ff;
+}
+
+.member-level-item.member-level-reached .member-level-icon {
+    opacity: 1;
+}
+
+.member-level-item.member-level-locked .member-level-icon {
+    opacity: 0.5;
+    filter: grayscale(0.4);
+}
+
+.member-level-check {
+    margin-left: 6px;
+    color: #06a77d;
+    font-size: 12px;
+}
+
+.member-level-here {
+    margin-left: 6px;
+    color: #63a8ff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.member-level-sub {
+    margin-top: 2px;
+    color: rgba(220, 230, 245, 0.45);
+    font-size: 11px;
+}
+
+.member-level-tag.tag-green {
+    background: rgba(6, 167, 125, 0.18);
+    color: #06a77d;
+}
+
+.member-level-tag.tag-purple {
+    background: rgba(106, 76, 147, 0.20);
+    color: #a98edd;
+}
+
+.member-level-tag.tag-orange {
+    background: rgba(184, 134, 11, 0.18);
+    color: #d9a92a;
+}
+
+.member-level-tag.tag-locked {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(220, 230, 245, 0.45);
+}
+
+.member-level-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    color: #63a8ff;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+        gap 0.2s ease,
+        color 0.2s ease;
+}
+
+.member-level-more:hover {
+    gap: 10px;
+    color: #8ec0ff;
+}
+
+/* ============================================================
+   水平溢出防護
+   ============================================================ */
+
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.hero-section,
+.section,
+.coming-soon-section,
+.member-cta-section {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.hero-section {
+    isolation: auto !important;
+    transform: none !important;
+    will-change: auto !important;
+}
+
+.season-section .container {
+    overflow-x: hidden;
+}
+
+.season-cards.scroll-row {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================================
+   桌機／平板斷點
+   ============================================================ */
+
+@media (max-width: 1280px) {
+    .news-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .news-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .wxacg-anime-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .hero-section .hero-content-wrap {
+        gap: 24px;
+    }
+
+    .hero-section .hero-text {
+        max-width: 100%;
+        padding-left: 20px;
+    }
+
+    .hero-section .hero-posters .poster-item {
+        width: 160px;
+        height: 300px;
+    }
+
+    .news-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 14px !important;
+    }
+
+    .wxacg-anime-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    .coming-cards-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 14px !important;
+    }
+
+    .member-cta-grid {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+
+    #season-section .section-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+    }
+
+    #season-section .weekday-tabs {
+        width: 100%;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+    }
+
+    #season-section .weekday-tabs .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .section-header {
+        flex-wrap: wrap;
+    }
+
+    .tab-switch {
+        order: 3;
+        width: 100%;
+        flex-wrap: wrap;
+    }
+}
+
+/* ============================================================
+   手機版
+   ============================================================ */
+
+@media (max-width: 768px) {
+
+    .site-header,
+    #site-header {
+        position: fixed !important;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 9999;
+        width: 100%;
+        background:
+            var(--clr-glass-dark,
+                rgba(20, 25, 35, 0.97));
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
+
+    body {
+        padding-top: 60px;
+        padding-bottom:
+            calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    #site-header .header-top {
+        height: 60px;
+    }
+
+    .hero-section {
+        min-height: unset !important;
+        padding-top: 24px !important;
+        padding-bottom: 24px !important;
+    }
+
+    .hero-section .hero-content-wrap {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 16px !important;
+        text-align: center !important;
+    }
+
+    .hero-section .hero-text {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-left: 0 !important;
+        text-align: center !important;
+    }
+
+    .hero-section .hero-eyebrow,
+    .hero-section .hero-title,
+    .hero-section .hero-subtitle,
+    .hero-section .hero-actions {
+        width: 100%;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    .hero-section .hero-title {
+        margin-bottom: 8px !important;
+        font-size: clamp(1.45rem, 6vw, 2rem) !important;
+        line-height: 1.3 !important;
+    }
+
+    .hero-section .hero-subtitle {
+        margin-bottom: 4px !important;
+        font-size: 12px !important;
+    }
+
+    .hero-section .hero-quote {
+        width: min(94%, 560px);
+        margin: 12px auto 16px;
+        padding: 12px 14px;
+        text-align: left;
+    }
+
+    .hero-section .hero-quote p {
+        font-size: 12px;
+    }
+
+    .hero-section .hero-posters {
+        display: none !important;
+    }
+
+    .hero-eyebrow a[href*="bangumi"] {
+        display: none !important;
+    }
+
+    .hero-actions a[href*="season-section"],
+    .hero-actions a[href*="wxacg_random_anime"],
+    .hero-actions a[href*="admin-ajax.php"] {
+        display: none !important;
+    }
+
+    .news-grid {
+        display: grid !important;
+        grid-auto-flow: column !important;
+        grid-template-rows: repeat(2, auto) !important;
+        grid-template-columns: none !important;
+        grid-auto-columns: 46% !important;
+        gap: 10px !important;
+        margin-top: 14px;
+        padding-bottom: 6px;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        scroll-padding-left: 0;
+        scroll-snap-type: x mandatory !important;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .news-grid::-webkit-scrollbar {
+        display: none;
+    }
+
+    .news-grid .news-card {
+        min-width: 0;
+        border-radius: 10px;
+        scroll-snap-align: start;
+    }
+
+    .news-grid .news-card__thumb {
+        aspect-ratio: 16 / 10;
+    }
+
+    .news-grid .news-card__body {
+        gap: 4px;
+        padding: 8px 10px 10px;
+    }
+
+    .news-grid .news-card__title {
+        font-size: 13px;
+        line-height: 1.35;
+        -webkit-line-clamp: 2;
+    }
+
+    .news-grid .news-card__excerpt {
+        display: none;
+    }
+
+    .news-grid .news-card__cat {
+        top: 6px;
+        left: 6px;
+        padding: 2px 7px;
+        font-size: 10px;
+    }
+
+    .news-grid .news-card__meta {
+        font-size: 10px;
+    }
+
+    .wxacg-anime-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .weekday-tabs {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        flex-wrap: nowrap !important;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .weekday-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .weekday-tabs .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    #season-section .section-header {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    #season-section .weekday-tabs {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    #season-section .section-link {
+        align-self: flex-end;
+    }
+
+    .section-description {
+        margin-top: 0;
+        font-size: 12px;
+    }
+
+    .wx-bottom-nav {
+        position: fixed !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        z-index: 999999 !important;
+        width: 100% !important;
+        transform: none !important;
+        will-change: auto !important;
+    }
+}
+
+@media (max-width: 540px) {
+    .news-tabs {
+        gap: 4px;
+        padding: 3px;
+    }
+
+    .news-tab-btn {
+        gap: 4px;
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+
+    .news-tab-count {
+        padding: 1px 5px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-section .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        width: 100%;
+        max-width: 360px;
+        margin: 0 auto;
+    }
+
+    .hero-section .hero-actions .btn {
+        flex: 1 1 calc(50% - 5px);
+        min-height: 44px;
+        padding: 10px 14px;
+        font-size: 0.95rem;
+        white-space: nowrap;
+    }
+
+    .news-grid {
+        grid-auto-columns: 60% !important;
+        gap: 8px !important;
+    }
+
+    .news-grid .news-card__title {
+        font-size: 12px;
+    }
+
+    .wxacg-anime-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+}
+
+/* ============================================================
+   動畫偏好
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .news-card,
+    .news-card__thumb img,
+    .wxacg-anime-card,
+    .wxacg-card-thumb img,
+    .chip.chip-link,
+    .mlp-bar-fill {
+        transition: none !important;
+    }
+}

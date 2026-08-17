@@ -1,0 +1,447 @@
+/**
+ * Gamification System Styles - Base
+ * 
+ * 等級條、稱號、徽章基礎樣式
+ * 段位、職業樣式將在後續 batch 補上
+ *
+ * Version: 1.0.0 (2026-05-13)
+ * Batch: 2A-0
+ */
+
+/* =====================================================
+   1. 等級資訊大卡（會員中心點數頁用）
+   ===================================================== */
+.smacg-level-summary {
+    background: linear-gradient(135deg, #1a1d2e 0%, #2d1b4e 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 24px;
+    color: #e6e9f2;
+    margin-bottom: 20px;
+}
+
+.smacg-level-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.smacg-level-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    flex-shrink: 0;
+}
+
+.smacg-level-meta {
+    flex: 1;
+    min-width: 0;
+}
+.smacg-level-meta .lvl-number {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+.smacg-level-meta .lvl-number small {
+    font-size: 14px;
+    color: #9ca3af;
+    font-weight: 400;
+    margin-left: 4px;
+}
+.smacg-level-meta .lvl-title {
+    font-size: 14px;
+    color: #c9cdd9;
+    margin-top: 6px;
+}
+
+.smacg-level-exp {
+    text-align: right;
+    flex-shrink: 0;
+}
+.smacg-level-exp .exp-num {
+    font-size: 20px;
+    font-weight: 600;
+    color: #6bb6ff;
+    line-height: 1;
+}
+.smacg-level-exp .exp-label {
+    font-size: 11px;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+
+/* 等級進度條 */
+.smacg-level-bar {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 12px;
+}
+.smacg-level-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6bb6ff, #b66bff);
+    border-radius: 6px;
+    transition: width .6s ease;
+    box-shadow: 0 0 12px rgba(107, 182, 255, 0.4);
+}
+
+.smacg-level-progress-text {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+/* MAX 等級狀態 */
+.smacg-level-summary.is-max .smacg-level-bar-fill {
+    background: linear-gradient(90deg, #ffd700, #ff6b9d, #6bb6ff);
+    width: 100% !important;
+    animation: smacg-rainbow-flow 3s linear infinite;
+}
+@keyframes smacg-rainbow-flow {
+    0%, 100% { filter: hue-rotate(0deg); }
+    50%      { filter: hue-rotate(60deg); }
+}
+
+/* =====================================================
+   2. 點數紀錄表（升級版）
+   ===================================================== */
+.mc-points-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+.mc-points-table thead th {
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #9ca3af;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.mc-points-table tbody td {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 13px;
+    color: #e6e9f2;
+}
+.mc-points-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+.mc-points-table .mc-pt-pos {
+    color: #6bff9d;
+    font-weight: 600;
+}
+.mc-points-table .mc-pt-neg {
+    color: #ff6b9d;
+    font-weight: 600;
+}
+
+/* =====================================================
+   3. 等級里程碑提示（升等通知用）
+   ===================================================== */
+.smacg-milestone-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.1), rgba(255, 107, 157, 0.1));
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+.smacg-milestone-banner .icon {
+    font-size: 24px;
+}
+.smacg-milestone-banner .text {
+    flex: 1;
+    font-size: 14px;
+    color: #fff;
+}
+.smacg-milestone-banner .cta {
+    background: #ffd700;
+    color: #0f1117;
+    border: 0;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+}
+.smacg-milestone-banner .cta:hover {
+    background: #ffea7a;
+}
+
+/* =====================================================
+   4. RWD
+   ===================================================== */
+@media (max-width: 640px) {
+    .smacg-level-summary {
+        padding: 18px;
+    }
+    .smacg-level-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 24px;
+    }
+    .smacg-level-meta .lvl-number {
+        font-size: 24px;
+    }
+    .smacg-level-exp .exp-num {
+        font-size: 16px;
+    }
+    .mc-points-table thead {
+        display: none;
+    }
+    .mc-points-table tbody tr {
+        display: block;
+        padding: 12px;
+        margin-bottom: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+    }
+    .mc-points-table tbody td {
+        display: block;
+        padding: 4px 0;
+        border: 0;
+    }
+    .mc-points-table tbody td::before {
+        content: attr(data-label) "：";
+        color: #9ca3af;
+        font-size: 11px;
+        margin-right: 6px;
+    }
+}
+
+/* =========================================================
+ * Batch 2A-3：Job badge / Badges tab / Career tab
+ * v1.1.0 (2026-05-14)
+ * ========================================================= */
+
+/* Hero 區職業徽章 */
+.mc-job-badge{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:3px 10px;margin-left:8px;
+    font-size:13px;font-weight:600;
+    color:#fff;background:linear-gradient(135deg,#8b5cf6,#ec4899);
+    border-radius:999px;vertical-align:middle;
+}
+
+/* EXP tab：summary + progress + log */
+.mc-exp-wrap{padding:8px 0}
+.mc-exp-summary{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:20px 24px;margin-bottom:16px;
+    background:rgba(255,255,255,.06);border-radius:14px;
+    backdrop-filter:blur(10px);
+    flex-wrap:wrap;gap:16px;
+}
+.mc-exp-summary-main{display:flex;align-items:center;gap:16px}
+.mc-exp-level-icon{font-size:48px;line-height:1}
+.mc-exp-level-num{font-size:28px;font-weight:800;color:#fff}
+.mc-exp-level-title{font-size:14px;color:rgba(255,255,255,.7)}
+.mc-exp-summary-stats{display:flex;gap:24px}
+.mc-exp-summary-stats > div{text-align:center}
+.mc-exp-summary-stats b{display:block;font-size:22px;color:#fff}
+.mc-exp-summary-stats span{font-size:12px;color:rgba(255,255,255,.6)}
+
+.mc-exp-progress{margin-bottom:24px}
+.mc-exp-progress-bar{
+    width:100%;height:10px;
+    background:rgba(255,255,255,.1);border-radius:999px;overflow:hidden;
+}
+.mc-exp-progress-fill{
+    height:100%;
+    background:linear-gradient(90deg,#10b981,#3b82f6);
+    transition:width .4s ease;
+}
+.mc-exp-progress small{
+    display:block;margin-top:6px;font-size:12px;
+    color:rgba(255,255,255,.55);text-align:right;
+}
+
+.mc-exp-log-title{margin:20px 0 12px;font-size:16px;color:#fff}
+.mc-exp-log-table{
+    width:100%;border-collapse:collapse;font-size:14px;
+}
+.mc-exp-log-table th,
+.mc-exp-log-table td{
+    padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08);
+    color:rgba(255,255,255,.85);text-align:left;
+}
+.mc-exp-log-table th{
+    background:rgba(255,255,255,.04);font-weight:600;
+    color:rgba(255,255,255,.6);
+}
+.mc-exp-log-table .mc-num{text-align:right;font-variant-numeric:tabular-nums}
+.mc-exp-pos{color:#34d399;font-weight:600}
+.mc-exp-neg{color:#f87171;font-weight:600}
+
+/* Badges tab */
+.mc-badges-wrap{padding:8px 0}
+.mc-badges-summary{
+    padding:20px 24px;margin-bottom:20px;
+    background:rgba(255,255,255,.06);border-radius:14px;text-align:center;
+}
+.mc-badges-summary-num b{font-size:36px;color:#fbbf24;font-weight:800}
+.mc-badges-summary-num span{font-size:18px;color:rgba(255,255,255,.6)}
+.mc-badges-summary-bar{
+    width:100%;height:8px;margin:12px 0 6px;
+    background:rgba(255,255,255,.1);border-radius:999px;overflow:hidden;
+}
+.mc-badges-summary-bar-fill{
+    height:100%;background:linear-gradient(90deg,#fbbf24,#f59e0b);transition:width .4s ease;
+}
+.mc-badges-summary-text{font-size:13px;color:rgba(255,255,255,.6);margin:0}
+
+.mc-badges-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;
+}
+.mc-badge-card{
+    display:flex;flex-direction:column;align-items:center;
+    padding:18px 12px;text-align:center;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;transition:all .2s;
+}
+.mc-badge-card.is-unlocked{
+    background:linear-gradient(135deg,rgba(251,191,36,.15),rgba(245,158,11,.08));
+    border-color:rgba(251,191,36,.35);
+    box-shadow:0 4px 16px rgba(251,191,36,.12);
+}
+.mc-badge-card.is-locked{opacity:.45;filter:grayscale(.8)}
+.mc-badge-card:hover{transform:translateY(-2px)}
+.mc-badge-icon{
+    position:relative;width:80px;height:80px;
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:10px;font-size:42px;
+    background:rgba(0,0,0,.2);border-radius:50%;
+}
+.mc-badge-icon img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.mc-badge-lock{
+    position:absolute;right:-4px;bottom:-4px;
+    width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.6);border-radius:50%;font-size:13px;color:#fff;
+}
+.mc-badge-title{margin:0 0 4px;font-size:14px;font-weight:700;color:#fff}
+.mc-badge-desc{margin:0;font-size:12px;color:rgba(255,255,255,.6);line-height:1.45}
+
+/* Career tab */
+.mc-career-locked{
+    padding:40px 20px;text-align:center;
+    background:rgba(255,255,255,.04);border-radius:14px;
+}
+.mc-career-locked-icon{font-size:64px;margin-bottom:12px}
+.mc-career-locked h3{color:#fff;margin:0 0 8px;font-size:22px}
+.mc-career-locked p{color:rgba(255,255,255,.7);margin:4px 0}
+.mc-career-locked-hint{color:rgba(255,255,255,.5);font-size:13px}
+
+.mc-career-choose h2{color:#fff;margin:0 0 6px}
+.mc-career-intro{color:rgba(255,255,255,.7);margin:0 0 20px}
+.mc-career-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;
+}
+.mc-career-card{
+    display:flex;flex-direction:column;align-items:center;
+    padding:18px 14px;text-align:center;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    border-radius:14px;color:inherit;transition:all .2s;
+}
+.mc-career-card:hover{
+    transform:translateY(-3px);
+    background:rgba(255,255,255,.09);
+    border-color:rgba(139,92,246,.4);
+    box-shadow:0 6px 20px rgba(139,92,246,.15);
+}
+.mc-career-card-icon{font-size:42px;margin-bottom:8px}
+.mc-career-card-name{margin:0 0 12px;font-size:16px;font-weight:700;color:#fff}
+.mc-career-card-path{
+    list-style:none;padding:0;margin:0;width:100%;
+    border-top:1px solid rgba(255,255,255,.08);
+}
+.mc-career-card-path li{
+    padding:6px 0;font-size:13px;color:rgba(255,255,255,.75);
+    border-bottom:1px solid rgba(255,255,255,.04);
+    display:flex;justify-content:space-between;
+}
+.mc-career-card-path li:last-child{border-bottom:none}
+.mc-career-card-path li small{color:rgba(255,255,255,.4);font-weight:500}
+.mc-career-note{
+    margin-top:20px;padding:10px 14px;text-align:center;
+    font-size:12px;color:rgba(255,255,255,.5);
+    background:rgba(255,255,255,.03);border-radius:8px;
+}
+
+.mc-career-current{
+    display:flex;align-items:center;gap:18px;
+    padding:20px 24px;margin-bottom:24px;
+    background:linear-gradient(135deg,rgba(139,92,246,.15),rgba(236,72,153,.08));
+    border:1px solid rgba(139,92,246,.3);border-radius:14px;
+}
+.mc-career-current-icon{font-size:56px;line-height:1}
+.mc-career-current-body h2{margin:0 0 4px;color:#fff;font-size:22px}
+.mc-career-current-title{margin:4px 0;color:rgba(255,255,255,.85)}
+.mc-career-current-title b{color:#fbbf24}
+.mc-career-current-meta{margin:4px 0 0;color:rgba(255,255,255,.5);font-size:12px}
+
+.mc-career-path-title{color:#fff;margin:24px 0 14px}
+.mc-career-path{list-style:none;padding:0;margin:0;position:relative}
+.mc-career-path::before{
+    content:'';position:absolute;left:15px;top:14px;bottom:14px;
+    width:2px;background:rgba(255,255,255,.1);
+}
+.mc-career-path-item{
+    position:relative;display:flex;gap:16px;padding:12px 0 12px 8px;
+}
+.mc-career-path-marker{
+    flex:0 0 32px;width:32px;height:32px;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:50%;font-size:13px;z-index:1;
+    background:rgba(0,0,0,.5);color:rgba(255,255,255,.4);
+}
+.mc-career-path-item.is-done .mc-career-path-marker{
+    background:#10b981;color:#fff;
+}
+.mc-career-path-item.is-current .mc-career-path-marker{
+    background:#fbbf24;color:#000;animation:mc-career-pulse 2s infinite;
+}
+.mc-career-path-item.is-locked{opacity:.5}
+.mc-career-path-stage{font-size:12px;color:rgba(255,255,255,.55);margin-bottom:2px}
+.mc-career-path-name{font-size:16px;font-weight:700;color:#fff}
+.mc-career-path-ref{margin-top:2px}
+.mc-career-path-ref small{color:rgba(255,255,255,.45);font-size:11px}
+
+@keyframes mc-career-pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.5)}
+    50%{box-shadow:0 0 0 8px rgba(251,191,36,0)}
+}
+
+/* Level bar 修正：支援 MAX 顯示 */
+.mc-level-max{
+    display:inline-block;margin-left:4px;
+    padding:1px 6px;background:linear-gradient(90deg,#fbbf24,#f59e0b);
+    color:#000;font-weight:700;border-radius:4px;font-size:11px;
+}
+
+/* RWD */
+@media (max-width:640px){
+    .mc-exp-summary{flex-direction:column;align-items:flex-start}
+    .mc-exp-summary-stats{width:100%;justify-content:space-around}
+    .mc-career-grid{grid-template-columns:1fr 1fr}
+    .mc-badges-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+    .mc-badge-icon{width:64px;height:64px;font-size:32px}
+    .mc-career-current{flex-direction:column;text-align:center}
+}
+

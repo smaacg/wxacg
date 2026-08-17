@@ -1,0 +1,144 @@
+/**
+ * 全站深色背景文字白色化（v1.0.0, 2026-05-26）
+ *
+ * 原理：
+ * 1. 覆蓋 Blocksy / 自訂 CSS 變數，讓主題自動套用
+ * 2. 對深色容器 (.glass-mid, .glass-dark, body 等) 強制白色標題與內文
+ * 3. 不影響白底容器（modal、admin bar、表格 thead 等）
+ */
+
+/* ─────────────────────────────────────────
+   1. 覆蓋全站 CSS 變數
+   ───────────────────────────────────────── */
+:root {
+  /* 通用文字色 */
+  --text-color:       #e8e8e8;
+  --text-strong:      #ffffff;
+  --text-muted:       rgba(255, 255, 255, 0.65);
+  --text-faint:       rgba(255, 255, 255, 0.45);
+
+  /* 標題色 */
+  --heading-color:    #ffffff;
+  --title-color:      #ffffff;
+  --section-title:    #ffffff;
+
+  /* Blocksy 主題常用變數（如果你的主題有用就會自動套用）*/
+  --paletteColor1:    #ffffff;
+  --paletteColor2:    #e8e8e8;
+  --color:            #e8e8e8;
+  --headings-color:   #ffffff;
+  --link-initial-color: #93c5fd;
+  --link-hover-color:   #ffffff;
+}
+
+/* ─────────────────────────────────────────
+   2. body 預設文字白色
+   ───────────────────────────────────────── */
+body {
+  color: var(--text-color);
+}
+
+/* ─────────────────────────────────────────
+   3. 全站標題白色
+   ───────────────────────────────────────── */
+body h1,
+body h2,
+body h3,
+body h4,
+body h5,
+body h6,
+body .entry-title,
+body .widget-title,
+body .section-title,
+body .ct-widget-title {
+  color: var(--heading-color);
+}
+
+/* ─────────────────────────────────────────
+   4. 內文 / 區塊文字白色（強化版）
+   ───────────────────────────────────────── */
+body p,
+body li,
+body dd,
+body dt,
+body .entry-content,
+body .entry-content p,        /* ← 加強 */
+body .entry-content li,       /* ← 加強 */
+body .widget,
+body .widget p,               /* ← 加強 */
+body .sidebar-widget,
+body .sidebar-widget p,       /* ← 加強 */
+body article,
+body article p,               /* ← 加強 */
+body .card-body,
+body .post-meta,
+body .entry-meta {
+  color: var(--text-color);
+}
+
+
+/* ─────────────────────────────────────────
+   5. 次要文字（時間、meta、輔助說明）
+   ───────────────────────────────────────── */
+body .meta,
+body .post-date,
+body time,
+body .text-muted,
+body small,
+body .excerpt,
+body .description {
+  color: var(--text-muted);
+}
+
+/* ─────────────────────────────────────────
+   6. 連結預設色
+   ───────────────────────────────────────── */
+body a {
+  color: var(--link-initial-color, #93c5fd);
+}
+body a:hover {
+  color: var(--link-hover-color, #ffffff);
+}
+
+/* ─────────────────────────────────────────
+   7. ⚠️ 例外：白底容器內保持原色（防誤傷）
+   ───────────────────────────────────────── */
+
+/* 7-1. 登入 Modal（如果是淺色設計，加進來；若已是深色可移除）*/
+/*
+.lm-overlay,
+.lm-box,
+.lm-box * {
+  color: initial;
+}
+*/
+
+/* 7-2. WordPress Admin Bar（後台條） */
+#wpadminbar,
+#wpadminbar * {
+  color: initial;
+}
+
+/* 7-3. 表格 thead（如果有白底表頭） */
+table.has-light-thead thead,
+table.has-light-thead thead * {
+  color: #1a1a1a;
+}
+
+/* 7-4. 任何明確標記為亮色容器的區塊 */
+.bg-white,
+.bg-light,
+.is-light-bg,
+.is-light-bg * {
+  color: #1a1a1a;
+}
+
+/* 7-5. 按鈕內文字保持按鈕自己的色 */
+body button,
+body .btn,
+body .um-button,
+body input[type="submit"] {
+  color: inherit;
+}
+
+

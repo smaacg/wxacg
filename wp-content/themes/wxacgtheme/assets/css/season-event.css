@@ -1,0 +1,234 @@
+/**
+ * Single Season Event 模板樣式
+ * @version 1.0.0 (2026-05-14) Batch 2B-5
+ */
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.evt-hero{
+  position:relative;min-height:340px;
+  display:flex;align-items:center;
+  background:linear-gradient(135deg,#1a1633 0%,#0f0c24 60%,#08061a 100%);
+  padding:60px 0;margin-bottom:30px;
+}
+.evt-hero__content{position:relative;z-index:2;text-align:center;}
+
+.evt-hero__eyebrow{
+  display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;
+}
+.evt-status-chip{
+  display:inline-block;padding:5px 14px;border-radius:999px;
+  font-size:12px;font-weight:700;color:#fff;
+}
+.chip--warn{background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid rgba(251,191,36,.4);}
+
+.evt-hero__title{
+  font-size:clamp(30px,5vw,52px);font-weight:800;color:#fff;
+  margin:0 0 14px;letter-spacing:-.02em;
+}
+.evt-hero__subtitle{font-size:16px;color:rgba(255,255,255,.7);margin:0 0 28px;max-width:680px;margin-left:auto;margin-right:auto;}
+
+/* Countdown */
+.evt-countdown{
+  display:inline-block;padding:18px 28px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px;
+  backdrop-filter:blur(10px);
+}
+.evt-countdown__label{font-size:12px;color:rgba(255,255,255,.7);margin-bottom:12px;letter-spacing:.1em;}
+.evt-countdown__nums{display:flex;gap:14px;justify-content:center;align-items:flex-end;}
+.evt-countdown__nums > div{display:flex;flex-direction:column;align-items:center;min-width:60px;}
+.evt-countdown__nums span{
+  font-size:36px;font-weight:800;line-height:1;
+  background:linear-gradient(135deg,#fbbf24,#f59e0b);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  font-variant-numeric:tabular-nums;
+}
+.evt-countdown__nums small{font-size:11px;color:rgba(255,255,255,.5);margin-top:4px;}
+.evt-countdown__ended{font-size:18px;font-weight:700;color:#fbbf24;}
+.evt-countdown__ended i{margin-right:6px;}
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.evt-body{padding-bottom:60px;}
+.evt-layout{display:grid;grid-template-columns:1fr 320px;gap:30px;align-items:start;}
+@media (max-width:1024px){.evt-layout{grid-template-columns:1fr;}}
+
+/* ============================================================
+   Card
+   ============================================================ */
+.evt-card{padding:24px;border-radius:16px;margin-bottom:18px;}
+.evt-card__title{
+  display:flex;align-items:center;gap:10px;
+  font-size:18px;font-weight:700;color:#fff;
+  margin:0 0 16px;
+}
+.evt-card__count{
+  font-size:12px;font-weight:500;color:var(--text-muted,#9ca3af);
+  margin-left:auto;
+}
+
+/* ============================================================
+   Task & My progress
+   ============================================================ */
+.evt-task-desc{font-size:14px;color:var(--text-muted,#9ca3af);line-height:1.7;margin:0 0 12px;}
+.evt-task-target{
+  display:inline-block;padding:8px 16px;
+  background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);
+  border-radius:10px;font-size:14px;color:#fff;
+}
+.evt-task-target strong{
+  font-size:18px;
+  background:linear-gradient(135deg,#6c63ff,#02a9ff);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  margin-right:4px;
+}
+
+.evt-my-progress{
+  margin-top:20px;padding-top:20px;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.evt-progress-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+.evt-progress-label{font-size:13px;color:var(--text-muted,#9ca3af);}
+.evt-progress-num{font-size:14px;color:#fff;font-variant-numeric:tabular-nums;}
+.evt-progress-num strong{
+  font-size:22px;
+  background:linear-gradient(135deg,#fbbf24,#f59e0b);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.evt-progress-num small{font-size:11px;color:var(--text-muted,#9ca3af);margin-left:2px;}
+
+.evt-progress-bar{
+  height:10px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden;
+  margin-bottom:10px;
+}
+.evt-progress-fill{
+  height:100%;border-radius:999px;
+  background:linear-gradient(90deg,#6c63ff,#02a9ff,#34d399);
+  transition:width .6s cubic-bezier(.4,0,.2,1);
+}
+.evt-progress-meta{font-size:12.5px;color:var(--text-muted,#9ca3af);}
+.evt-progress-status{display:inline-flex;align-items:center;gap:6px;}
+.evt-progress-status--ok{color:#34d399;}
+.evt-progress-status--err{color:#f87171;}
+.evt-progress-status strong{color:#fff;}
+
+.evt-login-cta{
+  margin-top:18px;padding:14px 18px;
+  background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.15);
+  border-radius:10px;font-size:13px;color:var(--text-muted,#9ca3af);
+  text-align:center;
+}
+.evt-login-cta a{color:var(--accent-cyan,#02a9ff);text-decoration:none;font-weight:700;}
+.evt-login-cta a:hover{text-decoration:underline;}
+.evt-login-cta i{margin-right:6px;}
+
+/* ============================================================
+   Content
+   ============================================================ */
+.evt-content{color:rgba(255,255,255,.85);line-height:1.8;font-size:15px;}
+.evt-content p{margin:0 0 14px;}
+.evt-content h2,.evt-content h3{color:#fff;margin:24px 0 12px;}
+.evt-content a{color:var(--accent-cyan,#02a9ff);}
+.evt-content img{max-width:100%;height:auto;border-radius:8px;}
+
+/* ============================================================
+   Rank list
+   ============================================================ */
+.evt-rank-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;}
+.evt-rank-row{
+  display:grid;
+  grid-template-columns:40px 48px 1fr auto;
+  gap:14px;align-items:center;
+  padding:12px 16px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);
+  border-radius:12px;transition:all .25s;
+}
+.evt-rank-row:hover{background:rgba(255,255,255,.07);transform:translateY(-1px);}
+.evt-rank-row--me{background:linear-gradient(135deg,rgba(108,99,255,.15),rgba(2,169,255,.08));border-color:rgba(108,99,255,.4);}
+.evt-rank-row--1{background:linear-gradient(135deg,rgba(251,191,36,.15),rgba(245,158,11,.06));border-color:rgba(251,191,36,.4);}
+.evt-rank-row--2{background:linear-gradient(135deg,rgba(229,231,235,.12),rgba(156,163,175,.05));border-color:rgba(229,231,235,.3);}
+.evt-rank-row--3{background:linear-gradient(135deg,rgba(217,119,87,.15),rgba(180,83,45,.06));border-color:rgba(217,119,87,.35);}
+
+.evt-rank-pos{font-size:20px;font-weight:800;text-align:center;color:var(--text-muted,#9ca3af);font-variant-numeric:tabular-nums;}
+.evt-rank-row--1 .evt-rank-pos,
+.evt-rank-row--2 .evt-rank-pos,
+.evt-rank-row--3 .evt-rank-pos{font-size:26px;}
+
+.evt-rank-avatar{display:block;width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.1);}
+.evt-rank-avatar img{width:100%;height:100%;object-fit:cover;}
+.evt-rank-row--1 .evt-rank-avatar{border-color:#fbbf24;box-shadow:0 0 14px rgba(251,191,36,.4);}
+
+.evt-rank-info{min-width:0;}
+.evt-rank-name{
+  display:block;font-size:14px;font-weight:700;color:#fff;text-decoration:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-bottom:6px;
+}
+.evt-rank-name:hover{color:var(--accent-cyan,#02a9ff);}
+.evt-rank-prog{display:flex;align-items:center;gap:8px;}
+.evt-rank-bar{flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden;max-width:240px;}
+.evt-rank-fill{height:100%;background:linear-gradient(90deg,#6c63ff,#02a9ff);border-radius:999px;}
+.evt-rank-pct{font-size:11px;color:var(--text-muted,#9ca3af);font-variant-numeric:tabular-nums;min-width:36px;}
+
+.evt-rank-score{
+  text-align:right;font-size:16px;font-weight:800;color:#fff;
+  font-variant-numeric:tabular-nums;
+}
+.evt-rank-score small{
+  display:block;font-size:10px;font-weight:600;color:var(--text-muted,#9ca3af);margin-top:2px;letter-spacing:.04em;
+}
+.evt-rank-done{display:inline-block;color:#34d399;font-size:14px;margin-left:4px;}
+.evt-rank-done--pending{color:#fbbf24;}
+
+.evt-empty{
+  text-align:center;padding:40px 20px;color:var(--text-muted,#9ca3af);font-size:13px;
+}
+.evt-empty i{display:block;font-size:32px;margin-bottom:10px;opacity:.5;}
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+.evt-sidebar{display:flex;flex-direction:column;}
+.evt-reward-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;}
+.evt-reward-list li{
+  display:flex;align-items:center;gap:12px;
+  padding:12px;background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);border-radius:10px;
+}
+.evt-reward-icon{font-size:26px;line-height:1;}
+.evt-reward-info{display:flex;flex-direction:column;}
+.evt-reward-info strong{font-size:15px;color:#fff;line-height:1.3;}
+.evt-reward-info small{font-size:11px;color:var(--text-muted,#9ca3af);margin-top:2px;}
+.evt-limit-note{
+  margin:14px 0 0;padding:10px 12px;
+  background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);border-radius:8px;
+  font-size:11.5px;color:#fcd34d;line-height:1.6;
+}
+.evt-limit-note i{margin-right:6px;}
+.evt-limit-note strong{color:#fff;}
+
+.evt-rules{list-style:none;padding:0;margin:0;}
+.evt-rules li{
+  position:relative;padding:6px 0 6px 18px;
+  font-size:12.5px;color:var(--text-muted,#9ca3af);line-height:1.7;
+}
+.evt-rules li::before{content:'•';position:absolute;left:4px;color:var(--accent-cyan,#02a9ff);font-weight:800;}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width:640px){
+  .evt-countdown__nums span{font-size:28px;}
+  .evt-countdown__nums > div{min-width:48px;}
+  .evt-rank-row{grid-template-columns:32px 40px 1fr auto;gap:10px;padding:10px 12px;}
+  .evt-rank-avatar{width:40px;height:40px;}
+  .evt-rank-pos{font-size:16px;}
+  .evt-rank-row--1 .evt-rank-pos,
+  .evt-rank-row--2 .evt-rank-pos,
+  .evt-rank-row--3 .evt-rank-pos{font-size:22px;}
+  .evt-rank-bar{max-width:160px;}
+}

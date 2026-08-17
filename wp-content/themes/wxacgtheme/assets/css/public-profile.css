@@ -1,0 +1,1084 @@
+/* ==========================================================
+ * Public Profile v2.1.0 (2026-05-17)
+ * 對齊 member.css v2.4.0 — Dark theme + glass-morphism
+ * 
+ * v2.1.0 修正:
+ *   - Hero 緊湊化 (110px 頭像、padding 縮減)
+ *   - 修正 class 對應: .pp-filter / .pp-anime-thumb / .pp-section-info
+ *   - 新增 .pp-hero-inner / .pp-ratings / .pp-rating-* 樣式
+ *   - 評分區字體提亮、加上評分星等視覺
+ * ========================================================== */
+
+.pp-wrap {
+  --mc-bg:           #0f1419;
+  --mc-surface:      rgba(255, 255, 255, .04);
+  --mc-surface-hi:   rgba(255, 255, 255, .08);
+  --mc-border:       rgba(255, 255, 255, .1);
+
+  --mc-text:         #e6e8eb;
+  --mc-text-2:       #cbd5e1;
+  --mc-text-3:       #94a3b8;
+  --mc-text-dim:     #9aa3ad;
+
+  --mc-accent:       #ff6bae;
+  --mc-accent-2:     #6bb6ff;
+  --mc-accent-3:     #a78bfa;
+
+  --mc-watching:     #6bb6ff;
+  --mc-completed:    #34d399;
+  --mc-want:         #fbbf24;
+  --mc-favorited:    #ff6bae;
+  --mc-dropped:      #94a3b8;
+  --mc-danger:       #f87171;
+
+  --mc-radius:       14px;
+  --mc-radius-sm:    8px;
+  --mc-shadow:       0 8px 24px rgba(0, 0, 0, .25);
+
+  max-width: 1200px;
+  margin: 24px auto 64px;
+  padding: 0 20px;
+  color: var(--mc-text);
+  font-family: -apple-system, "Noto Sans TC", sans-serif;
+  box-sizing: border-box;
+}
+.pp-wrap *,
+.pp-wrap *::before,
+.pp-wrap *::after { box-sizing: border-box; }
+.pp-wrap a { color: var(--mc-accent); text-decoration: none; transition: color .15s; }
+.pp-wrap a:hover { color: var(--mc-accent-2); }
+
+/* ==========================================================
+ *  預覽 / 切換橫幅
+ * ========================================================== */
+.pp-preview-banner,
+.pp-owner-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(167, 139, 250, .12), rgba(107, 182, 255, .12));
+  border: 1px solid rgba(167, 139, 250, .3);
+  border-radius: var(--mc-radius-sm);
+  font-size: 13px;
+  color: var(--mc-text-2);
+}
+.pp-preview-banner i,
+.pp-owner-banner i { color: var(--mc-accent-3); }
+.pp-preview-banner a,
+.pp-owner-banner a { color: var(--mc-accent-3); font-weight: 600; }
+.pp-owner-banner a + a,
+.pp-preview-banner a + a { margin-left: auto; }
+
+/* ==========================================================
+ *  Hero（緊湊版）
+ * ========================================================== */
+.pp-hero {
+  padding: 22px 26px;
+  background: linear-gradient(135deg, rgba(255, 107, 174, .12), rgba(107, 182, 255, .12));
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  margin-bottom: 22px;
+}
+
+.pp-hero-inner {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.pp-hero-avatar {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--mc-accent);
+  box-shadow: 0 0 24px rgba(255, 107, 174, .3);
+  background: #1a1f26;
+}
+.pp-hero-avatar img,
+.pp-hero-avatar a img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pp-hero-main { min-width: 0; }
+
+.pp-hero-name {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+  line-height: 1.2;
+}
+
+.pp-hero-plan,
+.pp-plan-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--mc-accent), var(--mc-accent-2));
+  color: #fff;
+  letter-spacing: .03em;
+}
+
+.pp-hero-bio {
+  color: var(--mc-text-dim);
+  margin: 0 0 12px;
+  line-height: 1.6;
+  font-size: 14px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Meta：日期 / Email / 點數 / 收藏 */
+.pp-hero-meta {
+  display: flex;
+  gap: 12px 18px;
+  flex-wrap: wrap;
+  color: var(--mc-text-dim);
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+.pp-hero-meta > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-hero-meta i { color: var(--mc-accent); font-size: 12px; }
+.pp-hero-meta strong { color: var(--mc-text-2); font-weight: 600; }
+
+/* 追蹤統計 */
+.pp-follow-meta {
+  display: flex;
+  gap: 20px;
+  margin: 6px 0 10px;
+  font-size: 13px;
+}
+.pp-follow-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--mc-text-2);
+  text-decoration: none;
+}
+.pp-follow-stat b {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--mc-text);
+  transition: color .15s;
+}
+.pp-follow-stat em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--mc-text-3);
+}
+.pp-follow-stat:hover b { color: var(--mc-accent); }
+
+/* 等級條 */
+.pp-level-bar {
+  position: relative;
+  height: 8px;
+  background: rgba(0, 0, 0, .35);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 10px 0 6px;
+}
+.pp-level-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--mc-accent), var(--mc-accent-2));
+  border-radius: 999px;
+  transition: width .6s ease;
+}
+.pp-level-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mc-text-2);
+  letter-spacing: .02em;
+  display: block;
+  margin-top: 4px;
+}
+
+/* 按鈕區 */
+.pp-hero-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+/* ==========================================================
+ *  按鈕
+ * ========================================================== */
+.pp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--mc-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform .12s, background .15s, border-color .15s, box-shadow .15s, filter .15s;
+  user-select: none;
+  white-space: nowrap;
+}
+.pp-btn:active { transform: translateY(1px); }
+.pp-btn:disabled { opacity: .6; cursor: not-allowed; pointer-events: none; }
+
+.pp-btn-primary {
+  background: linear-gradient(135deg, var(--mc-accent), var(--mc-accent-3));
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 107, 174, .35);
+}
+.pp-btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(255, 107, 174, .5);
+  filter: brightness(1.05);
+  color: #fff;
+}
+
+.pp-btn-secondary {
+  background: var(--mc-surface-hi);
+  color: var(--mc-text);
+  border-color: var(--mc-border);
+}
+.pp-btn-secondary:hover {
+  background: var(--mc-surface);
+  border-color: var(--mc-accent);
+  color: var(--mc-accent);
+}
+
+.pp-btn-ghost {
+  background: transparent;
+  color: var(--mc-text-2);
+  border-color: var(--mc-border);
+}
+.pp-btn-ghost:hover {
+  color: var(--mc-accent);
+  border-color: var(--mc-accent);
+}
+
+.pp-btn-following {
+  background: var(--mc-surface);
+  color: var(--mc-completed);
+  border-color: rgba(52, 211, 153, .35);
+}
+.pp-btn-following:hover {
+  background: rgba(248, 113, 113, .12);
+  color: var(--mc-danger);
+  border-color: rgba(248, 113, 113, .35);
+}
+
+.pp-mutual-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--mc-accent-3);
+  background: rgba(167, 139, 250, .12);
+  border: 1px solid rgba(167, 139, 250, .3);
+  border-radius: 999px;
+}
+
+/* ==========================================================
+ *  Tabs
+ * ========================================================== */
+.pp-tabs {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--mc-border);
+  margin-bottom: 22px;
+}
+.pp-tab {
+  background: transparent;
+  border: 0;
+  padding: 12px 18px;
+  color: var(--mc-text-dim);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+  transition: all .2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-tab:hover { color: var(--mc-text); background: var(--mc-surface); }
+.pp-tab.active,
+.pp-tab.pp-tab-active {
+  color: var(--mc-accent);
+  border-bottom-color: var(--mc-accent);
+  background: var(--mc-surface);
+  font-weight: 600;
+}
+
+/* ==========================================================
+ *  Panels & Sections
+ * ========================================================== */
+.pp-panels { display: block; }
+.pp-panel { display: none; animation: pp-fade .3s ease; }
+.pp-panel.active,
+.pp-panel.pp-panel-active { display: block; }
+@keyframes pp-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.pp-section { margin-bottom: 28px; }
+.pp-section-title,
+.pp-section h2,
+.pp-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--mc-text);
+  margin: 0 0 14px;
+  padding-left: 12px;
+  position: relative;
+}
+.pp-section-title::before,
+.pp-section > h2:first-child::before,
+.pp-section > h3:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 4px;
+  background: linear-gradient(180deg, var(--mc-accent), var(--mc-accent-2));
+  border-radius: 2px;
+}
+
+/* 「共評分 X 部作品」這種說明文字 */
+.pp-section-info {
+  font-size: 13px;
+  color: var(--mc-text-2);
+  margin: 0 0 14px;
+  padding: 0;
+}
+.pp-section-info strong,
+.pp-section-info b {
+  color: var(--mc-accent);
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 2px;
+}
+
+/* ==========================================================
+ *  Filter Bar（修正 class: .pp-filter / .pp-filter-active）
+ * ========================================================== */
+.pp-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.pp-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  color: var(--mc-text-dim);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .15s;
+  text-decoration: none;
+  font-family: inherit;
+}
+.pp-filter:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-hi);
+  border-color: var(--mc-border);
+}
+.pp-filter em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--mc-text-2);
+  border-radius: 999px;
+  margin-left: 2px;
+  min-width: 18px;
+  text-align: center;
+}
+.pp-filter:hover em {
+  background: rgba(255, 255, 255, .14);
+  color: var(--mc-text);
+}
+.pp-filter.pp-filter-active,
+.pp-filter.active {
+  background: var(--mc-accent);
+  color: #fff;
+  border-color: var(--mc-accent);
+  box-shadow: 0 2px 10px rgba(255, 107, 174, .35);
+}
+.pp-filter.pp-filter-active em,
+.pp-filter.active em {
+  background: rgba(255, 255, 255, .25);
+  color: #fff;
+}
+/* 各狀態色 */
+.pp-filter[data-filter="watching"].pp-filter-active  { background: var(--mc-watching);  border-color: var(--mc-watching); }
+.pp-filter[data-filter="completed"].pp-filter-active { background: var(--mc-completed); border-color: var(--mc-completed); }
+.pp-filter[data-filter="want"].pp-filter-active      { background: var(--mc-want); border-color: var(--mc-want); color: #1a1a1a; }
+.pp-filter[data-filter="favorited"].pp-filter-active { background: var(--mc-favorited); border-color: var(--mc-favorited); }
+.pp-filter[data-filter="dropped"].pp-filter-active   { background: var(--mc-dropped); border-color: var(--mc-dropped); }
+
+/* ==========================================================
+ *  Anime Card Grid（修正 class: .pp-anime-thumb）
+ * ========================================================== */
+.pp-anime-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.pp-anime-card {
+  position: relative;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  overflow: hidden;
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+}
+.pp-anime-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--mc-shadow);
+  border-color: var(--mc-accent);
+}
+
+.pp-anime-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: #1a1f26;
+}
+.pp-anime-thumb img,
+.pp-anime-thumb picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .3s;
+}
+.pp-anime-card:hover .pp-anime-thumb img { transform: scale(1.04); }
+
+.pp-anime-thumb-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 38px;
+  background: linear-gradient(135deg, #1a1f26, #2a3038);
+  color: var(--mc-text-3);
+}
+
+/* 卡片角落徽章 */
+.pp-anime-heart {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  background: rgba(0, 0, 0, .65);
+  color: var(--mc-favorited);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+}
+.pp-anime-status {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  color: #fff;
+  background: rgba(0, 0, 0, .7);
+  backdrop-filter: blur(4px);
+}
+.pp-anime-status--watching  { background: var(--mc-watching); }
+.pp-anime-status--completed { background: var(--mc-completed); }
+.pp-anime-status--want      { background: var(--mc-want); color: #1a1a1a; }
+.pp-anime-status--favorited { background: var(--mc-favorited); }
+.pp-anime-status--dropped   { background: var(--mc-dropped); }
+
+/* 卡片內文 */
+.pp-anime-body { padding: 10px 12px; }
+.pp-anime-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--mc-text);
+}
+.pp-anime-title a { color: inherit; text-decoration: none; }
+.pp-anime-card:hover .pp-anime-title { color: var(--mc-accent); }
+
+.pp-anime-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--mc-text-dim);
+}
+.pp-anime-score {
+  color: var(--mc-want);
+  font-weight: 600;
+}
+
+/* ==========================================================
+ *  評分區（.pp-ratings / .pp-rating-*）
+ * ========================================================== */
+.pp-section.pp-ratings,
+.pp-ratings { color: var(--mc-text); }
+
+/* 評分摘要 */
+.pp-rating-summary {
+  display: flex;
+  gap: 24px;
+  padding: 16px 20px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.pp-rating-summary > div {
+  text-align: center;
+  flex: 0 0 auto;
+}
+.pp-rating-summary b {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--mc-accent);
+}
+.pp-rating-summary span {
+  font-size: 12px;
+  color: var(--mc-text-dim);
+}
+
+/* 卡片上的評分星 */
+.pp-rating-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--mc-want);
+  font-size: 12px;
+}
+.pp-rating-stars b {
+  color: var(--mc-want);
+  font-weight: 700;
+  margin-left: 4px;
+  font-size: 13px;
+}
+
+/* 評分卡的覆蓋角標 */
+.pp-anime-card .pp-rating-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  background: rgba(251, 191, 36, .9);
+  color: #1a1a1a;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  backdrop-filter: blur(4px);
+}
+
+/* 評分日期 */
+.pp-anime-date,
+.pp-rating-date {
+  font-size: 11px;
+  color: var(--mc-text-3);
+  margin-top: 4px;
+  display: block;
+}
+
+/* ==========================================================
+ *  Stats（Overview 統計小格）
+ * ========================================================== */
+.pp-stats,
+.pp-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.pp-stat,
+.pp-overview-stats > div {
+  text-align: center;
+  padding: 14px 10px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  transition: transform .15s, border-color .15s;
+}
+.pp-stat:hover,
+.pp-overview-stats > div:hover {
+  transform: translateY(-2px);
+  border-color: var(--mc-accent);
+}
+.pp-stat-num,
+.pp-stat b,
+.pp-overview-stats b {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--mc-accent);
+  line-height: 1.2;
+}
+.pp-stat-label,
+.pp-stat span,
+.pp-overview-stats span {
+  display: block;
+  font-size: 12px;
+  color: var(--mc-text-dim);
+  margin-top: 4px;
+}
+
+/* ==========================================================
+ *  Grid
+ * ========================================================== */
+.pp-grid { display: grid; gap: 16px; }
+.pp-grid-2 { grid-template-columns: 1fr 1fr; }
+.pp-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* ==========================================================
+ *  Card 通用
+ * ========================================================== */
+.pp-card {
+  padding: 18px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+}
+
+/* ==========================================================
+ *  Chip / Tag 雲
+ * ========================================================== */
+.pp-tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pp-chip,
+.pp-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  background: var(--mc-surface);
+  color: var(--mc-text-2);
+  border: 1px solid var(--mc-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all .15s;
+}
+.pp-chip:hover,
+.pp-tag:hover {
+  background: rgba(255, 107, 174, .12);
+  color: var(--mc-accent);
+  border-color: var(--mc-accent);
+}
+.pp-chip b,
+.pp-tag b {
+  margin-left: 5px;
+  color: var(--mc-accent);
+  font-weight: 700;
+}
+
+/* ==========================================================
+ *  Timeline / Activity
+ * ========================================================== */
+.pp-timeline,
+.pp-activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+}
+.pp-timeline::before,
+.pp-activity-list::before {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: linear-gradient(180deg,
+    rgba(255, 107, 174, .35),
+    rgba(107, 182, 255, .2),
+    transparent);
+  border-radius: 1px;
+}
+.pp-timeline-item,
+.pp-activity-list > li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+}
+.pp-timeline-dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: var(--mc-surface-hi);
+  border: 2px solid var(--mc-border);
+  border-radius: 50%;
+  font-size: 16px;
+}
+.pp-timeline-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--mc-border);
+  font-size: 14px;
+  color: var(--mc-text);
+}
+.pp-timeline-item:last-child .pp-timeline-body { border-bottom: 0; }
+.pp-timeline-action { color: var(--mc-text-dim); margin-right: 4px; }
+.pp-timeline-target { color: var(--mc-text); font-weight: 600; text-decoration: none; }
+a.pp-timeline-target:hover { color: var(--mc-accent); }
+.pp-timeline-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--mc-text-3);
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+/* ==========================================================
+ *  Badges
+ * ========================================================== */
+.pp-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 14px;
+}
+.pp-badge-item {
+  text-align: center;
+  padding: 16px 10px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  transition: transform .15s, border-color .15s;
+}
+.pp-badge-item:hover { transform: translateY(-2px); border-color: var(--mc-accent); }
+.pp-badge-icon { font-size: 36px; margin-bottom: 6px; }
+.pp-badge-name { font-size: 13px; font-weight: 600; color: var(--mc-text); }
+.pp-badge-desc { font-size: 11px; color: var(--mc-text-3); margin-top: 2px; line-height: 1.4; }
+.pp-badge-item.locked { opacity: .35; filter: grayscale(1); }
+
+/* ==========================================================
+ *  Followers / Following
+ * ========================================================== */
+.pp-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.pp-user-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  transition: border-color .15s, background .15s;
+}
+.pp-user-card:hover {
+  border-color: var(--mc-accent);
+  background: var(--mc-surface-hi);
+}
+.pp-user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid var(--mc-border);
+}
+.pp-user-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pp-user-info { flex: 1; min-width: 0; }
+.pp-user-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mc-text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pp-user-name:hover { color: var(--mc-accent); }
+.pp-user-sub { font-size: 12px; color: var(--mc-text-3); }
+
+/* ==========================================================
+ *  Empty / Private / Error
+ * ========================================================== */
+.pp-empty,
+.pp-private,
+.pp-error {
+  text-align: center;
+  padding: 50px 24px;
+  background: var(--mc-surface);
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius);
+  color: var(--mc-text-dim);
+}
+.pp-empty-icon,
+.pp-private-icon,
+.pp-error-icon { font-size: 44px; margin-bottom: 10px; opacity: .7; }
+.pp-empty-title,
+.pp-private-title,
+.pp-error-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--mc-text-2);
+  margin: 0 0 6px;
+}
+.pp-empty p,
+.pp-private p,
+.pp-error p { font-size: 13px; margin: 0; }
+
+/* ==========================================================
+ *  Load more / Pagination
+ * ========================================================== */
+.pp-loadmore-wrap { text-align: center; margin-top: 22px; }
+.pp-loadmore {
+  background: var(--mc-surface-hi);
+  border: 1px solid var(--mc-border);
+  color: var(--mc-text);
+  padding: 11px 26px;
+  font-size: 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.pp-loadmore:hover {
+  background: var(--mc-accent);
+  border-color: var(--mc-accent);
+  color: #fff;
+}
+
+.pp-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}
+.pp-pagination a,
+.pp-pagination span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  color: var(--mc-text-2);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all .15s;
+}
+.pp-pagination a:hover { border-color: var(--mc-accent); color: var(--mc-accent); }
+.pp-pagination .current {
+  background: var(--mc-accent);
+  border-color: var(--mc-accent);
+  color: #fff;
+}
+
+/* ==========================================================
+ *  Focus visible
+ * ========================================================== */
+.pp-tab:focus-visible,
+.pp-filter:focus-visible,
+.pp-btn:focus-visible,
+.pp-loadmore:focus-visible {
+  outline: 2px solid var(--mc-accent);
+  outline-offset: 2px;
+}
+
+/* ==========================================================
+ *  Blocksy 容器接管
+ * ========================================================== */
+body.smacg-pp-page .ct-sidebar,
+body.smacg-pp-page aside[class*="sidebar"],
+body.smacg-pp-page [data-sidebar] { display: none !important; }
+
+body.smacg-pp-page .ct-container {
+  grid-template-columns: minmax(0, 1fr) !important;
+  max-width: 1280px !important;
+  width: 100% !important;
+  margin-inline: auto !important;
+}
+body.smacg-pp-page main#main,
+body.smacg-pp-page .entries,
+body.smacg-pp-page .ct-main-styles,
+body.smacg-pp-page .entry-content {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+body.smacg-pp-page .ct-hero,
+body.smacg-pp-page .page-hero-section { display: none !important; }
+body.smacg-pp-page .pp-wrap {
+  width: 100% !important;
+  max-width: 1280px !important;
+  margin: 24px auto 64px !important;
+  padding-inline: clamp(12px, 3vw, 32px);
+}
+
+/* ==========================================================
+ *  RWD
+ * ========================================================== */
+@media (max-width: 900px) {
+  .pp-hero { padding: 18px 20px; }
+  .pp-hero-inner {
+    grid-template-columns: 90px 1fr;
+    gap: 16px;
+  }
+  .pp-hero-avatar { width: 90px; height: 90px; }
+  .pp-hero-name { font-size: 20px; }
+  .pp-grid-2,
+  .pp-grid-3 { grid-template-columns: 1fr; }
+  .pp-section-title { font-size: 16px; }
+}
+
+@media (max-width: 640px) {
+  body.smacg-pp-page .pp-wrap {
+    padding-inline: 12px !important;
+    margin-top: 14px !important;
+  }
+  .pp-anime-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .pp-tab { padding: 10px 14px; font-size: 14px; }
+  .pp-timeline-body { flex-direction: column; gap: 4px; }
+  .pp-timeline-time { padding-top: 0; }
+}
+
+@media (max-width: 480px) {
+  .pp-wrap { padding: 0 12px; margin-top: 14px; }
+  .pp-anime-grid { grid-template-columns: repeat(2, 1fr); }
+  .pp-tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .pp-tab { white-space: nowrap; }
+  .pp-tabs::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--mc-bg));
+    z-index: 1;
+  }
+  .pp-hero-actions { width: 100%; }
+  .pp-hero-actions .pp-btn { flex: 1; justify-content: center; }
+  .pp-user-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-panel,
+  .pp-anime-card,
+  .pp-level-fill,
+  .pp-btn,
+  .pp-anime-thumb img,
+  .pp-timeline-item {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ==========================================================
+ *  Hero 頭像等級小圖示（補上遺漏的定位樣式）
+ *  原本無 position 規則，導致 32×32 深色塊塞進頭像中央
+ * ========================================================== */
+.pp-hero-avatar {
+  overflow: visible;          /* 讓徽章可以露出頭像圓圈外 */
+}
+.pp-hero-avatar > a,
+.pp-hero-avatar > img {
+  border-radius: 50%;
+  overflow: hidden;           /* 圓形裁切改放在 img/連結上，不影響徽章 */
+}
+.pp-hero-level-icon {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #1a1f26;
+  border: 2px solid var(--mc-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+  font-size: 16px;
+  line-height: 1;
+  z-index: 2;
+}
+

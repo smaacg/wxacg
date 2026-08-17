@@ -1,0 +1,13 @@
+/* 留言區：留言者評分小標 */
+.wpd-comment-text .wacg-comment-score {
+    display: inline-block;
+    margin: 0 8px 0 0;
+    padding: 2px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #ffb703, #fb8500);
+    border-radius: 999px;
+    vertical-align: middle;
+    white-space: nowrap;
+}

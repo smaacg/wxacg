@@ -53,6 +53,10 @@ wp-content/themes/*
 # 強制保留自製/修改的子佈景主題
 !wp-content/themes/blocksy-child/
 
+# 主題資料夾改名過渡期：新資料夾（獨立主題後改名用），驗證無誤後
+# 舊的 blocksy-child/ 會被移除，屆時上面那條規則也會一併拿掉
+!wp-content/themes/wxacgtheme/
+
 # ���� LiteSpeed �֨��ɮ�
 wp-content/litespeed/
 wp-content/cache/

@@ -1,0 +1,780 @@
+/**
+ * Level Guide 頁面樣式
+ * v2.0.0 (2026-05-15)
+ *
+ * 配色策略：跟著 6 階稱號 / 段位卡的 inline --tier-color / --rank-color 變色
+ * 黑暗模式：自動透過 prefers-color-scheme 切換
+ */
+
+/* ==========================================================
+ *  容器
+ * ========================================================== */
+.level-guide-page {
+    padding: 40px 0 80px;
+}
+.level-guide-page .container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* ==========================================================
+ *  Hero
+ * ========================================================== */
+.guide-hero {
+    position: relative;
+    padding: 48px 32px 40px;
+    margin-bottom: 56px;
+    background: linear-gradient(135deg, rgba(106, 76, 147, 0.08), rgba(58, 134, 255, 0.08));
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.guide-hero-title {
+    margin: 0 0 12px;
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(120deg, #6a4c93, #3a86ff, #06a77d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.guide-hero-sub {
+    margin: 0 0 24px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--theme-palette-color-3, #8d99ae);
+    max-width: 720px;
+}
+
+/* TOC */
+.guide-toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.guide-toc-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    color: inherit;
+    text-decoration: none;
+    transition: all 0.18s ease;
+}
+.guide-toc-chip:hover {
+    background: rgba(58, 134, 255, 0.12);
+    border-color: rgba(58, 134, 255, 0.4);
+    transform: translateY(-1px);
+}
+
+/* 我的進度浮動卡（登入者） */
+.guide-me-card {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    min-width: 240px;
+    padding: 16px 18px;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    display: grid;
+    gap: 10px;
+}
+.guide-me-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.guide-me-icon {
+    font-size: 28px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.guide-me-info { min-width: 0; }
+.guide-me-name {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #fff;
+}
+.guide-me-exp {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.3;
+}
+
+@media (max-width: 768px) {
+    .guide-me-card {
+        position: static;
+        margin-top: 20px;
+        width: 100%;
+    }
+}
+
+/* ==========================================================
+ *  共用 section
+ * ========================================================== */
+.guide-section {
+    padding: 40px 0;
+    margin-bottom: 16px;
+    scroll-margin-top: 80px;
+}
+.guide-section-title {
+    margin: 0 0 8px;
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+.guide-section-intro {
+    margin: 0 0 28px;
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--theme-palette-color-3, #8d99ae);
+    max-width: 760px;
+}
+.guide-section code {
+    padding: 2px 8px;
+    background: rgba(58, 134, 255, 0.14);
+    border-radius: 6px;
+    font-size: 0.9em;
+    color: #3a86ff;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Callout */
+.guide-callout {
+    margin: 24px 0 0;
+    padding: 16px 20px;
+    background: rgba(58, 134, 255, 0.08);
+    border-left: 3px solid #3a86ff;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.7;
+}
+.guide-callout strong { color: #3a86ff; }
+.guide-callout-cta {
+    display: inline-block;
+    margin-left: 8px;
+    color: #3a86ff;
+    text-decoration: underline;
+    font-weight: 600;
+}
+
+/* Empty */
+.guide-empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--theme-palette-color-3, #8d99ae);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+}
+
+/* Details / Summary */
+.guide-details {
+    margin-top: 24px;
+}
+.guide-details summary {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    user-select: none;
+    transition: background 0.18s ease;
+}
+.guide-details summary:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+.guide-details[open] summary {
+    margin-bottom: 16px;
+}
+
+/* ==========================================================
+ *  §1 EXP 來源
+ * ========================================================== */
+.guide-exp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+.guide-exp-card {
+    display: flex;
+    gap: 14px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    transition: all 0.2s ease;
+}
+.guide-exp-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(58, 134, 255, 0.3);
+    transform: translateY(-2px);
+}
+.guide-exp-icon {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.guide-exp-body { flex: 1; min-width: 0; }
+.guide-exp-label {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.guide-exp-desc {
+    font-size: 12px;
+    color: var(--theme-palette-color-3, #8d99ae);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+.guide-exp-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.guide-exp-value {
+    padding: 3px 10px;
+    background: linear-gradient(135deg, #06a77d, #3a86ff);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 999px;
+}
+.guide-exp-cap {
+    font-size: 11px;
+    color: var(--theme-palette-color-3, #8d99ae);
+    padding: 3px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+}
+
+/* ==========================================================
+ *  §2 等級稱號
+ * ========================================================== */
+.guide-tier-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.guide-tier-card {
+    position: relative;
+    padding: 20px 14px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+}
+.guide-tier-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    padding: 2px;
+    background: linear-gradient(135deg, var(--tier-color), transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.5;
+}
+.guide-tier-card:hover {
+    transform: translateY(-3px);
+}
+.guide-tier-card:hover::before { opacity: 1; }
+.guide-tier-card.is-mine {
+    background: rgba(var(--rgb, 58, 134, 255), 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+.guide-tier-card.is-mine::before { opacity: 1; }
+.guide-tier-icon {
+    font-size: 40px;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+.guide-tier-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--tier-color);
+    margin-bottom: 4px;
+}
+.guide-tier-range {
+    font-size: 13px;
+    color: var(--theme-palette-color-3, #8d99ae);
+}
+.guide-tier-range small {
+    display: block;
+    font-size: 11px;
+    margin-top: 2px;
+    opacity: 0.7;
+}
+.guide-tier-mine {
+    margin-top: 10px;
+    padding: 4px 10px;
+    background: var(--tier-color);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 999px;
+    display: inline-block;
+}
+
+/* Lv 1~200 完整表 */
+.guide-level-table-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.guide-level-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.guide-level-table th,
+.guide-level-table td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.guide-level-table th {
+    background: rgba(255, 255, 255, 0.04);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.guide-level-table td.is-mine {
+    background: rgba(6, 167, 125, 0.18);
+    color: #06a77d;
+    font-weight: 700;
+}
+
+/* ==========================================================
+ *  §3 職業天命
+ * ========================================================== */
+.guide-milestone-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+}
+.guide-milestone {
+    padding: 16px 10px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    opacity: 0.55;
+    transition: all 0.2s ease;
+}
+.guide-milestone.is-reached {
+    opacity: 1;
+    background: rgba(6, 167, 125, 0.1);
+    border-color: rgba(6, 167, 125, 0.4);
+}
+.guide-milestone-icon {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 6px;
+}
+.guide-milestone-stage {
+    font-size: 13px;
+    font-weight: 700;
+    color: #06a77d;
+}
+.guide-milestone-level {
+    font-size: 15px;
+    font-weight: 800;
+    margin: 2px 0;
+}
+.guide-milestone-label {
+    font-size: 11px;
+    color: var(--theme-palette-color-3, #8d99ae);
+}
+
+/* 8 職業卡 */
+.guide-job-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 18px;
+}
+.guide-job-card {
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    scroll-margin-top: 80px;
+    transition: all 0.2s ease;
+}
+.guide-job-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-2px);
+}
+.guide-job-card.is-mine {
+    border-color: #06a77d;
+    box-shadow: 0 10px 36px rgba(6, 167, 125, 0.15);
+    background: rgba(6, 167, 125, 0.06);
+}
+
+.guide-job-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.guide-job-icon {
+    font-size: 40px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.guide-job-headinfo { flex: 1; min-width: 0; }
+.guide-job-name {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 800;
+}
+.guide-job-desc {
+    margin: 0;
+    font-size: 13px;
+    color: var(--theme-palette-color-3, #8d99ae);
+    line-height: 1.55;
+}
+.guide-job-mine {
+    padding: 4px 10px;
+    background: #06a77d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.guide-job-titles {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+.guide-job-title-row {
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    transition: all 0.18s ease;
+}
+.guide-job-title-row.is-locked { opacity: 0.45; }
+.guide-job-title-row.is-done {
+    background: rgba(6, 167, 125, 0.08);
+}
+.guide-job-title-row.is-current {
+    background: linear-gradient(90deg, rgba(6, 167, 125, 0.18), rgba(58, 134, 255, 0.12));
+    border-left: 3px solid #06a77d;
+    padding-left: 9px;
+}
+.guide-job-stage {
+    font-size: 12px;
+    font-weight: 700;
+    color: #06a77d;
+    text-align: center;
+    padding: 2px 6px;
+    background: rgba(6, 167, 125, 0.1);
+    border-radius: 6px;
+}
+.guide-job-tname {
+    font-size: 14px;
+    font-weight: 700;
+}
+.guide-job-tref {
+    font-size: 11px;
+    color: var(--theme-palette-color-3, #8d99ae);
+    white-space: nowrap;
+}
+
+/* ==========================================================
+ *  §4 賽季段位
+ * ========================================================== */
+.guide-rank-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.guide-rank-card {
+    position: relative;
+    padding: 18px 10px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+.guide-rank-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 2px;
+    background: linear-gradient(135deg, var(--rank-color), transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.4;
+}
+.guide-rank-card:hover { transform: translateY(-2px); }
+.guide-rank-card:hover::before { opacity: 1; }
+.guide-rank-card.is-mine::before { opacity: 1; }
+.guide-rank-icon {
+    font-size: 30px;
+    line-height: 1;
+    margin-bottom: 6px;
+}
+.guide-rank-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--rank-color);
+    margin-bottom: 4px;
+}
+.guide-rank-min {
+    font-size: 11px;
+    color: var(--theme-palette-color-3, #8d99ae);
+}
+.guide-rank-mine {
+    margin-top: 8px;
+    padding: 3px 8px;
+    background: var(--rank-color);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 999px;
+    display: inline-block;
+}
+
+/* ==========================================================
+ *  §5 賽季時程
+ * ========================================================== */
+.guide-season-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 12px;
+}
+.guide-season-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 22px;
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 4px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    transition: all 0.18s ease;
+}
+.guide-season-item.is-active {
+    border-left-color: #06a77d;
+    background: linear-gradient(90deg, rgba(6, 167, 125, 0.1), transparent);
+}
+.guide-season-item.is-upcoming {
+    border-left-color: #3a86ff;
+    opacity: 0.85;
+}
+.guide-season-item.is-ended {
+    opacity: 0.55;
+}
+.guide-season-label {
+    font-size: 17px;
+    font-weight: 800;
+}
+.guide-season-dates {
+    font-size: 13px;
+    color: var(--theme-palette-color-3, #8d99ae);
+    font-variant-numeric: tabular-nums;
+}
+.guide-season-status {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+.is-active .guide-season-status {
+    background: #06a77d;
+    color: #fff;
+}
+.is-upcoming .guide-season-status {
+    background: rgba(58, 134, 255, 0.18);
+    color: #3a86ff;
+}
+.is-ended .guide-season-status {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--theme-palette-color-3, #8d99ae);
+}
+.guide-season-countdown {
+    font-size: 12px;
+    color: var(--theme-palette-color-3, #8d99ae);
+}
+.guide-season-countdown b {
+    color: #06a77d;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+    .guide-season-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+}
+
+/* ==========================================================
+ *  §6 徽章
+ * ========================================================== */
+.guide-badge-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 12px;
+}
+.guide-badge-card {
+    padding: 12px 8px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    transition: all 0.18s ease;
+}
+.guide-badge-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.07);
+}
+.guide-badge-card.is-locked {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+.guide-badge-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+    font-size: 24px;
+    overflow: hidden;
+}
+.guide-badge-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.guide-badge-icon i { color: #b8860b; }
+.guide-badge-name {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+.guide-badge-more {
+    text-align: center;
+    margin-top: 20px;
+}
+.guide-badge-more a {
+    color: #3a86ff;
+    font-weight: 600;
+    text-decoration: none;
+}
+.guide-badge-more a:hover { text-decoration: underline; }
+
+/* ==========================================================
+ *  Footer CTA
+ * ========================================================== */
+.guide-cta {
+    margin-top: 56px;
+    padding: 40px 24px;
+    text-align: center;
+    background: linear-gradient(135deg, rgba(6, 167, 125, 0.12), rgba(58, 134, 255, 0.12));
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.guide-cta h3 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    font-weight: 800;
+}
+.guide-cta p {
+    margin: 0 0 20px;
+    color: var(--theme-palette-color-3, #8d99ae);
+}
+.guide-cta-btn {
+    display: inline-block;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, #06a77d, #3a86ff);
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    border-radius: 999px;
+    transition: all 0.2s ease;
+    box-shadow: 0 6px 24px rgba(58, 134, 255, 0.3);
+}
+.guide-cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 32px rgba(58, 134, 255, 0.4);
+    color: #fff;
+}
+
+/* ==========================================================
+ *  響應式
+ * ========================================================== */
+@media (max-width: 768px) {
+    .level-guide-page { padding: 24px 0 60px; }
+    .guide-hero { padding: 32px 20px; }
+    .guide-section { padding: 28px 0; }
+    .guide-milestone-bar {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .guide-job-grid {
+        grid-template-columns: 1fr;
+    }
+    .guide-job-title-row {
+        grid-template-columns: 50px 1fr;
+    }
+    .guide-job-tref { grid-column: 1 / -1; padding-left: 60px; }
+}
+
+/* ==========================================================
+ *  亮色模式（fallback）
+ * ========================================================== */
+@media (prefers-color-scheme: light) {
+    .guide-hero,
+    .guide-section .guide-tier-card,
+    .guide-section .guide-rank-card,
+    .guide-section .guide-job-card,
+    .guide-section .guide-exp-card,
+    .guide-season-item,
+    .guide-badge-card,
+    .guide-cta {
+        background-color: rgba(0, 0, 0, 0.03);
+        border-color: rgba(0, 0, 0, 0.08);
+    }
+    .guide-me-card {
+        background: rgba(255, 255, 255, 0.9);
+        border-color: rgba(0, 0, 0, 0.08);
+    }
+    .guide-me-name { color: #1a1a1a; }
+    .guide-me-exp { color: #6b7280; }
+}
