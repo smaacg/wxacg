@@ -446,6 +446,7 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
       id="asd-review-root"
       data-anime-id="<?php echo (int) get_the_ID(); ?>"
       data-episodes="[]"
+      data-tracks="short"
     >
       <p class="asd-review-loading">評論載入中…</p>
     </div>

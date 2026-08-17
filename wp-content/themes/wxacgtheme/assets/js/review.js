@@ -23,7 +23,18 @@ document.addEventListener('DOMContentLoaded', function () {
     let episodes   = [];
     try { episodes = JSON.parse(root.dataset.episodes || '[]'); } catch (e) { episodes = []; }
 
-    let currentTrack = 'short';
+    /*
+     * 可用軌道由容器宣告（data-tracks），預設兩軌都有以相容既有的動漫頁。
+     * 新聞只給短評：長評那套有標題、80 字下限，是為作品心得設計的，
+     * 對新聞留言沒有意義。
+     */
+    let tracks = String(root.dataset.tracks || 'short,long')
+        .split(',')
+        .map(function (t) { return t.trim(); })
+        .filter(function (t) { return t === 'short' || t === 'long'; });
+    if (!tracks.length) { tracks = ['short']; }
+
+    let currentTrack = tracks[0];
     let currentSort  = 'new';
 
     function requireLogin() {
@@ -60,11 +71,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* ── 骨架 ── */
+    const trackLabels = { short: '吐槽（短評）', long: '評論（長評）' };
+
+    // 只有一種軌道時不顯示切換列，避免出現一顆按不動的分頁
+    const tabsHtml = tracks.length > 1
+        ? '<div class="asd-review-tabs">' +
+              tracks.map(function (t, i) {
+                  return '<button type="button" class="asd-review-track-btn' +
+                      (i === 0 ? ' is-active' : '') +
+                      '" data-track="' + t + '">' + trackLabels[t] + '</button>';
+              }).join('') +
+          '</div>'
+        : '';
+
     root.innerHTML =
-        '<div class="asd-review-tabs">' +
-            '<button type="button" class="asd-review-track-btn is-active" data-track="short">吐槽（短評）</button>' +
-            '<button type="button" class="asd-review-track-btn" data-track="long">評論（長評）</button>' +
-        '</div>' +
+        tabsHtml +
         '<div class="asd-review-form-wrap"></div>' +
         '<div class="asd-review-toolbar">' +
             '<div class="asd-review-sort">' +

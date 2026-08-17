@@ -48,6 +48,24 @@ class Anime_Sync_Review_Manager {
 	}
 
 	/**
+	 * 該文章類型可用的評論軌道。
+	 *
+	 * 長評有標題、80 字下限，是為作品心得設計的；新聞留言用不到，
+	 * 因此新聞只開放短評。前端 data-tracks 會宣告同一份清單，這裡是
+	 * 後端把關，避免有人繞過介面直接送 track=long。
+	 *
+	 * @param int $post_id 目標文章 ID。
+	 * @return string[]
+	 */
+	public static function allowed_tracks( int $post_id ): array {
+		$tracks = get_post_type( $post_id ) === 'anime'
+			? [ self::TRACK_SHORT, self::TRACK_LONG ]
+			: [ self::TRACK_SHORT ];
+
+		return (array) apply_filters( 'wxacg_review_tracks', $tracks, $post_id );
+	}
+
+	/**
 	 * 目標文章是否可以被評論。
 	 *
 	 * @param int  $post_id          目標文章 ID。
@@ -305,6 +323,12 @@ class Anime_Sync_Review_Manager {
 		}
 
 		$track = $req->get_param( 'track' ) === self::TRACK_LONG ? self::TRACK_LONG : self::TRACK_SHORT;
+
+		// 後端把關：該文章類型不開放的軌道一律退回（例如新聞不收長評）
+		if ( ! in_array( $track, self::allowed_tracks( $anime_id ), true ) ) {
+			return new WP_Error( 'invalid_track', '這篇內容不支援這種評論類型', [ 'status' => 400 ] );
+		}
+
 		$episode = (int) $req->get_param( 'episode' );
 		if ( $episode < 0 ) {
 			$episode = 0;
