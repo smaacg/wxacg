@@ -38,7 +38,7 @@ define( 'WXACG_GAMIFY_BASENAME', plugin_basename( __FILE__ ) );
 if ( ! defined( 'WXACG_MAX_LEVEL' ) )   define( 'WXACG_MAX_LEVEL', 200 );
 
 if ( ! defined( 'WXACG_EXP_SLUG' ) )   define( 'WXACG_EXP_SLUG',   'exps' );
-if ( ! defined( 'WXACG_BADGE_SLUG' ) ) define( 'WXACG_BADGE_SLUG', 'badges' );
+if ( ! defined( 'WXACG_BADGE_SLUG' ) ) define( 'WXACG_BADGE_SLUG', 'achievements' );
 
 if ( ! defined( 'WXACG_EVENT_CPT' ) )        define( 'WXACG_EVENT_CPT',        'wxacg_season_event' );
 if ( ! defined( 'WXACG_EVENT_DB_VERSION' ) ) define( 'WXACG_EVENT_DB_VERSION', '1.0.0' );
