@@ -38,6 +38,14 @@ class Anime_Sync_Review_Manager {
 	const META_REPLY_TO = '_wxacg_review_reply_to';
 
 	/**
+	 * 追蹤這串討論的使用者 ID。
+	 *
+	 * 刻意用多筆 meta（一位追蹤者一筆）而不是存成陣列，這樣新增／取消
+	 * 都是單筆操作，不會有兩人同時追蹤時互相覆寫的競態問題。
+	 */
+	const META_FOLLOWER = '_wxacg_review_follower';
+
+	/**
 	 * 可以留評論的文章類型。
 	 *
 	 * 資料層本來就是通用的（用 post_parent 指向目標文章），只有驗證寫死了
@@ -226,6 +234,106 @@ class Anime_Sync_Review_Manager {
 			'callback'            => [ $this, 'api_mention_search' ],
 			'permission_callback' => [ $this, 'require_login' ],
 		] );
+
+		register_rest_route( $ns, '/reviews/item/(?P<review_id>\d+)/follow', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'api_follow' ],
+			'permission_callback' => [ $this, 'require_login' ],
+		] );
+	}
+
+	/**
+	 * 切換「追蹤這串討論」。
+	 *
+	 * 只有主留言可以被追蹤：一串討論＝母評論加它底下的回覆，
+	 * 追蹤回覆沒有意義，也會讓通知對象難以界定。
+	 */
+	public function api_follow( WP_REST_Request $req ) {
+		$review_id = (int) $req['review_id'];
+		$uid       = get_current_user_id();
+
+		$review = get_post( $review_id );
+		if ( ! $review || $review->post_type !== self::CPT || $review->post_status !== 'publish' ) {
+			return new WP_Error( 'invalid_review', '找不到這則評論', [ 'status' => 404 ] );
+		}
+
+		if ( (int) get_post_meta( $review_id, self::META_REPLY_TO, true ) > 0 ) {
+			return new WP_Error( 'not_thread', '只能追蹤主留言', [ 'status' => 400 ] );
+		}
+
+		$following = in_array( $uid, self::get_followers( $review_id ), true );
+
+		if ( $following ) {
+			delete_post_meta( $review_id, self::META_FOLLOWER, $uid );
+		} else {
+			add_post_meta( $review_id, self::META_FOLLOWER, $uid );
+		}
+
+		return [
+			'following'      => ! $following,
+			'follower_count' => count( self::get_followers( $review_id ) ),
+		];
+	}
+
+	/**
+	 * 取得追蹤這串討論的使用者 ID 清單。
+	 *
+	 * @return int[]
+	 */
+	private static function get_followers( int $review_id ): array {
+		return array_map( 'intval', (array) get_post_meta( $review_id, self::META_FOLLOWER ) );
+	}
+
+	/**
+	 * 通知追蹤這串討論的人。
+	 *
+	 * @param int   $review_id 新回覆的 ID。
+	 * @param int   $thread_id 討論串（母評論）ID。
+	 * @param int   $target_id 目標文章 ID。
+	 * @param int   $actor_id  發表回覆的人。
+	 * @param string $content  回覆內容。
+	 * @param int[] $exclude   已用其他方式通知過的人，避免同一則發多次。
+	 */
+	private static function notify_thread_followers( int $review_id, int $thread_id, int $target_id, int $actor_id, string $content, array $exclude = [] ): void {
+		if ( ! function_exists( 'wxacg_create_notification' ) ) {
+			return;
+		}
+
+		$followers = self::get_followers( $thread_id );
+		if ( ! $followers ) {
+			return;
+		}
+
+		$actor = get_userdata( $actor_id );
+		if ( ! $actor ) {
+			return;
+		}
+
+		$excerpt = wp_strip_all_tags( $content );
+		if ( mb_strlen( $excerpt ) > 80 ) {
+			$excerpt = mb_substr( $excerpt, 0, 80 ) . '…';
+		}
+
+		foreach ( array_unique( $followers ) as $uid ) {
+			if ( $uid === $actor_id || in_array( $uid, $exclude, true ) ) {
+				continue;
+			}
+
+			wxacg_create_notification( [
+				'user_id'     => $uid,
+				'type'        => 'thread',
+				'actor_id'    => $actor_id,
+				'object_type' => 'review',
+				'object_id'   => $review_id,
+				'data'        => [
+					'title'      => sprintf( '%s 在你追蹤的討論串中回覆', $actor->display_name ?: $actor->user_login ),
+					'excerpt'    => $excerpt,
+					'url'        => get_permalink( $target_id ) . '#asd-review-root',
+					'icon'       => 'fa-bell',
+					'post_title' => get_the_title( $target_id ),
+				],
+			] );
+		}
 	}
 
 	/**
@@ -272,19 +380,20 @@ class Anime_Sync_Review_Manager {
 	 * @param int    $actor_id  發表者。
 	 * @param string $content   內容。
 	 * @param int    $skip_uid  已因回覆通知過的人，避免同一則發兩次通知。
+	 * @return int[] 實際發出通知的使用者 ID，供後續的追蹤通知排除。
 	 */
-	private static function notify_mentions( int $review_id, int $target_id, int $actor_id, string $content, int $skip_uid = 0 ): void {
+	private static function notify_mentions( int $review_id, int $target_id, int $actor_id, string $content, int $skip_uid = 0 ): array {
 		if ( ! function_exists( 'wxacg_create_notification' ) ) {
-			return;
+			return [];
 		}
 
 		if ( ! preg_match_all( '/@([a-zA-Z0-9_.\-]{1,60})/', $content, $m ) ) {
-			return;
+			return [];
 		}
 
 		$actor = get_userdata( $actor_id );
 		if ( ! $actor ) {
-			return;
+			return [];
 		}
 
 		$excerpt = wp_strip_all_tags( $content );
@@ -293,6 +402,7 @@ class Anime_Sync_Review_Manager {
 		}
 
 		$notified = [];
+		$result   = [];
 		foreach ( array_unique( $m[1] ) as $nicename ) {
 			$user = get_user_by( 'slug', $nicename );
 			if ( ! $user ) {
@@ -306,6 +416,7 @@ class Anime_Sync_Review_Manager {
 				continue;
 			}
 			$notified[ $uid ] = true;
+			$result[]         = $uid;
 
 			wxacg_create_notification( [
 				'user_id'     => $uid,
@@ -322,6 +433,8 @@ class Anime_Sync_Review_Manager {
 				],
 			] );
 		}
+
+		return $result;
 	}
 
 	public function require_login() {
@@ -412,9 +525,13 @@ class Anime_Sync_Review_Manager {
 				$watch_status = $entry['status'];
 			}
 
+			$followers = self::get_followers( $post->ID );
+
 			$rows[] = [
-				'id'         => $post->ID,
-				'reply_to'   => (int) get_post_meta( $post->ID, self::META_REPLY_TO, true ),
+				'id'             => $post->ID,
+				'reply_to'       => (int) get_post_meta( $post->ID, self::META_REPLY_TO, true ),
+				'following'      => $uid > 0 && in_array( $uid, $followers, true ),
+				'follower_count' => count( $followers ),
 				'track'      => get_post_meta( $post->ID, '_wxacg_review_track', true ) ?: self::TRACK_SHORT,
 				'episode'    => (int) get_post_meta( $post->ID, '_wxacg_review_episode', true ),
 				'spoiler'    => (bool) get_post_meta( $post->ID, '_wxacg_review_spoiler', true ),
@@ -639,12 +756,25 @@ class Anime_Sync_Review_Manager {
 		}
 
 		/*
-		 * @提及通知。母評論作者若已因「回覆」收到通知，這裡就跳過，
-		 * 避免同一則評論讓同一個人收到兩則通知。
+		 * 通知的優先順序：回覆 → @提及 → 追蹤討論串。
+		 * 同一個人可能同時符合多個條件，因此逐層把已通知過的人排除，
+		 * 避免一則評論讓同一個人收到兩三則通知。
 		 */
 		if ( $is_new ) {
 			$reply_author = $reply_to > 0 ? (int) get_post_field( 'post_author', $reply_to ) : 0;
-			self::notify_mentions( (int) $review_id, $anime_id, $uid, $content, $reply_author );
+
+			$mentioned = self::notify_mentions( (int) $review_id, $anime_id, $uid, $content, $reply_author );
+
+			if ( $reply_to > 0 ) {
+				$already = array_merge( [ $reply_author ], $mentioned );
+				self::notify_thread_followers( (int) $review_id, $reply_to, $anime_id, $uid, $content, $already );
+			}
+
+			// 發表主留言者自動追蹤自己開的串，回覆者也自動追蹤該串
+			$thread_id = $reply_to > 0 ? $reply_to : (int) $review_id;
+			if ( ! in_array( $uid, self::get_followers( $thread_id ), true ) ) {
+				add_post_meta( $thread_id, self::META_FOLLOWER, $uid );
+			}
 		}
 
 		if ( $is_new ) {

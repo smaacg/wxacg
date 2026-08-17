@@ -406,6 +406,15 @@ document.addEventListener('DOMContentLoaded', function () {
             ? ''
             : '<button type="button" class="asd-review-reply-btn" data-id="' + item.id + '">💬 回覆</button>';
 
+        // 追蹤同樣只給主留言：一串討論＝母評論加它底下的回覆
+        const followBtn = isReply
+            ? ''
+            : '<button type="button" class="asd-review-follow-btn' +
+              (item.following ? ' is-active' : '') + '" data-id="' + item.id + '">' +
+              (item.following ? '🔔 追蹤中' : '🔕 追蹤') +
+              (item.follower_count > 0 ? ' <span>' + item.follower_count + '</span>' : '') +
+              '</button>';
+
         const repliesHtml = (replies && replies.length)
             ? '<div class="asd-review-replies">' +
                   replies.map(function (r) { return renderCard(r, null); }).join('') +
@@ -432,6 +441,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     '<button type="button" class="asd-review-vote-btn asd-review-like-btn' + (item.my_vote === 1 ? ' is-active' : '') + '" data-id="' + item.id + '" data-type="like">👍 <span>' + item.like_count + '</span></button>' +
                     '<button type="button" class="asd-review-vote-btn asd-review-dislike-btn' + (item.my_vote === -1 ? ' is-active' : '') + '" data-id="' + item.id + '" data-type="dislike">👎 <span>' + item.dislike_count + '</span></button>' +
                     replyBtn +
+                    followBtn +
                 '</div>' +
                 '<div class="asd-review-reply-form" hidden></div>' +
                 repliesHtml +
@@ -535,8 +545,31 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    /* ── 追蹤討論串 ── */
+    function bindFollowButtons() {
+        listWrap.querySelectorAll('.asd-review-follow-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!loggedIn) { requireLogin(); return; }
+
+                btn.disabled = true;
+                callApi('reviews/item/' + btn.dataset.id + '/follow', 'POST').then(function (res) {
+                    const n = res.follower_count > 0 ? ' <span>' + res.follower_count + '</span>' : '';
+                    btn.classList.toggle('is-active', !!res.following);
+                    btn.innerHTML = (res.following ? '🔔 追蹤中' : '🔕 追蹤') + n;
+                }).catch(function (err) {
+                    if (typeof window.smacgToast === 'function') {
+                        window.smacgToast(err.message || '操作失敗');
+                    }
+                }).finally(function () {
+                    btn.disabled = false;
+                });
+            });
+        });
+    }
+
     function bindCardEvents() {
         bindReplyButtons();
+        bindFollowButtons();
 
         listWrap.querySelectorAll('.asd-review-reveal-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {

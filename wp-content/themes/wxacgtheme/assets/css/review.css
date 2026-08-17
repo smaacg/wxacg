@@ -579,3 +579,32 @@
   font-size: 11px;
   margin-left: auto;
 }
+
+/* ============================================================
+   追蹤討論串
+   ============================================================ */
+
+.asd-review-follow-btn {
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--rv-text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  transition: background .15s, color .15s;
+}
+
+.asd-review-follow-btn:hover {
+  background: var(--rv-bg);
+  color: var(--rv-text);
+}
+
+.asd-review-follow-btn.is-active { color: var(--rv-amber); }
+
+.asd-review-follow-btn span {
+  font-variant-numeric: tabular-nums;
+  opacity: .8;
+}
+
+.asd-review-follow-btn:disabled { opacity: .6; cursor: default; }
