@@ -699,8 +699,38 @@ add_action( 'admin_menu', function () {
 
 /**
  * AniList 原作類型代碼 → 中文。
+ *
+ * ★ AniList 的 source 列舉沒有「韓國漫畫／webtoon」「中國漫畫」這類選項，
+ *   遇到就一律填 OTHER，光看 source 分辨不出來。實例：《伊蓮娜．埃沃的
+ *   觀察日誌》source=OTHER、countryOfOrigin=KR，原作關聯是 KR 的 MANGA。
+ *   因此改為併用國別；全站有 78 部落在 OTHER。
+ *
+ * @param string $source  AniList source 代碼。
+ * @param string $country AniList countryOfOrigin（兩碼國別），可省略。
+ * @return string
  */
-function wxacg_editorial_source_label( $source ) {
+function wxacg_editorial_source_label( $source, $country = '' ) {
+	$source  = strtoupper( trim( (string) $source ) );
+	$country = strtoupper( trim( (string) $country ) );
+
+	// 非日本的漫畫原作，AniList 多半歸類為 OTHER 或 MANGA，靠國別補足。
+	$by_country = array(
+		'KR' => '韓國漫畫',
+		'CN' => '中國漫畫',
+		'TW' => '台灣漫畫',
+	);
+
+	if ( isset( $by_country[ $country ] ) && in_array( $source, array( 'OTHER', 'MANGA', 'COMIC', '' ), true ) ) {
+		return $by_country[ $country ];
+	}
+
+	return wxacg_editorial_source_label_basic( $source );
+}
+
+/**
+ * 純代碼對照，不看國別。
+ */
+function wxacg_editorial_source_label_basic( $source ) {
 	$map = array(
 		'ORIGINAL'           => '動畫原創',
 		'MANGA'              => '漫畫',
@@ -876,7 +906,7 @@ function wxacg_editorial_prompt( $post_id ) {
 		$facts[] = '形式：' . $format;
 	}
 
-	$source = wxacg_editorial_source_label( $get( 'anime_source' ) );
+	$source = wxacg_editorial_source_label( $get( 'anime_source' ), $get( 'anime_country' ) );
 	if ( '' !== $source ) {
 		$facts[] = '原作：' . $source;
 	}

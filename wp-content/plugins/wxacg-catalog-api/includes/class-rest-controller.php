@@ -16,13 +16,53 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 		add_action( 'rest_api_init', [ $this, 'register_routes' ], 20 );
 	}
 
+	/**
+	 * 目錄 API 的存取控制。
+	 *
+	 * ★ 原本全部是 __return_true，等於完全公開：沒有認證、沒有速率限制，
+	 *   任何人翻頁就能把整個資料庫（含人工查證的台灣串流、簡繁轉換後的
+	 *   簡介與聲優名單、主題曲原文歌手對照）整包搬走。本站靠廣告營收，
+	 *   資料又是自己整理而非使用者貢獻，開放只有流出沒有流入。
+	 *
+	 *   確認過站上前端沒有任何程式呼叫本命名空間，因此收斂為：
+	 *   登入使用者、帶有效 REST nonce 的同源請求、或具備 manage_options
+	 *   權限者才可存取。日後要對外開放時，改以 API key 掛在這個 filter 上，
+	 *   不必再動每一條路由。
+	 *
+	 * @return bool|WP_Error
+	 */
+	public function check_permission() {
+		$allowed = is_user_logged_in()
+			|| (bool) wp_verify_nonce(
+				(string) ( $_SERVER['HTTP_X_WP_NONCE'] ?? '' ),
+				'wp_rest'
+			);
+
+		/**
+		 * 允許日後以 API key 等機制放行，不需修改路由定義。
+		 *
+		 * @param bool $allowed 目前判定結果。
+		 */
+		$allowed = (bool) apply_filters( 'wxacg_catalog_api_allow_request', $allowed );
+
+		if ( $allowed ) {
+			return true;
+		}
+
+		return new WP_Error(
+			'wxacg_catalog_forbidden',
+			'此 API 目前僅供本站使用。',
+			[ 'status' => 401 ]
+		);
+	}
+
 	public function register_routes(): void {
 		register_rest_route(
 			self::NAMESPACE,
 			'/items',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ $this, 'check_permission' ],
 				'callback'            => [ $this, 'get_items' ],
 				'args'                => $this->collection_args(),
 			]
@@ -33,7 +73,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/items/(?P<id>\d+)',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ $this, 'check_permission' ],
 				'callback'            => [ $this, 'get_item' ],
 				'args'                => [
 					'id' => [
@@ -51,7 +91,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/search',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ $this, 'check_permission' ],
 				'callback'            => [ $this, 'search' ],
 				'args'                => array_merge(
 					$this->collection_args(),
@@ -74,7 +114,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/lookup',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ $this, 'check_permission' ],
 				'callback'            => [ $this, 'lookup' ],
 				'args'                => [
 					'anilist_ids' => [
@@ -96,7 +136,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/taxonomies/(?P<taxonomy>[a-z-]+)',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ $this, 'check_permission' ],
 				'callback'            => [ $this, 'get_terms' ],
 				'args'                => [
 					'taxonomy' => [
@@ -136,7 +176,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/series/(?P<slug>[a-z0-9-]+)',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ $this, 'check_permission' ],
 				'callback'            => [ $this, 'get_series' ],
 				'args'                => [
 					'slug' => [

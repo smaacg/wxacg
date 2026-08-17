@@ -253,6 +253,9 @@ class Anime_Sync_API_Handler {
             'anime_season'           => $season,
             'anime_season_year'      => $season_year,
             'anime_source'           => $media['source'] ?? '',
+            // AniList 的 source 沒有「韓國漫畫／webtoon」這類選項，遇到就填 OTHER；
+            // 要分辨得靠 countryOfOrigin，因此一併存下（同一個查詢，無額外成本）。
+            'anime_country'          => $media['countryOfOrigin'] ?? '',
             'anime_episodes'         => $episodes,
             'anime_duration'         => (int) ( $media['duration'] ?? 0 ),
             'anime_studios'          => implode( ', ', $studios ),
@@ -704,6 +707,9 @@ class Anime_Sync_API_Handler {
             'anime_season'           => $season,
             'anime_season_year'      => $season_year,
             'anime_source'           => $media['source'] ?? '',
+            // AniList 的 source 沒有「韓國漫畫／webtoon」這類選項，遇到就填 OTHER；
+            // 要分辨得靠 countryOfOrigin，因此一併存下（同一個查詢，無額外成本）。
+            'anime_country'          => $media['countryOfOrigin'] ?? '',
             'anime_episodes'         => $episodes,
             'anime_duration'         => (int) ( $media['duration'] ?? 0 ),
             'anime_studios'          => implode( ', ', $studios ),
@@ -880,6 +886,8 @@ class Anime_Sync_API_Handler {
             'anime_format'             => $media['format'] ?? '',
             'anime_status'             => $media['status'] ?? '',
             'anime_source'             => $media['source'] ?? '',
+            // 同上：漫畫查詢本來就有 countryOfOrigin，之前抓了卻沒存。
+            'anime_country'            => $media['countryOfOrigin'] ?? '',
             'anime_score_anilist'      => $score_anilist,
             'anime_score_bangumi'      => $score_bangumi,
             'anime_score_mal'          => $score_mal,   // ★ 新增
@@ -1537,6 +1545,7 @@ class Anime_Sync_API_Handler {
             id idMal
             title { romaji english native }
             status format episodes duration source season seasonYear
+            countryOfOrigin
             startDate { year month day }
             endDate   { year month day }
             averageScore popularity
