@@ -2,10 +2,15 @@
 /**
  * Template Name: 番組表 - 季度詳細列表
  * File: blocksy-child/page-bangumi.php
- * Version: 1.7.1
+ * Version: 1.7.2
  * Date: 2026-08-17
  *
  * Changelog
+ *  v1.7.2 (2026-08-17) 緊急修正：OR meta_query 造成查詢逾時
+ *    - [Fix] v1.7.0 用單一 OR meta_query 同時撈「本季新番」與「跨季續播」，
+ *            WordPress 會為 OR 的每個子條件各自 LEFT JOIN postmeta，
+ *            在本站上千筆作品下查詢慢到頁面逾時。改為兩個各自單純的
+ *            AND 查詢（結構同 v1.6.0 原查詢）再以 PHP 去重合併。
  *  v1.7.1 (2026-08-17) 緊急修正：移除拖垮頁面的即時 AniList 查詢
  *    - [Fix] v1.7.0 的「新作／續作」細分會在每次頁面載入時，對本季所有
  *            作品（75 部）同步呼叫 AniList API 判斷有無 PREQUEL，導致
@@ -108,36 +113,64 @@ $year       = (int) $ctx['year'];
 $season_first_month = [ 'WINTER' => 1, 'SPRING' => 4, 'SUMMER' => 7, 'FALL' => 10 ][ $season_key ] ?? 1;
 $season_start_ymd    = (int) sprintf( '%d%02d01', $year, $season_first_month );
 
-$q = new WP_Query( [
+/**
+ * [1.7.2] 拆成兩個單純的 AND 查詢再於 PHP 合併。
+ *
+ * v1.7.0 用單一 OR meta_query 同時撈「本季新番」與「跨季續播」，
+ * WordPress 會為 OR 的每個子條件各自 LEFT JOIN postmeta，在本站
+ * 上千筆作品的資料量下查詢直接慢到頁面逾時。改用兩個各自只有兩個
+ * 條件的 AND 查詢（與 v1.6.0 原本那句同樣結構，效能已驗證），
+ * 再以 PHP 去重合併，避免 OR 造成的 JOIN 膨脹。
+ */
+$bgm_query_base = [
     'post_type'      => 'anime',
     'post_status'    => 'publish',
     'posts_per_page' => -1,
     'no_found_rows'  => true,
-    'meta_query'     => [
-        'relation' => 'OR',
-        [
-            'relation' => 'AND',
-            [ 'key' => 'anime_season',      'value' => $season_key, 'compare' => '=' ],
-            [ 'key' => 'anime_season_year', 'value' => $year,       'compare' => '=', 'type' => 'NUMERIC' ],
-        ],
-        [
-            'relation' => 'AND',
-            [ 'key' => 'anime_status',   'value' => 'RELEASING',      'compare' => '=' ],
-            [ 'key' => 'anime_end_date', 'value' => 0,                'compare' => '>',  'type' => 'NUMERIC' ],
-            [ 'key' => 'anime_end_date', 'value' => $season_start_ymd, 'compare' => '>=', 'type' => 'NUMERIC' ],
-        ],
-    ],
     'orderby'        => 'meta_value_num',
     'meta_key'       => 'anime_popularity',
     'order'          => 'DESC',
-] );
+];
+
+// 本季新番（結構與 v1.6.0 原本的查詢完全相同）
+$q = new WP_Query( array_merge( $bgm_query_base, [
+    'meta_query' => [
+        'relation' => 'AND',
+        [ 'key' => 'anime_season',      'value' => $season_key, 'compare' => '=' ],
+        [ 'key' => 'anime_season_year', 'value' => $year,       'compare' => '=', 'type' => 'NUMERIC' ],
+    ],
+] ) );
+
+// 跨季續播：仍在播出、且結束日落在本季（含）之後
+$q_continuing = new WP_Query( array_merge( $bgm_query_base, [
+    'meta_query' => [
+        'relation' => 'AND',
+        [ 'key' => 'anime_status',   'value' => 'RELEASING',       'compare' => '=' ],
+        [ 'key' => 'anime_end_date', 'value' => $season_start_ymd, 'compare' => '>=', 'type' => 'NUMERIC' ],
+    ],
+] ) );
+
+// 合併去重（本季新番優先，跨季續播補在後面）
+$bgm_post_objects = $q->posts;
+$bgm_seen_ids     = [];
+foreach ( $bgm_post_objects as $bgm_obj ) {
+    $bgm_seen_ids[ (int) $bgm_obj->ID ] = true;
+}
+foreach ( $q_continuing->posts as $bgm_obj ) {
+    $bgm_id = (int) $bgm_obj->ID;
+    if ( isset( $bgm_seen_ids[ $bgm_id ] ) ) {
+        continue;
+    }
+    $bgm_seen_ids[ $bgm_id ] = true;
+    $bgm_post_objects[]      = $bgm_obj;
+}
 
 $rows            = [];
 $tw_urls_by_post = [];
 $genres_by_post  = [];
 
-if ( $q->have_posts() ) {
-    foreach ( $q->posts as $post_obj ) {
+if ( ! empty( $bgm_post_objects ) ) {
+    foreach ( $bgm_post_objects as $post_obj ) {
         $pid = (int) $post_obj->ID;
         $m   = get_post_meta( $pid );
 
