@@ -472,6 +472,17 @@ get_header();
                     <?php else : ?>
                         <a href="<?php echo esc_url( wp_login_url( $character_permalink . '#asa-sec-corrections' ) ); ?>" class="asa-action-btn">✏ 糾錯回報</a>
                     <?php endif; ?>
+
+                    <?php
+                    /*
+                     * 留言：留言區在頁面下方（#asa-sec-comments），這裡放一個
+                     * 錨點按鈕方便直接跳過去。載體不存在時（理論上不會發生，
+                     * 載體是首次瀏覽即建立）就不顯示，避免跳到空錨點。
+                     */
+                    ?>
+                    <?php if ( $character_comment_post_id > 0 ) : ?>
+                        <a href="#asa-sec-comments" class="asa-action-btn">💬 留言</a>
+                    <?php endif; ?>
                 </div>
             </header>
 
