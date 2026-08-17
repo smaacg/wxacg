@@ -404,7 +404,14 @@ document.addEventListener('DOMContentLoaded', function () {
             : '<div class="asd-review-card-content">' + formatText(escapeHtml(item.content)) + '</div>';
 
         const deleteBtn = item.is_mine
-            ? '<button type="button" class="asd-review-delete-btn" data-id="' + item.id + '">刪除</button>' : '';
+            ? '<button type="button" class="asd-review-edit-btn" data-id="' + item.id + '">編輯</button>' +
+              '<button type="button" class="asd-review-delete-btn" data-id="' + item.id + '">刪除</button>'
+            : '';
+
+        // 發表後被改過就留下痕跡，讓對不上的回覆有跡可循
+        const editedTag = item.edited_at
+            ? '<span class="asd-review-edited-tag" title="最後編輯：' + escapeHtml(item.edited_at) + '">已編輯</span>'
+            : '';
 
         // 只有主留言能被回覆（巢狀一層），回覆本身不再顯示回覆鈕
         const replyBtn = isReply
@@ -427,12 +434,15 @@ document.addEventListener('DOMContentLoaded', function () {
             : '';
 
         return (
-            '<div class="asd-review-card' + spoilerClass + (isReply ? ' is-reply' : '') + '" data-id="' + item.id + '">' +
+            '<div class="asd-review-card' + spoilerClass + (isReply ? ' is-reply' : '') +
+                '" data-id="' + item.id +
+                // 編輯時要回填原始純文字，不能用顯示後的 HTML
+                '" data-raw="' + escapeHtml(item.content) + '">' +
                 '<div class="asd-review-card-head">' +
                     '<img class="asd-review-avatar" src="' + escapeHtml(item.avatar) + '" alt="" loading="lazy">' +
                     '<div class="asd-review-card-meta">' +
                         '<span class="asd-review-author">' + escapeHtml(item.author) + '</span>' +
-                        episodeTag + statusTag + scoreTag +
+                        episodeTag + statusTag + scoreTag + editedTag +
                     '</div>' +
                     deleteBtn +
                 '</div>' +
@@ -572,9 +582,58 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    /* ── 就地編輯自己的評論 ── */
+    function bindEditButtons() {
+        listWrap.querySelectorAll('.asd-review-edit-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const card = btn.closest('.asd-review-card');
+                const body = card.querySelector('.asd-review-card-body');
+
+                if (card.dataset.editing === '1') { loadList(); return; }
+                card.dataset.editing = '1';
+                btn.textContent = '取消';
+
+                // 用原始純文字編輯，不能拿顯示用的 HTML 回填，
+                // 否則標記會被轉成標籤後再存回去
+                const raw = card.dataset.raw || '';
+
+                body.innerHTML =
+                    TOOLBAR_HTML +
+                    '<textarea class="asd-review-edit-input" rows="4"></textarea>' +
+                    '<div class="asd-review-reply-actions">' +
+                        '<span class="asd-review-reply-msg"></span>' +
+                        '<button type="button" class="asd-review-edit-save">儲存</button>' +
+                    '</div>';
+
+                const input = body.querySelector('.asd-review-edit-input');
+                const msgEl = body.querySelector('.asd-review-reply-msg');
+                const save  = body.querySelector('.asd-review-edit-save');
+
+                input.value = raw;
+                bindToolbar(body, input);
+                bindMention(input);
+                input.focus();
+
+                save.addEventListener('click', function () {
+                    const text = input.value.trim();
+                    if (!text) { showMsg(msgEl, '內容不能空白', true); return; }
+
+                    save.disabled = true;
+                    callApi('reviews/item/' + btn.dataset.id + '/edit', 'POST', { content: text })
+                        .then(function () { loadList(); })
+                        .catch(function (err) {
+                            showMsg(msgEl, err.message || '儲存失敗', true);
+                            save.disabled = false;
+                        });
+                });
+            });
+        });
+    }
+
     function bindCardEvents() {
         bindReplyButtons();
         bindFollowButtons();
+        bindEditButtons();
 
         listWrap.querySelectorAll('.asd-review-reveal-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {

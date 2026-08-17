@@ -45,6 +45,9 @@ class Anime_Sync_Review_Manager {
 	 */
 	const META_FOLLOWER = '_wxacg_review_follower';
 
+	/** 最後編輯時間；有值即代表發表後被改過 */
+	const META_EDITED_AT = '_wxacg_review_edited_at';
+
 	/**
 	 * 可以留評論的文章類型。
 	 *
@@ -240,6 +243,73 @@ class Anime_Sync_Review_Manager {
 			'callback'            => [ $this, 'api_follow' ],
 			'permission_callback' => [ $this, 'require_login' ],
 		] );
+
+		register_rest_route( $ns, '/reviews/item/(?P<review_id>\d+)/edit', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'api_edit' ],
+			'permission_callback' => [ $this, 'require_login' ],
+		] );
+	}
+
+	/**
+	 * 編輯自己的評論。
+	 *
+	 * 不設編輯時限：這是會員制社群，比照 MAL／AniList／Bangumi 的做法讓
+	 * 作者隨時能修正錯字。改為以「已編輯」標記維持透明度——原文變動後
+	 * 底下的回覆可能對不上，留下痕跡讓讀者有跡可循，比直接鎖定溫和。
+	 *
+	 * 編輯不重跑 @提及與追蹤通知：那些只在首次發表時送出，
+	 * 否則反覆編輯會變成騷擾同一個人的手段。
+	 */
+	public function api_edit( WP_REST_Request $req ) {
+		$review_id = (int) $req['review_id'];
+		$uid       = get_current_user_id();
+
+		$review = get_post( $review_id );
+		if ( ! $review || $review->post_type !== self::CPT || $review->post_status !== 'publish' ) {
+			return new WP_Error( 'invalid_review', '找不到這則評論', [ 'status' => 404 ] );
+		}
+
+		if ( (int) $review->post_author !== $uid ) {
+			return new WP_Error( 'not_owner', '只能編輯自己的評論', [ 'status' => 403 ] );
+		}
+
+		$content = trim( sanitize_textarea_field( (string) $req->get_param( 'content' ) ) );
+		$track   = get_post_meta( $review_id, '_wxacg_review_track', true ) ?: self::TRACK_SHORT;
+
+		// 回覆一律比照短評的長度規則
+		$is_reply = (int) get_post_meta( $review_id, self::META_REPLY_TO, true ) > 0;
+		$min_len  = ( $track === self::TRACK_LONG && ! $is_reply ) ? self::MIN_LEN_LONG : self::MIN_LEN_SHORT;
+		$max_len  = ( $track === self::TRACK_LONG && ! $is_reply ) ? self::MAX_LEN_LONG : self::MAX_LEN_SHORT;
+
+		$len = mb_strlen( $content );
+		if ( $len < $min_len ) {
+			return new WP_Error( 'too_short', sprintf( '內容至少需要 %d 個字', $min_len ), [ 'status' => 400 ] );
+		}
+		if ( $len > $max_len ) {
+			return new WP_Error( 'too_long', sprintf( '內容不能超過 %d 個字', $max_len ), [ 'status' => 400 ] );
+		}
+
+		$updated = wp_update_post( [
+			'ID'           => $review_id,
+			'post_content' => $content,
+		], true );
+
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
+
+		update_post_meta( $review_id, self::META_EDITED_AT, current_time( 'mysql' ) );
+
+		if ( null !== $req->get_param( 'spoiler' ) ) {
+			update_post_meta( $review_id, '_wxacg_review_spoiler', $req->get_param( 'spoiler' ) ? 1 : 0 );
+		}
+
+		return [
+			'id'         => $review_id,
+			'content'    => $content,
+			'edited_at'  => get_post_meta( $review_id, self::META_EDITED_AT, true ),
+		];
 	}
 
 	/**
@@ -537,6 +607,7 @@ class Anime_Sync_Review_Manager {
 				'reply_to'       => (int) get_post_meta( $post->ID, self::META_REPLY_TO, true ),
 				'following'      => $uid > 0 && in_array( $uid, $followers, true ),
 				'follower_count' => count( $followers ),
+				'edited_at'      => (string) get_post_meta( $post->ID, self::META_EDITED_AT, true ),
 				'track'      => get_post_meta( $post->ID, '_wxacg_review_track', true ) ?: self::TRACK_SHORT,
 				'episode'    => (int) get_post_meta( $post->ID, '_wxacg_review_episode', true ),
 				'spoiler'    => (bool) get_post_meta( $post->ID, '_wxacg_review_spoiler', true ),
