@@ -290,9 +290,33 @@ function wxacg_sort_choices() {
 		'recent'      => '🆕 最近匯入的頁面（依建立時間倒序）',
 		'new'         => '📅 新番優先（年份＋季度倒序）',
 		'airing'      => '📺 連載中優先',
-		'popular'     => '⭐ 熱門優先（留言數及 AniList 評分）',
+		'views'       => '👁️ 站內瀏覽數優先（近 60 天實際流量）',
+		'popular'     => '⭐ 熱門優先（站內留言數及 AniList 評分）',
 		'default'     => '🔢 預設順序（文章 ID）',
 	);
+}
+
+/**
+ * 取得 WP Statistics 的頁面統計資料表名稱。
+ *
+ * 外掛未安裝或資料表不存在時回傳空字串，讓呼叫端改用其他排序，
+ * 避免組出參照不存在資料表的 SQL。
+ *
+ * @return string 資料表名稱，不存在時為空字串。
+ */
+function wxacg_stats_pages_table() {
+	global $wpdb;
+
+	static $table = null;
+
+	if ( null !== $table ) {
+		return $table;
+	}
+
+	$name  = $wpdb->prefix . 'statistics_pages';
+	$table = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $name ) ) ? $name : '';
+
+	return $table;
 }
 
 /**
@@ -335,6 +359,19 @@ function wxacg_build_sort_clauses( $sort ) {
 	) AS s_airing";
 
 	$sel_score = "MAX( CAST( NULLIF( pm_al.meta_value, '' ) AS DECIMAL(5,2) ) ) AS s_score";
+
+	/*
+	 * 站內留言數：本站留言存在 wxacg_review 自訂文章類型（以 post_parent
+	 * 指向作品），不會寫回 wp_posts.comment_count。實測 1,498 篇動漫頁中
+	 * comment_count > 0 的只有 10 篇，直接拿它排序等於沒有區分力，
+	 * 因此改為即時統計 wxacg_review。
+	 */
+	$join_reviews = "LEFT JOIN {$wpdb->posts} rv
+	                        ON rv.post_parent = p.ID
+	                       AND rv.post_type = 'wxacg_review'
+	                       AND rv.post_status = 'publish'";
+
+	$sel_reviews = 'COUNT( DISTINCT rv.ID ) AS s_reviews';
 
 	$sel_current = sprintf(
 		"MAX(
@@ -403,10 +440,42 @@ function wxacg_build_sort_clauses( $sort ) {
 
 		case 'popular':
 			return array(
-				'select' => ', ' . $sel_score,
-				'join'   => $join_score,
+				'select' => ', ' . $sel_reviews . ', ' . $sel_score,
+				'join'   => $join_reviews . ' ' . $join_score,
 				'having' => '',
-				'order'  => 'ORDER BY p.comment_count DESC, s_score DESC, p.ID ASC',
+				'order'  => 'ORDER BY s_reviews DESC, s_score DESC, p.ID ASC',
+			);
+
+		case 'views':
+			$stats_table = wxacg_stats_pages_table();
+
+			// 沒有 WP Statistics 資料表時退回熱門排序，避免無效 SQL。
+			if ( '' === $stats_table ) {
+				return array(
+					'select' => ', ' . $sel_reviews . ', ' . $sel_score,
+					'join'   => $join_reviews . ' ' . $join_score,
+					'having' => '',
+					'order'  => 'ORDER BY s_reviews DESC, s_score DESC, p.ID ASC',
+				);
+			}
+
+			/*
+			 * WP Statistics 的 type 欄位對自訂文章類型存的是
+			 * 'post_type_anime'（非 'anime'），實測確認過。
+			 */
+			$join_views = sprintf(
+				"LEFT JOIN {$stats_table} sp
+				        ON sp.id = p.ID
+				       AND sp.type = 'post_type_anime'
+				       AND sp.date >= '%s'",
+				esc_sql( gmdate( 'Y-m-d', strtotime( '-60 days' ) ) )
+			);
+
+			return array(
+				'select' => ', COALESCE( SUM( sp.count ), 0 ) AS s_views',
+				'join'   => $join_views,
+				'having' => '',
+				'order'  => 'ORDER BY s_views DESC, p.ID ASC',
 			);
 
 		case 'default':
@@ -761,9 +830,25 @@ function wxacg_ai_editorial_page() {
 		);
 	}
 
-	$clauses  = wxacg_build_sort_clauses( $sort );
-	$join     = isset( $clauses['join'] ) ? $clauses['join'] : '';
-	$order_by = isset( $clauses['orderby'] ) && $clauses['orderby'] ? $clauses['orderby'] : 'p.post_date DESC';
+	$clauses = wxacg_build_sort_clauses( $sort );
+	$join    = isset( $clauses['join'] ) ? $clauses['join'] : '';
+	$select  = isset( $clauses['select'] ) ? $clauses['select'] : '';
+	$having  = isset( $clauses['having'] ) ? $clauses['having'] : '';
+
+	/*
+	 * ★ 這裡原本讀 $clauses['orderby']，但 wxacg_build_sort_clauses() 回傳的
+	 *   鍵是 'order'，判斷永遠不成立，導致不管選哪個排序都退回
+	 *   p.post_date DESC——後台的排序下拉選單等於完全失效。
+	 *
+	 *   'order' 的值本身已含 "ORDER BY " 前綴（供其他呼叫端直接串接），
+	 *   這裡剝掉前綴再組進 SQL，避免變成 ORDER BY ORDER BY。
+	 */
+	$order_by = 'p.post_date DESC';
+
+	if ( ! empty( $clauses['order'] ) ) {
+		$order_by = preg_replace( '/^\s*ORDER\s+BY\s+/i', '', $clauses['order'] );
+	}
+
 	if ( ! empty( $clauses['where'] ) ) {
 		$where .= ' AND ' . $clauses['where'];
 	}
@@ -773,11 +858,19 @@ function wxacg_ai_editorial_page() {
 	);
 
 	$offset = ( $paged - 1 ) * $per_page;
-	$rows   = $wpdb->get_results(
+
+	/*
+	 * 排序用的別名（s_year、s_score、s_views…）都是聚合函式，必須同時
+	 * 放進 SELECT 並搭配 GROUP BY，ORDER BY 才引用得到。原本兩者皆缺，
+	 * 就算鍵名修對也會是無效 SQL。寫法與 wxacg_count_remaining() 一致。
+	 */
+	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			"SELECT DISTINCT p.ID, p.post_title
+			"SELECT p.ID, p.post_title {$select}
 			 FROM {$wpdb->posts} p {$join}
 			 WHERE {$where}
+			 GROUP BY p.ID, p.post_title
+			 {$having}
 			 ORDER BY {$order_by}
 			 LIMIT %d OFFSET %d",
 			$per_page,
