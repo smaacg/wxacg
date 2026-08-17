@@ -96,8 +96,9 @@ add_action( 'wp_enqueue_scripts', function () {
    主要樣式載入
    ============================================================ */
 add_action( 'wp_enqueue_scripts', function () {
-    wp_enqueue_style( 'blocksy-parent', get_template_directory_uri() . '/style.css', [ 'weixiaoacg-fa6' ], wp_get_theme( 'blocksy' )->get( 'Version' ) );
-    wp_enqueue_style( 'weixiaoacg-child-style', get_stylesheet_uri(), [ 'blocksy-parent' ], weixiaoacg_VERSION );
+    // ★ 2026-08-17：主題已改成獨立主題，不再是 Blocksy 子主題，不用再載入
+    // Blocksy 自己的 style.css（原本 blocksy-parent 這個 handle）。
+    wp_enqueue_style( 'weixiaoacg-child-style', get_stylesheet_uri(), [ 'weixiaoacg-fa6' ], weixiaoacg_VERSION );
     // wp_enqueue_style( 'weixiaoacg-fonts', 'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap', [], null );
 
     foreach ( [

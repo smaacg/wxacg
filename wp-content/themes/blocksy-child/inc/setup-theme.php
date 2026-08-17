@@ -29,6 +29,9 @@ add_action( 'after_setup_theme', function() {
     add_theme_support( 'html5', ['search-form','comment-form','comment-list','gallery','caption','style','script'] );
     add_theme_support( 'custom-logo', ['height'=>40,'width'=>180,'flex-height'=>true,'flex-width'=>true] );
     add_theme_support( 'menus' );
+    // ★ 2026-08-17：主題獨立化後，補上原本吃 Blocksy 母主題的兩個支援旗標
+    add_theme_support( 'automatic-feed-links' );
+    add_theme_support( 'responsive-embeds' ); // 讓內嵌 YouTube 影片自適應寬度
 
     foreach ([
         'weixiaoacg-cover'  => [300, 420, true],
