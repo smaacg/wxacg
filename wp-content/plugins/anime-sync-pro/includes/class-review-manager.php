@@ -34,6 +34,9 @@ class Anime_Sync_Review_Manager {
 	const MAX_LEN_EXCERPT = 60;
 	const MIN_LEN_EXCERPT = 20;
 
+	/** 回覆指向的母評論 ID；0 或不存在代表本身是主留言 */
+	const META_REPLY_TO = '_wxacg_review_reply_to';
+
 	/**
 	 * 可以留評論的文章類型。
 	 *
@@ -252,6 +255,7 @@ class Anime_Sync_Review_Manager {
 
 			$rows[] = [
 				'id'         => $post->ID,
+				'reply_to'   => (int) get_post_meta( $post->ID, self::META_REPLY_TO, true ),
 				'track'      => get_post_meta( $post->ID, '_wxacg_review_track', true ) ?: self::TRACK_SHORT,
 				'episode'    => (int) get_post_meta( $post->ID, '_wxacg_review_episode', true ),
 				'spoiler'    => (bool) get_post_meta( $post->ID, '_wxacg_review_spoiler', true ),
@@ -329,6 +333,27 @@ class Anime_Sync_Review_Manager {
 			return new WP_Error( 'invalid_track', '這篇內容不支援這種評論類型', [ 'status' => 400 ] );
 		}
 
+		/*
+		 * 回覆：只做一層。回覆「回覆」時自動歸到它的母評論底下，
+		 * 避免無限縮排在手機上被擠扁，也省去遞迴查詢。
+		 */
+		$reply_to = (int) $req->get_param( 'reply_to' );
+		if ( $reply_to > 0 ) {
+			$parent = get_post( $reply_to );
+
+			if ( ! $parent
+				|| $parent->post_type !== self::CPT
+				|| (int) $parent->post_parent !== $anime_id
+				|| $parent->post_status !== 'publish' ) {
+				return new WP_Error( 'invalid_reply_target', '找不到要回覆的評論', [ 'status' => 404 ] );
+			}
+
+			$grandparent = (int) get_post_meta( $reply_to, self::META_REPLY_TO, true );
+			if ( $grandparent > 0 ) {
+				$reply_to = $grandparent;
+			}
+		}
+
 		$episode = (int) $req->get_param( 'episode' );
 		if ( $episode < 0 ) {
 			$episode = 0;
@@ -393,19 +418,28 @@ class Anime_Sync_Review_Manager {
 			}
 		}
 
-		// upsert：同一人對同一部作品的同一軌（＋同一集）已有評論就更新，不重複建立
-		$existing = get_posts( [
-			'post_type'      => self::CPT,
-			'post_parent'    => $anime_id,
-			'author'         => $uid,
-			'post_status'    => 'publish',
-			'posts_per_page' => 1,
-			'meta_query'     => [
-				[ 'key' => '_wxacg_review_track', 'value' => $track ],
-				[ 'key' => '_wxacg_review_episode', 'value' => $episode ],
-			],
-			'fields' => 'ids',
-		] );
+		/*
+		 * upsert：同一人對同一部作品的同一軌（＋同一集）已有評論就更新，不重複建立。
+		 *
+		 * ★ 回覆不套用這條規則。回覆本來就該能對同一則討論串發表多次，
+		 *   若沿用 upsert，使用者的第二則回覆會直接覆蓋掉第一則。
+		 */
+		$existing = [];
+		if ( 0 === $reply_to ) {
+			$existing = get_posts( [
+				'post_type'      => self::CPT,
+				'post_parent'    => $anime_id,
+				'author'         => $uid,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'meta_query'     => [
+					[ 'key' => '_wxacg_review_track', 'value' => $track ],
+					[ 'key' => '_wxacg_review_episode', 'value' => $episode ],
+					[ 'key' => self::META_REPLY_TO, 'compare' => 'NOT EXISTS' ],
+				],
+				'fields' => 'ids',
+			] );
+		}
 
 		$postarr = [
 			'post_type'    => self::CPT,
@@ -432,6 +466,13 @@ class Anime_Sync_Review_Manager {
 		update_post_meta( $review_id, '_wxacg_review_track', $track );
 		update_post_meta( $review_id, '_wxacg_review_episode', $episode );
 		update_post_meta( $review_id, '_wxacg_review_spoiler', $spoiler );
+
+		// 主留言不寫這個 meta，讓上面 upsert 的 NOT EXISTS 條件能正確區分兩者
+		if ( $reply_to > 0 ) {
+			update_post_meta( $review_id, self::META_REPLY_TO, $reply_to );
+		} else {
+			delete_post_meta( $review_id, self::META_REPLY_TO );
+		}
 
 		if ( $is_new ) {
 			do_action( 'wxacg_review_submitted', $uid, $review_id, $anime_id, $track );

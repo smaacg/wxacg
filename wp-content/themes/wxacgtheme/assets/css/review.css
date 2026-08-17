@@ -379,3 +379,111 @@
     width: 100%;
   }
 }
+
+/* ============================================================
+   樓中樓回覆
+   巢狀固定一層：回覆「回覆」時後端會壓平到母評論底下，
+   因此這裡只需要處理單層縮排，不必寫遞迴選擇器。
+   ============================================================ */
+
+.asd-review-replies {
+  margin: 10px 0 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--rv-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.asd-review-card.is-reply {
+  background: transparent;
+  border: 0;
+  padding: 8px 0 0;
+}
+
+.asd-review-card.is-reply .asd-review-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+.asd-review-reply-btn {
+  background: none;
+  border: 0;
+  color: var(--rv-text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background .15s, color .15s;
+}
+
+.asd-review-reply-btn:hover {
+  background: var(--rv-bg);
+  color: var(--rv-text);
+}
+
+/* 回覆表單 */
+.asd-review-reply-form {
+  margin-top: 8px;
+}
+
+.asd-review-reply-input {
+  width: 100%;
+  background: var(--rv-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 8px;
+  color: var(--rv-text);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.asd-review-reply-input:focus {
+  border-color: var(--rv-primary);
+  outline: none;
+}
+
+.asd-review-reply-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.asd-review-reply-msg {
+  flex: 1;
+  font-size: 12px;
+  color: var(--rv-red);
+}
+
+.asd-review-reply-cancel,
+.asd-review-reply-send {
+  border: 1px solid var(--rv-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 14px;
+}
+
+.asd-review-reply-cancel {
+  background: transparent;
+  color: var(--rv-text-dim);
+}
+
+.asd-review-reply-send {
+  background: var(--rv-primary);
+  border-color: var(--rv-primary);
+  color: #fff;
+}
+
+.asd-review-reply-send:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+@media (max-width: 600px) {
+  .asd-review-replies {
+    padding-left: 10px;
+  }
+}

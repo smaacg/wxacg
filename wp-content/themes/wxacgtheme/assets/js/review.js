@@ -226,7 +226,12 @@ document.addEventListener('DOMContentLoaded', function () {
         want: '想看', watching: '在看', completed: '看過', dropped: '棄番', paused: '擱置',
     };
 
-    function renderCard(item) {
+    /**
+     * @param {object} item      評論資料
+     * @param {Array}  replies   這則底下的回覆（只有主留言會有；巢狀固定一層）
+     */
+    function renderCard(item, replies) {
+        const isReply      = !!item.reply_to;
         const spoilerClass = item.spoiler ? ' is-spoiler' : '';
         const episodeTag = item.episode > 0 ? '<span class="asd-review-episode-tag">第 ' + item.episode + ' 集</span>' : '';
         const scoreTag = item.score ? '<span class="asd-review-score-tag">★ ' + item.score + '</span>' : '';
@@ -242,8 +247,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const deleteBtn = item.is_mine
             ? '<button type="button" class="asd-review-delete-btn" data-id="' + item.id + '">刪除</button>' : '';
 
+        // 只有主留言能被回覆（巢狀一層），回覆本身不再顯示回覆鈕
+        const replyBtn = isReply
+            ? ''
+            : '<button type="button" class="asd-review-reply-btn" data-id="' + item.id + '">💬 回覆</button>';
+
+        const repliesHtml = (replies && replies.length)
+            ? '<div class="asd-review-replies">' +
+                  replies.map(function (r) { return renderCard(r, null); }).join('') +
+              '</div>'
+            : '';
+
         return (
-            '<div class="asd-review-card' + spoilerClass + '" data-id="' + item.id + '">' +
+            '<div class="asd-review-card' + spoilerClass + (isReply ? ' is-reply' : '') + '" data-id="' + item.id + '">' +
                 '<div class="asd-review-card-head">' +
                     '<img class="asd-review-avatar" src="' + escapeHtml(item.avatar) + '" alt="" loading="lazy">' +
                     '<div class="asd-review-card-meta">' +
@@ -261,7 +277,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<div class="asd-review-card-foot">' +
                     '<button type="button" class="asd-review-vote-btn asd-review-like-btn' + (item.my_vote === 1 ? ' is-active' : '') + '" data-id="' + item.id + '" data-type="like">👍 <span>' + item.like_count + '</span></button>' +
                     '<button type="button" class="asd-review-vote-btn asd-review-dislike-btn' + (item.my_vote === -1 ? ' is-active' : '') + '" data-id="' + item.id + '" data-type="dislike">👎 <span>' + item.dislike_count + '</span></button>' +
+                    replyBtn +
                 '</div>' +
+                '<div class="asd-review-reply-form" hidden></div>' +
+                repliesHtml +
             '</div>'
         );
     }
@@ -274,14 +293,94 @@ document.addEventListener('DOMContentLoaded', function () {
                 listWrap.innerHTML = '<p class="asd-review-empty">還沒有人發表' + (currentTrack === 'long' ? '評論' : '吐槽') + '，來當第一個吧！</p>';
                 return;
             }
-            listWrap.innerHTML = items.map(renderCard).join('');
+            /*
+             * API 回傳的是平的清單，這裡組成一層巢狀。
+             * 找不到母評論的回覆（母評論已被刪除）不能直接丟掉，
+             * 否則內容會憑空消失，改當成主留言顯示。
+             */
+            const repliesOf = {};
+            const parents   = [];
+            const idSet     = {};
+
+            items.forEach(function (it) { idSet[it.id] = true; });
+
+            items.forEach(function (it) {
+                if (it.reply_to && idSet[it.reply_to]) {
+                    (repliesOf[it.reply_to] = repliesOf[it.reply_to] || []).push(it);
+                } else {
+                    parents.push(it);
+                }
+            });
+
+            listWrap.innerHTML = parents.map(function (p) {
+                return renderCard(p, repliesOf[p.id]);
+            }).join('');
             bindCardEvents();
         }).catch(function () {
             listWrap.innerHTML = '<p class="asd-review-empty">評論載入失敗，請重新整理頁面再試一次</p>';
         });
     }
 
+    /* ── 回覆表單（點「回覆」才展開，避免每則都掛一份表單）── */
+    function bindReplyButtons() {
+        listWrap.querySelectorAll('.asd-review-reply-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!loggedIn) { requireLogin(); return; }
+
+                const card = btn.closest('.asd-review-card');
+                const wrap = card.querySelector('.asd-review-reply-form');
+
+                // 再按一次收合
+                if (!wrap.hidden) {
+                    wrap.hidden = true;
+                    wrap.innerHTML = '';
+                    return;
+                }
+
+                wrap.hidden = false;
+                wrap.innerHTML =
+                    '<textarea class="asd-review-reply-input" rows="2" maxlength="300" placeholder="回覆這則留言…"></textarea>' +
+                    '<div class="asd-review-reply-actions">' +
+                        '<span class="asd-review-reply-msg"></span>' +
+                        '<button type="button" class="asd-review-reply-cancel">取消</button>' +
+                        '<button type="button" class="asd-review-reply-send">送出</button>' +
+                    '</div>';
+
+                const input  = wrap.querySelector('.asd-review-reply-input');
+                const msgEl  = wrap.querySelector('.asd-review-reply-msg');
+                const sendEl = wrap.querySelector('.asd-review-reply-send');
+
+                input.focus();
+
+                wrap.querySelector('.asd-review-reply-cancel').addEventListener('click', function () {
+                    wrap.hidden = true;
+                    wrap.innerHTML = '';
+                });
+
+                sendEl.addEventListener('click', function () {
+                    const text = input.value.trim();
+                    if (!text) { showMsg(msgEl, '請先輸入內容', true); return; }
+
+                    sendEl.disabled = true;
+                    callApi('reviews/' + animeId, 'POST', {
+                        track:    'short',
+                        content:  text,
+                        reply_to: parseInt(btn.dataset.id, 10)
+                    }).then(function () {
+                        loadList();
+                    }).catch(function (err) {
+                        showMsg(msgEl, err.message || '送出失敗', true);
+                    }).finally(function () {
+                        sendEl.disabled = false;
+                    });
+                });
+            });
+        });
+    }
+
     function bindCardEvents() {
+        bindReplyButtons();
+
         listWrap.querySelectorAll('.asd-review-reveal-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const card = btn.closest('.asd-review-card');
