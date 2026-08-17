@@ -906,6 +906,27 @@ function smacg_render_career( $uid, $lvl_info = null, $job_title = null ) {
 
         <h3 class="mc-career-path-title">🎬 進化路線</h3>
         <ol class="mc-career-path">
+            <?php
+            // 起點：Lv.1，顯示帳號註冊日期（不算職業任何一轉，純粹當作路線的起始標記）
+            $reg_date_str = '';
+            $user_data    = get_userdata( $uid );
+            if ( $user_data && $user_data->user_registered ) {
+                $reg_date_str = mysql2date( 'Y-m-d', $user_data->user_registered );
+            }
+            ?>
+            <li class="mc-career-path-item is-done">
+                <div class="mc-career-path-marker" aria-hidden="true">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+                <div class="mc-career-path-body">
+                    <div class="mc-career-path-stage">🌱 起點 · Lv.1</div>
+                    <div class="mc-career-path-name">新進會員</div>
+                    <?php if ( $reg_date_str ): ?>
+                        <div class="mc-career-path-ref"><small>註冊於 <?php echo esc_html( $reg_date_str ); ?></small></div>
+                    <?php endif; ?>
+                </div>
+            </li>
+
             <?php foreach ( $job['titles'] as $stage => $t ):
                 $milestone    = $milestones[ $stage ] ?? [ 'level' => 0, 'icon' => '•', 'label' => '' ];
                 $milestone_lv = (int) $milestone['level'];
@@ -930,6 +951,21 @@ function smacg_render_career( $uid, $lvl_info = null, $job_title = null ) {
                     </div>
                 </li>
             <?php endforeach; ?>
+
+            <?php
+            // 終點：Lv.200，職業轉階最高只到 5 轉（Lv.170），這裡是整條路線的封頂標記
+            $graduated = $level >= 200;
+            $end_cls   = $graduated ? 'is-done' : 'is-locked';
+            ?>
+            <li class="mc-career-path-item <?php echo $end_cls; ?>">
+                <div class="mc-career-path-marker" aria-hidden="true">
+                    <i class="fa-solid fa-<?php echo $graduated ? 'check' : 'lock'; ?>"></i>
+                </div>
+                <div class="mc-career-path-body">
+                    <div class="mc-career-path-stage">💎 終點 · Lv.200</div>
+                    <div class="mc-career-path-name">畢業五轉</div>
+                </div>
+            </li>
         </ol>
 
         <?php if ( $can_change ): ?>

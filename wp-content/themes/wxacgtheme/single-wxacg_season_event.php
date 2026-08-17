@@ -265,7 +265,7 @@ while ( have_posts() ) : the_post();
               <li>
                 <span class="evt-reward-icon">🏅</span>
                 <div class="evt-reward-info">
-                  <strong><?php echo esc_html( get_the_title( $meta['reward_badge'] ) ?: '專屬徽章' ); ?></strong>
+                  <strong><?php echo esc_html( get_the_title( $meta['reward_badge'] ) ?: '專屬成就' ); ?></strong>
                   <small>永久收藏</small>
                 </div>
               </li>

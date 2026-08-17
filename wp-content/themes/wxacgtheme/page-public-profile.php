@@ -103,7 +103,7 @@ $activity = ( $can_view_activity && function_exists( 'smacg_get_recent_activity'
 
 // 預設 tab
 $active_tab = get_query_var( 'smacg_pp_tab' ) ?: 'overview';
-$valid_tabs = [ 'overview', 'watchlist', 'ratings', 'badges', 'activity' ];
+$valid_tabs = [ 'overview', 'watchlist', 'ratings', 'achievements', 'activity' ];
 if ( ! in_array( $active_tab, $valid_tabs, true ) ) {
     $active_tab = 'overview';
 }
@@ -166,7 +166,7 @@ get_header(); ?>
                 'overview'  => [ '📊', '總覽', true ],
                 'watchlist' => [ '🎬', '清單', $can_view_watchlist ],
                 'ratings'   => [ '⭐', '評分', $can_view_ratings ],
-                'badges'    => [ '🏆', '徽章', $can_view_profile ],
+                'achievements' => [ '🏆', '成就', $can_view_profile ],
                 'activity'  => [ '📡', '動態', $can_view_activity ],
             ];
             foreach ( $tabs as $key => $info ) {
@@ -202,7 +202,7 @@ get_header(); ?>
             <?php endif; ?>
 
             <?php if ( $can_view_profile ) : ?>
-            <section class="pp-panel<?php echo $active_tab === 'badges' ? ' active' : ''; ?>" data-panel="badges">
+            <section class="pp-panel<?php echo $active_tab === 'achievements' ? ' active' : ''; ?>" data-panel="achievements">
                 <?php smacg_pp_render_badges( $uid, $stats ); ?>
             </section>
             <?php endif; ?>

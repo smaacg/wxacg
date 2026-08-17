@@ -300,7 +300,7 @@ get_header(); ?>
             <p class="mc-follow-meta">
                 <span class="mc-follow-stat"><b><?php echo number_format( $mc_followers ); ?></b><em>粉絲</em></span>
                 <span class="mc-follow-stat"><b><?php echo number_format( $mc_following ); ?></b><em>追蹤中</em></span>
-                <span class="mc-follow-stat"><b><?php echo number_format( $mc_badge_count ); ?></b><em>徽章</em></span>
+                <span class="mc-follow-stat"><b><?php echo number_format( $mc_badge_count ); ?></b><em>成就</em></span>
             </p>
 
             <?php if ( $bio ) : ?>
@@ -370,7 +370,7 @@ get_header(); ?>
             'watchlist'     => '🎬 我的清單',
             'stats'         => '📈 統計',
             'ratings'       => '⭐ 我的評分',
-            'badges'        => '🏆 徽章',
+            'achievements'  => '🏆 成就',
             'career'        => '🎯 職業',
             'notifications' => '🔔 通知',
             'comments'      => '💬 留言',
@@ -423,10 +423,10 @@ get_header(); ?>
                 smacg_render_ratings( $ratings, $stats['rating'] );
             } else { echo '<p class="mc-empty">評分模組尚未載入</p>'; } ?>
         </section>
-        <section class="mc-panel" data-panel="badges">
+        <section class="mc-panel" data-panel="achievements">
             <?php if ( function_exists( 'smacg_render_badges' ) ) {
                 smacg_render_badges( $uid );
-            } else { echo '<p class="mc-empty">徽章模組尚未載入</p>'; } ?>
+            } else { echo '<p class="mc-empty">成就模組尚未載入</p>'; } ?>
         </section>
         <section class="mc-panel" data-panel="career">
             <?php if ( function_exists( 'smacg_render_career' ) ) {

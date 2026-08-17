@@ -127,7 +127,7 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
         <a href="#career"       class="guide-toc-chip">🎯 職業天命</a>
         <a href="#tier"         class="guide-toc-chip">🏅 賽季段位</a>
         <a href="#season"       class="guide-toc-chip">🗓️ 賽季時程</a>
-        <a href="#badges"       class="guide-toc-chip">🎖️ 徽章收集</a>
+        <a href="#achievements" class="guide-toc-chip">🎖️ 成就收集</a>
       </nav>
 
       <?php if ( $me_lvl ): ?>
@@ -453,11 +453,11 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
       </div>
     </section>
 
-    <!-- ===== §6 徽章收集 ===== -->
-    <section id="badges" class="guide-section">
-      <h2 class="guide-section-title">🎖️ 徽章收集 — 解鎖你的成就</h2>
+    <!-- ===== §6 成就收集 ===== -->
+    <section id="achievements" class="guide-section">
+      <h2 class="guide-section-title">🎖️ 成就收集 — 解鎖你的成就</h2>
       <p class="guide-section-intro">
-        在站上完成各種挑戰可解鎖徽章。完整徽章列表請至會員中心查看。
+        在站上完成各種挑戰可解鎖成就。完整成就列表請至會員中心查看。
       </p>
 
       <?php
@@ -493,10 +493,10 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
           <?php endforeach; ?>
         </div>
         <p class="guide-badge-more">
-          <a href="<?php echo esc_url( home_url( '/mc/?tab=badges' ) ); ?>">查看完整徽章列表 →</a>
+          <a href="<?php echo esc_url( home_url( '/mc/#achievements' ) ); ?>">查看完整成就列表 →</a>
         </p>
       <?php else: ?>
-        <p class="guide-empty">徽章系統正在建置中，敬請期待。</p>
+        <p class="guide-empty">成就系統正在建置中，敬請期待。</p>
       <?php endif; ?>
     </section>
 

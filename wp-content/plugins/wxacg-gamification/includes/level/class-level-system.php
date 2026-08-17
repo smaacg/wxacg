@@ -93,23 +93,30 @@ class Level_System {
     public static function get_tier( $level ) {
         $level = (int) $level;
 
-        if ( $level >= 200 ) return [ 'tier' => 6, 'key' => 'black',   'title' => '黑卡會員', 'icon' => '💎', 'color' => '#1a1a1a' ];
-        if ( $level >= 120 ) return [ 'tier' => 5, 'key' => 'vip',     'title' => 'VIP',      'icon' => '👑', 'color' => '#b8860b' ];
-        if ( $level >= 70  ) return [ 'tier' => 4, 'key' => 'expert',  'title' => '熟客',     'icon' => '🎬', 'color' => '#6a4c93' ];
-        if ( $level >= 30  ) return [ 'tier' => 3, 'key' => 'regular', 'title' => '常客',     'icon' => '📺', 'color' => '#3a86ff' ];
-        if ( $level >= 10  ) return [ 'tier' => 2, 'key' => 'newcomer','title' => '新客',     'icon' => '🌿', 'color' => '#06a77d' ];
-        return                       [ 'tier' => 1, 'key' => 'rookie',  'title' => '新進會員', 'icon' => '🌱', 'color' => '#8d99ae' ];
+        /*
+         * ★ 2026-08-17：Tier 2~5 的稱號改成直接講「這個等級可以幹嘛」
+         * （對應職業轉階的第幾轉），不再用「新客／常客／熟客／VIP」這種
+         * 自成一套、跟職業轉階系統的「一轉／二轉」用語搭不起來的稱號。
+         * Tier 1（起點）跟 Tier 6（職業轉階最高只到 Lv.170 五轉，沒有
+         * 對應）維持原本文字。
+         */
+        if ( $level >= 200 ) return [ 'tier' => 6, 'key' => 'black',   'title' => '畢業五轉',       'icon' => '💎', 'color' => '#1a1a1a' ];
+        if ( $level >= 120 ) return [ 'tier' => 5, 'key' => 'vip',     'title' => '可四轉',         'icon' => '👑', 'color' => '#b8860b' ];
+        if ( $level >= 70  ) return [ 'tier' => 4, 'key' => 'expert',  'title' => '可三轉',         'icon' => '🎬', 'color' => '#6a4c93' ];
+        if ( $level >= 30  ) return [ 'tier' => 3, 'key' => 'regular', 'title' => '可二轉',         'icon' => '📺', 'color' => '#3a86ff' ];
+        if ( $level >= 10  ) return [ 'tier' => 2, 'key' => 'newcomer','title' => '可選職業（一轉）', 'icon' => '🌿', 'color' => '#06a77d' ];
+        return                       [ 'tier' => 1, 'key' => 'rookie',  'title' => '呆萌新人',       'icon' => '🌱', 'color' => '#8d99ae' ];
     }
 
     /** 6 階完整表（給 /level-guide/ 用） */
     public static function get_all_tiers() {
         return [
-            [ 'tier' => 1, 'key' => 'rookie',   'title' => '新進會員', 'icon' => '🌱', 'color' => '#8d99ae', 'min_level' => 1,   'min_exp' => 50       ],
-            [ 'tier' => 2, 'key' => 'newcomer', 'title' => '新客',     'icon' => '🌿', 'color' => '#06a77d', 'min_level' => 10,  'min_exp' => 5000     ],
-            [ 'tier' => 3, 'key' => 'regular',  'title' => '常客',     'icon' => '📺', 'color' => '#3a86ff', 'min_level' => 30,  'min_exp' => 45000    ],
-            [ 'tier' => 4, 'key' => 'expert',   'title' => '熟客',     'icon' => '🎬', 'color' => '#6a4c93', 'min_level' => 70,  'min_exp' => 245000   ],
-            [ 'tier' => 5, 'key' => 'vip',      'title' => 'VIP',      'icon' => '👑', 'color' => '#b8860b', 'min_level' => 120, 'min_exp' => 720000   ],
-            [ 'tier' => 6, 'key' => 'black',    'title' => '黑卡會員', 'icon' => '💎', 'color' => '#1a1a1a', 'min_level' => 200, 'min_exp' => 2000000  ],
+            [ 'tier' => 1, 'key' => 'rookie',   'title' => '呆萌新人',       'icon' => '🌱', 'color' => '#8d99ae', 'min_level' => 1,   'min_exp' => 50       ],
+            [ 'tier' => 2, 'key' => 'newcomer', 'title' => '可選職業（一轉）', 'icon' => '🌿', 'color' => '#06a77d', 'min_level' => 10,  'min_exp' => 5000     ],
+            [ 'tier' => 3, 'key' => 'regular',  'title' => '可二轉',         'icon' => '📺', 'color' => '#3a86ff', 'min_level' => 30,  'min_exp' => 45000    ],
+            [ 'tier' => 4, 'key' => 'expert',   'title' => '可三轉',         'icon' => '🎬', 'color' => '#6a4c93', 'min_level' => 70,  'min_exp' => 245000   ],
+            [ 'tier' => 5, 'key' => 'vip',      'title' => '可四轉',         'icon' => '👑', 'color' => '#b8860b', 'min_level' => 120, 'min_exp' => 720000   ],
+            [ 'tier' => 6, 'key' => 'black',    'title' => '畢業五轉',       'icon' => '💎', 'color' => '#1a1a1a', 'min_level' => 200, 'min_exp' => 2000000  ],
         ];
     }
 

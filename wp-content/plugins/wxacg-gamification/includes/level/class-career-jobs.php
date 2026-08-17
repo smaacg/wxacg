@@ -218,6 +218,16 @@ class Career_Jobs {
         // Lv<10 → 還沒一轉，沒有職業稱號
         if ( $stage < 1 ) return [];
 
+        /*
+         * 二轉（含）以上：等級到了只是必要條件，還要集滿全部「初次」成就
+         * 徽章才會真的顯示對應階級的稱號，等級到了但徽章沒集滿就卡在一轉。
+         * 這裡不動 career_stage()（純等級換算的通用函式，其他地方可能還要
+         * 用原始換算結果），只在「決定要顯示什麼稱號」這一步擋。
+         */
+        if ( $stage >= 2 && class_exists( __NAMESPACE__ . '\\First_Badge' ) && ! First_Badge::user_has_all_badges( $uid ) ) {
+            $stage = 1;
+        }
+
         // 防呆：擴充 job 時可能少填某一階
         if ( ! isset( $jobs[ $key ]['titles'][ $stage ] ) ) return [];
 

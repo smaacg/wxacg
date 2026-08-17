@@ -172,6 +172,53 @@ class First_Badge {
 	}
 
 	/* =========================================================
+	 * 給其他模組查詢用（例如 Career_Jobs 二轉門檻）
+	 * ======================================================= */
+
+	/**
+	 * 使用者是否已經集滿全部「初次」成就徽章。
+	 */
+	public static function user_has_all_badges( $uid ) {
+		$uid = (int) $uid;
+		if ( $uid <= 0 || ! class_exists( __NAMESPACE__ . '\\Gamipress_Bridge' ) ) {
+			return false;
+		}
+
+		$earned_ids = array_map( 'intval', Gamipress_Bridge::get_user_badge_ids( $uid ) );
+
+		foreach ( self::$rules as $rule ) {
+			$badge_id = self::get_badge_post_id( $rule['badge_slug'] );
+			if ( $badge_id <= 0 || ! in_array( $badge_id, $earned_ids, true ) ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * 使用者目前集滿幾個 / 總共幾個「初次」成就徽章。
+	 *
+	 * @return array{earned:int, total:int}
+	 */
+	public static function user_badge_progress( $uid ) {
+		$uid   = (int) $uid;
+		$total = count( self::$rules );
+		if ( $uid <= 0 || ! class_exists( __NAMESPACE__ . '\\Gamipress_Bridge' ) ) {
+			return [ 'earned' => 0, 'total' => $total ];
+		}
+
+		$earned_ids = array_map( 'intval', Gamipress_Bridge::get_user_badge_ids( $uid ) );
+		$earned     = 0;
+		foreach ( self::$rules as $rule ) {
+			$badge_id = self::get_badge_post_id( $rule['badge_slug'] );
+			if ( $badge_id > 0 && in_array( $badge_id, $earned_ids, true ) ) {
+				$earned++;
+			}
+		}
+		return [ 'earned' => $earned, 'total' => $total ];
+	}
+
+	/* =========================================================
 	 * 核心
 	 * ======================================================= */
 

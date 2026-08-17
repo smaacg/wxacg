@@ -265,7 +265,7 @@ case 'followers':
     return $rows ?: [];
 
 
-            case 'badges':
+            case 'achievements':
                 $earnings_tbl = $wpdb->prefix . 'gamipress_user_earnings';
                 if ( $wpdb->get_var( "SHOW TABLES LIKE '$earnings_tbl'" ) === $earnings_tbl ) {
                     $sql = $wpdb->prepare( "

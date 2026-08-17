@@ -94,7 +94,7 @@ class Leaderboard_Widget {
             'exp_total'   => 'EXP 總榜',
             'exp_monthly' => '本月 EXP 榜',
             'followers'   => '人氣榜',
-            'badges'      => '徽章榜',
+            'achievements' => '成就榜',
         ][ $type ] ?? '排行榜';
     }
 
@@ -103,7 +103,7 @@ class Leaderboard_Widget {
             'exp_total'   => 'fa-crown',
             'exp_monthly' => 'fa-calendar-star',
             'followers'   => 'fa-users',
-            'badges'      => 'fa-trophy',
+            'achievements' => 'fa-trophy',
         ][ $type ] ?? 'fa-ranking-star';
     }
 
