@@ -16,7 +16,7 @@
  *    - 修正 .bgm-detail[hidden] 被 display:grid 覆蓋導致內容噴出（核心 bug）
  *    - .bgm-detail 預設 display:none，需 .is-open 才顯示（雙保險）
  *    - .bgm-grid 加 align-items: start，卡片頂端對齊
- *    - .bgm-card-trigger / .bgm-card 加 min-width: 0，修 grid 溢出
+ *    - .bgm-card-link / .bgm-card 加 min-width: 0，修 grid 溢出
  *    - 父容器強制滿寬（.bgm-main / 父層 .ct-container / .entry-content）
  *    - 桌機欄寬 180px → 170px，1024px 寬度可排 5 欄
  *    - 手機端網格、卡片字體、內距重新調整
@@ -708,6 +708,38 @@ body:has(.bgm-arc-main) .entry-content > * {
 
 .bgm-days-empty { color: var(--bgm-text-soft); font-size: 14px; }
 
+/* [1.7.0] 新作／續作／跨季續播分頁，樣式比照 .bgm-days／.bgm-day */
+.bgm-newness-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.bgm-newness-tab {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid var(--bgm-border);
+    border-radius: 999px;
+    color: var(--bgm-text-soft);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.bgm-newness-tab:hover {
+    background: var(--bgm-bg-hover);
+    color: var(--bgm-text);
+    border-color: var(--bgm-border-h);
+}
+
+.bgm-newness-tab.is-active {
+    background: var(--bgm-main);
+    border-color: var(--bgm-main);
+    color: #1a1a1a;
+    box-shadow: 0 2px 8px var(--bgm-glow);
+}
+
 .bgm-sort-wrap { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .bgm-sort-label { font-size: 13px; color: var(--bgm-text-soft); }
 
@@ -834,7 +866,7 @@ body:has(.bgm-arc-main) .entry-content > * {
     display: none;
 }
 
-.bgm-card-trigger {
+.bgm-card-link {
     display: block;
     width: 100%;
     min-width: 0;
@@ -847,7 +879,7 @@ body:has(.bgm-arc-main) .entry-content > * {
     font: inherit;
 }
 
-.bgm-card-trigger:focus-visible {
+.bgm-card-link:focus-visible {
     outline: 2px solid var(--bgm-main);
     outline-offset: 2px;
 }
@@ -1132,7 +1164,7 @@ body:has(.bgm-arc-main) .entry-content > * {
     overflow: hidden;
 }
 
-.bgm-view-list-mode .bgm-card-trigger {
+.bgm-view-list-mode .bgm-card-link {
     display: grid;
     grid-template-columns: 120px 1fr;
     gap: 0;
@@ -2020,7 +2052,7 @@ body:not(.bgm-view-schedule-mode) .bgm-schedule {
         display: none !important;
     }
 
-    .bgm-view-list-mode .bgm-card-trigger {
+    .bgm-view-list-mode .bgm-card-link {
         grid-template-columns: 90px 1fr;
     }
     .bgm-view-list-mode .bgm-card-cover { min-height: 130px; }
@@ -2083,7 +2115,7 @@ body:not(.bgm-view-schedule-mode) .bgm-schedule {
     .bgm-toolbar,
     .bgm-nav,
     .bgm-sheet,
-    .bgm-card-trigger,
+    .bgm-card-link,
     .bgm-schedule { display: none !important; }
 
     .bgm-detail { display: block !important; break-inside: avoid; }

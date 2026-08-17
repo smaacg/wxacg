@@ -2,10 +2,17 @@
 /**
  * Template Name: 番組表 - 季度詳細列表
  * File: blocksy-child/page-bangumi.php
- * Version: 1.6.0
- * Date: 2026-07-04
+ * Version: 1.7.0
+ * Date: 2026-08-17
  *
  * Changelog
+ *  v1.7.0 (2026-08-17) 新作／續作／跨季續播分頁
+ *    - [Feature] WP_Query 加入「跨季續播」分支：RELEASING 且結束日落在
+ *                本季（含）之後的作品，即使 anime_season 標籤是前一季也撈得到。
+ *    - [Feature] 新增 wxacg_bgm_has_prequel()：查 AniList 關聯判斷是否有
+ *                PREQUEL，用來把本季新登場作品再細分「新作」／「續作」。
+ *    - [UI] 新增「全部／本季新番／新作／續作／跨季續播」分頁列，篩選邏輯
+ *           整合進既有 bgm-card data-* 篩選架構，不影響原有篩選/排序/搜尋。
  *  v1.6.0 (2026-07-04) 日期格式相容 + 時間表優化
  *    - [Fix] anime_start_date 純數字 YYYYMMDD 格式無法被 strtotime 解析，
  *            導致 weekday 落回「待定」；新增 smacg_bgm_norm_date() 正規化。
@@ -35,6 +42,57 @@ if ( ! function_exists( 'smacg_bgm_norm_date_ts' ) ) {
         }
         $ts = strtotime( $raw );
         return $ts ? (int) $ts : 0;
+    }
+}
+
+/* ============================================================
+ * [1.7.0] Helper：判斷是否為「續作」（AniList 上有 PREQUEL 關聯）
+ * 用於新番表「新作／續作」分頁，快取 7 天（前作關係不會變動）。
+ * ============================================================ */
+if ( ! function_exists( 'wxacg_bgm_has_prequel' ) ) {
+    function wxacg_bgm_has_prequel( int $anilist_id ): bool {
+        if ( $anilist_id <= 0 ) return false;
+
+        $cache_key = 'wxacg_bgm_prequel_' . $anilist_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (bool) $cached;
+
+        $query = '
+        query ($id: Int) {
+          Media(id: $id, type: ANIME) {
+            relations {
+              edges {
+                relationType
+                node { type }
+              }
+            }
+          }
+        }';
+
+        $response = wp_remote_post( 'https://graphql.anilist.co', [
+            'timeout' => 8,
+            'headers' => [ 'Content-Type' => 'application/json', 'Accept' => 'application/json' ],
+            'body'    => wp_json_encode( [ 'query' => $query, 'variables' => [ 'id' => $anilist_id ] ] ),
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            // 查詢失敗不快取，下次照樣重試。
+            return false;
+        }
+
+        $body  = json_decode( wp_remote_retrieve_body( $response ), true );
+        $edges = $body['data']['Media']['relations']['edges'] ?? [];
+
+        $has_prequel = false;
+        foreach ( $edges as $edge ) {
+            if ( ( $edge['relationType'] ?? '' ) === 'PREQUEL' && ( $edge['node']['type'] ?? '' ) === 'ANIME' ) {
+                $has_prequel = true;
+                break;
+            }
+        }
+
+        set_transient( $cache_key, $has_prequel, 7 * DAY_IN_SECONDS );
+        return $has_prequel;
     }
 }
 
@@ -94,15 +152,28 @@ global $wpdb;
 $season_key = $ctx['season_key'] ?? $ctx['season'] ?? 'SPRING';
 $year       = (int) $ctx['year'];
 
+/* [1.7.0] 本季首月，用來判斷「跨季續播」：RELEASING 且結束日落在本季（含）之後的作品 */
+$season_first_month = [ 'WINTER' => 1, 'SPRING' => 4, 'SUMMER' => 7, 'FALL' => 10 ][ $season_key ] ?? 1;
+$season_start_ymd    = (int) sprintf( '%d%02d01', $year, $season_first_month );
+
 $q = new WP_Query( [
     'post_type'      => 'anime',
     'post_status'    => 'publish',
     'posts_per_page' => -1,
     'no_found_rows'  => true,
     'meta_query'     => [
-        'relation' => 'AND',
-        [ 'key' => 'anime_season',      'value' => $season_key, 'compare' => '=' ],
-        [ 'key' => 'anime_season_year', 'value' => $year,       'compare' => '=', 'type' => 'NUMERIC' ],
+        'relation' => 'OR',
+        [
+            'relation' => 'AND',
+            [ 'key' => 'anime_season',      'value' => $season_key, 'compare' => '=' ],
+            [ 'key' => 'anime_season_year', 'value' => $year,       'compare' => '=', 'type' => 'NUMERIC' ],
+        ],
+        [
+            'relation' => 'AND',
+            [ 'key' => 'anime_status',   'value' => 'RELEASING',      'compare' => '=' ],
+            [ 'key' => 'anime_end_date', 'value' => 0,                'compare' => '>',  'type' => 'NUMERIC' ],
+            [ 'key' => 'anime_end_date', 'value' => $season_start_ymd, 'compare' => '>=', 'type' => 'NUMERIC' ],
+        ],
     ],
     'orderby'        => 'meta_value_num',
     'meta_key'       => 'anime_popularity',
@@ -163,6 +234,9 @@ if ( $q->have_posts() ) {
             'format'         => $m['anime_format'][0]             ?? '',
             'status'         => $m['anime_status'][0]             ?? '',
             'official'       => $m['anime_official_site'][0]      ?? '',
+            'anilist_id'     => (int) ( $m['anime_anilist_id'][0] ?? 0 ),
+            'is_new'         => ( ( $m['anime_season'][0] ?? '' ) === $season_key )
+                                 && ( (int) ( $m['anime_season_year'][0] ?? 0 ) === $year ),
             'user_status'    => '',
             'user_progress'  => 0,
         ];
@@ -398,10 +472,14 @@ $parse_next_airing = function( $raw ) {
  * ============================================================ */
 $posts          = [];
 $by_weekday     = [ 0 => [], 1 => [], 2 => [], 3 => [], 4 => [], 5 => [], 6 => [], 7 => [] ];
-$stat_total     = 0;
-$stat_owned     = 0;
-$stat_watching  = 0;
-$stat_completed = 0;
+$stat_total       = 0;
+$stat_owned       = 0;
+$stat_watching    = 0;
+$stat_completed   = 0;
+$stat_this_season = 0;
+$stat_brand_new   = 0;
+$stat_sequel      = 0;
+$stat_continuing  = 0;
 $score_sum      = 0;
 $score_cnt      = 0;
 $first_cover    = '';
@@ -434,6 +512,15 @@ foreach ( $rows as $r ) {
     $is_today = false;
     if ( $na_ts ) {
         $is_today = ( date_i18n( 'Y-m-d', $na_ts ) === $today_ymd );
+    }
+
+    /* [1.7.0] 新作／續作／跨季續播分類 */
+    if ( ! $r['is_new'] ) {
+        $newness = 'continuing';
+    } elseif ( wxacg_bgm_has_prequel( $r['anilist_id'] ) ) {
+        $newness = 'sequel';
+    } else {
+        $newness = 'brand_new';
     }
 
     $title_cn   = $r['title_cn'] ?: ( $r['title_en'] ?: ( $r['title_romaji'] ?: $r['post_title'] ) );
@@ -499,6 +586,7 @@ foreach ( $rows as $r ) {
         'genres'       => array_values( $genres ),
         'user_status'  => $r['user_status'] ?? '',
         'user_progress'=> (int) ( $r['user_progress'] ?? 0 ),
+        'newness'      => $newness,
     ];
 
     $posts[] = $item;
@@ -511,6 +599,9 @@ foreach ( $rows as $r ) {
     if ( $item['user_status'] === 'completed' ) $stat_completed++;
     if ( $score !== null && $score > 0 ) { $score_sum += $score; $score_cnt++; }
     if ( ! $first_cover && $item['cover'] ) $first_cover = $item['cover'];
+
+    if ( $newness === 'continuing' ) { $stat_continuing++; }
+    else { $stat_this_season++; if ( $newness === 'sequel' ) { $stat_sequel++; } else { $stat_brand_new++; } }
 }
 
 $avg_score        = $score_cnt > 0 ? round( $score_sum / $score_cnt / 10, 1 ) : null;
@@ -536,15 +627,16 @@ $kw_label     = $ctx['label'];                                    // 2026年7月
 $kw_season    = $ctx['season_label'] ?? $ctx['label'];            // 2026年夏季新番
 
 $canonical = home_url( "/bangumi/{$ym}/" );
+/* [1.7.0] title／description 補上「線上看」關鍵字，比照 pt_anime_title 的做法 */
 $seo_title = sprintf(
-    '%s｜%s 共 %d 部%s - 微笑動漫',
+    '%s線上看｜%s 共 %d 部%s - 微笑動漫',
     $kw_label,
     $kw_season,
     $stat_total,
     $avg_score !== null ? '・平均 ' . $avg_score . ' 分' : ''
 );
 $seo_desc = sprintf(
-    '%s（%s）完整列表，共 %d 部新番動畫。提供中文大綱、配音聲優、製作人員、OP/ED、PV 預告、台灣串流平台（巴哈動畫瘋、Netflix、Muse 木棉花、Ani-One 等）與海外播放時間，支援即時搜尋與多維篩選。',
+    '%s線上看資訊整理（%s），共 %d 部新番動畫，提供中文大綱、配音聲優、製作人員、OP/ED、PV 預告、台灣合法線上看／串流平台（巴哈動畫瘋、Netflix、Muse 木棉花、Ani-One 等）與海外播放時間，支援即時搜尋與多維篩選。',
     $kw_label,
     $kw_season,
     $stat_total
@@ -766,6 +858,35 @@ get_header();
         </div>
     </section>
 
+    <!-- ===== 工具列：新作／續作／跨季續播分頁 ===== -->
+    <?php if ( $stat_continuing > 0 || $stat_sequel > 0 ) : ?>
+    <section class="bgm-toolbar" data-view-show="grid list">
+        <div class="bgm-newness-tabs" role="tablist" aria-label="依新作／續作篩選">
+            <button class="bgm-newness-tab is-active" data-newness="all" role="tab" aria-selected="true">
+                全部<span class="bgm-day-n">(<?php echo (int) $stat_total; ?>)</span>
+            </button>
+            <button class="bgm-newness-tab" data-newness="this_season" role="tab" aria-selected="false">
+                本季新番<span class="bgm-day-n">(<?php echo (int) $stat_this_season; ?>)</span>
+            </button>
+            <?php if ( $stat_brand_new > 0 ) : ?>
+                <button class="bgm-newness-tab" data-newness="brand_new" role="tab" aria-selected="false">
+                    新作<span class="bgm-day-n">(<?php echo (int) $stat_brand_new; ?>)</span>
+                </button>
+            <?php endif; ?>
+            <?php if ( $stat_sequel > 0 ) : ?>
+                <button class="bgm-newness-tab" data-newness="sequel" role="tab" aria-selected="false">
+                    續作<span class="bgm-day-n">(<?php echo (int) $stat_sequel; ?>)</span>
+                </button>
+            <?php endif; ?>
+            <?php if ( $stat_continuing > 0 ) : ?>
+                <button class="bgm-newness-tab" data-newness="continuing" role="tab" aria-selected="false">
+                    跨季續播<span class="bgm-day-n">(<?php echo (int) $stat_continuing; ?>)</span>
+                </button>
+            <?php endif; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+
     <!-- ===== 工具列：星期分頁（僅當季） ===== -->
     <?php if ( $show_weekday_tabs ) : ?>
     <section class="bgm-toolbar" data-view-show="grid list">
@@ -943,6 +1064,7 @@ function bgm_render_card( $p, $tw_platform_labels, $weekday_zh ) {
              data-ep="<?php echo esc_attr( (string) $p['ep_total'] ); ?>"
              data-pop="<?php echo esc_attr( (string) $p['popularity'] ); ?>"
              data-day="<?php echo (int) $p['weekday']; ?>"
+             data-newness="<?php echo esc_attr( $p['newness'] ?? 'brand_new' ); ?>"
              data-today="<?php echo ! empty( $p['is_today'] ) ? '1' : '0'; ?>"
              data-platforms="<?php echo esc_attr( $data_platforms ); ?>"
              data-format="<?php echo esc_attr( $p['format'] ); ?>"

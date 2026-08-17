@@ -63,6 +63,28 @@
     }
 
     /* ====================================================
+     * 1b. 新作／續作／跨季續播 切換（v1.7.0 新）
+     * ==================================================== */
+    var currentNewness = 'all';
+    function initNewnessTabs() {
+        var buttons = qsa('.bgm-newness-tab');
+        if (!buttons.length) return;
+
+        buttons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                currentNewness = btn.getAttribute('data-newness');
+                buttons.forEach(function (b) {
+                    var on = (b === btn);
+                    b.classList.toggle('is-active', on);
+                    b.setAttribute('aria-selected', on ? 'true' : 'false');
+                });
+                applyFilters();
+                closeAllExpanded();
+            });
+        });
+    }
+
+    /* ====================================================
      * 2. Sort（保留 v1.2.0 邏輯）
      * ==================================================== */
     var originalOrder = new Map();
@@ -122,6 +144,8 @@
         });
         var day = p.get('day');
         if (day) currentDay = day;
+        var newness = p.get('newness');
+        if (newness) currentNewness = newness;
         var view = p.get('view');
         if (view && ['grid', 'list', 'schedule'].indexOf(view) >= 0) {
             currentView = view;
@@ -136,6 +160,8 @@
         });
         if (currentDay && currentDay !== 'all') p.set('day', currentDay);
         else p.delete('day');
+        if (currentNewness && currentNewness !== 'all') p.set('newness', currentNewness);
+        else p.delete('newness');
         if (currentView && currentView !== 'grid') p.set('view', currentView);
         else p.delete('view');
 
@@ -196,6 +222,7 @@
     function resetAllFilters() {
         filterState = { q: '', platform: '', format: '', source: '', genre: '', status: '' };
         currentDay = 'all';
+        currentNewness = 'all';
 
         var search = qs('#bgm-search');
         if (search) search.value = '';
@@ -210,6 +237,12 @@
             b.setAttribute('aria-selected', on ? 'true' : 'false');
         });
 
+        qsa('.bgm-newness-tab').forEach(function (b) {
+            var on = b.getAttribute('data-newness') === 'all';
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+
         applyFilters();
         writeFiltersToURL();
     }
@@ -218,6 +251,15 @@
         // weekday
         if (currentDay && currentDay !== 'all') {
             if (String(card.dataset.day || '0') !== String(currentDay)) return false;
+        }
+        // 新作／續作／跨季續播
+        if (currentNewness && currentNewness !== 'all') {
+            var newness = card.dataset.newness || 'brand_new';
+            if (currentNewness === 'this_season') {
+                if (newness === 'continuing') return false;
+            } else if (newness !== currentNewness) {
+                return false;
+            }
         }
         // platform
         if (filterState.platform) {
@@ -304,7 +346,8 @@
     function hasActiveFilter() {
         return !!(filterState.q || filterState.platform || filterState.format ||
                   filterState.source || filterState.genre || filterState.status ||
-                  (currentDay && currentDay !== 'all'));
+                  (currentDay && currentDay !== 'all') ||
+                  (currentNewness && currentNewness !== 'all'));
     }
 
     /* ====================================================
@@ -770,6 +813,7 @@ function initMvLightbox() {
         readFiltersFromURL();
 
         initWeekday();
+        initNewnessTabs();
         initSort();
         initFilters();
         initViewSwitch();
