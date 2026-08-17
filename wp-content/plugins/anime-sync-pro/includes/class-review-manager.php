@@ -51,6 +51,62 @@ class Anime_Sync_Review_Manager {
 	}
 
 	/**
+	 * 有人回覆評論時，發站內通知給母評論作者。
+	 *
+	 * 沿用 wxacg-social 既有的 comment_reply 類型與 data 欄位格式，
+	 * 因此使用者原本的「回覆通知」開關可以直接套用到這裡，不必新增設定；
+	 * 對方關掉的話 wxacg_create_notification() 內部就會擋掉。
+	 * 通知系統本身也會處理「不通知自己」。
+	 *
+	 * @param int    $review_id 這則回覆的 ID。
+	 * @param int    $reply_to  母評論 ID。
+	 * @param int    $target_id 目標文章（動漫或新聞）ID。
+	 * @param int    $actor_id  發表回覆的人。
+	 * @param string $content   回覆內容。
+	 */
+	private static function notify_reply( int $review_id, int $reply_to, int $target_id, int $actor_id, string $content ): void {
+		if ( ! function_exists( 'wxacg_create_notification' ) ) {
+			return;
+		}
+
+		$parent = get_post( $reply_to );
+		if ( ! $parent ) {
+			return;
+		}
+
+		$parent_uid = (int) $parent->post_author;
+		if ( ! $parent_uid || $parent_uid === $actor_id ) {
+			return;
+		}
+
+		$actor = get_userdata( $actor_id );
+		if ( ! $actor ) {
+			return;
+		}
+
+		$excerpt = wp_strip_all_tags( $content );
+		if ( mb_strlen( $excerpt ) > 80 ) {
+			$excerpt = mb_substr( $excerpt, 0, 80 ) . '…';
+		}
+
+		wxacg_create_notification( [
+			'user_id'     => $parent_uid,
+			'type'        => 'comment_reply',
+			'actor_id'    => $actor_id,
+			'object_type' => 'review',
+			'object_id'   => $review_id,
+			'data'        => [
+				'title'      => sprintf( '%s 回覆了你的評論', $actor->display_name ?: $actor->user_login ),
+				'excerpt'    => $excerpt,
+				// 兩種頁型的評論區容器 id 相同，用它當錨點即可
+				'url'        => get_permalink( $target_id ) . '#asd-review-root',
+				'icon'       => 'fa-reply',
+				'post_title' => get_the_title( $target_id ),
+			],
+		] );
+	}
+
+	/**
 	 * 該文章類型可用的評論軌道。
 	 *
 	 * 長評有標題、80 字下限，是為作品心得設計的；新聞留言用不到，
@@ -470,6 +526,11 @@ class Anime_Sync_Review_Manager {
 		// 主留言不寫這個 meta，讓上面 upsert 的 NOT EXISTS 條件能正確區分兩者
 		if ( $reply_to > 0 ) {
 			update_post_meta( $review_id, self::META_REPLY_TO, $reply_to );
+
+			// 只在新回覆時通知，編輯既有回覆不重複打擾對方
+			if ( $is_new ) {
+				self::notify_reply( (int) $review_id, $reply_to, $anime_id, $uid, $content );
+			}
 		} else {
 			delete_post_meta( $review_id, self::META_REPLY_TO );
 		}
