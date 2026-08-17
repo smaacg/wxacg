@@ -499,9 +499,9 @@
 }
 
 .header-nav-bar .nav-link {
-  padding: 5px 12px;
+  padding: 5px 11px;
   border-radius: var(--radius-pill);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -515,7 +515,7 @@
 }
 .header-nav-bar .nav-link:hover  { color: var(--text-primary); background: var(--glass-bg); }
 .header-nav-bar .nav-link.active { color: var(--accent-blue); background: rgba(99, 168, 255, .1); }
-.header-nav-bar .nav-link i      { font-size: 11px; }
+.header-nav-bar .nav-link i      { font-size: 12px; }
 
 /* 下拉選單本體 */
 .header-nav-bar .nav-item > .nav-dropdown {
