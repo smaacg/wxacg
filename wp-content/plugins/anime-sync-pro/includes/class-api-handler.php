@@ -1328,7 +1328,7 @@ class Anime_Sync_API_Handler {
         if ( is_wp_error( $relations ) ) return $anilist_id;
 
         foreach ( $relations as $rel ) {
-            if ( $rel['type'] === 'PREQUEL' && ! empty( $rel['node_id'] ) ) {
+            if ( $rel['type'] === 'PREQUEL' && ! empty( $rel['node_id'] ) && ( $rel['node_type'] ?? '' ) === 'ANIME' ) {
                 return $this->find_series_root( (int) $rel['node_id'], $visited );
             }
         }
@@ -1351,7 +1351,7 @@ class Anime_Sync_API_Handler {
             relations {
               edges {
                 relationType
-                node { id }
+                node { id type }
               }
             }
           }
@@ -1365,8 +1365,9 @@ class Anime_Sync_API_Handler {
         $result = [];
         foreach ( $edges as $edge ) {
             $result[] = [
-                'type'    => $edge['relationType']  ?? '',
-                'node_id' => $edge['node']['id']    ?? 0,
+                'type'      => $edge['relationType']  ?? '',
+                'node_id'   => $edge['node']['id']    ?? 0,
+                'node_type' => $edge['node']['type']  ?? '',
             ];
         }
 
@@ -1428,6 +1429,7 @@ class Anime_Sync_API_Handler {
                 if (
                     $nid > 0 &&
                     in_array( $rel['type'], self::SERIES_RELATION_TYPES, true ) &&
+                    ( $rel['node_type'] ?? '' ) === 'ANIME' &&
                     ! in_array( $nid, $visited, true )
                 ) {
                     if ( ! isset( $relation_map[ $nid ] ) ) {
