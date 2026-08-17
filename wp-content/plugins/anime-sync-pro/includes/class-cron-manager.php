@@ -294,12 +294,20 @@ class Anime_Sync_Cron_Manager {
             wp_schedule_event( time() + 60, 'anime_sync_five_min', self::HOOK_ENTITY_BACKFILL );
         }
 
-        // 角色/聲優簡介翻譯：日文用 DeepL 翻繁中，已是中文的走 OpenCC。
-        // 沒設定 DeepL 金鑰時 run_translate_summaries() 會直接跳過，不影響其他排程。
+        /*
+         * 角色/聲優簡介翻譯：日文用 DeepL 翻繁中，已是中文的走 OpenCC。
+         * 沒設定 DeepL 金鑰時 run_translate_summaries() 會直接跳過，不影響其他排程。
+         *
+         * ★ 改為每日執行（原為每週）：待翻約 15,700 筆／306 萬字元，
+         *   每週一次要 6.1 個月，但 DeepL 免費額度（100 萬字元／月）其實
+         *   只需 3.1 個月，等於額度用不到一半、時間卻多花一倍。改成每日後
+         *   額度會成為唯一瓶頸；當月額度用盡時 translate_entity_summaries()
+         *   會以 skipped_quota 自行跳過，等次月額度重置再繼續，不會出錯。
+         */
         if ( ! wp_next_scheduled( self::HOOK_TRANSLATE_SUMMARIES ) ) {
             wp_schedule_event(
-                strtotime( 'next wednesday 03:00:00' ),
-                'anime_sync_weekly',
+                strtotime( 'tomorrow 03:00:00' ),
+                'daily',
                 self::HOOK_TRANSLATE_SUMMARIES
             );
         }
