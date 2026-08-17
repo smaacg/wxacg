@@ -62,9 +62,14 @@ document.addEventListener('DOMContentLoaded', function () {
             // 連結只接受 http/https，避免 javascript: 之類的協定
             .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
                 '<a href="$2" target="_blank" rel="nofollow noopener">$1</a>')
-            // @提及 → 個人頁連結（只認 nicename，與後端解析規則一致）
-            .replace(/@([a-zA-Z0-9_.\-]{1,60})/g,
-                '<a class="asd-review-mention" href="/u/$1/">@$1</a>')
+            /*
+             * @提及 → 個人頁連結（只認 nicename，與後端解析規則一致）。
+             * ★ @ 前面必須是開頭或空白：上一步產生的連結 href 裡可能含 @
+             *   （例如 https://x.com/@someone），不加這個限制會在屬性值裡
+             *   再插一個 <a>，把標籤巢狀弄壞。
+             */
+            .replace(/(^|\s)@([a-zA-Z0-9_.\-]{1,60})/g,
+                '$1<a class="asd-review-mention" href="/u/$2/">@$2</a>')
             .replace(/\n/g, '<br>');
     }
 

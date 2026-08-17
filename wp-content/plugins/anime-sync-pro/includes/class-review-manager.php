@@ -387,7 +387,12 @@ class Anime_Sync_Review_Manager {
 			return [];
 		}
 
-		if ( ! preg_match_all( '/@([a-zA-Z0-9_.\-]{1,60})/', $content, $m ) ) {
+		/*
+		 * @ 前面必須是開頭或空白，與前端顯示規則一致。
+		 * 否則像 https://x.com/@someone 這種網址也會被當成提及，
+		 * 讓不相干的會員收到通知。
+		 */
+		if ( ! preg_match_all( '/(?:^|\s)@([a-zA-Z0-9_.\-]{1,60})/u', $content, $m ) ) {
 			return [];
 		}
 
