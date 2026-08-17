@@ -49,6 +49,56 @@ document.addEventListener('DOMContentLoaded', function () {
         return div.innerHTML;
     }
 
+    /* ── 輕量標記：內容一律以純文字儲存，顯示時才轉成標籤 ──
+     *
+     * 不存 HTML 是刻意的：存純文字就沒有 XSS 的疑慮，也不必在後端維護
+     * 一份允許標籤白名單。轉換一定在 escapeHtml() 之後做，此時使用者輸入
+     * 的 < > & 已經是實體字元，只有我們自己產生的標籤會生效。
+     */
+    function formatText(escaped) {
+        return escaped
+            .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+            // 連結只接受 http/https，避免 javascript: 之類的協定
+            .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
+                '<a href="$2" target="_blank" rel="nofollow noopener">$1</a>')
+            .replace(/\n/g, '<br>');
+    }
+
+    const TOOLBAR_HTML =
+        '<div class="asd-review-toolbar-fmt">' +
+            '<button type="button" class="asd-review-fmt-btn" data-fmt="bold" title="粗體"><b>B</b></button>' +
+            '<button type="button" class="asd-review-fmt-btn" data-fmt="italic" title="斜體"><i>I</i></button>' +
+            '<button type="button" class="asd-review-fmt-btn" data-fmt="link" title="連結">🔗</button>' +
+        '</div>';
+
+    /** 把標記套在選取範圍上；沒選取就插入標記並把游標放中間 */
+    function bindToolbar(scope, textarea) {
+        scope.querySelectorAll('.asd-review-fmt-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const start = textarea.selectionStart;
+                const end   = textarea.selectionEnd;
+                const sel   = textarea.value.slice(start, end);
+                const fmt   = btn.dataset.fmt;
+
+                let before = '**', after = '**';
+                if (fmt === 'italic') { before = '*';  after = '*'; }
+                if (fmt === 'link')   { before = '[';  after = '](https://)'; }
+
+                const text = before + (sel || (fmt === 'link' ? '連結文字' : '')) + after;
+                textarea.setRangeText(text, start, end, 'end');
+
+                // 沒選取文字時把游標移到標記中間，可以直接接著打
+                if (!sel && fmt !== 'link') {
+                    const pos = start + before.length;
+                    textarea.setSelectionRange(pos, pos);
+                }
+                textarea.focus();
+                textarea.dispatchEvent(new Event('input'));
+            });
+        });
+    }
+
     function callApi(path, method, body) {
         const opts = {
             method: method,
@@ -154,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
                       '<input type="text" class="asd-review-excerpt-input" placeholder="摘要（選填，20–60 字）" maxlength="60">'
                     : '') +
                 episodeSelect +
+                TOOLBAR_HTML +
                 '<textarea class="asd-review-content-input" placeholder="' +
                     (currentTrack === 'long' ? '寫下你的完整心得（至少 80 字）…' : '一句話吐槽這部作品…') +
                     '" maxlength="' + maxLen + '"></textarea>' +
@@ -168,6 +219,7 @@ document.addEventListener('DOMContentLoaded', function () {
             '</div>';
 
         const contentInput = formWrap.querySelector('.asd-review-content-input');
+        bindToolbar(formWrap, contentInput);
         const counter      = formWrap.querySelector('.asd-review-counter');
         const submitBtn    = formWrap.querySelector('.asd-review-submit-btn');
         const msgEl        = formWrap.querySelector('.asd-review-form-msg');
@@ -241,8 +293,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const bodyHtml = item.track === 'long'
             ? (item.title ? '<h4 class="asd-review-card-title">' + escapeHtml(item.title) + '</h4>' : '') +
               (item.excerpt ? '<p class="asd-review-card-excerpt">' + escapeHtml(item.excerpt) + '</p>' : '') +
-              '<div class="asd-review-card-content">' + escapeHtml(item.content).replace(/\n/g, '<br>') + '</div>'
-            : '<div class="asd-review-card-content">' + escapeHtml(item.content).replace(/\n/g, '<br>') + '</div>';
+              '<div class="asd-review-card-content">' + formatText(escapeHtml(item.content)) + '</div>'
+            : '<div class="asd-review-card-content">' + formatText(escapeHtml(item.content)) + '</div>';
 
         const deleteBtn = item.is_mine
             ? '<button type="button" class="asd-review-delete-btn" data-id="' + item.id + '">刪除</button>' : '';
@@ -339,6 +391,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 wrap.hidden = false;
                 wrap.innerHTML =
+                    TOOLBAR_HTML +
                     '<textarea class="asd-review-reply-input" rows="2" maxlength="300" placeholder="回覆這則留言…"></textarea>' +
                     '<div class="asd-review-reply-actions">' +
                         '<span class="asd-review-reply-msg"></span>' +
@@ -350,6 +403,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const msgEl  = wrap.querySelector('.asd-review-reply-msg');
                 const sendEl = wrap.querySelector('.asd-review-reply-send');
 
+                bindToolbar(wrap, input);
                 input.focus();
 
                 wrap.querySelector('.asd-review-reply-cancel').addEventListener('click', function () {
