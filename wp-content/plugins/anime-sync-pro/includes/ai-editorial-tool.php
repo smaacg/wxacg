@@ -697,14 +697,175 @@ add_action( 'admin_menu', function () {
  * 一句話請 AI 產出，複製貼上後由編輯自行查證再貼回欄位。
  * ============================================================ */
 
-function wxacg_editorial_prompt( $title ) {
-	$title = trim( (string) $title );
+/**
+ * AniList 原作類型代碼 → 中文。
+ */
+function wxacg_editorial_source_label( $source ) {
+	$map = array(
+		'ORIGINAL'           => '動畫原創',
+		'MANGA'              => '漫畫',
+		'LIGHT_NOVEL'        => '輕小說',
+		'NOVEL'              => '小說',
+		'WEB_NOVEL'          => '網路小說',
+		'VISUAL_NOVEL'       => '視覺小說',
+		'VIDEO_GAME'         => '電子遊戲',
+		'GAME'               => '遊戲',
+		'DOUJINSHI'          => '同人作品',
+		'ANIME'              => '動畫',
+		'PICTURE_BOOK'       => '繪本',
+		'COMIC'              => '漫畫',
+		'MULTIMEDIA_PROJECT' => '多媒體企劃',
+		'LIVE_ACTION'        => '真人作品',
+		'OTHER'              => '',
+	);
 
-	if ( '' === $title ) {
+	$source = strtoupper( trim( (string) $source ) );
+
+	return isset( $map[ $source ] ) ? $map[ $source ] : '';
+}
+
+/**
+ * AniList 播放形式代碼 → 中文。
+ */
+function wxacg_editorial_format_label( $format ) {
+	$map = array(
+		'TV'       => 'TV 動畫',
+		'TV_SHORT' => '短篇 TV 動畫',
+		'MOVIE'    => '劇場版',
+		'OVA'      => 'OVA',
+		'ONA'      => 'ONA',
+		'SPECIAL'  => '特別篇',
+	);
+
+	$format = strtoupper( trim( (string) $format ) );
+
+	return isset( $map[ $format ] ) ? $map[ $format ] : '';
+}
+
+/**
+ * 依作品輪替切入角度。
+ *
+ * ★ 為什麼需要：同一份指令必然產出同一種骨架。實際發生過——連續五篇短評
+ *   四篇以「本作改編自…」起頭、三篇以「是一部…佳作」收尾，讀起來像同一
+ *   個模子印出來的。指令再怎麼寫也擋不住這種同質化，因此改為依文章 ID
+ *   分派不同的觀察角度，機械式打散骨架。
+ *
+ * @param int $post_id 文章 ID。
+ * @return string
+ */
+function wxacg_editorial_angle( $post_id ) {
+	$angles = array(
+		'從「這部在演什麼」切入，把故事的起點講清楚。',
+		'從改編幅度切入：跟原作相比，動畫版做了什麼取捨。',
+		'從角色關係切入：誰跟誰之間的張力撐起這部作品。',
+		'從節奏切入：這部是慢熱還是一開場就抓人。',
+		'從美術或演出切入：畫面上有什麼值得一提的地方。',
+		'從觀眾期待切入：衝著什麼來看的人會滿意，衝著什麼來的人會失望。',
+	);
+
+	return $angles[ (int) $post_id % count( $angles ) ];
+}
+
+/**
+ * 產生貼給 AI 用的撰寫指令。
+ *
+ * ★ 舊版只有一句「給我 X 的動漫短評」，沒有字數、風格或事實約束，
+ *   模型只能退回預設的安全語氣，產出通篇空泛形容詞、句型高度重複的
+ *   罐頭短評，而且冷門作品容易靠回憶硬掰。
+ *
+ *   現在改為：把站上已有的事實一起帶進指令（模型有依據，幻覺變少、
+ *   內容更具體），明確禁止已觀察到的罐頭句型，並要求模型自我檢查
+ *   「遮住作品名後是否還講得通」——這一句對消除通用廢話最有效。
+ *
+ * @param int $post_id 文章 ID。
+ * @return string 指令全文，找不到文章時為空字串。
+ */
+function wxacg_editorial_prompt( $post_id ) {
+	$post_id = (int) $post_id;
+	$title   = trim( (string) get_the_title( $post_id ) );
+
+	if ( $post_id <= 0 || '' === $title ) {
 		return '';
 	}
 
-	return '給我 ' . $title . ' 的動漫短評';
+	$get = function ( $key ) use ( $post_id ) {
+		$value = get_post_meta( $post_id, $key, true );
+
+		if ( is_array( $value ) ) {
+			$value = implode( '、', array_filter( $value ) );
+		}
+
+		return trim( (string) $value );
+	};
+
+	// 只列出真的有值的欄位，避免把「（空）」餵給模型當成事實。
+	$facts = array();
+
+	$year   = $get( 'anime_season_year' );
+	$season = $get( 'anime_season' );
+
+	if ( '' !== $year || '' !== $season ) {
+		$facts[] = '播出：' . trim( $year . ' ' . ( '' !== $season ? wxacg_season_label( $season ) : '' ) );
+	}
+
+	$format = wxacg_editorial_format_label( $get( 'anime_format' ) );
+	if ( '' !== $format ) {
+		$facts[] = '形式：' . $format;
+	}
+
+	$source = wxacg_editorial_source_label( $get( 'anime_source' ) );
+	if ( '' !== $source ) {
+		$facts[] = '原作：' . $source;
+	}
+
+	$studios = $get( 'anime_studios' );
+	if ( '' !== $studios ) {
+		$facts[] = '動畫製作：' . $studios;
+	}
+
+	$native = $get( 'anime_title_native' );
+	if ( '' !== $native ) {
+		$facts[] = '原文標題：' . $native;
+	}
+
+	$episodes = (int) $get( 'anime_episodes' );
+	if ( $episodes > 0 ) {
+		$facts[] = '集數：' . $episodes;
+	}
+
+	$min = wxacg_editorial_min_chars();
+
+	$lines = array(
+		'請幫我寫《' . $title . '》的動漫短評，給台灣讀者看。',
+		'',
+	);
+
+	if ( $facts ) {
+		$lines[] = '【已知資料】只能用這些，不確定的不要寫';
+		foreach ( $facts as $fact ) {
+			$lines[] = '- ' . $fact;
+		}
+		$lines[] = '';
+	}
+
+	$lines[] = '【要求】';
+	$lines[] = '1. 繁體中文、台灣用語，' . $min . '～240 字，一段到底不分段。';
+	$lines[] = '2. ' . wxacg_editorial_angle( $post_id );
+	$lines[] = '3. 開頭直接進入作品，不要用「本作改編自」「本作是」這類句子起頭。';
+	$lines[] = '4. 必須寫出一個具體的場景、設定或橋段，讓人看得出你知道這部在演什麼。';
+	$lines[] = '5. 必須有一句主觀判斷：哪裡做得好，或哪裡可能讓人看不下去。';
+	$lines[] = '6. 結尾說「什麼樣的人適合看」，不要用「是一部…的佳作」收尾。';
+	$lines[] = '';
+	$lines[] = '【禁止】';
+	$lines[] = '- 「不僅…更…」「在保持…的同時」這類轉折句型';
+	$lines[] = '- 空泛形容詞堆疊（極具魅力、天馬行空、充滿感動、令人動容）';
+	$lines[] = '- 任何串流平台名稱（系統會擋下來）';
+	$lines[] = '- 劇透結局';
+	$lines[] = '';
+	$lines[] = '【自我檢查】';
+	$lines[] = '寫完把作品名遮住再讀一次。如果換成同類型的另一部作品也講得通，重寫。';
+
+	return implode( "\n", $lines );
 }
 
 /* ============================================================
@@ -1068,7 +1229,7 @@ function wxacg_ai_editorial_page() {
 							?></textarea>
 							<div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
 								<button type="button" class="button button-small wxacg-ed-copy"
-									data-prompt="<?php echo esc_attr( wxacg_editorial_prompt( $title ) ); ?>"
+									data-prompt="<?php echo esc_attr( wxacg_editorial_prompt( $pid ) ); ?>"
 									title="複製後貼到 AI 對話視窗，產出的內容請自行查證再貼回左邊欄位">📋 複製指令</button>
 								<span class="wxacg-ed-msg" style="font-size:11px;min-height:14px;"></span>
 							</div>
