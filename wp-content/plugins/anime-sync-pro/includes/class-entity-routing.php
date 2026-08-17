@@ -54,6 +54,8 @@ class Anime_Sync_Entity_Routing {
         add_action( 'init',             [ __CLASS__, 'add_rewrite' ] );
         add_filter( 'query_vars',       [ __CLASS__, 'add_query_var' ] );
         add_filter( 'template_include', [ __CLASS__, 'load_template' ] );
+        add_filter( 'rank_math/frontend/robots', [ __CLASS__, 'filter_entity_robots' ] );
+        add_filter( 'wp_robots',                 [ __CLASS__, 'filter_wp_robots' ] );
         add_action( 'wp_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
 
         // 虛擬頁沒有真正的 post，需自行設定 <title>，否則會退回主查詢
@@ -104,6 +106,45 @@ class Anime_Sync_Entity_Routing {
         }
 
         return $template;
+    }
+
+    /**
+     * 角色／人物頁一律 noindex、但保留 follow。
+     *
+     * 這兩種頁面的內容來自 Bangumi 等外部來源（姓名、簡介、作品列表），
+     * 站上沒有自己產出的觀點，數量又有三萬多頁。Google 依此判定全站
+     * 「缺乏價值的內容」，AdSense 也以同一理由退件。與其讓大量聚合頁
+     * 稀釋整站評價，不如排除在索引外，把權重集中到有原創短評的作品頁
+     * 與專欄文章。
+     *
+     * 保留 follow：頁內連往作品頁的連結仍要傳遞權重。
+     * 之後若補上原創內容，移除本過濾器即可重新開放索引。
+     */
+    public static function filter_entity_robots( $robots ) {
+        if ( ! self::is_entity_page() ) {
+            return $robots;
+        }
+
+        $robots['index']  = 'noindex';
+        $robots['follow'] = 'follow';
+        unset( $robots['noarchive'], $robots['nosnippet'] );
+
+        return $robots;
+    }
+
+    /**
+     * 沒有 Rank Math 時的後備：直接改 WordPress 原生的 robots 標記。
+     */
+    public static function filter_wp_robots( $robots ) {
+        if ( ! self::is_entity_page() ) {
+            return $robots;
+        }
+
+        $robots['noindex'] = true;
+        $robots['follow']  = true;
+        unset( $robots['index'] );
+
+        return $robots;
     }
 
     /**
