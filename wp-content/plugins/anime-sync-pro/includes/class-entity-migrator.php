@@ -617,20 +617,147 @@ class Anime_Sync_Entity_Migrator {
 	}
 
 	/**
+	 * 依「作品季度年份 → 人氣」的優先序，取出仍含日文假名（＝真正需要 DeepL）
+	 * 的實體 bgm_id。
+	 *
+	 * ★ 為什麼要這樣挑：
+	 *   原本的寫法是「撈出全部有簡介的，再 array_slice 取前 N 筆」，等於永遠
+	 *   從 bgm_id 最小（2006 年左右的老作品）開始處理，而那個區段的簡介多半
+	 *   早就是繁中了，於是每輪都在重複處理已完成的資料，真正還是日文的
+	 *   一萬多筆永遠輪不到。改成只撈「仍含假名」的，翻完就自然退出佇列，
+	 *   不需要額外欄位或狀態標記；再依作品季度與人氣排序，讓新番與熱門作品
+	 *   的角色先有中文。
+	 *
+	 * 沒有對應作品的孤兒實體（LEFT JOIN 後年份為 NULL）排在最後，仍會處理到。
+	 *
+	 * @param string $table   實體資料表（角色或人物）。
+	 * @param string $rel_col anime_relations 內對應的欄位名。
+	 * @param int    $limit   取幾筆；0 代表不限制。
+	 * @return int[]
+	 */
+	private function get_translate_priority_ids( string $table, string $rel_col, int $limit ): array {
+		global $wpdb;
+
+		$sql = "
+			SELECT e.bgm_id
+			FROM {$table} e
+			LEFT JOIN {$this->t_rel} r        ON r.{$rel_col} = e.bgm_id
+			LEFT JOIN {$wpdb->posts} p        ON p.ID = r.anime_id AND p.post_status = 'publish'
+			LEFT JOIN {$wpdb->postmeta} ym    ON ym.post_id = p.ID AND ym.meta_key = 'anime_season_year'
+			LEFT JOIN {$wpdb->postmeta} pm    ON pm.post_id = p.ID AND pm.meta_key = 'anime_popularity'
+			WHERE e.bgm_id > 0
+			  AND e.summary IS NOT NULL
+			  AND e.summary <> ''
+			  AND e.summary REGEXP '[ぁ-ヿ]'
+			GROUP BY e.bgm_id
+			ORDER BY MAX(CAST(ym.meta_value AS UNSIGNED)) DESC,
+			         MAX(CAST(pm.meta_value AS UNSIGNED)) DESC
+		";
+
+		if ( $limit > 0 ) {
+			$sql .= $wpdb->prepare( ' LIMIT %d', $limit );
+		}
+
+		return array_map( 'intval', (array) $wpdb->get_col( $sql ) );
+	}
+
+	/**
+	 * 免費路徑：把不含日文假名的簡介做 OpenCC 簡轉繁。
+	 *
+	 * ★ 這條路徑不呼叫 DeepL、不耗額度，因此不受 limit 限制，一輪就能全部
+	 *   處理完。原本它跟 DeepL 共用同一個迴圈與 300 筆上限，等於讓免費的
+	 *   操作被付費額度綁住，沒有必要。
+	 *
+	 * @param string $table 實體資料表。
+	 * @return int 實際更新筆數。
+	 */
+	private function convert_chinese_summaries( string $table ): int {
+		global $wpdb;
+
+		$converted = 0;
+		$offset    = 0;
+		$chunk     = 500;
+
+		while ( true ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT bgm_id, summary FROM {$table}
+					 WHERE bgm_id > 0 AND summary IS NOT NULL AND summary <> ''
+					   AND summary NOT REGEXP '[ぁ-ヿ]'
+					 ORDER BY bgm_id
+					 LIMIT %d OFFSET %d",
+					$chunk,
+					$offset
+				),
+				ARRAY_A
+			);
+
+			if ( ! $rows ) {
+				break;
+			}
+
+			foreach ( $rows as $row ) {
+				$summary = (string) $row['summary'];
+				$new     = Anime_Sync_CN_Converter::static_convert( $summary );
+
+				if ( $new !== $summary ) {
+					$wpdb->update( $table, [ 'summary' => $new ], [ 'bgm_id' => (int) $row['bgm_id'] ] );
+					$converted++;
+				}
+			}
+
+			$offset += $chunk;
+		}
+
+		return $converted;
+	}
+
+	/**
 	 * 批次把角色簡介還是日文的翻成繁體中文。已經是中文的不會呼叫 DeepL
 	 * （改走 OpenCC 簡轉繁，不消耗額度）。開跑前與過程中都會查即時剩餘額度，
 	 * 低於安全緩衝就自動停止，不會硬跑到被 DeepL 用 456 擋下來。
 	 *
-	 * @param array $args ['limit' => int, 'bgm_id' => int, 'safety_margin' => int]
+	 * @param array $args ['limit' => int, 'bgm_id' => int, 'safety_margin' => int, 'dry_run' => bool]
 	 */
 	public function translate_character_summaries( array $args = [] ): array {
+		return $this->translate_entity_summaries( $this->t_char, 'character_bgm_id', $args );
+	}
+
+	/**
+	 * 角色／人物共用的翻譯流程。兩者原本是兩份幾乎相同的程式碼，
+	 * 這裡合併成一份，避免日後只改到其中一邊。
+	 *
+	 * @param string $table   實體資料表。
+	 * @param string $rel_col anime_relations 內對應的欄位名。
+	 * @param array  $args    參數。
+	 */
+	private function translate_entity_summaries( string $table, string $rel_col, array $args = [] ): array {
 		global $wpdb;
 
 		$one_id        = (int) ( $args['bgm_id'] ?? 0 );
 		$limit         = (int) ( $args['limit'] ?? 0 );
 		$safety_margin = (int) ( $args['safety_margin'] ?? 5000 );
+		$dry_run       = ! empty( $args['dry_run'] );
 
-		$stats = [ 'total' => 0, 'translated' => 0, 'already_chinese' => 0, 'skipped_quota' => 0, 'failed' => 0 ];
+		$stats = [
+			'total'           => 0,
+			'translated'      => 0,
+			'already_chinese' => 0,
+			'skipped_quota'   => 0,
+			'failed'          => 0,
+			'chars_used'      => 0,
+		];
+
+		// ── 免費路徑：簡轉繁。不耗額度，不受 limit 限制，一輪全部做完。 ──
+		if ( $one_id <= 0 ) {
+			$stats['already_chinese'] = $dry_run
+				? (int) $wpdb->get_var(
+					"SELECT COUNT(*) FROM {$table}
+					 WHERE bgm_id > 0 AND summary IS NOT NULL AND summary <> ''
+					   AND summary NOT REGEXP '[ぁ-ヿ]'"
+				)
+				: $this->convert_chinese_summaries( $table );
+		}
 
 		if ( $this->get_deepl_api_key() === '' ) {
 			$stats['error'] = '未設定 DeepL API 金鑰';
@@ -643,39 +770,47 @@ class Anime_Sync_Entity_Migrator {
 			return $stats;
 		}
 
-		if ( $one_id > 0 ) {
-			$ids = [ $one_id ];
-		} else {
-			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_char} WHERE bgm_id > 0 AND summary IS NOT NULL AND summary != ''" );
-		}
-
-		if ( $limit > 0 && count( $ids ) > $limit ) {
-			$ids = array_slice( $ids, 0, $limit );
-		}
+		// ── 付費路徑：只取仍含假名者，依「季度年份 → 人氣」優先序排列。 ──
+		$ids = $one_id > 0
+			? [ $one_id ]
+			: $this->get_translate_priority_ids( $table, $rel_col, $limit );
 
 		foreach ( $ids as $bgm_id ) {
 			$bgm_id = (int) $bgm_id;
 			$stats['total']++;
 
-			$summary = (string) $wpdb->get_var( $wpdb->prepare( "SELECT summary FROM {$this->t_char} WHERE bgm_id = %d", $bgm_id ) );
-			$summary = trim( $summary );
+			$summary = trim( (string) $wpdb->get_var(
+				$wpdb->prepare( "SELECT summary FROM {$table} WHERE bgm_id = %d", $bgm_id )
+			) );
 
 			if ( $summary === '' ) {
 				continue;
 			}
 
+			// 指定單筆時仍可能是中文，走免費路徑。
 			if ( ! $this->is_japanese_text( $summary ) ) {
-				// 已經是中文，走 OpenCC 簡轉繁即可，不用 DeepL。
-				$converted = Anime_Sync_CN_Converter::static_convert( $summary );
-				if ( $converted !== $summary ) {
-					$wpdb->update( $this->t_char, [ 'summary' => $converted ], [ 'bgm_id' => $bgm_id ] );
+				if ( ! $dry_run ) {
+					$converted = Anime_Sync_CN_Converter::static_convert( $summary );
+					if ( $converted !== $summary ) {
+						$wpdb->update( $table, [ 'summary' => $converted ], [ 'bgm_id' => $bgm_id ] );
+					}
 				}
 				$stats['already_chinese']++;
 				continue;
 			}
 
-			if ( $remaining < $safety_margin ) {
+			$len = mb_strlen( $summary, 'UTF-8' );
+
+			if ( $remaining - $len < $safety_margin ) {
 				$stats['skipped_quota']++;
+				continue;
+			}
+
+			// 乾跑：只累計預估耗用字元，不呼叫 DeepL、不寫入。
+			if ( $dry_run ) {
+				$stats['chars_used'] += $len;
+				$remaining           -= $len;
+				$stats['translated']++;
 				continue;
 			}
 
@@ -685,8 +820,9 @@ class Anime_Sync_Entity_Migrator {
 				continue;
 			}
 
-			$wpdb->update( $this->t_char, [ 'summary' => $translated ], [ 'bgm_id' => $bgm_id ] );
-			$remaining -= mb_strlen( $summary, 'UTF-8' );
+			$wpdb->update( $table, [ 'summary' => $translated ], [ 'bgm_id' => $bgm_id ] );
+			$remaining           -= $len;
+			$stats['chars_used'] += $len;
 			$stats['translated']++;
 		}
 
@@ -695,76 +831,10 @@ class Anime_Sync_Entity_Migrator {
 	}
 
 	/**
-	 * 同上，人物/聲優版本。
+	 * 同上，人物/聲優版本。與角色版共用 translate_entity_summaries()。
 	 */
 	public function translate_person_summaries( array $args = [] ): array {
-		global $wpdb;
-
-		$one_id        = (int) ( $args['bgm_id'] ?? 0 );
-		$limit         = (int) ( $args['limit'] ?? 0 );
-		$safety_margin = (int) ( $args['safety_margin'] ?? 5000 );
-
-		$stats = [ 'total' => 0, 'translated' => 0, 'already_chinese' => 0, 'skipped_quota' => 0, 'failed' => 0 ];
-
-		if ( $this->get_deepl_api_key() === '' ) {
-			$stats['error'] = '未設定 DeepL API 金鑰';
-			return $stats;
-		}
-
-		$remaining = $this->get_deepl_remaining_quota();
-		if ( $remaining === null ) {
-			$stats['error'] = '無法確認 DeepL 剩餘額度，為安全起見中止';
-			return $stats;
-		}
-
-		if ( $one_id > 0 ) {
-			$ids = [ $one_id ];
-		} else {
-			$ids = $wpdb->get_col( "SELECT bgm_id FROM {$this->t_person} WHERE bgm_id > 0 AND summary IS NOT NULL AND summary != ''" );
-		}
-
-		if ( $limit > 0 && count( $ids ) > $limit ) {
-			$ids = array_slice( $ids, 0, $limit );
-		}
-
-		foreach ( $ids as $bgm_id ) {
-			$bgm_id = (int) $bgm_id;
-			$stats['total']++;
-
-			$summary = (string) $wpdb->get_var( $wpdb->prepare( "SELECT summary FROM {$this->t_person} WHERE bgm_id = %d", $bgm_id ) );
-			$summary = trim( $summary );
-
-			if ( $summary === '' ) {
-				continue;
-			}
-
-			if ( ! $this->is_japanese_text( $summary ) ) {
-				$converted = Anime_Sync_CN_Converter::static_convert( $summary );
-				if ( $converted !== $summary ) {
-					$wpdb->update( $this->t_person, [ 'summary' => $converted ], [ 'bgm_id' => $bgm_id ] );
-				}
-				$stats['already_chinese']++;
-				continue;
-			}
-
-			if ( $remaining < $safety_margin ) {
-				$stats['skipped_quota']++;
-				continue;
-			}
-
-			$translated = $this->translate_via_deepl( $summary );
-			if ( $translated === '' ) {
-				$stats['failed']++;
-				continue;
-			}
-
-			$wpdb->update( $this->t_person, [ 'summary' => $translated ], [ 'bgm_id' => $bgm_id ] );
-			$remaining -= mb_strlen( $summary, 'UTF-8' );
-			$stats['translated']++;
-		}
-
-		$stats['remaining_quota'] = $remaining;
-		return $stats;
+		return $this->translate_entity_summaries( $this->t_person, 'person_bgm_id', $args );
 	}
 
 	/**
@@ -1399,6 +1469,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		$bgm_id        = isset( $assoc_args['id'] ) ? (int) $assoc_args['id'] : 0;
 		$limit         = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0;
 		$safety_margin = isset( $assoc_args['safety-margin'] ) ? (int) $assoc_args['safety-margin'] : 5000;
+		$dry_run       = isset( $assoc_args['dry-run'] );
 
 		if ( ! in_array( $type, [ 'all', 'characters', 'persons' ], true ) ) {
 			WP_CLI::error( '--type 只能是 all / characters / persons' );
@@ -1408,12 +1479,21 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		$migrator = new Anime_Sync_Entity_Migrator();
 
 		WP_CLI::log( '=== 角色/聲優簡介翻譯：日文用 DeepL 翻繁中，已是中文的走 OpenCC 簡轉繁（不耗 DeepL 額度）===' );
+		WP_CLI::log( '處理順序：作品季度年份 → 人氣，由新到舊、由熱門到冷門' );
+		if ( $dry_run ) {
+			WP_CLI::log( '模式:--dry-run（只預估，不呼叫 DeepL、不寫入任何資料）' );
+		}
 		if ( $limit > 0 ) {
 			WP_CLI::log( '本批上限:--limit=' . $limit );
 		}
 		WP_CLI::log( '額度安全緩衝:--safety-margin=' . $safety_margin . ' 字元' );
 
-		$job_args = [ 'bgm_id' => $bgm_id, 'limit' => $limit, 'safety_margin' => $safety_margin ];
+		$job_args = [
+			'bgm_id'        => $bgm_id,
+			'limit'         => $limit,
+			'safety_margin' => $safety_margin,
+			'dry_run'       => $dry_run,
+		];
 
 		if ( $type === 'all' || $type === 'characters' ) {
 			$stats = $migrator->translate_character_summaries( $job_args );
@@ -1427,6 +1507,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 				WP_CLI::log( '本來就是中文 : ' . $stats['already_chinese'] );
 				WP_CLI::log( '額度不足跳過 : ' . $stats['skipped_quota'] );
 				WP_CLI::log( '翻譯失敗     : ' . $stats['failed'] );
+				WP_CLI::log( $dry_run ? '預估耗用字元 : ' . number_format( $stats['chars_used'] ?? 0 ) : '實際耗用字元 : ' . number_format( $stats['chars_used'] ?? 0 ) );
 				WP_CLI::log( '剩餘額度     : ' . ( $stats['remaining_quota'] ?? '未知' ) );
 			}
 		}
@@ -1443,6 +1524,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 				WP_CLI::log( '本來就是中文 : ' . $stats['already_chinese'] );
 				WP_CLI::log( '額度不足跳過 : ' . $stats['skipped_quota'] );
 				WP_CLI::log( '翻譯失敗     : ' . $stats['failed'] );
+				WP_CLI::log( $dry_run ? '預估耗用字元 : ' . number_format( $stats['chars_used'] ?? 0 ) : '實際耗用字元 : ' . number_format( $stats['chars_used'] ?? 0 ) );
 				WP_CLI::log( '剩餘額度     : ' . ( $stats['remaining_quota'] ?? '未知' ) );
 			}
 		}
