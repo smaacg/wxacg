@@ -78,6 +78,24 @@ class Anime_Sync_Cron_Manager {
     const HOOK_THEMES_EPISODES_UPDATE = 'anime_sync_themes_episodes_update';
     const HOOK_TRANSLATE_SUMMARIES    = 'anime_sync_translate_summaries';
 
+    /*
+     * ★ 2026-08-17 新增：緊急集數檢查。
+     *
+     * episodes_aired 只靠每日動態更新的大佇列（79 部/批 20/每小時）輪到才會
+     * 刷新，一部作品剛開播完新的一集，最慢要等快 4 小時才會被排到，這段
+     * 空窗期間站上顯示的「已播集數」跟評論分頁的可選集數都會是舊的。
+     *
+     * 這裡不加速整條大佇列（那樣會浪費 AniList API 額度在不需要更新的
+     * 作品上），改成每 15 分鐘輕量掃一次「排定開播時間已經過去、但狀態
+     * 還沒被刷新」的作品——用本站已經存好的 anime_next_airing 直接篩選，
+     * 不用額外呼叫 API 就能鎖定候選名單，通常同時間只有個位數幾部符合，
+     * 對 API 額度幾乎沒有額外負擔，卻能把「新的一集播出」這種事件的
+     * 反應時間從最慢 4 小時壓到最慢 15 分鐘。
+     */
+    const HOOK_URGENT_EPISODE_CHECK = 'anime_sync_urgent_episode_check';
+    const LOCK_TTL_URGENT_EPISODE   = 290;
+    const URGENT_EPISODE_BATCH_SIZE = 10;
+
     const LOCK_TTL_DAILY           = 1800;
     const LOCK_TTL_SEASON          = 3600;
     const LOCK_TTL_THEMES_EPISODES = 1800;
@@ -171,6 +189,17 @@ class Anime_Sync_Cron_Manager {
         add_action( self::HOOK_THEMES_EPISODES_UPDATE, [ $this, 'run_themes_episodes_update' ] );
         add_action( self::HOOK_ENTITY_BACKFILL,        [ $this, 'run_entity_backfill' ] );
         add_action( self::HOOK_TRANSLATE_SUMMARIES,    [ $this, 'run_translate_summaries' ] );
+        add_action( self::HOOK_URGENT_EPISODE_CHECK,   [ $this, 'run_urgent_episode_check' ] );
+
+        /*
+         * 自我修復排程：只在 activate() 裡註冊的話，已經在線上跑的站台
+         * 靠 git push 部署不會觸發 register_activation_hook，新加的排程
+         * 永遠不會被排進去。這裡改成每次 plugins_loaded 都檢查一次，
+         * wp_next_scheduled() 已存在時是極低成本的一次查詢，不影響效能。
+         */
+        if ( ! wp_next_scheduled( self::HOOK_URGENT_EPISODE_CHECK ) ) {
+            wp_schedule_event( time() + 120, 'anime_sync_quarter_hour', self::HOOK_URGENT_EPISODE_CHECK );
+        }
     }
 
     // =========================================================================
@@ -231,6 +260,10 @@ class Anime_Sync_Cron_Manager {
             wp_schedule_event( time() + 600, 'anime_sync_quarter_hour', self::HOOK_THEMES_EPISODES_UPDATE );
         }
 
+        if ( ! wp_next_scheduled( self::HOOK_URGENT_EPISODE_CHECK ) ) {
+            wp_schedule_event( time() + 120, 'anime_sync_quarter_hour', self::HOOK_URGENT_EPISODE_CHECK );
+        }
+
         if ( ! wp_next_scheduled( self::HOOK_WEEKLY_CLEANUP ) ) {
             wp_schedule_event(
                 strtotime( 'next sunday 04:00:00' ),
@@ -283,6 +316,7 @@ class Anime_Sync_Cron_Manager {
             self::HOOK_THEMES_EPISODES_UPDATE,
             self::HOOK_ENTITY_BACKFILL,
             self::HOOK_TRANSLATE_SUMMARIES,
+            self::HOOK_URGENT_EPISODE_CHECK,
         ];
         foreach ( $hooks as $hook ) {
             $timestamp = wp_next_scheduled( $hook );
@@ -693,6 +727,87 @@ class Anime_Sync_Cron_Manager {
         set_transient( self::DAILY_QUEUE_CACHE_KEY, $result, self::DAILY_QUEUE_CACHE_TTL );
 
         return $result;
+    }
+
+    /**
+     * 每 15 分鐘掃一次「排定開播時間已經過去、狀態卻還沒被刷新」的作品，
+     * 立刻補抓，不用等大佇列輪到（詳見上方常數區塊的說明）。
+     */
+    public function run_urgent_episode_check(): void {
+        if ( get_transient( 'anime_sync_lock_urgent_episode' ) ) {
+            return;
+        }
+        set_transient( 'anime_sync_lock_urgent_episode', 1, self::LOCK_TTL_URGENT_EPISODE );
+
+        try {
+            $this->_run_urgent_episode_check_inner();
+        } finally {
+            delete_transient( 'anime_sync_lock_urgent_episode' );
+        }
+    }
+
+    private function _run_urgent_episode_check_inner(): void {
+        $candidate_ids = get_posts( [
+            'post_type'      => 'anime',
+            'post_status'    => 'publish',
+            'posts_per_page' => self::URGENT_EPISODE_BATCH_SIZE,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                'relation' => 'AND',
+                [
+                    'key'   => 'anime_status',
+                    'value' => 'RELEASING',
+                ],
+                [
+                    'key'     => 'anime_next_airing',
+                    'value'   => time(),
+                    'compare' => '<',
+                    'type'    => 'NUMERIC',
+                ],
+                [
+                    'key'     => self::ANILIST_DEAD_ID_META,
+                    'compare' => 'NOT EXISTS',
+                ],
+            ],
+        ] );
+
+        if ( empty( $candidate_ids ) ) {
+            return;
+        }
+
+        $updated = 0;
+
+        foreach ( $candidate_ids as $post_id ) {
+            $post_id    = (int) $post_id;
+            $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
+            if ( ! $anilist_id ) {
+                continue;
+            }
+
+            $post_title = get_the_title( $post_id ) ?: "ID {$post_id}";
+
+            $this->rate_limiter->wait_if_needed( 'anilist' );
+            $result = $this->sync_dynamic_for_post( $post_id, $anilist_id );
+
+            if ( $result === 'failed' ) {
+                if ( $this->last_anilist_http_code === 404 ) {
+                    $this->mark_anilist_id_404( $post_id, $anilist_id, $post_title );
+                }
+                continue;
+            }
+
+            if ( $result !== 'skipped' ) {
+                $updated++;
+                $detail = str_contains( $result, ':' ) ? '（' . explode( ':', $result, 2 )[1] . '）' : '';
+                $this->logger->log( 'info', "緊急集數檢查〔{$post_title}〕：已更新{$detail}" );
+                $this->purge_post_cache( $post_id );
+            }
+        }
+
+        if ( $updated > 0 ) {
+            $this->logger->log( 'info', "緊急集數檢查：本輪共更新 {$updated} 部" );
+        }
     }
 
     private function sync_dynamic_for_post( int $post_id, int $anilist_id ): string {

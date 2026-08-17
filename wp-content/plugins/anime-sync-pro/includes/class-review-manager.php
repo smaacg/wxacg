@@ -283,6 +283,21 @@ class Anime_Sync_Review_Manager {
 			$episode = 0;
 		}
 
+		// 防呆：擋掉還沒播出的集數（前端下拉選單本來就只列已播出的，
+		// 這裡是防有人繞過前端直接打 API）。用彙總計數當簡易上限，
+		// 不逐集比對 airdate——這個 meta 本來就是同步排程在維護的，
+		// 精準度夠擋惡意繞過，不需要在 REST 端重算一次完整集數列表。
+		if ( $episode > 0 && function_exists( 'smacg_get_meta' ) ) {
+			$ep_aired = (int) smacg_get_meta( $anime_id, 'episodes_aired', 0 );
+			if ( $ep_aired > 0 && $episode > $ep_aired ) {
+				return new WP_Error(
+					'episode_not_aired',
+					'這一集還沒播出，暫時無法發表評論',
+					[ 'status' => 400 ]
+				);
+			}
+		}
+
 		$spoiler = $req->get_param( 'spoiler' ) ? 1 : 0;
 		// 純文字儲存（前端顯示時會 escape 再把 \n 轉成 <br>），不留 HTML 標籤，
 		// 避免 wp_kses_post() 允許的標籤跟前端的跳脫顯示邏輯打架。

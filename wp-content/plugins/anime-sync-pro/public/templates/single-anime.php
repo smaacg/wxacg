@@ -5808,15 +5808,33 @@ while ( have_posts() ) :
 						/*
 						 * 集數選單只給短評（吐槽）用，長評固定是整部作品層級。
 						 * 直接沿用上面集數列表已經算好的 ep 數字，不重新解析一次。
+						 *
+						 * 只列出「已經播出」的集數，未播的不該讓人選（沒播就不
+						 * 可能有心得）。判斷雙重保險：這一集自己的 airdate 已經
+						 * 過了，或退而求其次比對 anime_episodes_aired 這個彙總
+						 * 計數——後者是同步排程定期更新的，可能會比實際播出進度
+						 * 慢半拍，所以優先看單集自己的 airdate。
 						 */
 						$review_episode_options = [];
 						if ( ! empty( $episodes_list ) ) {
+							$review_now_ts = current_time( 'timestamp' );
 							foreach ( $episodes_list as $ep_probe ) {
 								if ( ! is_array( $ep_probe ) ) {
 									continue;
 								}
 								$ep_num = (int) ( $ep_probe['ep'] ?? 0 );
-								if ( $ep_num > 0 ) {
+								if ( $ep_num <= 0 ) {
+									continue;
+								}
+
+								$ep_airdate_raw = trim( (string) ( $ep_probe['airdate'] ?? '' ) );
+								$ep_airdate_ts  = $ep_airdate_raw !== '' ? strtotime( $ep_airdate_raw ) : false;
+
+								$has_aired = $ep_airdate_ts !== false
+									? $ep_airdate_ts <= $review_now_ts
+									: $ep_num <= $ep_aired; // 沒有 airdate 資料時退而求其次比對彙總計數
+
+								if ( $has_aired ) {
 									$review_episode_options[ $ep_num ] = $ep_num;
 								}
 							}
