@@ -182,8 +182,10 @@ add_action( 'wp_enqueue_scripts', function () {
      * 這裡不能沿用上面那段：那段的 review.css 相依 smacg-anime-status，
      * 而該樣式只在 anime/manga 載入，掛到新聞頁會因相依缺失而不輸出。
      */
-    // 新聞、漫畫、角色頁：角色頁是 rewrite 攔截的虛擬頁，用 query var 判斷
-    if ( is_singular( [ 'post', 'manga' ] ) || (int) get_query_var( 'asa_character_id' ) > 0 ) {
+    // 新聞、漫畫、角色頁、人物頁：後兩者是 rewrite 攔截的虛擬頁，用 query var 判斷
+    if ( is_singular( [ 'post', 'manga' ] )
+        || (int) get_query_var( 'asa_character_id' ) > 0
+        || (int) get_query_var( 'asa_person_id' ) > 0 ) {
         $rv_css = weixiaoacg_THEME_DIR . '/assets/css/review.css';
         if ( file_exists( $rv_css ) ) {
             wp_enqueue_style( 'wxacg-review', weixiaoacg_THEME_URL . '/assets/css/review.css', [], filemtime( $rv_css ) );
@@ -306,8 +308,10 @@ add_action( 'wp_enqueue_scripts', function () {
      * 只在 anime/manga 載入，所以新聞頁必須自己補一份，否則 review.js 取不到
      * apiUrl / nonce 會靜默失效。這裡不帶 commentRatings（那是動漫評分專用）。
      */
-    // 新聞與角色頁：這兩種都沒有載入 smacg-anime-status，必須自己補設定
-    if ( is_singular( 'post' ) || (int) get_query_var( 'asa_character_id' ) > 0 ) {
+    // 新聞、角色頁、人物頁：這幾種都沒有載入 smacg-anime-status，必須自己補設定
+    if ( is_singular( 'post' )
+        || (int) get_query_var( 'asa_character_id' ) > 0
+        || (int) get_query_var( 'asa_person_id' ) > 0 ) {
         $rv_js = weixiaoacg_THEME_DIR . '/assets/js/review.js';
         if ( file_exists( $rv_js ) ) {
             wp_enqueue_script( 'wxacg-review', weixiaoacg_THEME_URL . '/assets/js/review.js', [ 'weixiaoacg-api' ], filemtime( $rv_js ), true );

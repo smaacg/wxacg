@@ -641,6 +641,78 @@ get_header();
                 <?php endif; ?>
             </section>
 
+            <?php
+            /*
+             * 留言：與角色頁相同做法。人物本身不是文章，因此用一篇影子文章
+             * 當留言載體；沿用 asa_char_comments 這個既有類型（只是換一個
+             * meta key 區分），可以省掉再註冊一個文章類型，也不必再擴充
+             * Anime_Sync_Review_Manager::allowed_post_types()。
+             *
+             * 載體採「第一次有人瀏覽時才建立」，避免為一萬多筆人物預先產生
+             * 用不到的文章。
+             */
+            if ( ! function_exists( 'asa_get_person_comment_post_id' ) ) {
+                function asa_get_person_comment_post_id( array $person ) {
+                    $bgm_id = (int) ( $person['bgm_id'] ?? 0 );
+                    if ( $bgm_id <= 0 ) {
+                        return 0;
+                    }
+
+                    $existing = get_posts( [
+                        'post_type'      => 'asa_char_comments',
+                        'post_status'    => 'publish',
+                        'posts_per_page' => 1,
+                        'no_found_rows'  => true,
+                        'meta_query'     => [
+                            [
+                                'key'     => 'asa_person_bgm_id',
+                                'value'   => $bgm_id,
+                                'compare' => '=',
+                                'type'    => 'NUMERIC',
+                            ],
+                        ],
+                    ] );
+
+                    if ( ! empty( $existing ) ) {
+                        return (int) $existing[0]->ID;
+                    }
+
+                    $new_id = wp_insert_post( [
+                        'post_type'      => 'asa_char_comments',
+                        'post_status'    => 'publish',
+                        'post_title'     => wp_strip_all_tags( (string) $person['name'] ) . '（人物留言）',
+                        'comment_status' => 'closed',
+                        'ping_status'    => 'closed',
+                    ], true );
+
+                    if ( is_wp_error( $new_id ) || ! $new_id ) {
+                        return 0;
+                    }
+
+                    update_post_meta( $new_id, 'asa_person_bgm_id', $bgm_id );
+                    return (int) $new_id;
+                }
+            }
+
+            $person_comment_post_id = asa_get_person_comment_post_id( $person );
+            ?>
+
+            <?php if ( $person_comment_post_id > 0 ) : ?>
+                <section class="asa-entity-comments" id="asa-sec-comments">
+                    <h2 class="asa-section-title">💬 留言</h2>
+                    <div
+                        class="asd-review-root"
+                        id="asd-review-root"
+                        data-anime-id="<?php echo (int) $person_comment_post_id; ?>"
+                        data-episodes="[]"
+                        data-tracks="short"
+                        data-noun="留言"
+                    >
+                        <p class="asd-review-loading">留言載入中…</p>
+                    </div>
+                </section>
+            <?php endif; ?>
+
         </div><!-- /.asa-layout-main -->
 
     </div><!-- /.asa-entity-layout -->
