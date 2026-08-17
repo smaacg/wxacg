@@ -34,6 +34,12 @@ document.addEventListener('DOMContentLoaded', function () {
         .filter(function (t) { return t === 'short' || t === 'long'; });
     if (!tracks.length) { tracks = ['short']; }
 
+    /*
+     * 用詞由容器宣告：「吐槽這部作品」是動漫專用的講法，
+     * 新聞頁沿用會很奇怪，因此把名詞抽出來。
+     */
+    const noun = root.dataset.noun || '';
+
     let currentTrack = tracks[0];
     let currentSort  = 'new';
 
@@ -56,18 +62,19 @@ document.addEventListener('DOMContentLoaded', function () {
      * 的 < > & 已經是實體字元，只有我們自己產生的標籤會生效。
      */
     function formatText(escaped) {
+        /*
+         * ★ 不支援外部連結（含手打的 [文字](網址) 語法）。
+         *   評論是會員制沒錯，但仍擋不住註冊後貼廣告連結；只把工具列按鈕
+         *   藏起來沒有用，知道語法的人照樣能打出可點擊連結，因此連轉換
+         *   一併移除。網址會以純文字呈現：看得到、可複製，但不可點擊，
+         *   廣告價值大幅降低。
+         *
+         *   站內的 @提及仍轉成個人頁連結，那是自家網址，沒有導流疑慮。
+         */
         return escaped
             .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
             .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-            // 連結只接受 http/https，避免 javascript: 之類的協定
-            .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
-                '<a href="$2" target="_blank" rel="nofollow noopener">$1</a>')
-            /*
-             * @提及 → 個人頁連結（只認 nicename，與後端解析規則一致）。
-             * ★ @ 前面必須是開頭或空白：上一步產生的連結 href 裡可能含 @
-             *   （例如 https://x.com/@someone），不加這個限制會在屬性值裡
-             *   再插一個 <a>，把標籤巢狀弄壞。
-             */
+            // @ 前必須是開頭或空白，避免把網址裡的 @someone 當成提及
             .replace(/(^|\s)@([a-zA-Z0-9_.\-]{1,60})/g,
                 '$1<a class="asd-review-mention" href="/u/$2/">@$2</a>')
             .replace(/\n/g, '<br>');
@@ -77,7 +84,6 @@ document.addEventListener('DOMContentLoaded', function () {
         '<div class="asd-review-toolbar-fmt">' +
             '<button type="button" class="asd-review-fmt-btn" data-fmt="bold" title="粗體"><b>B</b></button>' +
             '<button type="button" class="asd-review-fmt-btn" data-fmt="italic" title="斜體"><i>I</i></button>' +
-            '<button type="button" class="asd-review-fmt-btn" data-fmt="link" title="連結">🔗</button>' +
         '</div>';
 
     /** 把標記套在選取範圍上；沒選取就插入標記並把游標放中間 */
@@ -89,15 +95,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 const sel   = textarea.value.slice(start, end);
                 const fmt   = btn.dataset.fmt;
 
-                let before = '**', after = '**';
-                if (fmt === 'italic') { before = '*';  after = '*'; }
-                if (fmt === 'link')   { before = '[';  after = '](https://)'; }
+                const before = fmt === 'italic' ? '*' : '**';
+                const after  = before;
 
-                const text = before + (sel || (fmt === 'link' ? '連結文字' : '')) + after;
-                textarea.setRangeText(text, start, end, 'end');
+                textarea.setRangeText(before + sel + after, start, end, 'end');
 
                 // 沒選取文字時把游標移到標記中間，可以直接接著打
-                if (!sel && fmt !== 'link') {
+                if (!sel) {
                     const pos = start + before.length;
                     textarea.setSelectionRange(pos, pos);
                 }
@@ -312,7 +316,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 episodeSelect +
                 TOOLBAR_HTML +
                 '<textarea class="asd-review-content-input" placeholder="' +
-                    (currentTrack === 'long' ? '寫下你的完整心得（至少 80 字）…' : '一句話吐槽這部作品…') +
+                    (currentTrack === 'long'
+                        ? '寫下你的完整心得（至少 80 字）…'
+                        : (noun ? '留下你的' + noun + '…' : '一句話吐槽這部作品…')) +
                     '" maxlength="' + maxLen + '"></textarea>' +
                 '<div class="asd-review-form-footer">' +
                     '<label class="asd-review-spoiler-check">' +
@@ -469,7 +475,8 @@ document.addEventListener('DOMContentLoaded', function () {
         callApi('reviews/' + animeId + '?track=' + currentTrack + '&sort=' + currentSort, 'GET').then(function (data) {
             const items = data.items || [];
             if (items.length === 0) {
-                listWrap.innerHTML = '<p class="asd-review-empty">還沒有人發表' + (currentTrack === 'long' ? '評論' : '吐槽') + '，來當第一個吧！</p>';
+                const emptyNoun = currentTrack === 'long' ? '評論' : (noun || '吐槽');
+                listWrap.innerHTML = '<p class="asd-review-empty">還沒有人發表' + emptyNoun + '，來當第一個吧！</p>';
                 return;
             }
             /*

@@ -432,8 +432,8 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
   <!-- ── 評論（自建系統，與動漫頁共用）── -->
   <?php if ( class_exists( 'Anime_Sync_Review_Manager' )
       && Anime_Sync_Review_Manager::is_reviewable( get_the_ID() ) ) : ?>
-  <section class="single-comments" aria-label="評論區">
-    <h2 class="asd-section-title">📝 評論</h2>
+  <section class="single-comments" aria-label="留言區">
+    <h2 class="asd-section-title">💬 留言</h2>
     <?php
     /*
      * 沿用動漫頁的容器與 review.js。新聞沒有集數概念，data-episodes 給空陣列，
@@ -447,6 +447,7 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
       data-anime-id="<?php echo (int) get_the_ID(); ?>"
       data-episodes="[]"
       data-tracks="short"
+      data-noun="留言"
     >
       <p class="asd-review-loading">評論載入中…</p>
     </div>
