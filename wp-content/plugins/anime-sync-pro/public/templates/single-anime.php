@@ -4306,8 +4306,6 @@ while ( have_posts() ) :
 				<?php endif; ?>
 
 				<a class="asd-tab" href="#asd-sec-reviews">📝 評論</a>
-
-				<a class="asd-tab" href="#asd-sec-comments">💬 留言</a>
 			</nav>
 
 			<div class="asd-container asd-container--has-sidebar">
@@ -5852,12 +5850,14 @@ while ( have_posts() ) :
 						</div>
 					</section>
 
-					<section class="asd-section asd-comments" id="asd-sec-comments">
-						<h2 class="asd-section-title">💬 留言</h2>
-						<div class="asd-comments-inner">
-							<?php comments_template(); ?>
-						</div>
-					</section>
+					<?php
+					/*
+					 * wpDiscuz 留言區已於 2026-08-18 移除，改由上方「📝 評論」
+					 * 統一承接（自建系統支援分集數、劇透標記、樓中樓、@提及、
+					 * 追蹤討論串）。原有留言已遷移，wp_comments 資料保留未動，
+					 * 需要時重新啟用外掛並還原本區塊即可切回。
+					 */
+					?>
 
 					<?php if ( shortcode_exists( 'wxacg_correction_form' ) ) : ?>
 						<section

@@ -454,12 +454,13 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
   </section>
   <?php endif; ?>
 
-  <!-- ── 留言（wpDiscuz，待評論系統統一後移除）── -->
-  <?php if ( comments_open() || get_comments_number() ) : ?>
-  <section class="single-comments" aria-label="留言區">
-    <?php comments_template(); ?>
-  </section>
-  <?php endif; ?>
+  <?php
+  /*
+   * wpDiscuz 留言區已於 2026-08-18 移除，改由上方自建評論系統統一承接。
+   * 原有留言已遷移，wp_comments 資料保留未動，需要時重新啟用外掛並
+   * 還原本區塊即可切回。
+   */
+  ?>
 
   <!-- ── 延伸閱讀（黑名單時隱藏） ── -->
   <?php if ( ! $smacg_skip_share_related && $related_query->have_posts() ) : ?>
