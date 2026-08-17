@@ -527,3 +527,55 @@
   text-decoration: underline;
   word-break: break-all;
 }
+
+/* ============================================================
+   @提及
+   ============================================================ */
+
+.asd-review-mention {
+  color: var(--rv-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+.asd-review-mention:hover { text-decoration: underline; }
+
+/* 自動完成選單 */
+.asd-review-mention-box {
+  position: relative;
+  background: var(--rv-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.asd-review-mention-item {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--rv-text);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  padding: 7px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.asd-review-mention-item:hover,
+.asd-review-mention-item.is-active { background: var(--rv-border); }
+
+.asd-review-mention-item img {
+  border-radius: 50%;
+  height: 24px;
+  width: 24px;
+}
+
+.asd-review-mention-item span { font-size: 13px; }
+.asd-review-mention-item small {
+  color: var(--rv-text-dim);
+  font-size: 11px;
+  margin-left: auto;
+}

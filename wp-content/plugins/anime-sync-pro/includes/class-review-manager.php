@@ -219,6 +219,109 @@ class Anime_Sync_Review_Manager {
 			'callback'            => [ $this, 'api_vote' ],
 			'permission_callback' => [ $this, 'require_login' ],
 		] );
+
+		// @提及的使用者搜尋。限登入者使用，避免變成對外的會員名單查詢介面。
+		register_rest_route( $ns, '/reviews/mention-search', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'api_mention_search' ],
+			'permission_callback' => [ $this, 'require_login' ],
+		] );
+	}
+
+	/**
+	 * 提供 @提及的自動完成候選。
+	 *
+	 * 回傳 nicename 是因為個人頁網址走 /u/{nicename}/，而且它是 URL 安全的；
+	 * 顯示名稱可能含空白或中文，不適合直接當提及標記。
+	 */
+	public function api_mention_search( WP_REST_Request $req ) {
+		$q = trim( (string) $req->get_param( 'q' ) );
+
+		if ( mb_strlen( $q ) < 1 ) {
+			return [ 'items' => [] ];
+		}
+
+		$users = get_users( [
+			'search'         => '*' . $q . '*',
+			'search_columns' => [ 'user_login', 'user_nicename', 'display_name' ],
+			'number'         => 8,
+			'fields'         => [ 'ID', 'user_nicename', 'display_name' ],
+		] );
+
+		$items = [];
+		foreach ( $users as $u ) {
+			$items[] = [
+				'id'       => (int) $u->ID,
+				'nicename' => $u->user_nicename,
+				'name'     => $u->display_name ?: $u->user_nicename,
+				'avatar'   => get_avatar_url( $u->ID, [ 'size' => 32 ] ),
+			];
+		}
+
+		return [ 'items' => $items ];
+	}
+
+	/**
+	 * 解析內容中的 @提及並發通知。
+	 *
+	 * 只認 nicename（ASCII、URL 安全），因為顯示名稱可能含空白或中文，
+	 * 無法可靠地界定提及標記的結尾。
+	 *
+	 * @param int    $review_id 這則評論 ID。
+	 * @param int    $target_id 目標文章 ID。
+	 * @param int    $actor_id  發表者。
+	 * @param string $content   內容。
+	 * @param int    $skip_uid  已因回覆通知過的人，避免同一則發兩次通知。
+	 */
+	private static function notify_mentions( int $review_id, int $target_id, int $actor_id, string $content, int $skip_uid = 0 ): void {
+		if ( ! function_exists( 'wxacg_create_notification' ) ) {
+			return;
+		}
+
+		if ( ! preg_match_all( '/@([a-zA-Z0-9_.\-]{1,60})/', $content, $m ) ) {
+			return;
+		}
+
+		$actor = get_userdata( $actor_id );
+		if ( ! $actor ) {
+			return;
+		}
+
+		$excerpt = wp_strip_all_tags( $content );
+		if ( mb_strlen( $excerpt ) > 80 ) {
+			$excerpt = mb_substr( $excerpt, 0, 80 ) . '…';
+		}
+
+		$notified = [];
+		foreach ( array_unique( $m[1] ) as $nicename ) {
+			$user = get_user_by( 'slug', $nicename );
+			if ( ! $user ) {
+				continue;
+			}
+
+			$uid = (int) $user->ID;
+
+			// 不通知自己；已經因為「回覆」通知過的人也不再重複打擾
+			if ( $uid === $actor_id || $uid === $skip_uid || isset( $notified[ $uid ] ) ) {
+				continue;
+			}
+			$notified[ $uid ] = true;
+
+			wxacg_create_notification( [
+				'user_id'     => $uid,
+				'type'        => 'mention',
+				'actor_id'    => $actor_id,
+				'object_type' => 'review',
+				'object_id'   => $review_id,
+				'data'        => [
+					'title'      => sprintf( '%s 在評論中提到你', $actor->display_name ?: $actor->user_login ),
+					'excerpt'    => $excerpt,
+					'url'        => get_permalink( $target_id ) . '#asd-review-root',
+					'icon'       => 'fa-at',
+					'post_title' => get_the_title( $target_id ),
+				],
+			] );
+		}
 	}
 
 	public function require_login() {
@@ -533,6 +636,15 @@ class Anime_Sync_Review_Manager {
 			}
 		} else {
 			delete_post_meta( $review_id, self::META_REPLY_TO );
+		}
+
+		/*
+		 * @提及通知。母評論作者若已因「回覆」收到通知，這裡就跳過，
+		 * 避免同一則評論讓同一個人收到兩則通知。
+		 */
+		if ( $is_new ) {
+			$reply_author = $reply_to > 0 ? (int) get_post_field( 'post_author', $reply_to ) : 0;
+			self::notify_mentions( (int) $review_id, $anime_id, $uid, $content, $reply_author );
 		}
 
 		if ( $is_new ) {

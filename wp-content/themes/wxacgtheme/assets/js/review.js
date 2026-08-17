@@ -62,6 +62,9 @@ document.addEventListener('DOMContentLoaded', function () {
             // 連結只接受 http/https，避免 javascript: 之類的協定
             .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
                 '<a href="$2" target="_blank" rel="nofollow noopener">$1</a>')
+            // @提及 → 個人頁連結（只認 nicename，與後端解析規則一致）
+            .replace(/@([a-zA-Z0-9_.\-]{1,60})/g,
+                '<a class="asd-review-mention" href="/u/$1/">@$1</a>')
             .replace(/\n/g, '<br>');
     }
 
@@ -97,6 +100,104 @@ document.addEventListener('DOMContentLoaded', function () {
                 textarea.dispatchEvent(new Event('input'));
             });
         });
+    }
+
+    /* ── @提及自動完成 ──
+     *
+     * 只在游標緊鄰的 @token 上觸發（往前找到 @、中間不能有空白），
+     * 因此貼上含 email 的內容不會誤跳選單。
+     */
+    function bindMention(textarea) {
+        if (!loggedIn) { return; }
+
+        const box = document.createElement('div');
+        box.className = 'asd-review-mention-box';
+        box.hidden = true;
+        textarea.parentNode.insertBefore(box, textarea.nextSibling);
+
+        let items = [];
+        let active = -1;
+        let timer = null;
+
+        function close() {
+            box.hidden = true;
+            box.innerHTML = '';
+            items = [];
+            active = -1;
+        }
+
+        function currentToken() {
+            const pos = textarea.selectionStart;
+            const before = textarea.value.slice(0, pos);
+            const m = before.match(/@([a-zA-Z0-9_.\-]*)$/);
+            if (!m) { return null; }
+            // @ 前面必須是開頭或空白，避免 email 之類的字串誤判
+            const prev = before.charAt(before.length - m[0].length - 1);
+            if (prev && !/\s/.test(prev)) { return null; }
+            return { q: m[1], start: pos - m[1].length };
+        }
+
+        function render() {
+            if (!items.length) { close(); return; }
+            box.innerHTML = items.map(function (u, i) {
+                return '<button type="button" class="asd-review-mention-item' +
+                    (i === active ? ' is-active' : '') + '" data-nicename="' +
+                    escapeHtml(u.nicename) + '">' +
+                    '<img src="' + escapeHtml(u.avatar) + '" alt="" loading="lazy">' +
+                    '<span>' + escapeHtml(u.name) + '</span>' +
+                    '<small>@' + escapeHtml(u.nicename) + '</small>' +
+                    '</button>';
+            }).join('');
+            box.hidden = false;
+
+            box.querySelectorAll('.asd-review-mention-item').forEach(function (el) {
+                el.addEventListener('mousedown', function (e) {
+                    e.preventDefault(); // 避免 textarea 失焦導致 token 位置跑掉
+                    pick(el.dataset.nicename);
+                });
+            });
+        }
+
+        function pick(nicename) {
+            const tok = currentToken();
+            if (!tok) { close(); return; }
+            textarea.setRangeText(nicename + ' ', tok.start, textarea.selectionStart, 'end');
+            close();
+            textarea.focus();
+            textarea.dispatchEvent(new Event('input'));
+        }
+
+        textarea.addEventListener('input', function () {
+            const tok = currentToken();
+            if (!tok || tok.q.length < 1) { close(); return; }
+
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                callApi('reviews/mention-search?q=' + encodeURIComponent(tok.q), 'GET')
+                    .then(function (data) {
+                        items = data.items || [];
+                        active = items.length ? 0 : -1;
+                        render();
+                    })
+                    .catch(close);
+            }, 200);
+        });
+
+        textarea.addEventListener('keydown', function (e) {
+            if (box.hidden || !items.length) { return; }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+                render();
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                pick(items[active].nicename);
+            } else if (e.key === 'Escape') {
+                close();
+            }
+        });
+
+        textarea.addEventListener('blur', function () { setTimeout(close, 150); });
     }
 
     function callApi(path, method, body) {
@@ -220,6 +321,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const contentInput = formWrap.querySelector('.asd-review-content-input');
         bindToolbar(formWrap, contentInput);
+        bindMention(contentInput);
         const counter      = formWrap.querySelector('.asd-review-counter');
         const submitBtn    = formWrap.querySelector('.asd-review-submit-btn');
         const msgEl        = formWrap.querySelector('.asd-review-form-msg');
@@ -404,6 +506,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const sendEl = wrap.querySelector('.asd-review-reply-send');
 
                 bindToolbar(wrap, input);
+                bindMention(input);
                 input.focus();
 
                 wrap.querySelector('.asd-review-reply-cancel').addEventListener('click', function () {

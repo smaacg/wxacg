@@ -91,6 +91,7 @@ function smacg_get_notification_prefs_defaults() {
 		'badge_site'          => 1,
 		'level_up_site'       => 1,
 		'rank_up_site'        => 1,  // ★ v1.2.0
+		'mention_site'        => 1,  // 評論中被 @提及
 		'system_site'         => 1,
 
 		// Email 通知 — 全關
@@ -100,6 +101,7 @@ function smacg_get_notification_prefs_defaults() {
 		'badge_email'         => 0,
 		'level_up_email'      => 0,
 		'rank_up_email'       => 0,  // ★ v1.2.0
+		'mention_email'       => 0,
 		'system_email'        => 0,
 
 		// Email 摘要頻率
