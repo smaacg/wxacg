@@ -2,10 +2,15 @@
 /**
  * Template Name: 番組表 - 季度詳細列表
  * File: blocksy-child/page-bangumi.php
- * Version: 1.7.2
+ * Version: 1.7.3
  * Date: 2026-08-17
  *
  * Changelog
+ *  v1.7.3 (2026-08-17) 修正跨季續播漏抓大量作品
+ *    - [Fix] 原本用「anime_end_date >= 本季開始」判斷跨季續播，但多數
+ *            正在播出的作品結束日是 0（未定），導致 17 部跨季作品裡有
+ *            15 部被濾掉（例如黃泉使者）。改以「開播日早於本季 + 狀態
+ *            仍為 RELEASING」判斷，結束日改在 PHP 端做例外過濾。
  *  v1.7.2 (2026-08-17) 緊急修正：OR meta_query 造成查詢逾時
  *    - [Fix] v1.7.0 用單一 OR meta_query 同時撈「本季新番」與「跨季續播」，
  *            WordPress 會為 OR 的每個子條件各自 LEFT JOIN postmeta，
@@ -141,12 +146,19 @@ $q = new WP_Query( array_merge( $bgm_query_base, [
     ],
 ] ) );
 
-// 跨季續播：仍在播出、且結束日落在本季（含）之後
+/**
+ * 跨季續播：在本季之前開播、且目前仍在播出的作品。
+ *
+ * ★ 不能用 anime_end_date 當條件——多數正在播出的作品結束日是 0（未定），
+ *   用「結束日 >= 本季開始」會把它們全部濾掉。改以「開播日早於本季」判斷，
+ *   是否已完結交給 anime_status。已收掉的作品（狀態仍為 RELEASING 但結束日
+ *   已過）於下方合併時再以 PHP 過濾，避免多一個 meta JOIN。
+ */
 $q_continuing = new WP_Query( array_merge( $bgm_query_base, [
     'meta_query' => [
         'relation' => 'AND',
-        [ 'key' => 'anime_status',   'value' => 'RELEASING',       'compare' => '=' ],
-        [ 'key' => 'anime_end_date', 'value' => $season_start_ymd, 'compare' => '>=', 'type' => 'NUMERIC' ],
+        [ 'key' => 'anime_status',     'value' => 'RELEASING',       'compare' => '=' ],
+        [ 'key' => 'anime_start_date', 'value' => $season_start_ymd, 'compare' => '<', 'type' => 'NUMERIC' ],
     ],
 ] ) );
 
@@ -161,6 +173,19 @@ foreach ( $q_continuing->posts as $bgm_obj ) {
     if ( isset( $bgm_seen_ids[ $bgm_id ] ) ) {
         continue;
     }
+
+    // 開播日不明的資料不納入（避免殘缺資料混進來）
+    $bgm_start = (int) get_post_meta( $bgm_id, 'anime_start_date', true );
+    if ( $bgm_start <= 0 ) {
+        continue;
+    }
+
+    // 結束日有填、且早於本季開始 → 本季之前就播完了，不算跨季續播
+    $bgm_end = (int) get_post_meta( $bgm_id, 'anime_end_date', true );
+    if ( $bgm_end > 0 && $bgm_end < $season_start_ymd ) {
+        continue;
+    }
+
     $bgm_seen_ids[ $bgm_id ] = true;
     $bgm_post_objects[]      = $bgm_obj;
 }
