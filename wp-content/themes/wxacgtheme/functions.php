@@ -1466,54 +1466,6 @@ function smacg_popular_tags_page(): void {
 	<?php
 }
 
-function smacg_get_popular_tags( int $limit = 15 ): array {
-	$limit      = max( 1, min( 50, $limit ) );
-	$configured = get_option( 'smacg_popular_tags', [] );
-	$tags       = [];
-
-	if ( is_array( $configured ) ) {
-		foreach ( $configured as $name ) {
-			$term = get_term_by(
-				'name',
-				(string) $name,
-				'post_tag'
-			);
-
-			if ( ! $term ) {
-				$term = get_term_by(
-					'slug',
-					sanitize_title( (string) $name ),
-					'post_tag'
-				);
-			}
-
-			if (
-				$term instanceof WP_Term &&
-				! is_wp_error( $term )
-			) {
-				$tags[] = $term;
-			}
-
-			if ( count( $tags ) >= $limit ) {
-				break;
-			}
-		}
-	}
-
-	if ( empty( $tags ) ) {
-		$tags = get_tags(
-			[
-				'orderby'    => 'count',
-				'order'      => 'DESC',
-				'number'     => $limit,
-				'hide_empty' => true,
-			]
-		);
-	}
-
-	return is_array( $tags ) ? $tags : [];
-}
-
 /* ============================================================
  * Email 驗證
  * ============================================================ */

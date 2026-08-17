@@ -34,27 +34,6 @@
  */
 if (!defined('ABSPATH')) exit;
 
-/* ===== 等級 ===== */
-function smacg_calc_level($points) {
-    // 每級門檻:100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500, 5500...
-    $thresholds = [0,100,300,600,1000,1500,2100,2800,3600,4500,5500];
-    $level = 1; $cur = 0; $next = 100;
-    foreach ($thresholds as $i => $t) {
-        if ($points >= $t) { $level = $i + 1; $cur = $t; $next = $thresholds[$i+1] ?? $t + 1000; }
-        else break;
-    }
-    $span    = max(1, $next - $cur);
-    $percent = min(100, round(($points - $cur) / $span * 100));
-    $titles  = ['新手','見習','愛好者','資深','達人','專家','大師','傳奇','神級','至尊','超凡'];
-    return [
-        'level'   => $level,
-        'current' => $cur,
-        'next'    => $next,
-        'percent' => $percent,
-        'title'   => $titles[$level-1] ?? '至尊',
-    ];
-}
-
 /* ===== 會員方案（兼容 wxacg_* / um_* / WP 內建 role）===== */
 function smacg_get_plan_label($user) {
     $roles = (array) $user->roles;
@@ -164,21 +143,6 @@ function smacg_get_user_ratings($uid) {
 
     smacg_prime_posts(array_column($normalized, 'anime_id'));
     return $normalized;
-}
-
-/* ===== 點數紀錄 ===== */
-function smacg_get_points_log($uid, $limit = 50) {
-    global $wpdb;
-    $tbl = $wpdb->prefix . 'smacg_points_log';
-
-    // 表不存在則回空,避免錯誤
-    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $tbl)) !== $tbl) return [];
-
-    return $wpdb->get_results($wpdb->prepare(
-        "SELECT change_value, reason, created_at FROM {$tbl}
-         WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
-        $uid, $limit
-    ), ARRAY_A) ?: [];
 }
 
 /* ===== 最近留言 ===== */

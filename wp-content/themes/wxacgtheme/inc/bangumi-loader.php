@@ -363,26 +363,6 @@ function smacg_bangumi_render_schema( array $ctx, array $posts ): void {
 		. '</script>' . "\n";
 }
 
-function smacg_bangumi_render_breadcrumb( array $ctx ): void {
-	$crumbs = [
-		[ 'name' => '首頁',   'url' => home_url( '/' ) ],
-		[ 'name' => '新番表', 'url' => home_url( '/bangumi/' ) ],
-		[ 'name' => $ctx['label'], 'url' => $ctx['canonical'] ],
-	];
-
-	echo '<nav class="bangumi-breadcrumb" aria-label="breadcrumb">';
-	$last = count( $crumbs ) - 1;
-	foreach ( $crumbs as $i => $c ) {
-		if ( $i === $last ) {
-			echo '<span class="bc-current">' . esc_html( $c['name'] ) . '</span>';
-		} else {
-			echo '<a href="' . esc_url( $c['url'] ) . '">' . esc_html( $c['name'] ) . '</a>';
-			echo '<i class="fa-solid fa-chevron-right" style="font-size:10px;opacity:.5;"></i>';
-		}
-	}
-	echo '</nav>';
-}
-
 /* ============================================================
  * 6. 自訂 sitemap：/bangumi-feed.xml（過去 3 年 + 未來 1 年所有季度）
  * ============================================================ */
