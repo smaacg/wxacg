@@ -2334,6 +2334,63 @@ class Anime_Sync_API_Handler {
      * @param int   $mal_id    用來抓 Jikan 日文標題對照的 MAL ID；0 代表跳過日文對照。
      * @return array [ 'slug' => string, 'themes' => array ]
      */
+    /**
+     * 查站內既有資料中，這位歌手是否已經有原文名。
+     *
+     * 對照表由所有 anime_themes 掃出來，以正規化後的羅馬字名為鍵。
+     * 快取 12 小時：匯入是分批進行的，同一輪內大量重複查詢不必每次掃資料庫；
+     * 過期重建才能把新查到的原文納入，形成「查到一次就長期受益」。
+     *
+     * @param string $name AnimeThemes 提供的歌手名（多為羅馬字）。
+     * @return string 找到的原文名；沒有則回空字串。
+     */
+    private function lookup_known_artist_native( string $name ): string {
+        static $map = null;
+
+        if ( $map === null ) {
+            $cached = get_transient( 'anime_sync_artist_native_map' );
+
+            if ( is_array( $cached ) ) {
+                $map = $cached;
+            } else {
+                global $wpdb;
+                $map = [];
+
+                $rows = $wpdb->get_col(
+                    "SELECT meta_value FROM {$wpdb->postmeta}
+                     WHERE meta_key = 'anime_themes' AND meta_value <> '' AND meta_value <> '[]'"
+                );
+
+                foreach ( $rows as $json ) {
+                    $themes = json_decode( (string) $json, true );
+                    if ( ! is_array( $themes ) ) {
+                        continue;
+                    }
+
+                    foreach ( $themes as $t ) {
+                        foreach ( (array) ( $t['artists'] ?? [] ) as $a ) {
+                            $native = trim( (string) ( $a['name_native'] ?? '' ) );
+                            $romaji = trim( (string) ( $a['name'] ?? '' ) );
+
+                            if ( $native === '' || $romaji === '' ) {
+                                continue;
+                            }
+
+                            $key = $this->normalize_title( $romaji );
+                            if ( $key !== '' && ! isset( $map[ $key ] ) ) {
+                                $map[ $key ] = $native;
+                            }
+                        }
+                    }
+                }
+
+                set_transient( 'anime_sync_artist_native_map', $map, 12 * HOUR_IN_SECONDS );
+            }
+        }
+
+        return $map[ $this->normalize_title( $name ) ] ?? '';
+    }
+
     private function parse_animethemes_payload( array $anime_arr, int $mal_id ): array {
         if ( empty( $anime_arr ) ) return [ 'slug' => '', 'themes' => [] ];
 
@@ -2384,9 +2441,22 @@ class Anime_Sync_API_Handler {
                     $name = trim( $a['name'] ?? '' );
                     if ( $name === '' ) continue;
                     $mb   = $this->fetch_mb_artist( $name );
+
+                    $name_native = trim( (string) ( $mb['name_native'] ?? '' ) );
+
+                    /*
+                     * MusicBrainz 用名字查有時對不到（拼法差異、同名藝人、
+                     * 資料缺漏），該歌手就只剩羅馬字可顯示。但同一位歌手很可能
+                     * 在別部作品已經查到過原文，這裡改查站內既有資料當後援，
+                     * 讓「查過一次就一直有」而不是每次重新賭 MB 查不查得到。
+                     */
+                    if ( $name_native === '' ) {
+                        $name_native = $this->lookup_known_artist_native( $name );
+                    }
+
                     $artists[] = [
                         'name'        => $name,
-                        'name_native' => $mb['name_native'] ?? '',
+                        'name_native' => $name_native,
                         'name_legal'  => $mb['name_legal']  ?? '',
                         'mbid'        => $mb['mbid']         ?? '',
                     ];
