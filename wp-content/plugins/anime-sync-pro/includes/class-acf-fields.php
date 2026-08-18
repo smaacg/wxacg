@@ -125,6 +125,94 @@ class Anime_Sync_ACF_Fields {
         add_action( 'acf/save_post', [ $this, 'auto_assign_editorial_reviewer' ], 20 );
 
         $this->register_mirror_hooks();
+        $this->register_json_paste_cleanup();
+    }
+
+    /**
+     * JSON 欄位：貼上時自動清掉 AI 回覆的前言與 markdown 圍欄。
+     *
+     * ★ 為什麼需要：這些欄位常由人工把 AI 產出的 JSON 貼進來，實務上很容易
+     *   連同「以下為您將 Bangumi 的…」這類開場白與 ```json 圍欄一起貼上，
+     *   存進去就不是合法 JSON，前台 json_decode() 回傳 null，角色／製作／
+     *   FAQ 區塊會靜默消失（不報錯，只是不見）。2026-08-18 稽核就找到 4 筆
+     *   這種資料（post 280、300、8565、1008）。
+     *
+     *   清理原則：只在「清理後能成功解析」時才採用清理結果；否則原樣保留，
+     *   讓使用者看得到自己貼了什麼、能自行修正 —— 不靜默丟棄資料。
+     */
+    private function register_json_paste_cleanup(): void {
+        $json_fields = [
+            'anime_cast_json',
+            'anime_staff_json',
+            'anime_episodes_json',
+            'anime_relations_json',
+            'anime_themes',
+            'anime_faq_json',
+        ];
+
+        foreach ( $json_fields as $name ) {
+            add_filter(
+                "acf/update_value/name={$name}",
+                [ $this, 'clean_pasted_json' ],
+                5,
+                1
+            );
+        }
+    }
+
+    /**
+     * 嘗試把貼歪的 JSON 修回合法格式。
+     *
+     * @param mixed $value ACF 傳入的欄位值。
+     * @return mixed 清理後的值；無法修復時回傳原值。
+     */
+    public function clean_pasted_json( $value ) {
+        if ( ! is_string( $value ) || '' === trim( $value ) ) {
+            return $value;
+        }
+
+        json_decode( $value );
+
+        // 本來就合法就不要動它。
+        if ( JSON_ERROR_NONE === json_last_error() ) {
+            return $value;
+        }
+
+        foreach ( self::json_repair_candidates( $value ) as $candidate ) {
+            json_decode( $candidate );
+
+            if ( JSON_ERROR_NONE === json_last_error() ) {
+                return $candidate;
+            }
+        }
+
+        // 修不好就原樣保留，方便人工檢查。
+        return $value;
+    }
+
+    /**
+     * 產生候選修復字串，由最常見的貼上失誤排到較少見的。
+     *
+     * @param string $value 原始字串。
+     * @return string[]
+     */
+    private static function json_repair_candidates( string $value ): array {
+        $candidates = [];
+
+        // 剝掉第一個 [ 或 { 之前的所有文字（AI 開場白）與 markdown 圍欄。
+        $stripped = preg_replace( '/^.*?(?=[\[\{])/su', '', $value );
+        $stripped = preg_replace( '/```[a-z]*\s*/i', '', (string) $stripped );
+
+        $candidates[] = rtrim( trim( (string) $stripped ), ';' );
+
+        // 結尾多了分號。
+        $candidates[] = rtrim( trim( $value ), ';' );
+
+        // 收尾的 } } 應為 } ]（手動編輯陣列時常見）。
+        $candidates[] = (string) preg_replace( '/\}\s*\}\s*$/', "}\n]", trim( $value ) );
+        $candidates[] = (string) preg_replace( '/\}\s*\}\s*$/', "}\n]", rtrim( trim( $value ), ';' ) );
+
+        return array_values( array_filter( $candidates, static fn( $c ) => '' !== $c ) );
     }
 
     /**
