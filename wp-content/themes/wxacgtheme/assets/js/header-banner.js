@@ -27,6 +27,9 @@
 		return;
 	}
 
+	// 前景層為選用；沒有就退回單層，其餘邏輯不變。
+	var fg = banner.querySelector( '.header-banner__fg' );
+
 	// 觸控裝置沒有游標，視差無從觸發
 	if ( window.matchMedia && ! window.matchMedia( '( hover: hover )' ).matches ) {
 		return;
@@ -37,9 +40,16 @@
 		return;
 	}
 
-	/* 位移幅度（px）。太大會露出邊界，太小看不出效果。 */
+	/*
+	 * 位移幅度（px）。太大會露出邊界，太小看不出效果。
+	 *
+	 * 前景倍率 > 1 是景深的來源：同一次滑鼠移動，前景走得比背景遠，
+	 * 視覺上就會被解讀成「前景離觀看者比較近」。倍率調得太高會顯得
+	 * 前景在背景上滑動、失去真實感，2~3 倍是堪用的範圍。
+	 */
 	var MAX_X = 18;
 	var MAX_Y = 6;
+	var FG_RATIO = 2.5;
 
 	var targetX = 0;
 	var targetY = 0;
@@ -47,8 +57,15 @@
 
 	function apply() {
 		ticking = false;
+
 		img.style.transform = 'translate3d(' + targetX.toFixed( 2 ) + 'px, ' +
 			targetY.toFixed( 2 ) + 'px, 0)';
+
+		if ( fg ) {
+			fg.style.transform = 'translate3d(' +
+				( targetX * FG_RATIO ).toFixed( 2 ) + 'px, ' +
+				( targetY * FG_RATIO ).toFixed( 2 ) + 'px, 0)';
+		}
 	}
 
 	function request() {

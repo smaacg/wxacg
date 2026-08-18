@@ -26,7 +26,8 @@ defined( 'ABSPATH' ) || exit;
 $brand_logo_url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/wxacglogo-300x288.webp';
 
 // Header 裝飾橫幅：網址與說明見 functions.php 的 wxacg_header_banner_url()。
-$header_banner_url = function_exists( 'wxacg_header_banner_url' ) ? wxacg_header_banner_url() : '';
+$header_banner_url    = function_exists( 'wxacg_header_banner_url' ) ? wxacg_header_banner_url() : '';
+$header_banner_fg_url = function_exists( 'wxacg_header_banner_fg_url' ) ? wxacg_header_banner_fg_url() : '';
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -52,9 +53,16 @@ if ( ! is_user_logged_in() ) {
 <header class="site-header glass-mid" id="site-header">
 
   <?php if ( $header_banner_url !== '' ) : ?>
-  <!-- 裝飾橫幅：純視覺，對輔助技術隱藏；視差由 header-banner.js 處理 -->
+  <!--
+    裝飾橫幅：純視覺，對輔助技術隱藏；視差由 header-banner.js 處理。
+    疊層順序（由下而上）：背景 → 前景物件 → 遮罩。
+    遮罩必須蓋在前景之上，否則前景不會被壓暗，看起來像貼上去的貼紙。
+  -->
   <div class="header-banner" id="header-banner" aria-hidden="true">
     <div class="header-banner__img" style="background-image:url('<?php echo esc_url( $header_banner_url ); ?>');"></div>
+    <?php if ( $header_banner_fg_url !== '' ) : ?>
+    <div class="header-banner__fg" style="background-image:url('<?php echo esc_url( $header_banner_fg_url ); ?>');"></div>
+    <?php endif; ?>
     <div class="header-banner__scrim"></div>
   </div>
   <?php endif; ?>

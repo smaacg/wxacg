@@ -99,8 +99,32 @@
 }
 
 /*
+ * 前景層：與背景層共用完全相同的定位參數，只有位移幅度不同（見
+ * header-banner.js）。兩張圖尺寸相同，對齊因此由構造保證，不需要在這裡
+ * 換算任何百分比。
+ */
+.header-banner__fg {
+  position: absolute;
+  top: -6%;
+  bottom: -6%;
+  left: -4%;
+  right: -4%;
+
+  background-position: var(--header-banner-pos-x) var(--header-banner-pos-y);
+  background-size: var(--header-banner-zoom) auto;
+  background-repeat: no-repeat;
+
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+}
+
+/*
  * 遮罩：中央與左側壓得比較暗，因為 logo 與搜尋列在那裡；
  * 兩側稍微透一點，讓圖的主體看得見。
+ *
+ * ⚠ 必須疊在前景層之上（DOM 順序在後），否則前景不會被壓暗，
+ *   亮度與背景不一致，看起來像貼上去的貼紙。
  */
 .header-banner__scrim {
   position: absolute;
@@ -161,7 +185,8 @@
 
 /* 使用者偏好減少動態時，保留圖但不位移 */
 @media (prefers-reduced-motion: reduce) {
-  .header-banner__img {
+  .header-banner__img,
+  .header-banner__fg {
     transition: none;
     transform: none !important;
   }

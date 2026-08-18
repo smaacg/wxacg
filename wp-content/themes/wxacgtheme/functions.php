@@ -118,10 +118,11 @@ function wxacg_header_banner_url(): string {
 	 * 2560×200（12.8:1）。這個比例是刻意的：header 可視高度約 155px，
 	 * 先前的 2560×400 有四成高度會被裁掉，換成扁長版才能完整顯示。
 	 *
-	 * 指向 WebP 而非上傳的原始 PNG：原圖 218 KB，轉檔後 10.6 KB（省 95%），
-	 * 而 header 每一頁都會載入。
+	 * 這是「不含腳踏車」的版本 —— 腳踏車另外做成前景層（見
+	 * wxacg_header_banner_fg_url()），兩層以不同速度位移產生景深。
+	 * 若要退回單層，把網址換成 202608top.webp（含腳踏車）並把前景層留空。
 	 */
-	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/202608top.webp';
+	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/banner_2560x200_no_bike.webp';
 
 	/**
 	 * 允許以外掛或子主題覆寫橫幅來源（例如依季節輪播）。
@@ -129,6 +130,34 @@ function wxacg_header_banner_url(): string {
 	 * @param string $url 目前的橫幅網址。
 	 */
 	return (string) apply_filters( 'wxacg/header_banner_url', $url );
+}
+
+/**
+ * Header 橫幅的「前景層」圖片網址。
+ *
+ * 這一層會以比背景更大的幅度隨滑鼠位移，藉此產生景深 —— 移動幅度越大，
+ * 視覺上越靠近觀看者。回傳空字串即停用，橫幅退回單層。
+ *
+ * ★ 圖必須與背景層同尺寸（2560×200）且帶透明通道，物件放在它在畫面上
+ *   應該出現的位置。這樣兩層可以套用完全相同的 background-size 與
+ *   background-position，對齊由「尺寸相同」本身保證，不必在 CSS 裡換算
+ *   百分比 —— 換算一旦有誤差，位移時會非常明顯。
+ *
+ *   目前這張是把 bicycle_layer_from_banner.png（500×500 去背）合成到
+ *   2560×200 透明畫布上產生的，位置取自含／不含腳踏車兩張橫幅的像素比對
+ *   （x 364~590、y 68~198），對位驗證 76.4% 吻合。
+ *
+ * @return string
+ */
+function wxacg_header_banner_fg_url(): string {
+	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/bicycle_layer_2560x200.webp';
+
+	/**
+	 * 允許覆寫前景層來源。
+	 *
+	 * @param string $url 目前的前景層網址。
+	 */
+	return (string) apply_filters( 'wxacg/header_banner_fg_url', $url );
 }
 
 const WEIXIAOACG_ID_CATS  = [ 'announcement', 'news' ];
