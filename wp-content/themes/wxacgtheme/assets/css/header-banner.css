@@ -34,10 +34,14 @@
    *
    * 註：cover 會剛好鋪滿寬度、沒有多餘寬度可推，因此改用明確的縮放值。
    */
-  --header-banner-pos-x: 22%;
+  --header-banner-pos-x: 50%;
 
-  /* 放大倍率。越大可滑動範圍越多，但圖也會被拉伸得越明顯。 */
-  --header-banner-zoom: 118%;
+  /*
+   * 放大倍率。100% 表示以容器寬度為準、不額外放大，圖最清晰。
+   * 調高可製造左右餘裕讓 --header-banner-pos-x 生效，代價是圖被拉伸、
+   * 兩側裁切變多，只有在圖的構圖需要平移時才調。
+   */
+  --header-banner-zoom: 100%;
 }
 
 .header-banner {
