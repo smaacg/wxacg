@@ -239,18 +239,58 @@ class Anime_Sync_Manga_Wiki_Cron {
 					$data['manga_magazine'] = mb_substr( $ib['magazine'], 0, 200 );
 				}
 
-				// 地區卷數:港/台/陸,直接由 infobox 帶。
-				foreach ( [ 'volumes_tw', 'volumes_hk', 'volumes_cn' ] as $k ) {
+				// 地區卷數:韓/港/台/陸,直接由 infobox 帶。
+				foreach ( [ 'volumes_kr', 'volumes_tw', 'volumes_hk', 'volumes_cn' ] as $k ) {
 					if ( ! empty( $ib[ $k ] ) ) {
 						$data[ 'manga_' . $k ] = $ib[ $k ];
 					}
 				}
 
-				// 日版卷數:infobox 冊數為權威值,優先;出版表列數僅在 infobox 缺時補。
+				/*
+				 * ★ 出版表的列數只能補「該表真的含有的地區」，不能一律當日版。
+				 *
+				 *   原本寫法是 infobox 沒有 volumes_jp 時就把整表列數塞進
+				 *   manga_volumes_jp。對只有日版的作品沒問題，但韓國網漫會出事:
+				 *   《我獨自升級》的出版表是「韓國原版 + 中國版」，完全沒有日版，
+				 *   卻被寫成「日版 5 卷」——前台的各地區出版會顯示一個不存在的
+				 *   日本版本，而且看不出是錯的。
+				 *
+				 *   改為逐筆統計各地區實際出現的卷數，各自補各自的欄位。
+				 */
+				$region_counts = [];
+
+				foreach ( (array) ( $wiki['volumes'] ?? [] ) as $vol_row ) {
+					if ( ! is_array( $vol_row ) ) {
+						continue;
+					}
+
+					foreach ( [ 'kr', 'jp', 'tw', 'hk', 'cn' ] as $region ) {
+						if ( ! empty( $vol_row[ $region ] ) ) {
+							$region_counts[ $region ] = ( $region_counts[ $region ] ?? 0 ) + 1;
+						}
+					}
+				}
+
+				foreach ( [ 'kr', 'jp', 'tw', 'hk', 'cn' ] as $region ) {
+					$meta_key = 'manga_volumes_' . $region;
+
+					// infobox 的冊數是權威值，已在上面（或下面 jp）帶入時不覆蓋
+					if ( ! empty( $data[ $meta_key ] ) ) {
+						continue;
+					}
+
+					if ( ! empty( $ib[ 'volumes_' . $region ] ) ) {
+						continue;
+					}
+
+					if ( ! empty( $region_counts[ $region ] ) ) {
+						$data[ $meta_key ] = (int) $region_counts[ $region ];
+					}
+				}
+
+				// 日版卷數:infobox 冊數為權威值，優先於上面統計出來的列數。
 				if ( ! empty( $ib['volumes_jp'] ) ) {
 					$data['manga_volumes_jp'] = (int) $ib['volumes_jp'];
-				} elseif ( $table_vol_count > 0 ) {
-					$data['manga_volumes_jp'] = $table_vol_count;
 				}
 
 				// 首刊日(v1.2.1):infobox 開始日(連載開始日)為主來源,直接覆蓋 Wikidata。

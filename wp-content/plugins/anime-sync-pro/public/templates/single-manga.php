@@ -153,6 +153,8 @@ while ( have_posts() ) :
     // ── 維基來源欄位(M2)──
     $volumes_jp   = $get_meta( 'manga_volumes_jp' );
     $volumes_tw_m = $get_meta( 'manga_volumes_tw' );
+    // 韓國網漫的原版卷數（我獨自升級、全知讀者視角之類）
+    $volumes_kr_m = $get_meta( 'manga_volumes_kr' );
     $volumes_hk_m = $get_meta( 'manga_volumes_hk' );
     $volumes_cn_m = $get_meta( 'manga_volumes_cn' );
     $jp_publisher = $get_meta( 'manga_jp_publishers' );
@@ -726,6 +728,7 @@ while ( have_posts() ) :
 
     // 是否有任何地區出版資料
     $has_publish_region = ( $jp_publisher || $tw_publisher || $hk_publisher || $cn_publisher
+        || ( $volumes_kr_m !== '' && (int) $volumes_kr_m > 0 )
         || ( $volumes_jp !== '' && (int) $volumes_jp > 0 )
         || ( $volumes_tw_m !== '' && (int) $volumes_tw_m > 0 )
         || ( $volumes_hk_m !== '' && (int) $volumes_hk_m > 0 )
@@ -1526,6 +1529,9 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                         <div class="asd-region-grid">
                             <?php
                             $regions = [
+                                // 韓國排在日本之前:韓漫的原版就是韓國版，
+                                // 日本那格對這類作品往往是空的或代理版
+                                [ 'flag' => '🇰🇷', 'name' => '韓國', 'pub' => '', 'vol' => $volumes_kr_m, 'mag' => '' ],
                                 [ 'flag' => '🇯🇵', 'name' => '日本', 'pub' => $jp_publisher, 'vol' => $volumes_jp,   'mag' => $magazine ],
                                 [ 'flag' => '🇹🇼', 'name' => '台灣', 'pub' => $tw_publisher, 'vol' => ( $volumes_tw_m !== '' ? $volumes_tw_m : $tw_volumes ), 'mag' => '' ],
                                 [ 'flag' => '🇭🇰', 'name' => '香港', 'pub' => $hk_publisher, 'vol' => $volumes_hk_m, 'mag' => '' ],

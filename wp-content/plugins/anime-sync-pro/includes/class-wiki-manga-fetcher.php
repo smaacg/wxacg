@@ -135,7 +135,7 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 			'publisher_jp' => '', 'publisher_tw' => '', 'publisher_hk' => '', 'publisher_cn' => '',
 			'magazine'     => '',
 			'start_date'   => '',
-			'volumes_jp' => '', 'volumes_tw' => '', 'volumes_hk' => '', 'volumes_cn' => '',
+			'volumes_kr' => '', 'volumes_jp' => '', 'volumes_tw' => '', 'volumes_hk' => '', 'volumes_cn' => '',
 		];
 
 		if ( ! preg_match( '/\{\{Infobox animanga\/Manga(.*?)\}\}\s*(?:\{\{Infobox|$)/s', $wikitext, $m ) ) {
@@ -193,6 +193,8 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		// ---- 冊數(地區拆分) ----
 		$vol_raw = $get( [ '冊數', '卷數', '册数' ] );
 		if ( $vol_raw !== '' ) {
+			// 韓國排最前:韓漫條目常同時列出日本代理，先比日本會把原版數字誤判成日版
+			$out['volumes_kr'] = $this->extract_volume_count( $vol_raw, [ '韓國', '韩国', 'Korea', 'KOR' ] );
 			$out['volumes_jp'] = $this->extract_volume_count( $vol_raw, [ '日本', 'Japan', 'JPN' ] );
 			$out['volumes_tw'] = $this->extract_volume_count( $vol_raw, [ 'TWN', 'Taiwan', '臺灣', '台灣', '台湾' ] );
 			$out['volumes_hk'] = $this->extract_volume_count( $vol_raw, [ 'HKG', 'HK', '香港' ] );
@@ -302,8 +304,19 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 			if ( strpos( $lt, '!' ) !== 0 ) continue;
 			if ( stripos( $lt, 'colspan' ) === false && stripos( $lt, 'Flagicon' ) === false ) continue;
 
+			/*
+			 * ★ 韓國（kr）要排在最前面判斷。
+			 *
+			 *   韓國網漫的原版欄長這樣:{{flagicon|KOR}} [[D&C Media]]
+			 *   原本沒有這個分支，於是整欄被丟掉——《我獨自升級》因此只留下
+			 *   中國版，日／台／港全空，而且原版資料完全消失。
+			 *
+			 *   放最前面是因為韓國作品的條目常同時提到日本代理，若先比對 jp
+			 *   會把原版欄誤判成日版。
+			 */
 			$reg = '';
-			if ( preg_match( '/Flagicon\|\s*Japan|JPN|日本/u', $lt ) )                              $reg = 'jp';
+			if ( preg_match( '/Flagicon\|\s*(?:Korea|KOR)|大韓民國|大韩民国|韓國|韩国|D&amp;C Media|D&C Media/u', $lt ) ) $reg = 'kr';
+			elseif ( preg_match( '/Flagicon\|\s*Japan|JPN|日本/u', $lt ) )                              $reg = 'jp';
 			elseif ( preg_match( '/Flagicon\|\s*Hong Kong|HKG|香港|玉皇朝|天下出版/u', $lt ) )       $reg = 'hk';
 			elseif ( preg_match( '/Flagicon\|\s*Taiwan|TWN|ROC|臺灣|台灣|台湾|東立|青文|尖端/u', $lt ) ) $reg = 'tw';
 			elseif ( preg_match( '/Flagicon\|\s*China|CHNML|CHN|中國大陸|中国大陆|中國|中国/u', $lt ) )  $reg = 'cn';
@@ -315,12 +328,14 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		}
 		// fallback:表頭抓不到就沿用舊的整表偵測
 		if ( empty( $region_order ) ) {
-			$has_region = [ 'jp' => false, 'tw' => false, 'hk' => false, 'cn' => false ];
+			$has_region = [ 'kr' => false, 'jp' => false, 'tw' => false, 'hk' => false, 'cn' => false ];
+			if ( preg_match( '/(?:KOR|Korea|大韓民國|大韩民国|韓國|韩国)/u', $table ) ) $has_region['kr'] = true;
 			if ( preg_match( '/(?:JPN|Japan|日本)/u', $table ) )                     $has_region['jp'] = true;
 			if ( preg_match( '/(?:TWN|ROC|Taiwan|台灣|台湾|臺灣|東立)/u', $table ) ) $has_region['tw'] = true;
 			if ( preg_match( '/(?:HKG|Hong Kong|香港)/u', $table ) )                 $has_region['hk'] = true;
 			if ( preg_match( '/(?:CHNML|CHN|China|中國大陸|中国大陆|中國|中国)/u', $table ) ) $has_region['cn'] = true;
-			foreach ( [ 'jp', 'tw', 'hk', 'cn' ] as $r ) {
+			// 順序即欄位順序:原版（韓/日）在前，代理版在後
+			foreach ( [ 'kr', 'jp', 'tw', 'hk', 'cn' ] as $r ) {
 				if ( $has_region[ $r ] ) $region_order[] = $r;
 			}
 			if ( empty( $region_order ) ) $region_order = [ 'jp', 'tw' ];
@@ -438,7 +453,9 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 			}
 			$region_slots = [];
 			foreach ( $header_langs as $lang ) {
-				if ( preg_match( '/JPN|Japan|日本|日/u', $lang ) )                       $region_slots[] = 'jp';
+				// 韓國排最前:韓漫條目常同時提到日本代理，先比 jp 會把原版誤判成日版
+				if ( preg_match( '/KOR|Korea|韓國|韩国|韓/u', $lang ) )                  $region_slots[] = 'kr';
+				elseif ( preg_match( '/JPN|Japan|日本|日/u', $lang ) )                   $region_slots[] = 'jp';
 				elseif ( preg_match( '/CHN|China|中國大陸|中国大陆|大陸|大陆/u', $lang ) ) $region_slots[] = 'cn';
 				elseif ( preg_match( '/TWN|ROC|Taiwan|台灣|台湾|臺灣/u', $lang ) )         $region_slots[] = 'tw';
 				elseif ( preg_match( '/HKG|Hong Kong|香港/u', $lang ) )                  $region_slots[] = 'hk';

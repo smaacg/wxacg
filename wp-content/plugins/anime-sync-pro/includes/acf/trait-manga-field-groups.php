@@ -377,21 +377,31 @@ private function register_manga_fields(): void {
                     'name'         => 'manga_volumes_jp',
                     'type'         => 'number',
                     'instructions' => '維基出版表統計的實際卷數(最準)。',
-                    'wrapper'      => [ 'width' => '33' ],
+                    'wrapper'      => [ 'width' => '25' ],
+                ],
+                [
+                    // 韓國網漫（我獨自升級、全知讀者視角之類）的原版卷數。
+                    // 沒有這個欄位時，原版資料會被整欄丟掉，或被誤寫進日版欄位。
+                    'key'          => 'field_manga_volumes_kr',
+                    'label'        => '韓版已出卷數',
+                    'name'         => 'manga_volumes_kr',
+                    'type'         => 'number',
+                    'instructions' => '韓國網漫的原版卷數。',
+                    'wrapper'      => [ 'width' => '25' ],
                 ],
                 [
                     'key'          => 'field_manga_volumes_hk',
                     'label'        => '港版已出卷數',
                     'name'         => 'manga_volumes_hk',
                     'type'         => 'number',
-                    'wrapper'      => [ 'width' => '33' ],
+                    'wrapper'      => [ 'width' => '25' ],
                 ],
                 [
                     'key'          => 'field_manga_volumes_cn',
                     'label'        => '陸版已出卷數',
                     'name'         => 'manga_volumes_cn',
                     'type'         => 'number',
-                    'wrapper'      => [ 'width' => '34' ],
+                    'wrapper'      => [ 'width' => '25' ],
                 ],
                 [
                     'key'          => 'field_manga_volumes_json',
