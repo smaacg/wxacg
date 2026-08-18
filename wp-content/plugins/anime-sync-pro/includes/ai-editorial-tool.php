@@ -1259,6 +1259,64 @@ function wxacg_ai_editorial_page() {
 		)
 	);
 
+	/*
+	 * 每一頁的實際搜尋字詞。
+	 *
+	 * 這是寫短評時最缺的資訊——知道「別人搜什麼進來」，才知道這篇該回答什麼。
+	 * 實例:有人搜「冰之城牆第二季什麼時候出」「稜鏡戀曲 線上看」「冰之城牆聲優」，
+	 * 那三種需求要寫的內容完全不同;沒有這份資料只能憑感覺猜。
+	 *
+	 * 一次查完本頁所有文章的字詞（單一 SQL），不要在迴圈裡逐篇查。
+	 * 只在 GSC 相關排序時查——其他排序沒有這個需求，白跑一次查詢沒意義。
+	 */
+	$queries_by_post = [];
+
+	if ( in_array( $sort, [ 'gsc', 'gsc_only' ], true ) && $rows ) {
+		$gsc_table = wxacg_gsc_table();
+
+		if ( '' !== $gsc_table ) {
+			$slug_to_id = [];
+
+			foreach ( $rows as $row ) {
+				$slug = get_post_field( 'post_name', (int) $row->ID );
+
+				if ( '' !== $slug ) {
+					$slug_to_id[ '/anime/' . $slug . '/' ] = (int) $row->ID;
+				}
+			}
+
+			if ( $slug_to_id ) {
+				$placeholders = implode( ',', array_fill( 0, count( $slug_to_id ), '%s' ) );
+				$params       = array_keys( $slug_to_id );
+				$params[]     = gmdate( 'Y-m-d', strtotime( '-90 days' ) );
+
+				$query_rows = $wpdb->get_results(
+					$wpdb->prepare(
+						"SELECT page, query, SUM(impressions) AS imp
+						   FROM {$gsc_table}
+						  WHERE page IN ({$placeholders})
+						    AND created >= %s
+						    AND query <> ''
+					   GROUP BY page, query
+					   ORDER BY imp DESC",
+						$params
+					)
+				);
+
+				foreach ( (array) $query_rows as $q ) {
+					$pid = $slug_to_id[ $q->page ] ?? 0;
+
+					if ( $pid > 0 && count( $queries_by_post[ $pid ] ?? [] ) < 5 ) {
+						$queries_by_post[ $pid ][] = [
+							'q'   => (string) $q->query,
+							'imp' => (int) $q->imp,
+						];
+					}
+				}
+			}
+		}
+	}
+
 	$total_pages = $per_page > 0 ? (int) ceil( $found / $per_page ) : 1;
 	$base_url    = admin_url( 'admin.php?page=wxacg-ai-editorial' );
 	?>
@@ -1375,6 +1433,27 @@ function wxacg_ai_editorial_page() {
 								);
 								?>
 							</span>
+
+							<?php
+							/*
+							 * 使用者實際搜什麼進來這一頁。
+							 * 短評要回答的就是這些——有人搜「什麼時候出」、有人搜「線上看」、
+							 * 有人搜「聲優」，三種需求要寫的內容完全不同。
+							 */
+							?>
+							<?php if ( ! empty( $queries_by_post[ $pid ] ) ) : ?>
+								<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #dcdcde;">
+									<span style="font-size:10px;color:#787c82;">🔎 他們搜這些進來：</span>
+									<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;">
+										<?php foreach ( $queries_by_post[ $pid ] as $kw ) : ?>
+											<span
+												style="font-size:11px;background:#f0f0f1;border:1px solid #dcdcde;border-radius:10px;padding:1px 7px;color:#2c3338;"
+												title="曝光 <?php echo esc_attr( number_format( $kw['imp'] ) ); ?>"
+											><?php echo esc_html( $kw['q'] ); ?></span>
+										<?php endforeach; ?>
+									</div>
+								</div>
+							<?php endif; ?>
 						</td>
 						<td>
 							<textarea class="wxacg-ed-text" rows="2"
