@@ -54,6 +54,9 @@ class Anime_Sync_Manga_Admin {
 		// AJAX: 匯入單一漫畫
 		add_action( 'wp_ajax_anime_sync_manga_import_single', [ $this, 'handle_ajax_import_single' ] );
 
+		// AJAX: 熱門漫畫排行（批次匯入用）
+		add_action( 'wp_ajax_anime_sync_manga_popularity', [ $this, 'handle_ajax_popularity' ] );
+
 		// ★ [1.4.0] 維基同步 metabox + 資產 + AJAX
 		add_action( 'add_meta_boxes',        [ $this, 'register_wiki_metabox' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_wiki_assets' ]   );
@@ -109,7 +112,7 @@ class Anime_Sync_Manga_Admin {
 	}
 
 	/* ============================================================
-	 * 前端資產（匯入頁 inline JS，免額外檔案）
+	 * 前端資產（匯入頁 JS）
 	 * ============================================================ */
 	public function enqueue_assets( string $hook ): void {
 		// 只在本頁載入
@@ -117,57 +120,32 @@ class Anime_Sync_Manga_Admin {
 			return;
 		}
 
-		$nonce = wp_create_nonce( self::NONCE_ACTION );
+		/*
+		 * v2.0.0：原本整段 JS 內嵌在此處的 heredoc 裡。加入批次匯入後
+		 * 長度會讓這個函式難以維護，因此改為載入獨立檔案。
+		 */
+		// 常數名與 render_page() 一致，避免兩處各用一個而其中一個未定義。
+		$rel  = 'admin/assets/js/manga-import.js';
+		$base = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : plugin_dir_path( dirname( __FILE__ ) );
+		$url  = defined( 'ANIME_SYNC_PRO_URL' ) ? ANIME_SYNC_PRO_URL : plugin_dir_url( dirname( __FILE__ ) );
+		$abs  = trailingslashit( $base ) . $rel;
 
-		$js = <<<JS
-(function(){
-	document.addEventListener('DOMContentLoaded', function(){
-		var btn    = document.getElementById('asp-manga-import-btn');
-		var input  = document.getElementById('asp-manga-anilist-id');
-		var bgm    = document.getElementById('asp-manga-bangumi-id');
-		var force  = document.getElementById('asp-manga-force');
-		var result = document.getElementById('asp-manga-result');
-		if(!btn) return;
+		if ( ! file_exists( $abs ) ) {
+			return;
+		}
 
-		btn.addEventListener('click', function(){
-			var anilistId = parseInt(input.value, 10);
-			if(!anilistId){ result.innerHTML = '<span style="color:#d63638">請輸入 AniList 漫畫 ID</span>'; return; }
+		wp_enqueue_script(
+			'asp-manga-admin',
+			trailingslashit( $url ) . $rel,
+			[],
+			filemtime( $abs ),
+			true
+		);
 
-			btn.disabled = true;
-			result.innerHTML = '匯入中，請稍候…';
-
-			var body = new URLSearchParams();
-			body.append('action', 'anime_sync_manga_import_single');
-			body.append('nonce', '{$nonce}');
-			body.append('anilist_id', anilistId);
-			if(bgm && bgm.value){ body.append('bangumi_id', parseInt(bgm.value, 10) || 0); }
-			if(force && force.checked){ body.append('force', '1'); }
-
-			fetch(ajaxurl, { method:'POST', credentials:'same-origin', body: body })
-				.then(function(r){ return r.json(); })
-				.then(function(res){
-					btn.disabled = false;
-					if(res.success){
-						var d = res.data || {};
-						var link = d.edit_link ? ('<a href="'+d.edit_link+'">編輯此漫畫</a>') : '';
-						var color = d.skipped ? '#dba617' : '#00a32a';
-						result.innerHTML = '<span style="color:'+color+'">'+(d.message||'匯入成功')+'</span> '+link;
-					} else {
-						result.innerHTML = '<span style="color:#d63638">❌ '+((res.data&&res.data.message)||'匯入失敗')+'</span>';
-					}
-				})
-				.catch(function(e){
-					btn.disabled = false;
-					result.innerHTML = '<span style="color:#d63638">❌ 請求錯誤: '+e.message+'</span>';
-				});
-		});
-	});
-})();
-JS;
-
-		wp_register_script( 'asp-manga-admin', '', [], ANIME_SYNC_PRO_VERSION, true );
-		wp_enqueue_script( 'asp-manga-admin' );
-		wp_add_inline_script( 'asp-manga-admin', $js );
+		wp_localize_script( 'asp-manga-admin', 'aspMangaImport', [
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( self::NONCE_ACTION ),
+		] );
 	}
 
 	/* ============================================================
@@ -233,6 +211,36 @@ JS;
 			'edit_link' => $result['edit_url'] ?? '',
 			'skipped'   => ! empty( $result['skipped'] ),
 		] );
+	}
+
+	/**
+	 * AJAX：取得 AniList 熱門漫畫排行。
+	 *
+	 * 供批次匯入頁勾選用；實際匯入仍走 handle_ajax_import_single()，
+	 * 一次一部，前端以佇列逐筆送出。
+	 */
+	public function handle_ajax_popularity(): void {
+
+		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( [ 'message' => '權限不足' ], 403 );
+		}
+
+		if ( ! class_exists( 'Anime_Sync_API_Handler' ) ) {
+			wp_send_json_error( [ 'message' => 'API Handler 未載入' ], 500 );
+		}
+
+		$page = isset( $_POST['page'] ) ? max( 1, absint( $_POST['page'] ) ) : 1;
+
+		$api    = new Anime_Sync_API_Handler();
+		$result = $api->fetch_anilist_manga_popularity( $page );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ], 500 );
+		}
+
+		wp_send_json_success( $result );
 	}
 
 	/* ============================================================

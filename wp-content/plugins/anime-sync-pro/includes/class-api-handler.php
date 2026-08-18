@@ -1233,6 +1233,129 @@ class Anime_Sync_API_Handler {
         return $result;
     }
 
+    /**
+     * AniList 熱門漫畫排行（供漫畫批次匯入使用）。
+     *
+     * 刻意另開一個方法而非替 fetch_anilist_popularity() 加參數：動畫版
+     * 回傳 episodes／season_year，漫畫版要的是 chapters／volumes／起始年，
+     * 欄位對不上；共用一個方法只會讓兩邊都得寫判斷。動畫那邊的呼叫端
+     * 因此完全不受影響。
+     *
+     * @param int $page 頁碼，每頁 50 筆。
+     * @return array|WP_Error
+     */
+    public function fetch_anilist_manga_popularity( int $page = 1 ): array|WP_Error {
+
+        $cache_key = 'anime_sync_manga_popularity_p' . $page;
+        $cached    = get_transient( $cache_key );
+
+        if ( $cached !== false ) {
+            return $cached;
+        }
+
+        $query = '
+        query ($page: Int) {
+          Page(page: $page, perPage: 50) {
+            pageInfo { total currentPage hasNextPage }
+            media(type: MANGA, sort: POPULARITY_DESC) {
+              id
+              title { romaji native }
+              coverImage { large }
+              format
+              status
+              chapters
+              volumes
+              startDate { year }
+              popularity
+              countryOfOrigin
+            }
+          }
+        }';
+
+        $decoded = $this->anilist_request( $query, [ 'page' => $page ], 15 );
+
+        if ( is_wp_error( $decoded ) ) {
+            return $decoded;
+        }
+
+        $page_obj = $decoded['data']['Page'] ?? null;
+
+        if ( ! $page_obj ) {
+            return new WP_Error( 'anilist_no_page', 'AniList manga popularity: no Page in response.' );
+        }
+
+        $items = [];
+
+        foreach ( $page_obj['media'] ?? [] as $media ) {
+            $al_id   = (int) ( $media['id'] ?? 0 );
+            $post_id = $this->find_existing_manga_post( $al_id );
+
+            $items[] = [
+                'anilist_id'   => $al_id,
+                'title_romaji' => $media['title']['romaji'] ?? '',
+                'title_native' => $media['title']['native'] ?? '',
+                'cover_image'  => $media['coverImage']['large'] ?? '',
+                'format'       => $media['format'] ?? '',
+                'status'       => $media['status'] ?? '',
+                'chapters'     => (int) ( $media['chapters'] ?? 0 ),
+                'volumes'      => (int) ( $media['volumes'] ?? 0 ),
+                'start_year'   => (int) ( $media['startDate']['year'] ?? 0 ),
+                'country'      => $media['countryOfOrigin'] ?? '',
+                'popularity'   => (int) ( $media['popularity'] ?? 0 ),
+                'imported'     => $post_id > 0,
+                'post_id'      => $post_id,
+                'edit_url'     => $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '',
+            ];
+        }
+
+        $result = [
+            'page_info' => $page_obj['pageInfo'] ?? [],
+            'items'     => $items,
+        ];
+
+        set_transient( $cache_key, $result, 30 * MINUTE_IN_SECONDS );
+
+        return $result;
+    }
+
+    /**
+     * 查漫畫是否已匯入。與 find_existing_post() 同樣邏輯，只差 post_type。
+     *
+     * @param int $anilist_id AniList 漫畫 ID。
+     * @return int 文章 ID，未匯入時為 0。
+     */
+    private function find_existing_manga_post( int $anilist_id ): int {
+        if ( $anilist_id <= 0 ) {
+            return 0;
+        }
+
+        $cache_key = 'anime_sync_existing_manga_' . $anilist_id;
+        $cached    = wp_cache_get( $cache_key, 'anime_sync' );
+
+        if ( $cached !== false ) {
+            return (int) $cached;
+        }
+
+        $q = new WP_Query( [
+            'post_type'      => 'manga',
+            'post_status'    => 'any',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [ [
+                'key'     => 'anime_anilist_id',
+                'value'   => $anilist_id,
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            ] ],
+        ] );
+
+        $post_id = ! empty( $q->posts ) ? (int) $q->posts[0] : 0;
+        wp_cache_set( $cache_key, $post_id, 'anime_sync', 300 );
+
+        return $post_id;
+    }
+
     // =========================================================================
     // PUBLIC – 重新同步 Bangumi（ACG 新增）
     // =========================================================================
