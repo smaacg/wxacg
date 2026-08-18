@@ -89,7 +89,25 @@ if ( ! function_exists( 'wx_asp_get_anime_seo_desc' ) ) {
 			$parts[] = '動畫製作：' . $studio;
 		}
 
-		if ( $source && isset( $source_labels[ $source ] ) ) {
+		/*
+		 * 原作國別可補足 AniList source 分不出來的韓漫／國漫，與作品頁
+		 * 顯示、分類法指派共用 anime_sync_resolve_source_key() 的判斷，
+		 * 避免搜尋結果的描述寫「其他」、頁面上卻寫「韓國漫畫改編」。
+		 */
+		$source_key = function_exists( 'anime_sync_resolve_source_key' )
+			? anime_sync_resolve_source_key(
+				(string) $source,
+				(string) get_post_meta( $post_id, 'anime_source_country', true )
+			)
+			: strtoupper( trim( (string) $source ) );
+
+		$source_map = function_exists( 'anime_sync_get_source_tax_map' )
+			? anime_sync_get_source_tax_map()
+			: [];
+
+		if ( isset( $source_map[ $source_key ]['name'] ) ) {
+			$parts[] = $source_map[ $source_key ]['name'];
+		} elseif ( $source && isset( $source_labels[ $source ] ) ) {
 			$parts[] = $source_labels[ $source ];
 		}
 

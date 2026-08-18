@@ -682,7 +682,42 @@ function anime_sync_get_source_tax_map(): array {
 		'MULTIMEDIA_PROJECT' => [ 'name' => '多媒體企劃',     'slug' => 'multimedia-project' ],
 		'PICTURE_BOOK'       => [ 'name' => '繪本改編',       'slug' => 'picture-book'       ],
 		'OTHER'              => [ 'name' => '其他',           'slug' => 'other'              ],
+
+		/*
+		 * 以下為「原作國別」補足用的虛擬代碼，非 AniList 的 source 值。
+		 * AniList 的 source 列舉沒有韓國 webtoon／中國漫畫這類選項，遇到
+		 * 一律填 OTHER 或籠統歸為 MANGA，光看 source 全部會落在「其他」。
+		 * 由 anime_sync_resolve_source_key() 依原作國別轉出這些代碼。
+		 */
+		'SOURCE_KR'          => [ 'name' => '韓國漫畫改編',   'slug' => 'korean-manhwa'      ],
+		'SOURCE_CN'          => [ 'name' => '中國漫畫改編',   'slug' => 'chinese-manhua'     ],
+		'SOURCE_TW'          => [ 'name' => '台灣漫畫改編',   'slug' => 'taiwan-manga'       ],
 	];
+}
+
+/**
+ * 依原作來源與原作國別，決定對照表要用哪一個代碼。
+ *
+ * 匯入、SEO 描述、分類法指派共用這一個判斷，避免各處各自寫一套而分歧
+ * （曾發生前台顯示「韓國漫畫改編」、分類法卻仍掛在「其他」的情況）。
+ *
+ * @param string $source         AniList source 代碼。
+ * @param string $source_country 原作國別（見 anime_source_country）。
+ * @return string 對照表用的代碼。
+ */
+function anime_sync_resolve_source_key( string $source, string $source_country = '' ): string {
+	$source  = strtoupper( trim( $source ) );
+	$country = strtoupper( trim( $source_country ) );
+
+	// 只在 source 本身分不出來時才用國別覆蓋，避免蓋掉輕小說等明確分類。
+	if (
+		in_array( $country, [ 'KR', 'CN', 'TW' ], true )
+		&& in_array( $source, [ 'OTHER', 'MANGA', 'COMIC', '' ], true )
+	) {
+		return 'SOURCE_' . $country;
+	}
+
+	return $source;
 }
 
 /* ============================================================

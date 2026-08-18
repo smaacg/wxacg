@@ -106,7 +106,13 @@ class Anime_Sync_Source_Tax_Backfill {
 					}
 				}
 
-				$source_key = strtoupper( $source_raw );
+				// 與匯入、SEO 描述共用同一套判斷（原作國別可補足韓漫／國漫）。
+				$source_key = function_exists( 'anime_sync_resolve_source_key' )
+					? anime_sync_resolve_source_key(
+						$source_raw,
+						(string) get_post_meta( $post_id, 'anime_source_country', true )
+					)
+					: strtoupper( $source_raw );
 
 				if ( ! isset( $map[ $source_key ] ) ) {
 					if ( ! isset( $stats['unmapped'][ $source_key ] ) ) {

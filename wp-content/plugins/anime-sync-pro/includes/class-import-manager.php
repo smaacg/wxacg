@@ -841,7 +841,14 @@ class Anime_Sync_Import_Manager {
 
 		if ( $source !== '' && function_exists( 'anime_sync_get_source_tax_map' ) ) {
 			$source_map  = anime_sync_get_source_tax_map();
-			$source_key  = strtoupper( trim( (string) $source ) );
+
+			// 原作國別可補足 AniList source 分不出來的韓漫／國漫。
+			$source_key  = function_exists( 'anime_sync_resolve_source_key' )
+				? anime_sync_resolve_source_key(
+					(string) $source,
+					(string) ( $data['anime_source_country'] ?? '' )
+				)
+				: strtoupper( trim( (string) $source ) );
 			$source_name = $source_map[ $source_key ]['name'] ?? '';
 			$source_slug = $source_map[ $source_key ]['slug'] ?? '';
 
