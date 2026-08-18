@@ -114,8 +114,14 @@ if ( ! defined( 'WXACG_ADSENSE_CLIENT' ) ) {
  * @return string
  */
 function wxacg_header_banner_url(): string {
-	// 原圖 2560×400 僅 13.8 KB，無需改用縮圖。
-	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/2026top.webp';
+	/*
+	 * 2560×200（12.8:1）。這個比例是刻意的：header 可視高度約 155px，
+	 * 先前的 2560×400 有四成高度會被裁掉，換成扁長版才能完整顯示。
+	 *
+	 * 指向 WebP 而非上傳的原始 PNG：原圖 218 KB，轉檔後 10.6 KB（省 95%），
+	 * 而 header 每一頁都會載入。
+	 */
+	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/202608top.webp';
 
 	/**
 	 * 允許以外掛或子主題覆寫橫幅來源（例如依季節輪播）。
