@@ -109,7 +109,12 @@
   display: flex;
   align-items: center;
   gap: 30px;
-  height: 82px;
+  /*
+   * 整個 header 的總高＝本列 + .header-nav-bar（約 41px）+ 上下框線 2px。
+   * 2026-08-18 由 124px 調整為 155px，加高的部分全放在這一列，
+   * 讓 logo 與搜尋列有更多空間；導覽列高度不變。
+   */
+  height: 113px;
 }
 
 
