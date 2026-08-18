@@ -910,7 +910,7 @@ function wxacg_editorial_prompt( $post_id ) {
 		$facts[] = '形式：' . $format;
 	}
 
-	$source = wxacg_editorial_source_label( $get( 'anime_source' ), $get( 'anime_country' ) );
+	$source = wxacg_editorial_source_label( $get( 'anime_source' ), $get( 'anime_source_country' ) );
 	if ( '' !== $source ) {
 		$facts[] = '原作：' . $source;
 	}

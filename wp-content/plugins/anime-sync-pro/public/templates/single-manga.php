@@ -364,7 +364,21 @@ while ( have_posts() ) :
     $format_label = $format_labels[ $format ] ?? $format;
     $status_label = $status_labels[ $status ] ?? $status;
     $status_class = $status_classes[ $status ] ?? '';
-    $source_label = $source_labels[ $source ] ?? $source;
+    /*
+     * 與動漫頁同一套判斷：AniList 的 source 分不出韓國 webtoon／中國漫畫，
+     * 遇到就填 OTHER 或籠統歸為 MANGA，改以 countryOfOrigin 補足。
+     */
+    $country               = strtoupper( trim( (string) $get_meta( 'anime_source_country' ) ) );
+    $country_source_labels = [
+        'KR' => '韓國漫畫',
+        'CN' => '中國漫畫',
+        'TW' => '台灣漫畫',
+    ];
+
+    $source_label = isset( $country_source_labels[ $country ] )
+        && in_array( $source, [ 'OTHER', 'MANGA', 'COMIC', '' ], true )
+            ? $country_source_labels[ $country ]
+            : ( $source_labels[ $source ] ?? $source );
 
     // $volumes_effective 已於上方追蹤列區塊計算（兩處需共用同一個值）
     $volumes_str  = ( $volumes_effective > 0 ) ? $volumes_effective . ' 卷' : '';

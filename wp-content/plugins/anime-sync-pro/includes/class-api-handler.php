@@ -107,6 +107,102 @@ class Anime_Sync_API_Handler {
         ];
     }
 
+    /**
+     * 取出「原作」的國別。
+     *
+     * ★ 不可用 Media.countryOfOrigin —— 那是「動畫的製作國」，不是原作國別。
+     *   最常見的韓漫改編就是「韓國原作 ＋ 日本製作」，兩者不同：
+     *
+     *     我獨自升級      source=OTHER, countryOfOrigin=JP（A-1 Pictures）
+     *                     relations: ADAPTATION → MANGA, countryOfOrigin=KR
+     *     全知讀者視角    同上模式
+     *
+     *   只有動畫本身也在當地製作時兩者才會一致（例：伊蓮娜．埃沃的觀察日誌，
+     *   製作公司 Laftel 是韓國公司，兩邊都是 KR），這是特例而非通則。
+     *
+     *   因此改看 relations 裡 relationType = ADAPTATION 的節點；那才是原作。
+     *   同一份查詢已經有 relations，補兩個欄位即可，無額外 API 成本。
+     *
+     * @param array $media AniList Media 節點。
+     * @return string 兩碼國別，判斷不出時為空字串。
+     */
+    private static function extract_source_country( array $media ): string {
+        // 動畫自身的製作國，作為查不到原作時的退路。
+        $production_country = strtoupper( trim( (string) ( $media['countryOfOrigin'] ?? '' ) ) );
+
+        /*
+         * ★ 動畫原創作品沒有原作，掛在它底下的 ADAPTATION 全是「後來的」
+         *   衍生改編。實例：數碼寶貝系列為原創動畫，AniList 上唯一的
+         *   ADAPTATION 是中國改編漫畫，照著抓就會把日本作品判成中國作品。
+         *   原創作品直接以製作國為準。
+         */
+        if ( 'ORIGINAL' === strtoupper( (string) ( $media['source'] ?? '' ) ) ) {
+            return $production_country;
+        }
+
+        $edges = $media['relations']['edges'] ?? [];
+
+        if ( ! is_array( $edges ) ) {
+            return $production_country;
+        }
+
+        // 原作可能是漫畫、小說或單篇，一律視為來源候選。
+        $source_formats = [ 'MANGA', 'NOVEL', 'ONE_SHOT' ];
+        $candidates     = [];
+
+        foreach ( $edges as $edge ) {
+            if ( ! is_array( $edge ) ) {
+                continue;
+            }
+
+            if ( 'ADAPTATION' !== ( $edge['relationType'] ?? '' ) ) {
+                continue;
+            }
+
+            $node = $edge['node'] ?? [];
+
+            if ( ! is_array( $node ) ) {
+                continue;
+            }
+
+            $format = strtoupper( (string) ( $node['format'] ?? '' ) );
+
+            if ( '' !== $format && ! in_array( $format, $source_formats, true ) ) {
+                continue;
+            }
+
+            $country = strtoupper( trim( (string) ( $node['countryOfOrigin'] ?? '' ) ) );
+
+            if ( '' !== $country ) {
+                $candidates[] = $country;
+            }
+        }
+
+        /*
+         * ★ AniList 未登錄原作關聯時退回製作國。實例：《那個夏天》
+         *   （Geu Yeoreum）source=OTHER、無任何 ADAPTATION，但由韓國的
+         *   Red Dog Culture House 製作，countryOfOrigin=KR ——這種在地
+         *   自製作品，製作國就是它的來源。
+         */
+        if ( ! $candidates ) {
+            return $production_country;
+        }
+
+        /*
+         * ★ ADAPTATION 不分「原作」與「衍生改編」，兩個方向掛同一種關聯，
+         *   因此可能同時出現多個國別。實例：《數碼寶貝大冒險》同時關聯到
+         *   一部 CN 的改編漫畫與一部 JP 的小說，取第一個就會誤判成中國作品。
+         *
+         *   規則：候選裡只要有 JP 就採 JP。日本作品的外語改編屬衍生品；
+         *   真正的外國原作（我獨自升級、神之塔）不會有 JP 的 ADAPTATION。
+         */
+        if ( in_array( 'JP', $candidates, true ) ) {
+            return 'JP';
+        }
+
+        return $candidates[0];
+    }
+
   // =========================================================================
     // PUBLIC – 核心匯入（ACB）目標 < 15 秒
     // =========================================================================
@@ -253,9 +349,10 @@ class Anime_Sync_API_Handler {
             'anime_season'           => $season,
             'anime_season_year'      => $season_year,
             'anime_source'           => $media['source'] ?? '',
-            // AniList 的 source 沒有「韓國漫畫／webtoon」這類選項，遇到就填 OTHER；
-            // 要分辨得靠 countryOfOrigin，因此一併存下（同一個查詢，無額外成本）。
+            // 動畫本身的製作國。注意這不等於原作國別，見下一行。
             'anime_country'          => $media['countryOfOrigin'] ?? '',
+            // 原作國別：取自 ADAPTATION 關聯，才是判斷「韓漫改編」該用的值。
+            'anime_source_country'   => self::extract_source_country( $media ),
             'anime_episodes'         => $episodes,
             'anime_duration'         => (int) ( $media['duration'] ?? 0 ),
             'anime_studios'          => implode( ', ', $studios ),
@@ -707,9 +804,10 @@ class Anime_Sync_API_Handler {
             'anime_season'           => $season,
             'anime_season_year'      => $season_year,
             'anime_source'           => $media['source'] ?? '',
-            // AniList 的 source 沒有「韓國漫畫／webtoon」這類選項，遇到就填 OTHER；
-            // 要分辨得靠 countryOfOrigin，因此一併存下（同一個查詢，無額外成本）。
+            // 動畫本身的製作國。注意這不等於原作國別，見下一行。
             'anime_country'          => $media['countryOfOrigin'] ?? '',
+            // 原作國別：取自 ADAPTATION 關聯，才是判斷「韓漫改編」該用的值。
+            'anime_source_country'   => self::extract_source_country( $media ),
             'anime_episodes'         => $episodes,
             'anime_duration'         => (int) ( $media['duration'] ?? 0 ),
             'anime_studios'          => implode( ', ', $studios ),
@@ -887,7 +985,9 @@ class Anime_Sync_API_Handler {
             'anime_status'             => $media['status'] ?? '',
             'anime_source'             => $media['source'] ?? '',
             // 同上：漫畫查詢本來就有 countryOfOrigin，之前抓了卻沒存。
+            // 漫畫本身就是原作，製作國即原作國別，兩個欄位同值。
             'anime_country'            => $media['countryOfOrigin'] ?? '',
+            'anime_source_country'     => $media['countryOfOrigin'] ?? '',
             'anime_score_anilist'      => $score_anilist,
             'anime_score_bangumi'      => $score_bangumi,
             'anime_score_mal'          => $score_mal,   // ★ 新增
@@ -1576,7 +1676,7 @@ class Anime_Sync_API_Handler {
             relations {
               edges {
                 relationType
-                node { id type title { romaji } }
+                node { id type format countryOfOrigin title { romaji } }
               }
             }
           }

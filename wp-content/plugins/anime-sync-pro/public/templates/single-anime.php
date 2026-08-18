@@ -1840,7 +1840,23 @@ while ( have_posts() ) :
 	$format_label = $format_labels[ $format ] ?? $format;
 	$status_label = $status_labels[ $status ] ?? $status;
 	$status_class = $status_classes[ $status ] ?? '';
-	$source_label = $source_labels[ $source ] ?? $source;
+	/*
+	 * AniList 的 source 沒有「韓國漫畫／webtoon」「中國漫畫」這類選項，
+	 * 遇到就一律填 OTHER（或籠統歸為 MANGA），光看 source 分不出來。
+	 * 例：《伊蓮娜．埃沃的觀察日誌》source=OTHER、countryOfOrigin=KR。
+	 * 因此非日本作品改以國別補足，其餘維持原對照。
+	 */
+	$country              = strtoupper( trim( (string) $get_meta( 'anime_source_country' ) ) );
+	$country_source_labels = [
+		'KR' => '韓國漫畫改編',
+		'CN' => '中國漫畫改編',
+		'TW' => '台灣漫畫改編',
+	];
+
+	$source_label = isset( $country_source_labels[ $country ] )
+		&& in_array( $source, [ 'OTHER', 'MANGA', 'COMIC', '' ], true )
+			? $country_source_labels[ $country ]
+			: ( $source_labels[ $source ] ?? $source );
 
 	$ep_str = '';
 
