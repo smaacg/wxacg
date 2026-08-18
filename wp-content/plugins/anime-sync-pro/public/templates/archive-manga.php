@@ -369,6 +369,33 @@ if ( $list_elements ) {
         <?php echo paginate_links( [ 'prev_text' => '← 上一頁', 'next_text' => '下一頁 →', 'mid_size' => 2, 'type' => 'list' ] ); ?>
     </nav>
 
+    <?php
+    /*
+     * 頁尾類型連結（比照 archive-anime.php 的 .aaa-seo-footer）。
+     *
+     * 作用是補內部連結:讓分類頁從列表頁拿到連結，爬蟲比較容易走到。
+     *
+     * ★ 這裡刻意只放 genre 這種「真的分類法封存頁」，不放格式／狀態那些
+     *   以查詢參數篩選的網址（/manga/?anime_format=MANGA）。
+     *   參數式篩選頁與列表頁內容高度重疊，當成內部連結推出去會製造
+     *   重複內容，屬於 Google 說的 faceted navigation 問題。
+     *
+     *   動畫版另有「動漫格式」一列，是因為動畫有 anime_format_tax 分類法;
+     *   漫畫目前沒有指派該分類法（save_taxonomies() 只寫 genre），
+     *   等匯入端補上之後這裡再加第二列。
+     */
+    ?>
+    <?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
+    <div class="aaa-seo-footer">
+        <div class="aaa-seo-row">
+            <span class="aaa-seo-label">漫畫類型：</span>
+            <?php foreach ( $genre_terms as $seo_term ) : ?>
+                <a href="<?php echo esc_url( get_term_link( $seo_term ) ); ?>" class="aaa-seo-tag"><?php echo esc_html( $seo_term->name ); ?></a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
 <?php else : ?>
     <div class="aaa-empty">
         <?php if ( $is_search ) : ?>
