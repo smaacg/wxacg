@@ -130,6 +130,15 @@
   overflow: visible;
 }
 
+/*
+ * 桌機版把 logo 往右挪一點，不要緊貼容器左緣。
+ * 限 901px 以上：手機版的 .header-top 最左邊是漢堡選單，logo 不在起點，
+ * 加了外距反而會把它推歪。
+ */
+@media (min-width: 901px) {
+  .site-logo { margin-left: var(--logo-offset-x, 48px); }
+}
+
 .logo-icon-box {
   display: inline-flex;
   align-items: center;
