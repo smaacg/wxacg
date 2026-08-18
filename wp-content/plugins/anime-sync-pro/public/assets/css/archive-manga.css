@@ -134,7 +134,40 @@
 }
 
 /* 類型篩選 */
-.aaa-filter-wrap { margin-bottom: 28px; }
+/*
+ * 篩選區外框。
+ *
+ * ★ 原本只有一行 margin-bottom，沒有卡片外觀——動畫列表的
+ *   .aaa-filter-wrap 是一張有背景、邊框、圓角與陰影的卡片，
+ *   漫畫列表少了它，篩選項目就直接貼在頁面底色上，兩邊看起來不一致。
+ *
+ *   群組之間的間距也一併由這裡的 gap 給:.aaa-filter-group 在本檔沒有
+ *   任何樣式，動畫端同樣是靠外框的 flex column 來排，作法保持一致。
+ *
+ *   圓角取 24px 與動畫端相同（本檔的 --aaa-radius-md 是 18px，
+ *   這裡刻意不用，以免兩個列表的外框弧度對不上）。
+ */
+.aaa-filter-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	padding: 22px;
+	margin-bottom: 36px;
+	border-radius: 24px;
+	background: var(--aaa-surface);
+	border: 1px solid var(--aaa-border);
+	box-shadow: var(--aaa-shadow-md);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+
+@media screen and (max-width: 600px) {
+	.aaa-filter-wrap {
+		padding: 16px;
+		gap: 14px;
+		border-radius: 18px;
+	}
+}
 .aaa-filter-label {
 	font-size: 13px;
 	font-weight: 700;
