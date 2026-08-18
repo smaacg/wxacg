@@ -1315,7 +1315,8 @@ class Anime_Sync_API_Handler {
             if ( $is_locked( 'anime_staff_json' ) ) {
                 $skipped[] = 'anime_staff_json';
             } else {
-                update_post_meta( $post_id, 'anime_staff_json', wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE ) );
+                // wp_slash：update_post_meta 內部會 wp_unslash，不補會吃掉 JSON 的 \"
+                update_post_meta( $post_id, 'anime_staff_json', wp_slash( wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE ) ) );
                 $updated[] = 'anime_staff_json';
             }
         }
@@ -1327,7 +1328,7 @@ class Anime_Sync_API_Handler {
             if ( $is_locked( 'anime_cast_json' ) ) {
                 $skipped[] = 'anime_cast_json';
             } else {
-                update_post_meta( $post_id, 'anime_cast_json', wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE ) );
+                update_post_meta( $post_id, 'anime_cast_json', wp_slash( wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE ) ) );
                 $updated[] = 'anime_cast_json';
             }
         }
@@ -1339,7 +1340,7 @@ class Anime_Sync_API_Handler {
             if ( $is_locked( 'anime_episodes_json' ) ) {
                 $skipped[] = 'anime_episodes_json';
             } else {
-                update_post_meta( $post_id, 'anime_episodes_json', wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE ) );
+                update_post_meta( $post_id, 'anime_episodes_json', wp_slash( wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE ) ) );
                 $updated[] = 'anime_episodes_json';
             }
         }

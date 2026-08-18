@@ -305,7 +305,8 @@ class Anime_Sync_Manga_Import_Manager {
 		if ( ! in_array( 'anime_staff_json', $locked, true ) ) {
 			$staff_json = $data['anime_staff_json'] ?? '';
 			if ( is_string( $staff_json ) && $staff_json !== '' && $staff_json !== '[]' ) {
-				update_post_meta( $post_id, 'anime_staff_json', $staff_json );
+				// wp_slash：update_post_meta 內部會 wp_unslash，不補會吃掉 JSON 的 \"
+				update_post_meta( $post_id, 'anime_staff_json', wp_slash( $staff_json ) );
 			}
 		}
 	}

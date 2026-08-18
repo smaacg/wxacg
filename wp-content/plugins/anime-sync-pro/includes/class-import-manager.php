@@ -557,13 +557,29 @@ class Anime_Sync_Import_Manager {
 		}
 	}
 
+	/**
+	 * ★ JSON 值必須 wp_slash() 後才交給 update_post_meta()。
+	 *
+	 *   WordPress 的 update_metadata() 內部會呼叫 wp_unslash( $meta_value )，
+	 *   也就是它預期收到的是「已加斜線」的資料。直接把 wp_json_encode() 的
+	 *   結果傳進去，JSON 裡的 \" 會被剝成 "，整個字串就不再是合法 JSON。
+	 *
+	 *   實際後果（2026-08-18 稽核）：凡標題含雙引號的作品，relations_json
+	 *   一律損毀，全站 23 筆，前台的「相關作品／系列作品」區塊直接不渲染
+	 *   （json_decode 回傳 null）。例：post 546《說了不打算愛我的公爵繼承人》
+	 *   —— 該頁 Search Console 曝光 1,184 次。
+	 *
+	 *   驗證：WP 7.0.4 核心確認呼叫 wp_unslash；實測不加 wp_slash 寫入後
+	 *   讀回即無法解析，加了則正常；全站 23 筆損毀樣本 100% 含未跳脫引號，
+	 *   2,009 筆正常樣本則零引號異常。
+	 */
 	private function prepare_meta_value( string $key, $value ) {
 		if ( $this->is_json_meta_key( $key ) ) {
 			$converted = is_string( $value )
 				? $this->cn_converter->convert_json_string( $value )
 				: wp_json_encode( $this->cn_converter->convert_mixed( $value ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
 
-			return $this->fix_staff_role_terms( $converted );
+			return wp_slash( $this->fix_staff_role_terms( $converted ) );
 		}
 
 		if ( $this->is_convertible_text_meta_key( $key ) ) {
@@ -605,6 +621,10 @@ class Anime_Sync_Import_Manager {
 			'anime_staff_json',
 			'anime_cast_json',
 			'anime_episodes_json',
+			// ★ anime_relations_json 原本漏列，導致它不走 JSON 處理路徑。
+			//   全站 23 筆解析失敗的 relations_json 皆源於此（見下方 wp_slash 說明）。
+			'anime_relations_json',
+			'anime_themes',
 		], true );
 	}
 
