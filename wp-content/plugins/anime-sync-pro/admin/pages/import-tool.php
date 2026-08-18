@@ -125,6 +125,9 @@ $converter_stats = $cn_converter->get_stats();
                     <label><input type="checkbox" class="format-filter-check" value="ONA" checked> ONA</label>
                     <label><input type="checkbox" class="format-filter-check" value="SPECIAL" checked> SPECIAL</label>
                     <label><input type="checkbox" class="format-filter-check" value="MUSIC"> MUSIC</label>
+                    <label style="margin-left:12px;border-left:1px solid #ccd0d4;padding-left:12px;">
+                        <input type="checkbox" id="filter-not-imported"> 只顯示未匯入
+                    </label>
                     <button type="button" id="btn-apply-format-filter" class="button button-small">套用篩選</button>
                     <span id="season-filter-count" class="asc-filter-count"></span>
                 </div>
@@ -753,7 +756,11 @@ function asc_progress_block( $prefix ) {
                 ? '<span class="status-imported">✓ 已匯入</span>'
                 : '<span class="status-new">未匯入</span>';
 
-            var tr = $('<tr>').attr('data-format', item.format || '').html(
+            // data-imported 供「只顯示未匯入」篩選使用（卡片改用 is-imported class）
+            var tr = $('<tr>')
+                .attr('data-format', item.format || '')
+                .attr('data-imported', imported ? '1' : '0')
+                .html(
                 '<td>' + chkCell + '</td>' +
                 '<td>' + escHtml(String(aid)) + '</td>' +
                 '<td>' + escHtml(item.title_romaji || '') + '</td>' +
@@ -789,17 +796,23 @@ function asc_progress_block( $prefix ) {
     $('#btn-apply-format-filter').on('click', function(){
         var enabled = [];
         $('.format-filter-check:checked').each(function(){ enabled.push($(this).val()); });
+
+        // 只顯示未匯入：表格看 data-imported，卡片看 is-imported class
+        var onlyNew = $('#filter-not-imported').is(':checked');
+
         var visibleCount = 0;
         $('#season-anime-tbody tr').each(function(){
             var fmt  = $(this).attr('data-format') || '';
-            var show = enabled.indexOf(fmt) !== -1;
+            var done = $(this).attr('data-imported') === '1';
+            var show = enabled.indexOf(fmt) !== -1 && !(onlyNew && done);
             $(this).toggleClass('format-hidden', !show);
         });
         $('#season-anime-cards .asc-import-card').each(function(){
             var fmt  = $(this).attr('data-format') || '';
-            var show = enabled.indexOf(fmt) !== -1;
+            var done = $(this).hasClass('is-imported');
+            var show = enabled.indexOf(fmt) !== -1 && !(onlyNew && done);
             $(this).toggle(show);
-            if (show && !$(this).hasClass('is-imported')) visibleCount++;
+            if (show && !done) visibleCount++;
         });
         $('#season-filter-count').text('篩選後未匯入 ' + visibleCount + ' 部');
     });

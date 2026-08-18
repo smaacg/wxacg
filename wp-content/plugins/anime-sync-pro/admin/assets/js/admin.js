@@ -12,9 +12,11 @@
  *     改 server-side render）。window.animeSyncBulkAction 為活碼，保留。
  *
  * v1.2.3 修正（匯入誤報 / 背景重複匯入）：
- *   - 季度匯入驗證與送出統一用 .season-item-check:checked（拿掉 :visible）。
  *   - 格式篩選只隱藏列，不再強制取消勾選。
- *   - 季度 / 系列 / 熱門 各自加重入鎖，防連點造成背景迴圈重複送 API。
+ *   - 系列 / 熱門 各自加重入鎖，防連點造成背景迴圈重複送 API。
+ *
+ * 2026-08-18：整段季度匯入實作已移除（與 import-tool.php 的較新版本重複，
+ * 兩者同時綁定同一批按鈕造成重複請求）。詳見下方該區塊的說明註解。
  */
 
 /* global jQuery, ajaxurl, animeSyncAdmin */
@@ -188,188 +190,24 @@
         } );
 
         /* ══════════════════════════════════════════════════════════════
-           SEASON BATCH IMPORT  (v1.2.3 修正)
-           ★ 驗證與送出統一用「所有勾選」(.season-item-check:checked)，拿掉 :visible
-           ★ 格式篩選只隱藏列，不清勾
-           ★ seasonImporting 重入鎖，防連點造成背景重複迴圈
+           SEASON BATCH IMPORT — 已於 2026-08-18 移除
+
+           本檔原有一份季度匯入實作（v1.2.3），但 admin/pages/import-tool.php
+           內嵌了一份較新的版本（v1.9.2），兩者同時載入且綁定同一批按鈕：
+             #btn-season-query / #btn-season-import / #btn-season-stop
+
+           後果：
+             · 按一次查詢會打兩次 AniList，匯入會跑兩套迴圈
+             · 兩邊寫同一組進度 UI（import-tool.php 以 $prefix 動態產生
+               season-progress-bar / season-import-log），互相覆蓋
+             · 本檔的計數用未限定範圍的 $('.season-item-check:checked')，
+               把手機卡片的 checkbox 一併算入，顯示「已勾選 190 部」
+               但實際只有 95 部（117 部作品各有表格與卡片兩個 checkbox）
+
+           import-tool.php 的版本功能完整涵蓋本區塊，且另有 ID 去重、
+           NaN 過濾與手機卡片支援，因此保留該版本、移除本區塊。
+           季度匯入相關邏輯請一律改動 import-tool.php。
         ══════════════════════════════════════════════════════════════ */
-
-        let seasonAnimeList  = [];
-        let seasonImportStop = false;
-        let seasonImporting  = false;   // ★ 新增：匯入進行中旗標
-
-        $( '#btn-season-query' ).on( 'click', function () {
-            if ( seasonImporting ) { alert( '匯入進行中，請先等待完成或按停止。' ); return; }
-
-            const season  = $( '#season-select' ).val();
-            const year    = parseInt( $( '#season-year-select' ).val() );
-            const $btn       = $( this );
-            const $btnImport = $( '#btn-season-import' );
-
-            $btn.prop( 'disabled', true ).text( t( 'querying', '查詢中…' ) );
-            $btnImport.prop( 'disabled', true );
-            $( '#season-preview' ).hide();
-            $( '#season-progress-wrap' ).hide();
-            seasonAnimeList = [];
-
-            ajaxPost( {
-                action : A.query_season,   // ★ 對齊 PHP 的 anime_sync_query_season
-                season : season,
-                year   : year,
-            } ).done( function ( resp ) {
-                if ( resp.success && resp.data.list ) {
-                    seasonAnimeList = resp.data.list;
-                    renderSeasonTable( seasonAnimeList );
-                    updateSeasonSummary();
-                    $( '#season-preview' ).show();
-                    $btnImport.prop( 'disabled', false );
-                } else {
-                    alert( String( resp.data || t( 'query_failed', '查詢失敗。' ) ).replace( /<[^>]*>/g, '' ) );
-                }
-            } ).fail( function () {
-                alert( t( 'network_error', '網路錯誤。' ) );
-            } ).always( function () {
-                $btn.prop( 'disabled', false ).text( t( 'query_season', '第一步：查詢季度動畫清單' ) );
-                $( '#season-query-spinner' ).hide();
-            } );
-        } );
-
-        function renderSeasonTable( list ) {
-            const $tbody = $( '#season-anime-tbody' ).empty();
-
-            list.forEach( function ( item ) {
-                const fmt = String( item.format || '' ).toUpperCase();
-
-                const $chk = $( '<input type="checkbox">' )
-                    .addClass( 'season-item-check' )
-                    .val( parseInt( item.anilist_id ) )
-                    .prop( 'checked', ! item.imported );
-
-                const $impSpan = $( '<span>' )
-                    .addClass( item.imported ? 'status-imported' : 'status-new' )
-                    .text( item.imported ? '✅ 已匯入' : '⬜ 未匯入' );
-
-                const $tr = $( '<tr>' ).attr( 'data-format', fmt );
-                $tr.append( $( '<td>' ).append( $chk ) );
-                $tr.append( makeTd( item.anilist_id ) );
-                $tr.append( makeTd( item.title_romaji || '-' ) );
-                $tr.append( makeTd( item.format       || '-' ) );
-                $tr.append( makeTd( item.episodes      || '?' ) );
-                $tr.append( makeTd( item.popularity    || 0 ) );
-                $tr.append( makeTd( item.status        || '-' ) );
-                $tr.append( $( '<td>' ).append( $impSpan ) );
-                $tbody.append( $tr );
-            } );
-        }
-
-        function updateSeasonSummary() {
-            const total   = $( '#season-anime-tbody tr' ).length;
-            const visible = $( '#season-anime-tbody tr:visible' ).length;
-            // ★ 勾選數改算「全部勾選」(不限 visible)，與匯入時一致
-            const checked = $( '.season-item-check:checked' ).length;
-            $( '#season-preview-summary' ).text(
-                '共 ' + total + ' 部，目前顯示 ' + visible + ' 部，已勾選 ' + checked + ' 部。'
-            );
-            $( '#season-filter-count' ).text( '顯示 ' + visible + ' / ' + total + ' 部' );
-        }
-
-        $( '#btn-apply-format-filter' ).on( 'click', function () {
-            const checked = [];
-            $( '.format-filter-check:checked' ).each( function () {
-                checked.push( $( this ).val().toUpperCase() );
-            } );
-            $( '#season-anime-tbody tr' ).each( function () {
-                const fmt = String( $( this ).data( 'format' ) || '' ).toUpperCase();
-                if ( checked.length === 0 || checked.indexOf( fmt ) !== -1 ) {
-                    $( this ).show();
-                } else {
-                    // ★ 只隱藏，不再清勾（避免「看到有勾但被清掉」的錯覺）
-                    $( this ).hide();
-                }
-            } );
-            updateSeasonSummary();
-        } );
-
-        $( '#season-select-all' ).on( 'change', function () {
-            // 只操作目前可見列（符合直覺：全選=選我看得到的）
-            $( '#season-anime-tbody tr:visible .season-item-check' ).prop( 'checked', this.checked );
-            updateSeasonSummary();
-        } );
-
-        $( document ).on( 'change', '.season-item-check', updateSeasonSummary );
-
-        $( '#btn-season-import' ).on( 'click', async function () {
-            if ( seasonImporting ) { return; }   // ★ 已在跑就擋掉，避免背景重複迴圈
-
-            // ★ 統一用「所有勾選」為準，拿掉 :visible，避免「看得到有勾卻被判定 0」
-            const ids = $( '.season-item-check:checked' )
-                .map( function () { return parseInt( $( this ).val() ); } ).get();
-
-            if ( ! ids.length ) { alert( t( 'select_anime', '請勾選至少一部動畫。' ) ); return; }
-
-            seasonImporting  = true;   // ★ 上鎖
-            seasonImportStop = false;
-            const $btnImport = $( this );
-            const $btnStop   = $( '#btn-season-stop' );
-            const $bar       = $( '#season-progress-bar' );
-            const $text      = $( '#season-progress-text' );
-            const $log       = $( '#season-import-log' );
-
-            $btnImport.prop( 'disabled', true );
-            $btnStop.show().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
-            $( '#season-progress-wrap' ).show();
-            $log.empty();
-            updateProgress( $bar, $text, 0, ids.length );
-
-            let done = 0;
-
-            try {
-                for ( const anilistId of ids ) {
-                    if ( seasonImportStop ) {
-                        logLine( $log, t( 'import_stopped', '已停止匯入。' ), 'info' );
-                        break;
-                    }
-                    logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
-                    try {
-                        const resp = await $.post( AJAX_URL, {
-                            action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: 0, force_update: 0,
-                        } );
-                        done++;
-                        updateProgress( $bar, $text, done, ids.length );
-                        if ( resp.success ) {
-                            const d = resp.data;
-                            logLine( $log,
-                                '✓ ' + String( d.title || 'AniList #' + anilistId )
-                                + ( ( d.bangumi_pending || d.bangumi_missing ) ? ' ⚠ Bangumi 待處理' : '' ),
-                                d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
-                            );
-                        } else {
-                            logLine( $log, '✗ AniList #' + anilistId + '：' + String( resp.data || t( 'unknown_error', '未知錯誤' ) ), 'error' );
-                        }
-                    } catch ( e ) {
-                        done++;
-                        updateProgress( $bar, $text, done, ids.length );
-                        logLine( $log, '✗ AniList #' + anilistId + '：網路錯誤', 'error' );
-                    }
-                    if ( ! seasonImportStop && done < ids.length ) { await delay( 3200 ); }
-                }
-
-                logLine( $log,
-                    t( 'import_done', '匯入完成。成功 {d}/{t}' )
-                        .replace( '{d}', done ).replace( '{t}', ids.length ),
-                    'info'
-                );
-            } finally {
-                seasonImporting = false;   // ★ 解鎖（不論正常結束或例外）
-                $btnImport.prop( 'disabled', false );
-                $btnStop.hide();
-            }
-        } );
-
-        $( '#btn-season-stop' ).on( 'click', function () {
-            seasonImportStop = true;
-            $( this ).prop( 'disabled', true ).text( t( 'stopping', '停止中…' ) );
-        } );
 
         /* ══════════════════════════════════════════════════════════════
            BATCH IMPORT (ID list)
