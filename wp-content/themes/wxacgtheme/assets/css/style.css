@@ -792,18 +792,23 @@
 /* ══════════════════════════════════════════════════════════
    4. 標籤切換按鈕（Tabs）
 ══════════════════════════════════════════════════════════ */
+/*
+ * 分頁切換元件。首頁的「依播出星期篩選」與「動漫作品分類」共用，
+ * 兩者是同一視覺家族，尺寸一起調整以維持一致。
+ * 2026-08-18：整體放大（高度約 39px → 47px），原尺寸在桌機上偏小。
+ */
 .tab-switch {
   display: flex;
-  gap: 4px;
+  gap: 5px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
-  padding: 4px;
+  padding: 5px;
 }
 .tab-btn {
-  padding: 6px 16px;
+  padding: 9px 20px;
   border-radius: var(--radius-pill);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-muted);
   background: transparent;
