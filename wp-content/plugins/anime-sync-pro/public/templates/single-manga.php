@@ -382,24 +382,34 @@ while ( have_posts() ) :
          * Renta! 台灣排第一:它同時賣漫畫與提供動畫觀看，而且是本站在
          * affiliates.one 上實際有合作的通路——閱讀意圖與購買意圖都接得住。
          *
-         * ★ 目前放的是「乾淨的目的地網址」，還沒有聯盟追蹤參數。
-         *   affiliates.one 的推廣網址是把目的地網址包起來，因此這條網址
-         *   之後直接沿用即可，換成聯盟連結時只要改這一處。
-         *   sponsored 旗標先標上，換上聯盟連結後 rel 就已經是正確的。
+         * 目的地網址一律填「中文未編碼」的原始形式，交給
+         * anime_sync_affiliate_url() 決定要不要包成推廣網址:
+         *   · 該網域有聯盟方案 → 包成推廣網址，並帶文章 slug 當追蹤標籤，
+         *     後台報表就看得出是哪一部作品帶來的成交。
+         *   · 沒有方案         → 原樣回傳乾淨連結。
+         * 因此之後多接一家通路，只要改 anime_sync_get_affiliate_bases()。
          */
+        $affiliate_subid = get_post_field( 'post_name', $post_id );
+
         foreach ( [
-            [ 'Renta! 台灣',       'https://tw.myrenta.com/search2?keyword=' . $tw_q,               '看漫畫・繁中', true  ],
-            [ 'BOOK☆WALKER 台灣', 'https://www.bookwalker.com.tw/search?w=' . $tw_q,                '購買・繁中',   false ],
-            [ '博客來',            'https://search.books.com.tw/search/query/key/' . $tw_q . '/cat/all', '購買・繁中', false ],
-            [ 'Pubu',              'https://www.pubu.com.tw/search?q=' . $tw_q,                     '購買・繁中',   false ],
+            [ 'Renta! 台灣',       'https://tw.myrenta.com/search2?keyword=' . $tw_search_title,          '看漫畫・繁中' ],
+            [ 'BOOK☆WALKER 台灣', 'https://www.bookwalker.com.tw/search?w=' . $tw_q,                      '購買・繁中'   ],
+            [ '博客來',            'https://search.books.com.tw/search/query/key/' . $tw_q . '/cat/all',  '購買・繁中'   ],
+            [ 'Pubu',              'https://www.pubu.com.tw/search?q=' . $tw_q,                           '購買・繁中'   ],
         ] as $tw_item ) {
+            $final_url = function_exists( 'anime_sync_affiliate_url' )
+                ? anime_sync_affiliate_url( $tw_item[1], $affiliate_subid )
+                : $tw_item[1];
+
             $read_channels[] = [
                 'name'      => $tw_item[0],
-                'url'       => $tw_item[1],
+                'url'       => $final_url,
                 'badge'     => $tw_item[2],
                 'note'      => '',
                 'manual'    => false,
-                'sponsored' => $tw_item[3],
+                // 實際被包成推廣網址時才算 sponsored;沒有聯盟方案的通路
+                // 標了反而是錯的資訊。
+                'sponsored' => ( $final_url !== $tw_item[1] ),
             ];
         }
     }

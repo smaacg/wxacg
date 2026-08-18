@@ -652,6 +652,80 @@ function anime_sync_register_taxonomies(): void {
 }
 
 /**
+ * 聯盟行銷:各通路的推廣網址前綴。
+ *
+ * key 是目的地網址的網域，value 是該通路在 affiliates.one 上的推廣前綴
+ * （含帳號雜湊）。要新增通路時在這裡加一行即可，不必動任何模板。
+ *
+ * ★ 這串雜湊不是機密——它會出現在站上每一條對外連結裡，任何訪客都看得到。
+ *   放進版本控制沒有洩漏疑慮，等同 Amazon Associates 的 tag。
+ *
+ * 值可用 filter 覆寫（例如想改成存 WP option 時）:
+ *   add_filter( 'anime_sync_affiliate_bases', fn( $m ) => $m );
+ *
+ * @return array<string,string> 網域 => 推廣網址前綴。
+ */
+function anime_sync_get_affiliate_bases(): array {
+	return (array) apply_filters( 'anime_sync_affiliate_bases', [
+		// Renta! 台灣（賣漫畫，同時可看動畫）
+		'tw.myrenta.com' => 'https://affone.site/track/clicks/6636/c627c2bc9b0420dcf88dec23d62e9e452d674dcf63b2a0f90166b10371401de3c021e7e5593c99616c',
+	] );
+}
+
+/**
+ * 把目的地網址包成 affiliates.one 的推廣網址。
+ *
+ * affiliates.one 的推廣網址格式（實際產生一條後逐字元比對驗證過）:
+ *
+ *   {前綴}?subid_1={追蹤標籤}&t={目的地網址}
+ *
+ * 其中 t 是「雙重」rawurlencode，而且內層編碼的是**中文未預先編碼**的
+ * 原始網址。這點很容易寫錯——先把中文編過再雙重編碼會多一層 %25，
+ * 產出的連結雖然看起來像但實際會導向錯誤位置。
+ *
+ * subid_1 對應後台的「追蹤標籤1」，會出現在成效報表裡。這裡帶文章 slug
+ * （chainsaw-man、dandadan 之類的英數字串），因此報表上可以直接看出
+ * 是哪一部作品帶來的點擊與成交。
+ *
+ * 找不到對應通路時原樣回傳目的地網址——寧可少賺，也不要產生壞連結。
+ *
+ * @param string $destination 目的地網址（中文保持原樣，不要預先編碼）。
+ * @param string $subid       追蹤標籤，通常傳文章 slug；只允許英數與 -_。
+ * @return string 推廣網址；無對應通路時為原始 $destination。
+ */
+function anime_sync_affiliate_url( string $destination, string $subid = '' ): string {
+	$destination = trim( $destination );
+
+	if ( $destination === '' ) {
+		return '';
+	}
+
+	$host = strtolower( (string) wp_parse_url( $destination, PHP_URL_HOST ) );
+	$base = anime_sync_get_affiliate_bases()[ $host ] ?? '';
+
+	if ( $base === '' ) {
+		return $destination;   // 這個通路沒有聯盟方案，維持乾淨連結
+	}
+
+	// 追蹤標籤只保留英數與 -_，避免中文 slug 讓報表變成一堆百分號
+	$subid = preg_replace( '/[^A-Za-z0-9_-]/', '', $subid );
+
+	$query = '';
+
+	if ( $subid !== '' ) {
+		$query .= 'subid_1=' . $subid . '&';
+	}
+
+	/*
+	 * 這裡刻意手動組字串而非用 add_query_arg()——後者會再編碼一次，
+	 * 把已經雙重編碼好的 t 變成三重編碼。
+	 */
+	$query .= 't=' . rawurlencode( rawurlencode( $destination ) );
+
+	return $base . '?' . $query;
+}
+
+/**
  * 原作類型（anime_source meta）→ anime_source_tax 詞彙的對照表。
  *
  * 這是本站原作類型「代碼 → 中文名稱 + slug」的唯一來源，供以下三處共用：
