@@ -186,7 +186,8 @@
   display: flex;
   justify-content: center;
   position: relative;
-  max-width: 520px;
+  /* 搜尋框實際寬度由這裡決定（.header-search-box 為 width:100%） */
+  max-width: 500px;
   margin: 0 auto;
 }
 
