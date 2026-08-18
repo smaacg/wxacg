@@ -177,6 +177,70 @@ while ( have_posts() ) :
     $staff_list     = $staff_list_raw ? json_decode( $staff_list_raw, true ) : [];
     $staff_list     = is_array( $staff_list ) ? $staff_list : [];
 
+    // ── CAST(一律來自 Bangumi /characters，沿用動畫共用 key)──
+    //    漫畫的 AniList 查詢沒有 characters 欄位，沒有備援來源；
+    //    未動畫化的作品 Bangumi 常常也沒有角色，抓不到就整區不顯示。
+    $cast_list_raw = $get_meta( 'anime_cast_json' );
+    $cast_list     = $cast_list_raw ? json_decode( $cast_list_raw, true ) : [];
+    $cast_list     = is_array( $cast_list ) ? $cast_list : [];
+
+    /*
+     * CAST 排序:主角優先，客串墊底。
+     *
+     * Bangumi 回傳的順序不代表重要性。例:膽大黨(bgm 332250)因為有鏈鋸人
+     * 的聯動，デンジ、ビーム 兩個 role=客串 的角色排在清單最前面，前台只顯示
+     * 前 6 位的話，兩個別部作品的客串會擋在主角前面。
+     *
+     * 用分桶而非 usort:分桶保證同一組內維持原順序，不依賴 PHP 版本的
+     * 排序穩定性。動畫模板也是同樣做法（只是沒有把客串特別往後放）。
+     */
+    $cast_buckets = [ 0 => [], 1 => [], 2 => [], 3 => [] ];
+
+    foreach ( $cast_list as $cast_item ) {
+        if ( ! is_array( $cast_item ) || trim( (string) ( $cast_item['name'] ?? '' ) ) === '' ) {
+            continue;
+        }
+
+        $role = trim( (string) ( $cast_item['role'] ?? '' ) );
+
+        if ( $role === '主角' || strtoupper( $role ) === 'MAIN' ) {
+            $bucket = 0;
+        } elseif ( $role === '客串' ) {
+            $bucket = 2;   // 別部作品來的聯動角色，排在正規配角之後
+        } elseif ( $role === '闲角' || $role === '閒角' ) {
+            $bucket = 3;   // 背景角色集合，最後
+        } else {
+            $bucket = 1;   // 配角／SUPPORTING／未標示
+        }
+
+        $cast_buckets[ $bucket ][] = $cast_item;
+    }
+
+    $cast_to_display = array_merge(
+        $cast_buckets[0], $cast_buckets[1], $cast_buckets[2], $cast_buckets[3]
+    );
+
+    /*
+     * ── 獲獎紀錄(Wikidata P166，逗號分隔字串)──
+     *
+     * 同一個獎項不同年度在 Wikidata 是各自獨立的敘述，抓下來會重複
+     * （例:鏈鋸人的「哈維獎」出現三次）。顯示時去重，不動已存的資料。
+     */
+    $awards_raw  = (string) $get_meta( 'manga_awards' );
+    $awards_list = [];
+
+    if ( $awards_raw !== '' ) {
+        foreach ( preg_split( '/[,，]/u', $awards_raw ) as $award ) {
+            $award = trim( (string) $award );
+
+            if ( $award === '' || in_array( $award, $awards_list, true ) ) {
+                continue;
+            }
+
+            $awards_list[] = $award;
+        }
+    }
+
     $entity_url = static function ( $type, $id, $name ) {
         $id = (int) $id;
         if ( $id <= 0 ) {
@@ -1048,6 +1112,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
             <a class="asd-tab" href="#asd-sec-info">📋 基本資訊</a>
             <?php if ( $synopsis ) : ?><a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a><?php endif; ?>
             <?php if ( ! empty( $staff_list ) ) : ?><a class="asd-tab" href="#asd-sec-staff">🎬 STAFF</a><?php endif; ?>
+            <?php if ( ! empty( $cast_to_display ) ) : ?><a class="asd-tab" href="#asd-sec-cast">🎭 CAST</a><?php endif; ?>
             <?php if ( $has_publish_region ) : ?><a class="asd-tab" href="#asd-sec-region">🌏 各地區出版</a><?php endif; ?>
             <?php if ( $tw_publisher || $tw_translator || $tw_release_date || $purchase_url ) : ?><a class="asd-tab" href="#asd-sec-tw">🇹🇼 台版資訊</a><?php endif; ?>
             <?php if ( $has_preview ) : ?><a class="asd-tab" href="#asd-sec-preview">📖 免費閱讀</a><?php endif; ?>
@@ -1076,6 +1141,9 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                             '完結日期'   => ( $end_date && $status === 'FINISHED' ) ? $end_date : '',
                             '原作來源'   => $source_label,
                             '台灣出版社' => $tw_publisher,
+                            // 獲獎紀錄放在最後更新之前:資料本身就是這頁的內容，
+                            // 「最後更新」則是頁面的中繼資訊，收尾比較自然。
+                            '獲獎紀錄'   => implode( '、', $awards_list ),
                             '最後更新'   => get_the_modified_date( 'Y-m-d' ),
                         ];
                         foreach ( $info_rows as $label => $val ) :
@@ -1139,6 +1207,109 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                             <div class="asd-toggle-wrap">
                                 <button class="asd-staff-toggle" id="asd-staff-toggle" type="button" aria-expanded="false" aria-controls="asd-staff-grid">
                                     顯示全部 <?php echo esc_html( $staff_output_index ); ?> 人 ▼
+                                </button>
+                            </div>
+                        <?php endif; ?>
+                    </section>
+                <?php endif; ?>
+
+                <?php /* CAST(Bangumi 角色。版型沿用動畫的 .asd-cast-* ，CSS 共用) */ ?>
+                <?php if ( ! empty( $cast_to_display ) ) : ?>
+                    <section class="asd-section" id="asd-sec-cast">
+                        <h2 class="asd-section-title">🎭 CAST</h2>
+                        <div class="asd-cast-grid" id="asd-cast-grid">
+                            <?php
+                            $cast_output_index = 0;
+
+                            foreach ( $cast_to_display as $cast_item ) :
+                                if ( ! is_array( $cast_item ) ) continue;
+
+                                $char_id     = (int) ( $cast_item['id']     ?? 0 );
+                                $char_name   = trim( (string) ( $cast_item['name']   ?? '' ) );
+                                $char_native = trim( (string) ( $cast_item['native'] ?? '' ) );
+                                $char_image  = trim( (string) ( $cast_item['image']  ?? '' ) );
+
+                                if ( $char_name === '' ) continue;
+
+                                // 與動畫一致:只有 Bangumi 來源的角色 id 才對得上實體頁
+                                $char_url = ( ( $cast_item['source'] ?? '' ) === 'bangumi' && $char_id > 0 )
+                                    ? $entity_url( 'character', $char_id, $char_name )
+                                    : '';
+
+                                /*
+                                 * 聲優:漫畫多半沒有，只有動畫化過的作品 Bangumi
+                                 * 才可能給。有就顯示第一位，沒有整塊不輸出。
+                                 */
+                                $vas        = ( ! empty( $cast_item['voice_actors'] ) && is_array( $cast_item['voice_actors'] ) )
+                                    ? $cast_item['voice_actors'] : [];
+                                $va         = is_array( $vas[0] ?? null ) ? $vas[0] : [];
+                                $va_id      = (int) ( $va['id']   ?? 0 );
+                                $va_name    = trim( (string) ( $va['name'] ?? '' ) );
+                                $va_url     = $va_id > 0 ? $entity_url( 'person', $va_id, $va_name ) : '';
+
+                                $char_fallback = $fallback_text( $char_name, 2 );
+                            ?>
+                                <div class="asd-cast-card<?php echo $cast_output_index >= 6 ? ' asd-cast-hidden' : ''; ?>">
+                                    <?php if ( $char_url ) : ?>
+                                        <a href="<?php echo esc_url( $char_url ); ?>" class="asd-cast-avatar-wrap asd-cast-avatar-wrap--link" aria-label="<?php echo esc_attr( $char_name ); ?>">
+                                    <?php else : ?>
+                                        <div class="asd-cast-avatar-wrap">
+                                    <?php endif; ?>
+
+                                    <?php if ( $char_image ) : ?>
+                                        <img src="<?php echo esc_url( $char_image ); ?>" alt="<?php echo esc_attr( $char_name ); ?>" loading="lazy" decoding="async">
+                                        <div class="asd-cast-avatar-fb asd-cast-avatar-fb--backup" hidden>
+                                            <span><?php echo esc_html( $char_fallback ); ?></span>
+                                        </div>
+                                    <?php else : ?>
+                                        <div class="asd-cast-avatar-fb">
+                                            <span><?php echo esc_html( $char_fallback ); ?></span>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if ( $char_url ) : ?>
+                                        </a>
+                                    <?php else : ?>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <div class="asd-cast-info">
+                                        <span class="asd-cast-char">
+                                            <?php if ( $char_url ) : ?>
+                                                <a href="<?php echo esc_url( $char_url ); ?>"><?php echo esc_html( $char_name ); ?></a>
+                                            <?php else : ?>
+                                                <?php echo esc_html( $char_name ); ?>
+                                            <?php endif; ?>
+                                        </span>
+
+                                        <?php if ( $char_native && $char_native !== $char_name ) : ?>
+                                            <span class="asd-cast-char-native" lang="ja"><?php echo esc_html( $char_native ); ?></span>
+                                        <?php endif; ?>
+
+                                        <?php if ( $va_name ) : ?>
+                                            <div class="asd-cast-va">
+                                                <div class="asd-cast-va-info">
+                                                    <span class="asd-cast-va-name">
+                                                        CV.
+                                                        <?php if ( $va_url ) : ?>
+                                                            <a href="<?php echo esc_url( $va_url ); ?>"><?php echo esc_html( $va_name ); ?></a>
+                                                        <?php else : ?>
+                                                            <?php echo esc_html( $va_name ); ?>
+                                                        <?php endif; ?>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php $cast_output_index++; ?>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <?php if ( $cast_output_index > 6 ) : ?>
+                            <div class="asd-toggle-wrap">
+                                <button class="asd-cast-toggle" id="asd-cast-toggle" type="button" aria-expanded="false" aria-controls="asd-cast-grid">
+                                    顯示全部 <?php echo esc_html( $cast_output_index ); ?> 位角色 ▼
                                 </button>
                             </div>
                         <?php endif; ?>

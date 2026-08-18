@@ -234,6 +234,17 @@ private function register_manga_fields(): void {
 				'new_lines'    => '',
 				'wrapper'      => [ 'width' => '100' ],
 			],
+			[
+				'key'          => 'field_manga_cast_json',
+				'label'        => 'CAST 資料(JSON)',
+				'name'         => 'anime_cast_json', // 同樣沿用動畫共用 key
+				'type'         => 'textarea',
+				'instructions' => 'Bangumi 角色資料自動填入。漫畫多半沒有聲優，聲優欄位空著屬正常。可手動修正後儲存，記得在下方「鎖定欄位」勾選避免被同步覆蓋。',
+				'required'     => 0,
+				'rows'         => 6,
+				'new_lines'    => '',
+				'wrapper'      => [ 'width' => '100' ],
+			],
 
 			// ---- 台灣代理資訊(純手動,SEO 差異化重點) ----
 			[

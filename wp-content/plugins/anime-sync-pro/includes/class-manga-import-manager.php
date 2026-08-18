@@ -327,6 +327,17 @@ class Anime_Sync_Manga_Import_Manager {
 				update_post_meta( $post_id, 'anime_staff_json', wp_slash( $staff_json ) );
 			}
 		}
+
+		// ★ CAST（Bangumi /characters）同樣存成 JSON，沿用動畫共用的
+		//   anime_cast_json key，處理方式與 STAFF 完全一致。
+		//   漫畫沒有動畫化時 Bangumi 常常沒有角色資料，空陣列不覆蓋舊值。
+		if ( ! in_array( 'anime_cast_json', $locked, true ) ) {
+			$cast_json = $data['anime_cast_json'] ?? '';
+			if ( is_string( $cast_json ) && $cast_json !== '' && $cast_json !== '[]' ) {
+				// wp_slash：同上，漏掉會讓 JSON 的 \" 被吃掉而無法 decode
+				update_post_meta( $post_id, 'anime_cast_json', wp_slash( $cast_json ) );
+			}
+		}
 	}
 
 	/**

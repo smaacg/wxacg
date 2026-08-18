@@ -896,12 +896,27 @@ class Anime_Sync_API_Handler {
         // STAFF：Bangumi 中文姓名優先，AniList 只在 Bangumi 抓不到時當備援
         // （與動畫 get_bgm_staff() 覆蓋 AniList 的邏輯一致）。
         $staff = $this->parse_staff( $media['staff']['edges'] ?? [] );
+        $cast  = [];
+
         if ( $bangumi_id && $bangumi_id > 0 ) {
             $this->rate_limiter->wait_if_needed( 'bangumi' );
             $bgm_staff = $this->get_bgm_manga_staff( $bangumi_id, $bgm_data['infobox'] ?? [] );
             if ( ! empty( $bgm_staff ) ) {
                 $staff = $bgm_staff;
             }
+
+            /*
+             * CAST：與動畫共用 get_bgm_chars()，資料一律來自 Bangumi。
+             *
+             * 動畫那邊 AniList 也有 characters 可當備援，但漫畫的 AniList
+             * 查詢（fetch_anilist_manga()）本來就沒有 characters 欄位，
+             * 因此沒有備援來源——抓不到就是空陣列，不另外補。
+             *
+             * 漫畫角色多半沒有聲優，voice_actors 為空屬正常，前台會自動
+             * 不顯示聲優那一行。
+             */
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $cast = $this->get_bgm_chars( $bangumi_id );
         }
 
         $title_chinese_raw = '';
@@ -991,6 +1006,7 @@ class Anime_Sync_API_Handler {
             'anime_banner_image'       => $media['bannerImage'] ?? '',
             'anime_synopsis_chinese'   => $synopsis_chinese,
             'anime_staff_json'         => wp_json_encode( $staff, JSON_UNESCAPED_UNICODE ),
+            'anime_cast_json'          => wp_json_encode( $cast,  JSON_UNESCAPED_UNICODE ),
             'manga_chapters'           => isset( $media['chapters'] ) && $media['chapters'] !== null ? (int) $media['chapters'] : '',
             'manga_volumes'            => isset( $media['volumes'] )  && $media['volumes']  !== null ? (int) $media['volumes']  : '',
             'manga_author'             => $author,
