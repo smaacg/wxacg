@@ -689,9 +689,9 @@ function anime_sync_get_source_tax_map(): array {
 		 * 一律填 OTHER 或籠統歸為 MANGA，光看 source 全部會落在「其他」。
 		 * 由 anime_sync_resolve_source_key() 依原作國別轉出這些代碼。
 		 */
-		'SOURCE_KR'          => [ 'name' => '韓國漫畫改編',   'slug' => 'korean-manhwa'      ],
-		'SOURCE_CN'          => [ 'name' => '中國漫畫改編',   'slug' => 'chinese-manhua'     ],
-		'SOURCE_TW'          => [ 'name' => '台灣漫畫改編',   'slug' => 'taiwan-manga'       ],
+		'SOURCE_KR'          => [ 'name' => '韓國漫畫改編',   'slug' => 'korean-manhwa',  'parent' => 'manga' ],
+		'SOURCE_CN'          => [ 'name' => '中國漫畫改編',   'slug' => 'chinese-manhua', 'parent' => 'manga' ],
+		'SOURCE_TW'          => [ 'name' => '台灣漫畫改編',   'slug' => 'taiwan-manga',   'parent' => 'manga' ],
 	];
 }
 
@@ -709,7 +709,13 @@ function anime_sync_resolve_source_key( string $source, string $source_country =
 	$source  = strtoupper( trim( $source ) );
 	$country = strtoupper( trim( $source_country ) );
 
-	// 只在 source 本身分不出來時才用國別覆蓋，避免蓋掉輕小說等明確分類。
+	/*
+	 * 只在 source 本身分不出來時才用國別覆蓋，避免蓋掉輕小說等明確分類。
+	 *
+	 * ★ $source_country 為「原作國別」，沒有原作時必為空字串，因此純原創
+	 *   的外國作品（例：《那個夏天》，韓國原創 ONA）不會被誤判成漫畫改編。
+	 *   分類法只負責原作類型，製作國是另一個維度，不混在一起。
+	 */
 	if (
 		in_array( $country, [ 'KR', 'CN', 'TW' ], true )
 		&& in_array( $source, [ 'OTHER', 'MANGA', 'COMIC', '' ], true )
@@ -718,6 +724,68 @@ function anime_sync_resolve_source_key( string $source, string $source_country =
 	}
 
 	return $source;
+}
+
+/**
+ * 取得（必要時建立）anime_source_tax 的詞彙 ID，並正確掛上父分類。
+ *
+ * 韓國／中國漫畫改編是「漫畫改編」的子分類。階層式分類法的歸檔頁預設
+ * 會包含子分類的文章，因此 /source/manga/ 仍看得到韓漫，不會因為細分而
+ * 讓母分類殘缺；同時 /source/korean-manhwa/ 提供精準的子集。
+ *
+ * @param array $entry anime_sync_get_source_tax_map() 的單筆設定。
+ * @return int 詞彙 ID，失敗時為 0。
+ */
+function anime_sync_get_source_term_id( array $entry ): int {
+	$name = $entry['name'] ?? '';
+	$slug = $entry['slug'] ?? '';
+
+	if ( '' === $name || '' === $slug ) {
+		return 0;
+	}
+
+	$term = get_term_by( 'slug', $slug, 'anime_source_tax' );
+
+	if ( $term ) {
+		return (int) $term->term_id;
+	}
+
+	$args = [ 'slug' => $slug ];
+
+	// 先確保父詞彙存在，否則子詞彙會被建在頂層。
+	if ( ! empty( $entry['parent'] ) ) {
+		$parent = get_term_by( 'slug', $entry['parent'], 'anime_source_tax' );
+
+		if ( ! $parent ) {
+			$map = anime_sync_get_source_tax_map();
+
+			foreach ( $map as $candidate ) {
+				if ( ( $candidate['slug'] ?? '' ) === $entry['parent'] ) {
+					$parent_id = anime_sync_get_source_term_id( $candidate );
+
+					if ( $parent_id > 0 ) {
+						$args['parent'] = $parent_id;
+					}
+
+					break;
+				}
+			}
+		} else {
+			$args['parent'] = (int) $parent->term_id;
+		}
+	}
+
+	$result = wp_insert_term( $name, 'anime_source_tax', $args );
+
+	if ( ! is_wp_error( $result ) ) {
+		return (int) $result['term_id'];
+	}
+
+	if ( 'term_exists' === $result->get_error_code() ) {
+		return (int) ( $result->get_error_data() ?: 0 );
+	}
+
+	return 0;
 }
 
 /* ============================================================

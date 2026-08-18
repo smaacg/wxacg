@@ -200,6 +200,22 @@ class Anime_Sync_Source_Tax_Backfill {
 	 * @return int 失敗回 0
 	 */
 	private function resolve_term_id( string $name, string $slug ): int {
+		/*
+		 * 改由共用函式處理，子分類（韓／中漫畫改編掛在「漫畫改編」底下）
+		 * 才會正確帶上父層；原本這裡不處理 parent，會把子詞彙建在頂層。
+		 */
+		if ( function_exists( 'anime_sync_get_source_term_id' ) ) {
+			$map = function_exists( 'anime_sync_get_source_tax_map' )
+				? anime_sync_get_source_tax_map()
+				: [];
+
+			foreach ( $map as $entry ) {
+				if ( ( $entry['slug'] ?? '' ) === $slug ) {
+					return anime_sync_get_source_term_id( $entry );
+				}
+			}
+		}
+
 		$term = get_term_by( 'slug', $slug, 'anime_source_tax' );
 
 		if ( $term instanceof WP_Term ) {

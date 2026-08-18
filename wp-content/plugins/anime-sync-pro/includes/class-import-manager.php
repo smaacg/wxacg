@@ -854,24 +854,10 @@ class Anime_Sync_Import_Manager {
 
 			// 對照表沒有的代碼不建詞彙：寧可少一個連結，也不要生出一堆髒詞彙。
 			if ( $source_name !== '' && $source_slug !== '' ) {
-				$source_tid  = 0;
-				$source_term = get_term_by( 'slug', $source_slug, 'anime_source_tax' );
-
-				if ( ! $source_term ) {
-					$source_result = wp_insert_term(
-						$source_name,
-						'anime_source_tax',
-						[ 'slug' => $source_slug ]
-					);
-
-					if ( ! is_wp_error( $source_result ) ) {
-						$source_tid = (int) $source_result['term_id'];
-					} elseif ( $source_result->get_error_code() === 'term_exists' ) {
-						$source_tid = (int) ( $source_result->get_error_data() ?: 0 );
-					}
-				} else {
-					$source_tid = (int) $source_term->term_id;
-				}
+				// 由共用函式處理，子分類（韓／中漫畫改編）才會正確掛上父層。
+				$source_tid = function_exists( 'anime_sync_get_source_term_id' )
+					? anime_sync_get_source_term_id( $source_map[ $source_key ] )
+					: 0;
 
 				if ( $source_tid > 0 ) {
 					wp_set_post_terms( $post_id, [ $source_tid ], 'anime_source_tax' );

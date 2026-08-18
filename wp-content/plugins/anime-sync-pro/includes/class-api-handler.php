@@ -127,23 +127,21 @@ class Anime_Sync_API_Handler {
      * @return string 兩碼國別，判斷不出時為空字串。
      */
     private static function extract_source_country( array $media ): string {
-        // 動畫自身的製作國，作為查不到原作時的退路。
-        $production_country = strtoupper( trim( (string) ( $media['countryOfOrigin'] ?? '' ) ) );
-
         /*
-         * ★ 動畫原創作品沒有原作，掛在它底下的 ADAPTATION 全是「後來的」
-         *   衍生改編。實例：數碼寶貝系列為原創動畫，AniList 上唯一的
-         *   ADAPTATION 是中國改編漫畫，照著抓就會把日本作品判成中國作品。
-         *   原創作品直接以製作國為準。
+         * ★ 這裡回傳的是「原作的國別」，沒有原作就是空字串——不可拿製作國
+         *   充數。曾經退回製作國，結果《那個夏天》（韓國原創 ONA，relations
+         *   為空）被標成「韓國漫畫改編」，但它根本不是改編作品。
+         *
+         *   動畫的製作國另存於 anime_country，需要時從那裡取。
          */
         if ( 'ORIGINAL' === strtoupper( (string) ( $media['source'] ?? '' ) ) ) {
-            return $production_country;
+            return '';
         }
 
         $edges = $media['relations']['edges'] ?? [];
 
         if ( ! is_array( $edges ) ) {
-            return $production_country;
+            return '';
         }
 
         // 原作可能是漫畫、小說或單篇，一律視為來源候選。
@@ -178,14 +176,9 @@ class Anime_Sync_API_Handler {
             }
         }
 
-        /*
-         * ★ AniList 未登錄原作關聯時退回製作國。實例：《那個夏天》
-         *   （Geu Yeoreum）source=OTHER、無任何 ADAPTATION，但由韓國的
-         *   Red Dog Culture House 製作，countryOfOrigin=KR ——這種在地
-         *   自製作品，製作國就是它的來源。
-         */
+        // 查不到原作關聯就是沒有原作，回傳空字串（理由見函式開頭）。
         if ( ! $candidates ) {
-            return $production_country;
+            return '';
         }
 
         /*
