@@ -1,0 +1,93 @@
+/**
+ * Header 裝飾橫幅
+ * File: assets/css/header-banner.css
+ *
+ * 只在 header.php 的 $header_banner_url 有值時才會輸出對應的 DOM，
+ * 因此這份樣式在沒有橫幅時完全不影響現有外觀。
+ *
+ * 疊層順序（由下往上）：
+ *   1. .site-header 本身的毛玻璃底色
+ *   2. .header-banner__img    橫幅圖（會左右視差位移）
+ *   3. .header-banner__scrim  遮罩，確保白字可讀
+ *   4. .header-top / .header-nav-bar  實際內容
+ *
+ * ⚠ 不可對 .site-header 設 overflow:hidden —— 導覽列的下拉選單需要溢出。
+ *   因此裁切交給 .header-banner 這層自己處理。
+ */
+
+.header-banner {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;      /* 視差位移時不讓圖片露出 header 邊界 */
+  pointer-events: none;  /* 不攔截滑鼠，搜尋列等仍可正常點擊 */
+  z-index: 0;
+}
+
+.header-banner__img {
+  position: absolute;
+  /*
+   * 四邊各外擴，留出視差位移的餘裕；左右給得比上下多，
+   * 因為位移主要發生在水平方向。
+   */
+  top: -6%;
+  bottom: -6%;
+  left: -4%;
+  right: -4%;
+
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+
+  /* 交給合成層處理，位移時不觸發重排 */
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+}
+
+/*
+ * 遮罩：中央與左側壓得比較暗，因為 logo 與搜尋列在那裡；
+ * 兩側稍微透一點，讓圖的主體看得見。
+ */
+.header-banner__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to right,
+      rgba(30, 36, 43, .92) 0%,
+      rgba(30, 36, 43, .62) 22%,
+      rgba(30, 36, 43, .78) 42%,
+      rgba(30, 36, 43, .78) 58%,
+      rgba(30, 36, 43, .58) 76%,
+      rgba(30, 36, 43, .88) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(30, 36, 43, .35) 0%,
+      rgba(30, 36, 43, .10) 45%,
+      rgba(30, 36, 43, .55) 100%
+    );
+}
+
+/* 內容必須疊在橫幅之上 */
+.site-header .header-top,
+.site-header .header-nav-bar {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * 手機：畫面窄，橫幅會被裁得只剩中央一小塊，資訊量低但仍要付出載入成本，
+ * 且沒有滑鼠也就沒有視差，因此直接不顯示。
+ */
+@media (max-width: 900px) {
+  .header-banner { display: none; }
+}
+
+/* 使用者偏好減少動態時，保留圖但不位移 */
+@media (prefers-reduced-motion: reduce) {
+  .header-banner__img {
+    transition: none;
+    transform: none !important;
+  }
+}

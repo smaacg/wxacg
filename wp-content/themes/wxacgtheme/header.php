@@ -24,6 +24,9 @@ defined( 'ABSPATH' ) || exit;
  * 300×288 為 15 KB，相對顯示尺寸仍有 4.6 倍解析度，高解析螢幕不會糊。
  */
 $brand_logo_url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/wxacglogo-300x288.webp';
+
+// Header 裝飾橫幅：網址與說明見 functions.php 的 wxacg_header_banner_url()。
+$header_banner_url = function_exists( 'wxacg_header_banner_url' ) ? wxacg_header_banner_url() : '';
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -47,6 +50,14 @@ if ( ! is_user_logged_in() ) {
      Header
 ════════════════════════════════════════ -->
 <header class="site-header glass-mid" id="site-header">
+
+  <?php if ( $header_banner_url !== '' ) : ?>
+  <!-- 裝飾橫幅：純視覺，對輔助技術隱藏；視差由 header-banner.js 處理 -->
+  <div class="header-banner" id="header-banner" aria-hidden="true">
+    <div class="header-banner__img" style="background-image:url('<?php echo esc_url( $header_banner_url ); ?>');"></div>
+    <div class="header-banner__scrim"></div>
+  </div>
+  <?php endif; ?>
 
   <div class="header-top container">
 

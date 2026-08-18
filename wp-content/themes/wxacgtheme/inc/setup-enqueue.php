@@ -730,6 +730,39 @@ add_action( 'wp_enqueue_scripts', function () {
         wp_enqueue_style( 'smacg-header', weixiaoacg_THEME_URL . $css_rel, [ 'weixiaoacg-style' ], filemtime( $css_abs ) );
     }
 
+    /*
+     * Header 裝飾橫幅（header-banner.css / .js）
+     *
+     * 只在真的有設定橫幅時才載入 —— 沒設定就完全不送這兩個檔案，
+     * header 每一頁都會執行，不該為一個未啟用的功能付出常態成本。
+     * 網址來源見 functions.php 的 wxacg_header_banner_url()。
+     */
+    if ( function_exists( 'wxacg_header_banner_url' ) && wxacg_header_banner_url() !== '' ) {
+
+        $hb_css_rel = '/assets/css/header-banner.css';
+        $hb_css_abs = weixiaoacg_THEME_DIR . $hb_css_rel;
+        if ( file_exists( $hb_css_abs ) ) {
+            wp_enqueue_style(
+                'smacg-header-banner',
+                weixiaoacg_THEME_URL . $hb_css_rel,
+                [ 'weixiaoacg-style' ],
+                filemtime( $hb_css_abs )
+            );
+        }
+
+        $hb_js_rel = '/assets/js/header-banner.js';
+        $hb_js_abs = weixiaoacg_THEME_DIR . $hb_js_rel;
+        if ( file_exists( $hb_js_abs ) ) {
+            wp_enqueue_script(
+                'smacg-header-banner',
+                weixiaoacg_THEME_URL . $hb_js_rel,
+                [],
+                filemtime( $hb_js_abs ),
+                true
+            );
+        }
+    }
+
     // Header JS（依賴 weixiaoacg-nav：weixiaoacg_ajax 由其 localize）
     $js_rel = '/assets/js/header.js';
     $js_abs = weixiaoacg_THEME_DIR . $js_rel;

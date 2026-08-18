@@ -101,6 +101,29 @@ if ( ! defined( 'WXACG_ADSENSE_CLIENT' ) ) {
 	define( 'WXACG_ADSENSE_CLIENT', 'ca-pub-3709514691049766' );
 }
 
+/**
+ * Header 裝飾橫幅的圖片網址。
+ *
+ * 回傳空字串＝停用，header 維持原本的純毛玻璃外觀，且相關的 CSS／JS
+ * 也不會被載入（見 inc/setup-enqueue.php）。要啟用就把網址填進來，
+ * 換圖只要改這一處。
+ *
+ * 建議規格：2560×400、深色調；左 18%／中 30-55%／右 78-100% 需保持
+ * 低對比，因為那三段分別被 logo、搜尋列、使用者圖示蓋住。
+ *
+ * @return string
+ */
+function wxacg_header_banner_url(): string {
+	$url = '';
+
+	/**
+	 * 允許以外掛或子主題覆寫橫幅來源（例如依季節輪播）。
+	 *
+	 * @param string $url 目前的橫幅網址。
+	 */
+	return (string) apply_filters( 'wxacg/header_banner_url', $url );
+}
+
 const WEIXIAOACG_ID_CATS  = [ 'announcement', 'news' ];
 const WEIXIAOACG_LLM_CATS = [ 'review', 'feature' ];
 
