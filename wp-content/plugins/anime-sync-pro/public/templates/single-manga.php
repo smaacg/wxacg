@@ -278,6 +278,7 @@ while ( have_posts() ) :
      *   不是憑印象寫的;通過之後再看有沒有聯盟方案。
      *   以下是驗證當下(2026-08-18)的結果:
      *
+     *     MANGA MILLION      對照表     → 集英社作品 5/5  ✅ 採用（見下方 ②）
      *     Renta! 台灣        ?keyword= → 命中 4/4 部  ✅ 採用（唯一有聯盟方案）
      *     博客來             /key/…    → 命中 206 次  ✅ 採用
      *     少年Jump+          ?q=       → 命中  13 次  ✅ 採用
@@ -285,7 +286,6 @@ while ( have_posts() ) :
      *
      *   刻意排除的:
      *     MANGA Plus   純 SPA，只回 2,350 bytes 空殼，產不出搜尋連結
-     *     mangamillion 集英社官方，但搜尋是客戶端算的，且只有簡體版
      *     KadoKado     0 命中
      *     ComicWalker  1 命中，疑似 SPA
      *     Readmoo/Kobo 擋機房 IP 無法驗證(不代表壞，是驗不到)
@@ -353,7 +353,30 @@ while ( have_posts() ) :
         ];
     }
 
-    // ② 依日本出版社推導官方連載平台
+    /*
+     * ② MANGA MILLION（集英社官方免費、免註冊）
+     *
+     * 它的搜尋是客戶端算的，產不出搜尋連結，因此改用後台預先建立的對照表
+     * （見 class-mangamillion-map.php）。對照表未建立時整格不出現。
+     *
+     * 排在自動產生的其他管道之前——官方免費是「線上看」最直接的答案。
+     */
+    if ( class_exists( 'Anime_Sync_MangaMillion_Map' ) ) {
+        $mm_url = Anime_Sync_MangaMillion_Map::lookup( $post_id );
+
+        if ( '' !== $mm_url ) {
+            $read_channels[] = [
+                'name'      => 'MANGA MILLION',
+                'url'       => $mm_url,
+                'badge'     => '官方免費・免註冊',
+                'note'      => '集英社官方，簡體中文',
+                'manual'    => false,
+                'sponsored' => false,
+            ];
+        }
+    }
+
+    // ③ 依日本出版社推導官方連載平台
     //    出版社欄位有雜訊(例「集英社（日本）」「別冊少年Magazine、」)，
     //    用 strpos 比對而非等值比較，才不會因為括號或頓號對不到。
     $jp_search_title = $title_native !== '' ? $title_native : $display_title;
@@ -381,7 +404,7 @@ while ( have_posts() ) :
         }
     }
 
-    // ③ 台灣電子書平台(全部作品都給，購買意圖最高的入口)
+    // ④ 台灣電子書平台(全部作品都給，購買意圖最高的入口)
     $tw_search_title = $display_title !== '' ? $display_title : $title_native;
 
     if ( $tw_search_title !== '' ) {

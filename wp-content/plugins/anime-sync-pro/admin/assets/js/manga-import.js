@@ -789,4 +789,126 @@
 			btn.textContent = '停止中…';
 		} );
 	} );
+
+	/* ══════════════════════════════════════════════
+	   MANGA MILLION 對照表（分批爬取）
+
+	   383 頁一次抓完會撞執行時間上限，因此後端一批處理 25 頁，
+	   由這裡連續呼叫直到 finished。中斷不會弄壞已建立的部分——
+	   對照表是逐批寫入的，下次重跑會從頭覆蓋。
+	   ══════════════════════════════════════════════ */
+
+	var mmStopped = false;
+
+	function mmSetProgress( done, total ) {
+		var bar  = $( '#asp-mm-progress-bar' );
+		var text = $( '#asp-mm-progress-text' );
+		var pct  = total ? Math.round( done / total * 100 ) : 0;
+
+		if ( bar )  { bar.style.width = pct + '%'; }
+		if ( text ) { text.textContent = '進度：' + done + ' / ' + total + '（' + pct + '%）'; }
+	}
+
+	function mmFinish( message, isError ) {
+		var status = $( '#asp-mm-status' );
+
+		if ( status ) {
+			status.textContent = message;
+			status.style.color = isError ? '#d63638' : '#00a32a';
+		}
+
+		var run  = $( '#asp-mm-run' );
+		var stop = $( '#asp-mm-stop' );
+
+		if ( run )  { run.disabled = false; }
+		if ( stop ) { stop.style.display = 'none'; stop.disabled = false; stop.textContent = '停止'; }
+	}
+
+	function mmBatch( offset, total ) {
+		if ( mmStopped ) {
+			mmFinish( '已停止（已完成 ' + offset + ' / ' + total + '，重跑會從頭開始）', true );
+			return;
+		}
+
+		post( 'anime_sync_mm_batch', { offset: offset } )
+			.then( function ( res ) {
+				if ( ! res.success ) {
+					mmFinish( '失敗：' + ( ( res.data && res.data.message ) || '未知錯誤' ), true );
+					return;
+				}
+
+				var d = res.data || {};
+
+				mmSetProgress( d.done || 0, d.total || total );
+
+				if ( d.finished ) {
+					mmFinish( '完成！重新整理頁面即可看到統計。', false );
+					return;
+				}
+
+				mmBatch( d.done, d.total || total );
+			} )
+			.catch( function ( err ) {
+				mmFinish( '中斷：' + ( ( err && err.message ) || '網路錯誤' ), true );
+			} );
+	}
+
+	if ( $( '#asp-mm-run' ) ) {
+		$( '#asp-mm-run' ).addEventListener( 'click', function () {
+			if ( ! confirm( '將向 MANGA MILLION 取得約 380 頁作品資料，全程約 5～6 分鐘。\n\n' +
+				'期間請保持此分頁開啟。要開始嗎？' ) ) {
+				return;
+			}
+
+			mmStopped = false;
+			this.disabled = true;
+
+			var status = $( '#asp-mm-status' );
+
+			if ( status ) {
+				status.style.color = '';
+				status.textContent = '正在解析 sitemap…';
+			}
+
+			var stop = $( '#asp-mm-stop' );
+
+			if ( stop ) { stop.style.display = ''; }
+
+			var wrap = $( '#asp-mm-progress-wrap' );
+
+			if ( wrap ) { wrap.style.display = ''; }
+
+			mmSetProgress( 0, 0 );
+
+			post( 'anime_sync_mm_start', {} )
+				.then( function ( res ) {
+					if ( ! res.success ) {
+						mmFinish( '失敗：' + ( ( res.data && res.data.message ) || '未知錯誤' ), true );
+						return;
+					}
+
+					var total = ( res.data && res.data.total ) || 0;
+
+					if ( ! total ) {
+						mmFinish( 'sitemap 沒有回傳任何作品頁', true );
+						return;
+					}
+
+					if ( status ) { status.textContent = '共 ' + total + ' 部，開始抓取…'; }
+
+					mmBatch( 0, total );
+				} )
+				.catch( function ( err ) {
+					mmFinish( '失敗：' + ( ( err && err.message ) || '網路錯誤' ), true );
+				} );
+		} );
+	}
+
+	if ( $( '#asp-mm-stop' ) ) {
+		$( '#asp-mm-stop' ).addEventListener( 'click', function () {
+			mmStopped = true;
+			this.disabled = true;
+			this.textContent = '停止中…';
+		} );
+	}
 }() );

@@ -516,12 +516,13 @@ private function register_manga_fields(): void {
                     'label'        => '主推線上看連結',
                     'name'         => 'manga_preview_url',
                     'type'         => 'url',
-                    'instructions' => '填了會排在「哪裡可以線上看」的第一個，沒填則只顯示自動產生的搜尋連結。'
-                        . '<br>以下平台的搜尋都是瀏覽器端算的，本站產不出搜尋連結，只能手填作品頁網址:'
+                    'instructions' => '填了會排在「哪裡可以線上看」的第一個，沒填則只顯示自動產生的連結。'
+                        . '<br><strong>以下只能手填</strong>（這些平台的搜尋是瀏覽器端算的，本站產不出連結）:'
                         . '<br>・<strong>MANGA Plus</strong>（集英社官方，繁體中文且免費）← 最優先'
-                        . '<br>・<strong>百萬漫畫 mangamillion</strong>（集英社官方，但只有簡體中文）'
                         . '<br>・東立電子書城、KadoKado、ComicWalker'
-                        . '<br>少年Jump+、マガポケ、Renta! 台灣、BOOK☆WALKER、博客來、Pubu 已由系統自動產生，不必手填。',
+                        . '<br><strong>以下已自動產生，不必手填</strong>:'
+                        . '<br>・MANGA MILLION（集英社官方免費，靠後台的對照表比對）'
+                        . '<br>・少年Jump+、マガポケ、Renta! 台灣、博客來',
                     'required'     => 0,
                     'placeholder'  => 'https://mangaplus.shueisha.co.jp/titles/...',
                 ],

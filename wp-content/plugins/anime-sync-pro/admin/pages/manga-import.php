@@ -217,4 +217,63 @@ if ( ! current_user_can( 'manage_options' ) ) {
 		<?php /* 失敗清單與重跑按鈕，由 JS 於批次結束時填入 */ ?>
 		<div id="asp-mi-failed" style="display:none;margin-top:14px;padding:12px;border-left:4px solid #d63638;background:#fcf0f1;"></div>
 	</div>
+
+	<?php
+	/*
+	 * MANGA MILLION 對照表。
+	 *
+	 * 這不是匯入方式，是「線上看」區塊的資料來源，因此獨立成一塊放在頁尾，
+	 * 不佔用上方的分頁。
+	 */
+	$asp_mm_stats = class_exists( 'Anime_Sync_MangaMillion_Map' )
+		? Anime_Sync_MangaMillion_Map::stats()
+		: [ 'updated' => '', 'titles' => 0, 'keys' => 0 ];
+	?>
+	<hr style="margin:32px 0 24px;">
+
+	<h2>🔗 MANGA MILLION 對照表</h2>
+
+	<p>
+		MANGA MILLION 是集英社官方的免費線上看服務（免註冊、有中文）。
+		它的站內搜尋是瀏覽器端算的，產不出搜尋連結，因此改為預先抓一份
+		「作品名 → 網址」對照表，漫畫頁的「線上看」區塊會自動比對。
+	</p>
+	<p class="description">
+		比對方式:對方的簡體名會先轉繁，再與本站的中文／英文／羅馬字標題逐一比對。
+		比對不到的多半是別家出版社的作品（講談社、史克威爾艾尼克斯等），
+		本來就不會在這個平台上。
+	</p>
+
+	<table class="form-table" role="presentation">
+		<tr>
+			<th scope="row">目前狀態</th>
+			<td>
+				<?php if ( $asp_mm_stats['updated'] ) : ?>
+					<strong><?php echo esc_html( number_format( $asp_mm_stats['titles'] ) ); ?></strong> 部作品、
+					<strong><?php echo esc_html( number_format( $asp_mm_stats['keys'] ) ); ?></strong> 個比對鍵
+					<span class="description">（上次更新:<?php echo esc_html( $asp_mm_stats['updated'] ); ?>）</span>
+				<?php else : ?>
+					<span style="color:#d63638;">尚未建立</span>
+					<span class="description">—— 建立之前，漫畫頁不會出現 MANGA MILLION 這一格</span>
+				<?php endif; ?>
+			</td>
+		</tr>
+	</table>
+
+	<p>
+		<button type="button" class="button button-primary" id="asp-mm-run">建立／更新對照表</button>
+		<button type="button" class="button" id="asp-mm-stop" style="display:none;">停止</button>
+		<span id="asp-mm-status" class="description" style="margin-left:8px;"></span>
+	</p>
+	<p class="description">
+		約 380 頁，每頁間隔 0.7 秒，全程約 5～6 分鐘。期間請保持此分頁開啟。
+		對方的作品目錄不會天天變動，<strong>不需要經常重跑</strong>，幾個月一次即可。
+	</p>
+
+	<div id="asp-mm-progress-wrap" style="display:none;margin-top:12px;max-width:720px;">
+		<div style="background:#dcdcde;border-radius:3px;height:18px;overflow:hidden;">
+			<div id="asp-mm-progress-bar" style="height:100%;width:0;background:#2271b1;transition:width .2s;"></div>
+		</div>
+		<p id="asp-mm-progress-text" style="margin:6px 0 0;font-weight:600;"></p>
+	</div>
 </div>

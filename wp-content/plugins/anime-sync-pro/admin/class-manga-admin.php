@@ -64,6 +64,63 @@ class Anime_Sync_Manga_Admin {
 		add_action( 'add_meta_boxes',        [ $this, 'register_wiki_metabox' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_wiki_assets' ]   );
 		add_action( 'wp_ajax_anime_sync_manga_wiki_resync', [ $this, 'handle_ajax_wiki_resync' ] );
+
+		// AJAX: MANGA MILLION 作品對照表（分批爬取，見 class-mangamillion-map.php）
+		add_action( 'wp_ajax_anime_sync_mm_start', [ $this, 'handle_ajax_mm_start' ] );
+		add_action( 'wp_ajax_anime_sync_mm_batch', [ $this, 'handle_ajax_mm_batch' ] );
+	}
+
+	/**
+	 * AJAX：開始建立 MANGA MILLION 對照表。
+	 *
+	 * 只負責解析 sitemap 取得待抓清單;實際抓取由前端分批呼叫
+	 * handle_ajax_mm_batch()。383 頁一次抓完會撞執行時間上限，
+	 * 分批才能顯示進度也才停得下來。
+	 */
+	public function handle_ajax_mm_start(): void {
+
+		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( [ 'message' => '權限不足' ], 403 );
+		}
+
+		if ( ! class_exists( 'Anime_Sync_MangaMillion_Map' ) ) {
+			wp_send_json_error( [ 'message' => '對照表模組未載入' ], 500 );
+		}
+
+		$res = Anime_Sync_MangaMillion_Map::start();
+
+		if ( is_wp_error( $res ) ) {
+			wp_send_json_error( [ 'message' => $res->get_error_message() ] );
+		}
+
+		wp_send_json_success( $res );
+	}
+
+	/**
+	 * AJAX：抓取一個批次。
+	 */
+	public function handle_ajax_mm_batch(): void {
+
+		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( [ 'message' => '權限不足' ], 403 );
+		}
+
+		if ( ! class_exists( 'Anime_Sync_MangaMillion_Map' ) ) {
+			wp_send_json_error( [ 'message' => '對照表模組未載入' ], 500 );
+		}
+
+		// 一批 25 頁、每頁間隔 0.7 秒，約 18 秒;放寬本次請求上限留餘裕
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 120 );
+		}
+
+		$offset = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+
+		wp_send_json_success( Anime_Sync_MangaMillion_Map::crawl_batch( $offset ) );
 	}
 
 	/* ============================================================
