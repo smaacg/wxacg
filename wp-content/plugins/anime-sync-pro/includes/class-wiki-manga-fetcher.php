@@ -600,6 +600,34 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 			$s = $new;
 		}
 
+		/*
+		 * ★ 收尾保險：來源 wikitext 被截斷、或條目本身括號不成對時，
+		 *   上面所有規則都依賴「模板有閉合」，會整段原封不動留下來，
+		 *   使用者就會在前台看到 {{ubl|…{{cite web 這種原始標記。
+		 *   實例：post 3753《躲在超市後門抽菸的兩人》的日本出版社欄位。
+		 *
+		 *   寧可少掉一些文字，也不要把 wiki 標記呈現出去。
+		 */
+		if ( false !== strpos( $s, '{{' ) ) {
+
+			// 未閉合的排版模板：內容才是資料，展開而非丟棄（| 轉成 ||| 供拆分）
+			$s = preg_replace_callback(
+				'/\{\{\s*(?:ubl|ublist|unbulleted list|plainlist)\s*\|(.*)$/isu',
+				static fn( $m ) => str_replace( '|', '|||', $m[1] ),
+				$s
+			);
+
+			// 其餘未閉合模板：從 {{ 起丟到結尾。會走到這裡代表尾端本來就不完整。
+			$s = preg_replace( '/\{\{.*$/su', '', $s );
+			$s = str_replace( [ '{{', '}}' ], '', $s );
+		}
+
+		// 未閉合的內部連結同理
+		if ( false !== strpos( $s, '[[' ) ) {
+			$s = preg_replace( '/\[\[.*$/su', '', $s );
+			$s = str_replace( [ '[[', ']]' ], '', $s );
+		}
+
 		$s = strip_tags( $s );
 		// ★改:清掉分隔符旁多餘空白,但保留 ||| 分隔(供 split_regional_field 用)
 		$s = preg_replace( '/[ \t]+/', ' ', $s );

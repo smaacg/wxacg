@@ -255,9 +255,32 @@ class Anime_Sync_Manga_Wiki_Cron {
 		$locked = get_post_meta( $post_id, 'anime_locked_fields', true );
 		if ( ! is_array( $locked ) ) $locked = [];
 
+		/*
+		 * ★ 中文維基的條目簡繁混雜，出版社／雜誌這類文字欄位直接寫入會在
+		 *   前台出現簡體（實例：post 3753 的日本出版社顯示「华文天下（出品）
+		 *   国文出版社（出版）」）。本檔第 124 行的標題已有轉換，寫入迴圈
+		 *   卻沒有，這裡補上。
+		 *
+		 *   只轉純文字欄位；日期、卷數、網址、狀態等不可經過轉換。
+		 */
+		$convertible = [
+			'manga_jp_publishers',
+			'manga_tw_publisher',
+			'manga_hk_publisher',
+			'manga_cn_publisher',
+			'manga_magazine',
+		];
+
 		foreach ( $data as $key => $val ) {
 			if ( in_array( $key, $locked, true ) ) continue;
 			if ( $val === '' || $val === null ) continue;
+
+			if ( is_string( $val )
+				&& in_array( $key, $convertible, true )
+				&& class_exists( 'Anime_Sync_CN_Converter' ) ) {
+				$val = Anime_Sync_CN_Converter::static_convert( $val );
+			}
+
 			update_post_meta( $post_id, $key, $val );
 		}
 
