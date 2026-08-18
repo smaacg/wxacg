@@ -129,6 +129,7 @@ if ( ! current_user_can( 'manage_options' ) ) {
 					部（依對應動畫的人氣排序）
 					<button type="button" class="button button-small" id="asp-mi-fa-applylimit">套用</button>
 				</label>
+				<strong id="asp-mi-fa-picked" style="margin-left:16px;">已勾選 0 部</strong>
 			</p>
 
 			<div style="max-height:460px;overflow:auto;border:1px solid #c3c4c7;background:#fff;">
@@ -156,7 +157,8 @@ if ( ! current_user_can( 'manage_options' ) ) {
 
 	<?php /* ── 分頁 4：熱門排行 ── */ ?>
 	<div class="asp-mi-panel" data-panel="ranking" style="display:none;">
-		<p>取自 AniList 熱門漫畫排行，每次 50 部。已匯入的會標示並預設不勾選。</p>
+		<p>取自 AniList 熱門漫畫排行，每次 50 部。已匯入的會標示，要重抓可自行勾選並開啟強制覆蓋。</p>
+		<p class="description">預設全部不勾選——請用下方的「勾選前 N 部」或自行點選，避免不小心送出整批。</p>
 
 		<p>
 			<button type="button" class="button" id="asp-mi-rank-load">載入排行</button>
@@ -171,6 +173,13 @@ if ( ! current_user_can( 'manage_options' ) ) {
 					<input type="checkbox" class="asp-mi-force">
 					強制覆蓋已存在的作品
 				</label>
+				<label style="margin-left:16px;">
+					勾選前
+					<input type="number" id="asp-mi-rank-limit" value="5" min="1" max="1000" style="width:70px;">
+					部（依排行順序）
+					<button type="button" class="button button-small" id="asp-mi-rank-applylimit">套用</button>
+				</label>
+				<strong id="asp-mi-rank-picked" style="margin-left:16px;">已勾選 0 部</strong>
 			</p>
 
 			<div style="max-height:460px;overflow:auto;border:1px solid #c3c4c7;background:#fff;">

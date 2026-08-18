@@ -230,8 +230,13 @@
 			chk.type    = 'checkbox';
 			chk.className = 'asp-mi-rank-check';
 			chk.value   = item.anilist_id;
-			chk.checked = ! item.imported;   // 已匯入的預設不勾
+
+			// ★ 一律預設不勾。原本是「未匯入就自動勾起來」，載入排行等於
+			//   直接選好 49 部；再按一下匯入就送出約 9 分鐘的批次，而使用者
+			//   其實沒有真的挑選過任何一部。改為必須明確選取。
+			chk.checked = false;
 			chk.dataset.imported = item.imported ? '1' : '0';
+			chk.addEventListener( 'change', updateRankPicked );
 			tdChk.appendChild( chk );
 
 			function td( text ) {
@@ -290,6 +295,7 @@
 				} ).length;
 
 				status.textContent = '已載入 ' + total + ' 部（未匯入 ' + isNew + ' 部）';
+				updateRankPicked();
 
 				var hasNext = data.page_info && data.page_info.hasNextPage;
 				$( '#asp-mi-rank-more' ).style.display = hasNext ? '' : 'none';
@@ -311,6 +317,38 @@
 		$( '#asp-mi-rank-more' ).addEventListener( 'click', loadRanking );
 	}
 
+	/** 目前勾了幾部——即時顯示，送出前一眼就知道規模。 */
+	function updateRankPicked() {
+		var el = $( '#asp-mi-rank-picked' );
+
+		if ( ! el ) { return; }
+
+		var n = $$( '.asp-mi-rank-check' ).filter( function ( c ) { return c.checked; } ).length;
+
+		el.textContent = '已勾選 ' + n + ' 部';
+		el.style.color = n > 50 ? '#d63638' : '';
+	}
+
+	/** 依排行順序勾選前 N 部尚未匯入的。 */
+	function applyRankLimit() {
+		var n = parseInt( $( '#asp-mi-rank-limit' ).value, 10 ) || 0;
+		var picked = 0;
+
+		$$( '.asp-mi-rank-check' ).forEach( function ( c ) {
+			if ( c.dataset.imported === '1' ) { c.checked = false; return; }
+
+			c.checked = ( picked < n );
+
+			if ( c.checked ) { picked++; }
+		} );
+
+		updateRankPicked();
+	}
+
+	if ( $( '#asp-mi-rank-applylimit' ) ) {
+		$( '#asp-mi-rank-applylimit' ).addEventListener( 'click', applyRankLimit );
+	}
+
 	if ( $( '#asp-mi-rank-all' ) ) {
 		$( '#asp-mi-rank-all' ).addEventListener( 'change', function () {
 			var on = this.checked;
@@ -320,6 +358,8 @@
 				if ( c.dataset.imported === '1' ) { return; }
 				c.checked = on;
 			} );
+
+			updateRankPicked();
 		} );
 	}
 
@@ -345,6 +385,7 @@
 			chk.checked   = false;   // 數量大，預設不勾，由「限前 N 部」帶
 			chk.dataset.imported = item.imported ? '1' : '0';
 			chk.disabled  = !! item.imported;
+			chk.addEventListener( 'change', updateFaPicked );
 			tdChk.appendChild( chk );
 
 			function td( text ) {
@@ -413,6 +454,18 @@
 		} );
 	}
 
+	/** 目前勾了幾部——即時顯示。這個分頁有 700 多個候選，更需要看得到規模。 */
+	function updateFaPicked() {
+		var el = $( '#asp-mi-fa-picked' );
+
+		if ( ! el ) { return; }
+
+		var n = $$( '.asp-mi-fa-check' ).filter( function ( c ) { return c.checked; } ).length;
+
+		el.textContent = '已勾選 ' + n + ' 部';
+		el.style.color = n > 50 ? '#d63638' : '';
+	}
+
 	/** 勾選排序在前 N 名、且尚未匯入的項目。 */
 	function applyFaLimit() {
 		var n = parseInt( $( '#asp-mi-fa-limit' ).value, 10 ) || 0;
@@ -428,7 +481,7 @@
 			if ( chk.checked ) { picked++; }
 		} );
 
-		$( '#asp-mi-fa-status' ).textContent = '已勾選 ' + picked + ' 部';
+		updateFaPicked();
 	}
 
 	if ( $( '#asp-mi-fa-applylimit' ) ) {
@@ -443,6 +496,8 @@
 				if ( c.disabled ) { return; }
 				c.checked = on;
 			} );
+
+			updateFaPicked();
 		} );
 	}
 
@@ -701,10 +756,24 @@
 			var panel = btn.closest( '.asp-mi-panel' );
 			var force = panel ? $( '.asp-mi-force', panel ) : null;
 
-			if ( ids.length > 50 &&
-				! confirm( '共 ' + ids.length + ' 部，預估需要 ' +
-					Math.ceil( ids.length * 8 / 60 ) + ' 分鐘。期間請保持此分頁開啟。要開始嗎？' ) ) {
-				return;
+			// 每部秒數取自實測（2026-08-18，5 部樣本）：
+			//   鏈鋸人 9 秒、航海王 39 秒、進擊的巨人 12 秒、鬼滅 12 秒、東京喰種 12 秒
+			// 平均 16.8 秒。卷數與關聯越多越慢，而排行前段剛好都是大部頭，
+			// 因此取 15 秒而非更低的中位數，寧可估多不要估少。
+			// （原本寫死 8 秒，是維基改為同步抓取之前的數字，已經不適用。）
+			var SEC_PER_ITEM = 15;
+
+			if ( ids.length > 20 ) {
+				var mins = Math.ceil( ids.length * SEC_PER_ITEM / 60 );
+				var est  = mins >= 60
+					? Math.floor( mins / 60 ) + ' 小時 ' + ( mins % 60 ) + ' 分鐘'
+					: mins + ' 分鐘';
+
+				if ( ! confirm( '共 ' + ids.length + ' 部，預估需要約 ' + est +
+					'。\n\n期間請保持此分頁開啟，關閉或電腦休眠會中斷。\n' +
+					'已匯入的部分不會損壞，中斷後可以只跑剩下的。\n\n要開始嗎？' ) ) {
+					return;
+				}
 			}
 
 			runQueue( ids, force && force.checked );
