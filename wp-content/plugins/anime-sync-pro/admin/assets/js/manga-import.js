@@ -276,6 +276,129 @@
 	}
 
 	/* ══════════════════════════════════════════════
+	   從動畫原作
+	   ══════════════════════════════════════════════ */
+
+	function renderFromAnime( items ) {
+		var tbody = $( '#asp-mi-fa-tbody' );
+		tbody.innerHTML = '';
+
+		items.forEach( function ( item, idx ) {
+			var tr = document.createElement( 'tr' );
+			tr.dataset.rank = idx;   // 供「限前 N 部」使用
+
+			var tdChk = document.createElement( 'td' );
+			tdChk.className = 'check-column';
+
+			var chk = document.createElement( 'input' );
+			chk.type      = 'checkbox';
+			chk.className = 'asp-mi-fa-check';
+			chk.value     = item.anilist_id;
+			chk.checked   = false;   // 數量大，預設不勾，由「限前 N 部」帶
+			chk.dataset.imported = item.imported ? '1' : '0';
+			chk.disabled  = !! item.imported;
+			tdChk.appendChild( chk );
+
+			function td( text ) {
+				var c = document.createElement( 'td' );
+				c.textContent = String( text === null || text === undefined ? '' : text );
+				return c;
+			}
+
+			var tdAnime = document.createElement( 'td' );
+			var a = document.createElement( 'a' );
+			a.href = item.anime_url || '#';
+			a.target = '_blank';
+			a.textContent = item.anime_title || '';
+			tdAnime.appendChild( a );
+
+			if ( item.anime_count > 1 ) {
+				var note = document.createElement( 'span' );
+				note.className = 'description';
+				note.style.marginLeft = '6px';
+				note.textContent = '等 ' + item.anime_count + ' 部';
+				tdAnime.appendChild( note );
+			}
+
+			var tdStatus = document.createElement( 'td' );
+			tdStatus.innerHTML = item.imported
+				? '<span style="color:#00a32a">✓ 已匯入</span>'
+				: '<span style="color:#8c8f94">未匯入</span>';
+
+			tr.appendChild( tdChk );
+			tr.appendChild( td( item.anilist_id ) );
+			tr.appendChild( td( item.title || '(無標題)' ) );
+			tr.appendChild( tdAnime );
+			tr.appendChild( td( item.popularity || 0 ) );
+			tr.appendChild( tdStatus );
+
+			tbody.appendChild( tr );
+		} );
+	}
+
+	if ( $( '#asp-mi-fa-load' ) ) {
+		$( '#asp-mi-fa-load' ).addEventListener( 'click', function () {
+			var status = $( '#asp-mi-fa-status' );
+
+			this.disabled = true;
+			status.textContent = '掃描中…';
+
+			post( 'anime_sync_manga_from_anime', {} )
+				.then( function ( res ) {
+					$( '#asp-mi-fa-load' ).disabled = false;
+
+					if ( ! res.success ) {
+						status.textContent = '失敗：' + ( ( res.data && res.data.message ) || '未知錯誤' );
+						return;
+					}
+
+					var d = res.data || {};
+
+					renderFromAnime( d.items || [] );
+					$( '#asp-mi-fa-wrap' ).style.display = '';
+					status.textContent = '共 ' + d.total + ' 部原作漫畫，未匯入 ' + d.todo + ' 部';
+				} )
+				.catch( function () {
+					$( '#asp-mi-fa-load' ).disabled = false;
+					status.textContent = '網路錯誤';
+				} );
+		} );
+	}
+
+	/** 勾選排序在前 N 名、且尚未匯入的項目。 */
+	function applyFaLimit() {
+		var n = parseInt( $( '#asp-mi-fa-limit' ).value, 10 ) || 0;
+		var picked = 0;
+
+		$$( '#asp-mi-fa-tbody tr' ).forEach( function ( tr ) {
+			var chk = $( '.asp-mi-fa-check', tr );
+
+			if ( ! chk || chk.disabled ) { return; }
+
+			chk.checked = ( picked < n );
+
+			if ( chk.checked ) { picked++; }
+		} );
+
+		$( '#asp-mi-fa-status' ).textContent = '已勾選 ' + picked + ' 部';
+	}
+
+	if ( $( '#asp-mi-fa-applylimit' ) ) {
+		$( '#asp-mi-fa-applylimit' ).addEventListener( 'click', applyFaLimit );
+	}
+
+	if ( $( '#asp-mi-fa-all' ) ) {
+		$( '#asp-mi-fa-all' ).addEventListener( 'change', function () {
+			var on = this.checked;
+
+			$$( '.asp-mi-fa-check' ).forEach( function ( c ) {
+				if ( c.disabled ) { return; }
+				c.checked = on;
+			} );
+		} );
+	}
+
+	/* ══════════════════════════════════════════════
 	   批次佇列
 	   ══════════════════════════════════════════════ */
 
@@ -284,7 +407,9 @@
 			return parseIds( batchBox ? batchBox.value : '' );
 		}
 
-		return $$( '.asp-mi-rank-check' )
+		var sel = ( source === 'fromanime' ) ? '.asp-mi-fa-check' : '.asp-mi-rank-check';
+
+		return $$( sel )
 			.filter( function ( c ) { return c.checked; } )
 			.map( function ( c ) { return parseInt( c.value, 10 ); } )
 			.filter( function ( n ) { return n > 0; } );

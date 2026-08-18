@@ -57,6 +57,9 @@ class Anime_Sync_Manga_Admin {
 		// AJAX: 熱門漫畫排行（批次匯入用）
 		add_action( 'wp_ajax_anime_sync_manga_popularity', [ $this, 'handle_ajax_popularity' ] );
 
+		// AJAX: 從站上動畫的原作關聯抽出漫畫清單
+		add_action( 'wp_ajax_anime_sync_manga_from_anime', [ $this, 'handle_ajax_from_anime' ] );
+
 		// ★ [1.4.0] 維基同步 metabox + 資產 + AJAX
 		add_action( 'add_meta_boxes',        [ $this, 'register_wiki_metabox' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_wiki_assets' ]   );
@@ -241,6 +244,125 @@ class Anime_Sync_Manga_Admin {
 		}
 
 		wp_send_json_success( $result );
+	}
+
+	/**
+	 * AJAX：從站上動畫的 relations 抽出「原作漫畫」清單。
+	 *
+	 * 這個來源比全球人氣榜更適合本站：
+	 *   · 每一部都對應站上已有的動畫 → 匯入後 link_related_anime() 一定配得到，
+	 *     系列 term 自動繼承，不必手動設定
+	 *   · 動畫化過的作品，台灣代理率明顯較高 → 才有台版 ISBN，
+	 *     聯盟行銷連結才生得出來
+	 *   · 動畫與漫畫互相連結，對站內連結結構有利
+	 *
+	 * 資料全部來自本地 postmeta，不打任何外部 API，因此可一次回傳全部。
+	 */
+	public function handle_ajax_from_anime(): void {
+
+		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( [ 'message' => '權限不足' ], 403 );
+		}
+
+		global $wpdb;
+
+		// 1. 取出所有動畫的關聯資料與人氣（人氣用來排序，先做的比較有價值）
+		$rows = $wpdb->get_results(
+			"SELECT p.ID, p.post_title, r.meta_value AS relations,
+			        COALESCE( pop.meta_value, 0 ) AS popularity
+			 FROM {$wpdb->posts} p
+			 JOIN {$wpdb->postmeta} r ON r.post_id = p.ID
+			                          AND r.meta_key = 'anime_relations_json'
+			                          AND r.meta_value <> ''
+			 LEFT JOIN {$wpdb->postmeta} pop ON pop.post_id = p.ID
+			                                 AND pop.meta_key = 'anime_popularity'
+			 WHERE p.post_type = 'anime' AND p.post_status = 'publish'"
+		);
+
+		// 2. 已匯入的漫畫 AniList ID
+		$existing = [];
+
+		foreach ( (array) $wpdb->get_results(
+			"SELECT m.post_id, m.meta_value AS aid FROM {$wpdb->postmeta} m
+			 JOIN {$wpdb->posts} p ON p.ID = m.post_id AND p.post_type = 'manga'
+			 WHERE m.meta_key = 'anime_anilist_id'"
+		) as $e ) {
+			$existing[ (int) $e->aid ] = (int) $e->post_id;
+		}
+
+		// 3. 抽出 ADAPTATION／SOURCE 且型別為 MANGA 的關聯
+		$found = [];
+
+		foreach ( $rows as $row ) {
+			$rels = json_decode( (string) $row->relations, true );
+
+			if ( ! is_array( $rels ) ) {
+				continue;
+			}
+
+			foreach ( $rels as $rel ) {
+				if ( 'MANGA' !== ( $rel['type'] ?? '' ) ) {
+					continue;
+				}
+
+				if ( ! in_array( $rel['relation_type'] ?? '', [ 'ADAPTATION', 'SOURCE' ], true ) ) {
+					continue;
+				}
+
+				$aid = (int) ( $rel['id'] ?? 0 );
+
+				if ( $aid <= 0 ) {
+					continue;
+				}
+
+				/*
+				 * 同一部漫畫可能被多部動畫（各季）指向。保留人氣最高的那部
+				 * 作為代表來源，排序才反映真正的重要性。
+				 */
+				if ( isset( $found[ $aid ] ) && $found[ $aid ]['popularity'] >= (int) $row->popularity ) {
+					$found[ $aid ]['anime_count']++;
+					continue;
+				}
+
+				$found[ $aid ] = [
+					'anilist_id'  => $aid,
+					'title'       => (string) ( $rel['title'] ?? '' ),
+					'anime_id'    => (int) $row->ID,
+					'anime_title' => (string) $row->post_title,
+					'popularity'  => (int) $row->popularity,
+					'anime_count' => isset( $found[ $aid ] ) ? $found[ $aid ]['anime_count'] + 1 : 1,
+				];
+			}
+		}
+
+		// 4. 依代表動畫的人氣排序
+		uasort( $found, static fn( $a, $b ) => $b['popularity'] <=> $a['popularity'] );
+
+		$items    = [];
+		$todo     = 0;
+
+		foreach ( $found as $aid => $item ) {
+			$post_id = $existing[ $aid ] ?? 0;
+
+			if ( ! $post_id ) {
+				$todo++;
+			}
+
+			$item['imported'] = $post_id > 0;
+			$item['post_id']  = $post_id;
+			$item['edit_url'] = $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '';
+			$item['anime_url'] = get_permalink( $item['anime_id'] );
+
+			$items[] = $item;
+		}
+
+		wp_send_json_success( [
+			'total'    => count( $items ),
+			'todo'     => $todo,
+			'items'    => $items,
+		] );
 	}
 
 	/* ============================================================
