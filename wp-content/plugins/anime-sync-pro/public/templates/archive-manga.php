@@ -32,13 +32,42 @@ if ( $is_search ) {
 $total_posts  = (int) $GLOBALS['wp_query']->found_posts;
 $active_genre = $is_genre ? $current_term->slug : '';
 
-$genre_terms = get_terms( [
-    'taxonomy'   => 'genre',
-    'orderby'    => 'count',
-    'order'      => 'DESC',
-    'hide_empty' => true,
-    'number'     => 20,
-] );
+/*
+ * 類型清單:只取「真的有漫畫」的詞彙。
+ *
+ * ★ 原本用 get_terms( hide_empty => true )，但 genre 是動畫與漫畫共用的
+ *   分類法，term_taxonomy.count 算的是所有文章類型。站上有一千多部動畫，
+ *   因此幾乎每個類型的 count 都大於 0——即使一部漫畫都沒有。
+ *
+ *   結果是漫畫列表頁的類型篩選與頁尾連結會列出零漫畫的類型，點進去是空的。
+ *   實測 18 個類型裡只有 12 個有漫畫，六個會導到空清單。
+ *
+ *   改為直接統計 manga 的關聯數，依漫畫數量由多到少排序。
+ *   漫畫累積之後這份清單會自然變長，不需要再改這裡。
+ */
+$genre_terms = [];
+
+$manga_genre_ids = $GLOBALS['wpdb']->get_col(
+    "SELECT tt.term_id
+       FROM {$GLOBALS['wpdb']->term_relationships} tr
+       JOIN {$GLOBALS['wpdb']->term_taxonomy} tt
+            ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'genre'
+       JOIN {$GLOBALS['wpdb']->posts} p
+            ON p.ID = tr.object_id AND p.post_type = 'manga' AND p.post_status = 'publish'
+   GROUP BY tt.term_id
+   ORDER BY COUNT(*) DESC
+      LIMIT 20"
+);
+
+if ( ! empty( $manga_genre_ids ) ) {
+    // orderby => include 保留上面依漫畫數排好的順序
+    $genre_terms = get_terms( [
+        'taxonomy'   => 'genre',
+        'include'    => array_map( 'intval', $manga_genre_ids ),
+        'orderby'    => 'include',
+        'hide_empty' => false,
+    ] );
+}
 
 /* ── 狀態／格式篩選（與動畫列表同一套 query var，見 anime-sync-pro.php §3.5）──
    漫畫沒有對應的分類法，直接統計 meta 取得可用選項與數量。
