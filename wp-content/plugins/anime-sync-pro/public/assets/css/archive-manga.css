@@ -370,3 +370,54 @@
 	background: var(--aaa-surface-2);
 	border-color: var(--aaa-primary);
 }
+
+/* ====== 出版社瀏覽區（比照動畫列表的季度框框）======
+   動畫版用的是 --bd/--faint 那套變數名，本檔既有的是 --aaa-*，
+   沿用後者以維持一致。 */
+.aaa-publisher-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	gap: 8px;
+	margin-top: 4px;
+}
+.aaa-publisher-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 10px 14px;
+	border-radius: var(--aaa-radius-sm);
+	border: 1px solid var(--aaa-border);
+	background: var(--aaa-surface);
+	text-decoration: none;
+	transition: border-color var(--aaa-transition), background var(--aaa-transition);
+}
+.aaa-publisher-item:hover,
+.aaa-publisher-item:focus-visible {
+	border-color: var(--aaa-primary);
+	background: var(--aaa-surface-2);
+}
+.aaa-publisher-item.has-active {
+	border-color: var(--aaa-primary);
+	background: var(--aaa-surface-2);
+}
+.aaa-publisher-name {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--aaa-text);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.aaa-publisher-count {
+	flex-shrink: 0;
+	min-width: 22px;
+	padding: 1px 7px;
+	border-radius: var(--aaa-radius-pill);
+	background: rgba(255, 255, 255, 0.08);
+	color: var(--aaa-text-muted);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}

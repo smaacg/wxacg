@@ -68,6 +68,86 @@ class Anime_Sync_Manga_Admin {
 		// AJAX: MANGA MILLION 作品對照表（分批爬取，見 class-mangamillion-map.php）
 		add_action( 'wp_ajax_anime_sync_mm_start', [ $this, 'handle_ajax_mm_start' ] );
 		add_action( 'wp_ajax_anime_sync_mm_batch', [ $this, 'handle_ajax_mm_batch' ] );
+
+		// AJAX: 出版社分類法回填
+		add_action( 'wp_ajax_anime_sync_manga_publisher_backfill', [ $this, 'handle_ajax_publisher_backfill' ] );
+	}
+
+	/**
+	 * AJAX：把既有漫畫的出版社 meta 補建成分類法詞彙。
+	 *
+	 * 新匯入的作品由 class-manga-wiki-cron.php 自動指派;這支只處理
+	 * 分類法建立之前就存在的舊資料。純讀 meta、不打任何外部 API，
+	 * 因此可以一次跑完，不需要分批。
+	 */
+	public function handle_ajax_publisher_backfill(): void {
+
+		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( [ 'message' => '權限不足' ], 403 );
+		}
+
+		if ( ! taxonomy_exists( 'manga_publisher_tax' ) ) {
+			wp_send_json_error( [ 'message' => '出版社分類法尚未註冊' ], 500 );
+		}
+
+		if ( ! class_exists( 'Anime_Sync_Manga_Import_Manager' ) ) {
+			wp_send_json_error( [ 'message' => '匯入管理器未載入' ], 500 );
+		}
+
+		$ids = get_posts(
+			[
+				'post_type'      => 'manga',
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+			]
+		);
+
+		$assigned = 0;
+		$skipped  = 0;
+
+		foreach ( $ids as $post_id ) {
+			$name = Anime_Sync_Manga_Import_Manager::normalize_publisher(
+				(string) get_post_meta( $post_id, 'manga_jp_publishers', true )
+			);
+
+			if ( '' === $name ) {
+				$skipped++;
+				continue;
+			}
+
+			$term = term_exists( $name, 'manga_publisher_tax' );
+
+			if ( ! $term ) {
+				$term = wp_insert_term( $name, 'manga_publisher_tax' );
+			}
+
+			if ( is_wp_error( $term ) ) {
+				$skipped++;
+				continue;
+			}
+
+			$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+
+			if ( $term_id > 0 ) {
+				wp_set_post_terms( $post_id, [ $term_id ], 'manga_publisher_tax' );
+				$assigned++;
+			}
+		}
+
+		$terms = get_terms( [ 'taxonomy' => 'manga_publisher_tax', 'hide_empty' => true ] );
+
+		wp_send_json_success(
+			[
+				'total'    => count( $ids ),
+				'assigned' => $assigned,
+				'skipped'  => $skipped,
+				'terms'    => is_wp_error( $terms ) ? 0 : count( $terms ),
+			]
+		);
 	}
 
 	/**

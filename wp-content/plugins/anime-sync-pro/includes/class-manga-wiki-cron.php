@@ -284,6 +284,36 @@ class Anime_Sync_Manga_Wiki_Cron {
 			update_post_meta( $post_id, $key, $val );
 		}
 
+		/*
+		 * 出版社分類法要在這裡指派，不能放在匯入流程裡。
+		 *
+		 * manga_jp_publishers 是本檔（Wikidata P123）寫入的，AniList 匯入
+		 * 當下根本還沒有這個值;若只在 class-manga-import-manager.php 的
+		 * save_taxonomies() 指派，永遠會拿到空字串。
+		 *
+		 * 放在寫入迴圈之後，讀的是剛寫進去、已經過簡繁轉換的值。
+		 */
+		if ( class_exists( 'Anime_Sync_Manga_Import_Manager' ) ) {
+			$publisher = (string) get_post_meta( $post_id, 'manga_jp_publishers', true );
+			$name      = Anime_Sync_Manga_Import_Manager::normalize_publisher( $publisher );
+
+			if ( '' !== $name && taxonomy_exists( 'manga_publisher_tax' ) ) {
+				$term = term_exists( $name, 'manga_publisher_tax' );
+
+				if ( ! $term ) {
+					$term = wp_insert_term( $name, 'manga_publisher_tax' );
+				}
+
+				if ( ! is_wp_error( $term ) ) {
+					$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+
+					if ( $term_id > 0 ) {
+						wp_set_post_terms( $post_id, [ $term_id ], 'manga_publisher_tax' );
+					}
+				}
+			}
+		}
+
 		update_post_meta( $post_id, 'manga_wiki_last_sync', current_time( 'mysql' ) );
 		update_post_meta( $post_id, 'manga_wiki_last_status', $source . ':ok' );
 	}

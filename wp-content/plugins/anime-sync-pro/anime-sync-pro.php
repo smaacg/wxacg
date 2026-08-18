@@ -80,7 +80,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 /* ============================================================
  * 1. 常數定義
  * ============================================================ */
-define( 'ANIME_SYNC_PRO_VERSION',  '1.6.0' );
+// ★ 1.6.1：新增 manga_publisher_tax。版本號變動會在 init priority 99
+//   觸發 flush_rewrite_rules()，否則 /manga-publisher/{slug}/ 會 404。
+define( 'ANIME_SYNC_PRO_VERSION',  '1.6.1' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -646,6 +648,39 @@ function anime_sync_register_taxonomies(): void {
 		'show_admin_column' => true,
 		'rewrite'           => [
 			'slug'       => 'studio',
+			'with_front' => false,
+		],
+	] );
+
+	/*
+	 * 漫畫出版社。
+	 *
+	 * 為什麼需要一個分類法而不是直接用 manga_jp_publishers 這個 meta:
+	 * 漫畫列表頁想做出與動畫列表相同的「框框」瀏覽區，而動畫那區連的是
+	 * get_term_link()——真正的封存頁。用 meta 只能做出 ?publisher=集英社
+	 * 這種參數式篩選網址，與列表頁內容高度重疊，推成內部連結會製造重複
+	 * 內容（Google 說的 faceted navigation 問題），SEO 上反而扣分。
+	 *
+	 * slug 用 manga-publisher 而非 publisher，避免與未來可能出現的
+	 * 小說／輕小說出版社混在同一個封存頁。
+	 */
+	register_taxonomy( 'manga_publisher_tax', [ 'manga' ], [
+		'labels' => [
+			'name'          => '出版社',
+			'singular_name' => '出版社',
+			'search_items'  => '搜尋出版社',
+			'all_items'     => '所有出版社',
+			'edit_item'     => '編輯出版社',
+			'add_new_item'  => '新增出版社',
+			'new_item_name' => '新出版社名稱',
+			'menu_name'     => '出版社',
+		],
+		'hierarchical'      => false,
+		'show_in_rest'      => true,
+		'show_in_nav_menus' => true,
+		'show_admin_column' => true,
+		'rewrite'           => [
+			'slug'       => 'manga-publisher',
 			'with_front' => false,
 		],
 	] );

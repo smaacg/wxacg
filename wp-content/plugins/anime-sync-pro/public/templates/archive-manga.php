@@ -59,6 +59,32 @@ $manga_genre_ids = $GLOBALS['wpdb']->get_col(
       LIMIT 20"
 );
 
+/*
+ * 出版社瀏覽區（比照動畫列表的「播出季度」框框）。
+ *
+ * 這區連的是 get_term_link()——真正的分類法封存頁，不是查詢參數，
+ * 因此可以安心當成內部連結推出去。動畫那區之所以對 SEO 有幫助，
+ * 就是這個差別。
+ *
+ * 只列有作品的出版社，並依作品數由多到少排序;沒有詞的作品（抓不到
+ * 出版社、或個人出版）不會出現，也不建立「未知」佔位詞。
+ */
+$publisher_terms = [];
+
+if ( taxonomy_exists( 'manga_publisher_tax' ) ) {
+    $publisher_terms = get_terms( [
+        'taxonomy'   => 'manga_publisher_tax',
+        'orderby'    => 'count',
+        'order'      => 'DESC',
+        'hide_empty' => true,
+        'number'     => 24,
+    ] );
+
+    if ( is_wp_error( $publisher_terms ) ) {
+        $publisher_terms = [];
+    }
+}
+
 if ( ! empty( $manga_genre_ids ) ) {
     // orderby => include 保留上面依漫畫數排好的順序
     $genre_terms = get_terms( [
@@ -321,6 +347,22 @@ if ( $list_elements ) {
      */
     $mg_genre_active = $active_genre !== '' ? $active_genre : $mg_active_genre;
     ?>
+    <?php /* 出版社:比照動畫列表的季度框框，連的是真正的分類法封存頁 */ ?>
+    <?php if ( ! empty( $publisher_terms ) ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">🏢 出版社</div>
+        <div class="aaa-publisher-grid">
+            <?php foreach ( $publisher_terms as $pub_term ) : ?>
+                <a href="<?php echo esc_url( get_term_link( $pub_term ) ); ?>"
+                   class="aaa-publisher-item<?php echo ( is_tax( 'manga_publisher_tax', $pub_term->term_id ) ? ' has-active' : '' ); ?>">
+                    <span class="aaa-publisher-name"><?php echo esc_html( $pub_term->name ); ?></span>
+                    <span class="aaa-publisher-count"><?php echo esc_html( (int) $pub_term->count ); ?></span>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
     <div class="aaa-filter-group">
         <div class="aaa-filter-label">🏷️ 漫畫類型</div>

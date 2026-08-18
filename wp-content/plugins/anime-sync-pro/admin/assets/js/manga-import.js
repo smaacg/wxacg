@@ -911,4 +911,53 @@
 			this.textContent = '停止中…';
 		} );
 	}
+
+	/* ══════════════════════════════════════════════
+	   出版社分類法回填
+
+	   純讀既有 meta、不打外部 API，一次跑完即可，不需要分批。
+	   ══════════════════════════════════════════════ */
+
+	if ( $( '#asp-pub-backfill' ) ) {
+		$( '#asp-pub-backfill' ).addEventListener( 'click', function () {
+			var btn    = this;
+			var status = $( '#asp-pub-status' );
+
+			btn.disabled = true;
+
+			if ( status ) {
+				status.style.color = '';
+				status.textContent = '處理中…';
+			}
+
+			post( 'anime_sync_manga_publisher_backfill', {} )
+				.then( function ( res ) {
+					if ( ! res.success ) {
+						if ( status ) {
+							status.style.color = '#d63638';
+							status.textContent = '失敗：' + ( ( res.data && res.data.message ) || '未知錯誤' );
+						}
+
+						return;
+					}
+
+					var d = res.data || {};
+
+					if ( status ) {
+						status.style.color = '#00a32a';
+						status.textContent = '完成：' + d.total + ' 部中指派 ' + d.assigned +
+							' 部、略過 ' + d.skipped + ' 部，共 ' + d.terms + ' 個出版社。';
+					}
+				} )
+				.catch( function ( err ) {
+					if ( status ) {
+						status.style.color = '#d63638';
+						status.textContent = '失敗：' + ( ( err && err.message ) || '網路錯誤' );
+					}
+				} )
+				.then( function () {
+					btn.disabled = false;
+				} );
+		} );
+	}
 }() );

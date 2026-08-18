@@ -431,7 +431,92 @@ class Anime_Sync_Manga_Import_Manager {
 	// PRIVATE – 分類（類型 genre / 標籤 post_tag）
 	// 注意:漫畫沒有季度/製作公司/格式 taxonomy,只做 genre 和 tag。
 	// =========================================================================
+	/**
+	 * 指派出版社分類法。
+	 *
+	 * 為什麼是分類法而不是只留 manga_jp_publishers 這個 meta:漫畫列表頁的
+	 * 「出版社」瀏覽區要連到真正的封存頁（get_term_link()），與動畫列表的
+	 * 季度區一致。用 meta 只能做出參數式篩選網址，那是重複內容。
+	 *
+	 * ★ 原始值有雜訊，必須正規化後才建詞，否則「集英社」與「集英社（日本）」
+	 *   會變成兩個詞、各自分走文章數:
+	 *     集英社（日本）→ 集英社
+	 *     韓國：D&C Media → D&C Media
+	 *
+	 * 只在有值時指派;抓不到出版社的作品維持沒有詞，不建立「未知」這種
+	 * 佔位詞——那種詞會出現在封存頁清單裡但點進去沒有意義。
+	 *
+	 * @param int    $post_id   漫畫文章 ID。
+	 * @param string $publisher manga_jp_publishers 的原始值。
+	 */
+	private function save_publisher_term( int $post_id, string $publisher ): void {
+
+		if ( ! taxonomy_exists( 'manga_publisher_tax' ) ) {
+			return;
+		}
+
+		$name = self::normalize_publisher( $publisher );
+
+		if ( '' === $name ) {
+			return;
+		}
+
+		$term = term_exists( $name, 'manga_publisher_tax' );
+
+		if ( ! $term ) {
+			$term = wp_insert_term( $name, 'manga_publisher_tax' );
+		}
+
+		if ( is_wp_error( $term ) ) {
+			return;
+		}
+
+		$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+
+		if ( $term_id > 0 ) {
+			wp_set_post_terms( $post_id, [ $term_id ], 'manga_publisher_tax' );
+		}
+	}
+
+	/**
+	 * 出版社名稱正規化。
+	 *
+	 * 供匯入與回填共用，兩邊必須用同一套規則，否則會建出重複的詞。
+	 *
+	 * @param string $raw 原始值。
+	 * @return string 正規化後的名稱;無法使用時為空字串。
+	 */
+	public static function normalize_publisher( string $raw ): string {
+
+		$name = trim( $raw );
+
+		if ( '' === $name ) {
+			return '';
+		}
+
+		// 多家出版社時取第一家（資料裡以頓號或逗號分隔）
+		$name = trim( (string) preg_split( '/[、,，;；]/u', $name )[0] );
+
+		// 去掉括號註記:集英社（日本）→ 集英社
+		$name = (string) preg_replace( '/[（(].*$/u', '', $name );
+
+		// 去掉地區前綴:韓國：D&C Media → D&C Media
+		$name = (string) preg_replace( '/^[^：:]{1,4}[：:]\s*/u', '', $name );
+
+		$name = trim( $name, " \t\n\r\0\x0B、,，" );
+
+		// 「個人出版」「無」這類非出版社的值不建詞
+		if ( in_array( $name, [ '個人出版', '自費出版', '無', '不明', '未知', '-', '—' ], true ) ) {
+			return '';
+		}
+
+		return $name;
+	}
+
 	private function save_taxonomies( int $post_id, array $data ): void {
+
+		// 出版社（供漫畫列表的瀏覽區使用，見 save_publisher_term()）
+		$this->save_publisher_term( $post_id, (string) ( $data['manga_jp_publishers'] ?? '' ) );
 
 		if ( ! empty( $data['anime_genres'] ) && is_array( $data['anime_genres'] ) ) {
 			$genre_map = $this->get_genre_map();

@@ -276,4 +276,22 @@ if ( ! current_user_can( 'manage_options' ) ) {
 		</div>
 		<p id="asp-mm-progress-text" style="margin:6px 0 0;font-weight:600;"></p>
 	</div>
+
+	<hr style="margin:32px 0 24px;">
+
+	<h2>🏢 出版社分類法</h2>
+
+	<p>
+		漫畫列表頁的「出版社」瀏覽區用的是分類法封存頁，與動畫列表的季度區同一套機制。
+		新匯入的作品會在維基資料抓取完成後自動指派，<strong>這個按鈕只用來補既有的舊資料</strong>。
+	</p>
+	<p class="description">
+		純讀既有欄位、不打任何外部 API，一秒內完成。
+		抓不到出版社、或標示為個人出版的作品會略過，不建立「未知」這種佔位詞。
+	</p>
+
+	<p>
+		<button type="button" class="button" id="asp-pub-backfill">回填出版社分類法</button>
+		<span id="asp-pub-status" class="description" style="margin-left:8px;"></span>
+	</p>
 </div>
