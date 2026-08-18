@@ -131,12 +131,20 @@
 }
 
 /*
- * 桌機版把 logo 往右挪一點，不要緊貼容器左緣。
+ * 桌機版把 logo 往右下挪一點，不要緊貼容器左上角。
+ *
+ * 水平用 margin（會一併帶動後面的搜尋列，維持間距）；
+ * 垂直用 transform（不影響版面配置，只有 logo 自己移動，
+ * 不會把整列 header 撐高）。
+ *
  * 限 901px 以上：手機版的 .header-top 最左邊是漢堡選單，logo 不在起點，
  * 加了外距反而會把它推歪。
  */
 @media (min-width: 901px) {
-  .site-logo { margin-left: var(--logo-offset-x, 48px); }
+  .site-logo {
+    margin-left: var(--logo-offset-x, 48px);
+    transform: translateY( var(--logo-offset-y, 8px) );
+  }
 }
 
 .logo-icon-box {
