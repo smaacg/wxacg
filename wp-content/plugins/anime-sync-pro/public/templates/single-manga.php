@@ -319,6 +319,7 @@ while ( have_posts() ) :
             'ganganonline.com'           => 'ガンガンONLINE',
             'comic-walker.com'           => 'ComicWalker',
             'ebook.tongli.com.tw'        => '東立電子書城',
+            'tw.myrenta.com'             => 'Renta! 台灣',
             'bookwalker.com.tw'          => 'BOOK☆WALKER 台灣',
             'kadokado.com.tw'            => 'KadoKado 角角者',
             'webtoons.com'               => 'LINE WEBTOON',
@@ -336,8 +337,10 @@ while ( have_posts() ) :
             'name'   => $preview_name,
             'url'    => $preview_url,
             'badge'  => $preview_type_names[ $preview_source_type ] ?? '',
-            'note'   => $preview_note,
-            'manual' => true,
+            'note'      => $preview_note,
+            'manual'    => true,
+            // 手填連結是否為聯盟連結由編輯自行決定，預設當一般外連處理
+            'sponsored' => false,
         ];
     }
 
@@ -358,11 +361,12 @@ while ( have_posts() ) :
             }
 
             $read_channels[] = [
-                'name'   => $info[0],
-                'url'    => sprintf( $info[1], rawurlencode( $jp_search_title ) ),
-                'badge'  => '官方・日文',
-                'note'   => '',
-                'manual' => false,
+                'name'      => $info[0],
+                'url'       => sprintf( $info[1], rawurlencode( $jp_search_title ) ),
+                'badge'     => '官方・日文',
+                'note'      => '',
+                'manual'    => false,
+                'sponsored' => false,
             ];
             break;   // 一部作品只會屬於一家出版社
         }
@@ -374,17 +378,28 @@ while ( have_posts() ) :
     if ( $tw_search_title !== '' ) {
         $tw_q = rawurlencode( $tw_search_title );
 
+        /*
+         * Renta! 台灣排第一:它同時賣漫畫與提供動畫觀看，而且是本站在
+         * affiliates.one 上實際有合作的通路——閱讀意圖與購買意圖都接得住。
+         *
+         * ★ 目前放的是「乾淨的目的地網址」，還沒有聯盟追蹤參數。
+         *   affiliates.one 的推廣網址是把目的地網址包起來，因此這條網址
+         *   之後直接沿用即可，換成聯盟連結時只要改這一處。
+         *   sponsored 旗標先標上，換上聯盟連結後 rel 就已經是正確的。
+         */
         foreach ( [
-            [ 'BOOK☆WALKER 台灣', 'https://www.bookwalker.com.tw/search?w=' . $tw_q ],
-            [ '博客來',            'https://search.books.com.tw/search/query/key/' . $tw_q . '/cat/all' ],
-            [ 'Pubu',              'https://www.pubu.com.tw/search?q=' . $tw_q ],
+            [ 'Renta! 台灣',       'https://tw.myrenta.com/search2?keyword=' . $tw_q,               '看漫畫・繁中', true  ],
+            [ 'BOOK☆WALKER 台灣', 'https://www.bookwalker.com.tw/search?w=' . $tw_q,                '購買・繁中',   false ],
+            [ '博客來',            'https://search.books.com.tw/search/query/key/' . $tw_q . '/cat/all', '購買・繁中', false ],
+            [ 'Pubu',              'https://www.pubu.com.tw/search?q=' . $tw_q,                     '購買・繁中',   false ],
         ] as $tw_item ) {
             $read_channels[] = [
-                'name'   => $tw_item[0],
-                'url'    => $tw_item[1],
-                'badge'  => '購買・繁中',
-                'note'   => '',
-                'manual' => false,
+                'name'      => $tw_item[0],
+                'url'       => $tw_item[1],
+                'badge'     => $tw_item[2],
+                'note'      => '',
+                'manual'    => false,
+                'sponsored' => $tw_item[3],
             ];
         }
     }
@@ -1529,8 +1544,14 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                 <a
                                     href="<?php echo esc_url( $ch['url'] ); ?>"
                                     target="_blank"
-                                    <?php /* 外部平台連結一律 nofollow，避免被視為連結交換 */ ?>
-                                    rel="noopener noreferrer nofollow"
+                                    <?php
+                                    /*
+                                     * 外部平台連結一律 nofollow;有金錢關係的通路另加
+                                     * sponsored——Google 的連結垃圾政策明文要求，
+                                     * 漏標可能影響整站評價。
+                                     */
+                                    ?>
+                                    rel="noopener noreferrer nofollow<?php echo ! empty( $ch['sponsored'] ) ? ' sponsored' : ''; ?>"
                                     class="asd-read-channel<?php echo $ch['manual'] ? ' asd-read-channel--primary' : ''; ?>"
                                 >
                                     <span class="asd-read-channel-name"><?php echo esc_html( $ch['name'] ); ?></span>
