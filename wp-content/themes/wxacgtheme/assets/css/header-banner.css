@@ -31,7 +31,25 @@
   inset: 0;
   overflow: hidden;      /* 視差位移時不讓圖片露出 header 邊界 */
   pointer-events: none;  /* 不攔截滑鼠，搜尋列等仍可正常點擊 */
-  z-index: 0;
+
+  /*
+   * ★ 負 z-index，而不是給 .header-top／.header-nav-bar 正值把它們墊高。
+   *
+   *   .site-header 本身是 position:sticky + z-index:1000，已經是一個堆疊
+   *   脈絡；在其中，負 z-index 的子元素會畫在「父層背景之後、其餘內容
+   *   之前」，正好符合橫幅的需求。
+   *
+   *   曾經改用「給 .header-top 與 .header-nav-bar 設 position:relative;
+   *   z-index:1」，結果出了兩個問題：
+   *     1. .header-top 因此建立堆疊脈絡，把搜尋下拉選單的 z-index 關在
+   *        裡面，對外一律等於 1；而 .header-nav-bar 同為 1 且在 DOM 更
+   *        後面，於是導覽列蓋住了下拉選單。
+   *     2. 該選擇器權重高於原本的 .header-nav-bar { z-index: 1200 }，
+   *        把既有設定一併覆蓋掉。
+   *
+   *   用負值就完全不必動 header 內的任何既有元素。
+   */
+  z-index: -1;
 }
 
 .header-banner__img {
@@ -78,13 +96,6 @@
       rgba(30, 36, 43, .10) 45%,
       rgba(30, 36, 43, .55) 100%
     );
-}
-
-/* 內容必須疊在橫幅之上 */
-.site-header .header-top,
-.site-header .header-nav-bar {
-  position: relative;
-  z-index: 1;
 }
 
 /*
