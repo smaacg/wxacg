@@ -189,6 +189,34 @@ class Anime_Sync_Manga_Wiki_Cron {
 				$table_vol_count               = count( $wiki['volumes'] );
 			}
 
+			/*
+			 * 維基網址的退路:用剛才查詢成功的條目名組出來。
+			 *
+			 * 上面（第 174 行附近）只從 Wikidata 的 sitelink 取網址，但那份
+			 * sitelink 不一定存在。實例:《我獨自升級》的 Q106588507 沒有
+			 * 中文維基 sitelink，於是 manga_wikipedia_url 永遠是空的——
+			 * 儘管中文維基的「我獨自升級」條目確實存在，而且這支程式剛剛
+			 * 才成功讀過它的 wikitext。
+			 *
+			 * 這裡的條件是「抓取確實有回傳東西」（infobox 或卷數任一），
+			 * 代表條目真的存在;只是抓到空殼就不寫，避免產生指向不存在條目
+			 * 的死連結。
+			 *
+			 * 手填優先的規則不變:$had_manual_url 為真時完全不碰。
+			 */
+			if ( ! $had_manual_url
+				&& empty( $data['manga_wikipedia_url'] )
+				&& ( ! empty( $wiki['infobox'] ) || ! empty( $wiki['volumes'] ) ) ) {
+
+				$data['manga_wikipedia_url'] = 'https://zh.wikipedia.org/wiki/'
+					. rawurlencode( str_replace( ' ', '_', $wiki_query_title ) );
+
+				// 條目名一併記下來，之後重跑可直接沿用，不必再靠標題瀑布猜
+				if ( '' === $manual_title ) {
+					$data['manga_wiki_title'] = $wiki_query_title;
+				}
+			}
+
 			// infobox 為 magazine / publisher / 地區出版社 / 首刊日 的「主來源」。
 			if ( ! empty( $wiki['infobox'] ) ) {
 				$ib = $wiki['infobox'];
