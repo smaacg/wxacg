@@ -204,5 +204,8 @@ if ( ! current_user_can( 'manage_options' ) ) {
 		</div>
 		<p id="asp-mi-progress-text" style="margin:6px 0;font-weight:600;"></p>
 		<div id="asp-mi-log" style="max-height:320px;overflow:auto;background:#1d2327;color:#f0f0f1;padding:10px;font-family:monospace;font-size:12px;line-height:1.6;border-radius:3px;"></div>
+
+		<?php /* 失敗清單與重跑按鈕，由 JS 於批次結束時填入 */ ?>
+		<div id="asp-mi-failed" style="display:none;margin-top:14px;padding:12px;border-left:4px solid #d63638;background:#fcf0f1;"></div>
 	</div>
 </div>

@@ -29,6 +29,12 @@
 	var running   = false;
 	var rankPage  = 0;
 
+	// 批次匯入的重試設定。傳輸失敗（逾時／502）多為暫時性，
+	// 退避重試可避免整批只因一次抖動就少掉幾部。
+	var MAX_TRY     = 3;
+	var RETRY_WAIT  = [ 0, 3000, 8000 ];   // 索引為「已嘗試次數」
+	var failedIds   = [];
+
 	/* ══════════════════════════════════════════════
 	   分頁切換
 	   ══════════════════════════════════════════════ */
@@ -65,7 +71,49 @@
 			method: 'POST',
 			credentials: 'same-origin',
 			body: body
-		} ).then( function ( r ) { return r.json(); } );
+		} ).then( function ( r ) {
+			// ★ 先看 HTTP 狀態。主機逾時（502/504）回的是 HTML 錯誤頁，
+			//   直接 r.json() 會拋出語意不明的 JSON 解析錯誤，讓所有失敗
+			//   都被歸類成「網路錯誤」，查不出真正原因。
+			//
+			//   狀態碼要帶在錯誤物件上，呼叫端才有辦法判斷這次失敗是
+			//   「等一下會好」還是「再試幾次都一樣」。
+			if ( ! r.ok ) {
+				return r.text().then( function ( t ) {
+					var msg = 'HTTP ' + r.status;
+
+					// WordPress 的 wp_send_json_error() 即使帶狀態碼，內容仍是
+					// JSON，優先取它的訊息；取不到才退回狀態碼。
+					try {
+						var j = JSON.parse( t );
+
+						if ( j && j.data && j.data.message ) {
+							msg = j.data.message + '（HTTP ' + r.status + '）';
+						}
+					} catch ( e ) {
+						if ( r.status === 502 || r.status === 504 ) {
+							msg += '（主機逾時）';
+						}
+					}
+
+					var err = new Error( msg );
+					err.status = r.status;
+					throw err;
+				} );
+			}
+
+			return r.text().then( function ( t ) {
+				try {
+					return JSON.parse( t );
+				} catch ( e ) {
+					// 回應不是 JSON：多半是 PHP fatal 或外掛輸出了額外內容。
+					// 留下前 200 字，方便判斷問題出在哪，不要吞掉。
+					var err = new Error( '回應非 JSON：' + t.slice( 0, 200 ) );
+					err.status = 0;
+					throw err;
+				}
+			} );
+		} );
 	}
 
 	function log( text, type ) {
@@ -415,6 +463,62 @@
 			.filter( function ( n ) { return n > 0; } );
 	}
 
+	/**
+	 * 列出最後仍失敗的 ID，並提供一鍵重跑。
+	 *
+	 * 沒有這一段的話，失敗紀錄只存在於 log 裡，批次一大就等於遺失，
+	 * 使用者無從得知「哪幾部沒進來」。
+	 */
+	function renderFailed( force ) {
+		var wrap = $( '#asp-mi-failed' );
+
+		if ( ! wrap ) { return; }
+
+		if ( ! failedIds.length ) {
+			wrap.style.display = 'none';
+			wrap.innerHTML     = '';
+			return;
+		}
+
+		var list = failedIds.join( ', ' );
+
+		wrap.style.display = '';
+		wrap.innerHTML     = '';
+
+		var title = document.createElement( 'p' );
+		title.style.margin  = '0 0 6px';
+		title.style.fontWeight = '600';
+		title.textContent = '⚠️ 有 ' + failedIds.length + ' 部沒有匯入成功：';
+
+		var box = document.createElement( 'textarea' );
+		box.className    = 'large-text code';
+		box.rows         = 2;
+		box.readOnly     = true;
+		box.value        = list;
+
+		var btn = document.createElement( 'button' );
+		btn.type      = 'button';
+		btn.className = 'button button-primary';
+		btn.textContent = '重試這 ' + failedIds.length + ' 部';
+		btn.addEventListener( 'click', function () {
+			runQueue( failedIds.slice(), force );
+		} );
+
+		var tip = document.createElement( 'span' );
+		tip.className = 'description';
+		tip.style.marginLeft = '8px';
+		tip.textContent = '也可以複製上面的 ID，改用「📋 ID 清單」分頁重跑。';
+
+		var row = document.createElement( 'p' );
+		row.style.margin = '8px 0 0';
+		row.appendChild( btn );
+		row.appendChild( tip );
+
+		wrap.appendChild( title );
+		wrap.appendChild( box );
+		wrap.appendChild( row );
+	}
+
 	function runQueue( ids, force ) {
 		if ( running ) { return; }
 
@@ -423,10 +527,19 @@
 
 		$( '#asp-mi-progress-wrap' ).style.display = '';
 		$( '#asp-mi-log' ).innerHTML = '';
+
+		if ( $( '#asp-mi-failed' ) ) {
+			$( '#asp-mi-failed' ).style.display = 'none';
+			$( '#asp-mi-failed' ).innerHTML     = '';
+		}
 		$$( '.asp-mi-run' ).forEach( function ( b ) { b.disabled = true; } );
 		$$( '.asp-mi-stop' ).forEach( function ( b ) { b.style.display = ''; b.disabled = false; } );
 
-		var done = 0, ok = 0, skip = 0, fail = 0;
+		var done = 0, ok = 0, skip = 0, fail = 0, partial = 0;
+
+		// ★ 失敗的 ID 要留下來。批次跑完後列出並提供一鍵重跑，
+		//   否則 log 一長就找不到少了哪幾部，等同「匯入不完整」。
+		failedIds = [];
 
 		setProgress( 0, ids.length );
 		log( '開始匯入 ' + ids.length + ' 部' + ( force ? '（強制覆蓋）' : '' ), 'info' );
@@ -439,15 +552,39 @@
 			}
 
 			if ( done >= ids.length ) {
-				log( '全部完成 —— 成功 ' + ok + '、略過 ' + skip + '、失敗 ' + fail, 'ok' );
+				var sum = '全部完成 —— 成功 ' + ok + '、略過 ' + skip + '、失敗 ' + fail;
+
+				// 「成功但維基資料沒抓到」要單獨講。這種最危險：
+				// 看起來成功，實際上資料不完整。
+				if ( partial ) { sum += '（其中 ' + partial + ' 部維基資料未取得）'; }
+
+				log( sum, ( fail || partial ) ? 'warn' : 'ok' );
 				finish();
 				return;
 			}
 
-			var id      = ids[ done ];
+			runOne( ids[ done ], 1 );
+		}
+
+		function advance() {
+			done++;
+			setProgress( done, ids.length );
+
+			// ★ 用 setTimeout 跳出目前的 promise 鏈再進下一部。
+			//   若直接呼叫 next()，遞迴會發生在 .then() 內部，後續任何
+			//   同步例外都會被同一條 .catch() 接走，被誤判成「這部失敗」
+			//   而觸發重試 —— 已經成功匯入的作品會被重跑一次。
+			//   順帶避免 promise 鏈無限巢狀。
+			setTimeout( next, 0 );
+		}
+
+		function runOne( id, tryNo ) {
+			// ★ 重試時一律帶 force。傳輸失敗代表「不知道伺服器做到哪」——
+			//   文章可能已經建立但維基還沒抓完。不帶 force 的話重試會得到
+			//   「已存在，略過」，那部就永遠停在半完成狀態且看起來正常。
 			var payload = { anilist_id: id };
 
-			if ( force ) { payload.force = 1; }
+			if ( force || tryNo > 1 ) { payload.force = 1; }
 
 			post( 'anime_sync_manga_import_single', payload )
 				.then( function ( res ) {
@@ -459,28 +596,93 @@
 							log( '#' + id + ' 略過：' + ( d.message || '已存在' ), 'warn' );
 						} else {
 							ok++;
-							log( '#' + id + ' ✓ ' + ( d.message || '成功' ), 'ok' );
+
+							if ( ! wikiOk( d.wiki_status ) ) { partial++; }
+
+							log( '#' + id + ' ✓ ' + ( d.message || '成功' ) + wikiNote( d.wiki_status ),
+								wikiOk( d.wiki_status ) ? 'ok' : 'warn' );
 						}
-					} else {
-						fail++;
-						log( '#' + id + ' ✗ ' + ( ( res.data && res.data.message ) || '失敗' ), 'err' );
+
+						advance();
+						return;
 					}
+
+					// 伺服器正常回應但判定失敗（例：AniList 查無此 ID）。
+					// 這類錯誤重試幾次結果都一樣，直接記下來就好。
+					giveUp( id, ( res.data && res.data.message ) || '失敗' );
 				} )
-				.catch( function () {
-					fail++;
-					log( '#' + id + ' ✗ 網路錯誤', 'err' );
-				} )
-				.then( function () {
-					done++;
-					setProgress( done, ids.length );
-					next();
+				.catch( function ( err ) {
+					var code = ( err && err.status ) || 0;
+					var msg  = ( err && err.message ) || '網路錯誤';
+
+					// ── 分三類處理 ────────────────────────────────
+					// ① 全域性錯誤：nonce 過期(403)、外掛未就緒(500)。
+					//    後面每一部都會用同樣的方式失敗，硬跑完只是浪費時間，
+					//    直接中止整批並講清楚要怎麼處理。
+					if ( code === 403 || code === 500 ) {
+						log( '✗ ' + msg, 'err' );
+						log( '已中止整批 —— 這個錯誤會讓後面每一部都失敗。' +
+							( code === 403 ? '請重新整理頁面後再跑一次。' : '請先確認外掛狀態。' ), 'err' );
+						stopped = true;
+						giveUp( id, msg );
+						return;
+					}
+
+					// ② 這次請求本身有問題（參數錯、找不到路由），重試沒有意義。
+					if ( code === 400 || code === 404 ) {
+						giveUp( id, msg );
+						return;
+					}
+
+					// ③ 其餘（0 連線失敗、408、429、502、503、504）多為暫時性，值得重試。
+					retryOrGiveUp( id, tryNo, msg );
 				} );
+		}
+
+		// 維基抓取結果：'xxx:ok' 才算完整，其餘（含空字串）都要標示出來。
+		function wikiOk( s ) {
+			return typeof s === 'string' && s.slice( -3 ) === ':ok';
+		}
+
+		function wikiNote( s ) {
+			if ( wikiOk( s ) ) { return ''; }
+
+			return s ? '（維基資料未取得：' + s + '）' : '（維基資料未取得）';
+		}
+
+		function retryOrGiveUp( id, tryNo, msg ) {
+			if ( tryNo >= MAX_TRY ) {
+				giveUp( id, msg + '（已重試 ' + MAX_TRY + ' 次）' );
+				return;
+			}
+
+			var wait = RETRY_WAIT[ tryNo ] || 8000;
+
+			log( '#' + id + ' ⟳ ' + msg + ' —— ' + ( wait / 1000 ) +
+				' 秒後重試（第 ' + ( tryNo + 1 ) + ' / ' + MAX_TRY + ' 次）', 'warn' );
+
+			setTimeout( function () {
+				if ( stopped ) {
+					advance();
+					return;
+				}
+
+				runOne( id, tryNo + 1 );
+			}, wait );
+		}
+
+		function giveUp( id, msg ) {
+			fail++;
+			failedIds.push( id );
+			log( '#' + id + ' ✗ ' + msg, 'err' );
+			advance();
 		}
 
 		function finish() {
 			running = false;
 			$$( '.asp-mi-run' ).forEach( function ( b ) { b.disabled = false; } );
 			$$( '.asp-mi-stop' ).forEach( function ( b ) { b.style.display = 'none'; } );
+			renderFailed( force );
 		}
 
 		next();

@@ -178,24 +178,42 @@ class Anime_Sync_Manga_Import_Manager {
 			update_post_meta( $post_id, 'anime_last_sync',    current_time( 'mysql' ) );
 			update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) );
 
-			// 非同步拓展維基/Wikidata 資料(避免拖慢匯入回應)
+			// =========================================================
+			// 拓展維基/Wikidata 資料
+			//
+			// ★ 原本是排 wp_schedule_single_event() 丟給背景 cron 跑，理由是
+			//   「避免拖慢匯入回應」。實測維基＋Wikidata 三次請求只花約 1.5 秒，
+			//   省下的時間有限，代價卻很大：
+			//     · 批次匯入時所有事件同時到期，WP cron 會在同一個請求裡跑完，
+			//       容易撞上執行時間上限；逾時的話正在跑的那部直接遺失。
+			//     · 失敗是靜默的。匯入完看起來成功，實際上缺資料，要自己點進
+			//       每一頁才會發現。
+			//
+			//   改為當場同步執行：按下匯入、等它跑完，資料就是完整的。
+			//   走 do_action 而非直接 new，沿用 cron 註冊的同一個 handler，
+			//   行為與背景執行完全一致，只差在不用等 cron。
+			//   每週的 HOOK_WEEKLY 例行更新不受影響，維持原樣。
+			// =========================================================
+			$wiki_status = '';
+
 			if ( class_exists( 'Anime_Sync_Manga_Wiki_Cron' ) ) {
-				wp_schedule_single_event(
-					time() + 5,
-					Anime_Sync_Manga_Wiki_Cron::HOOK_SINGLE,
-					[ (int) $post_id, 'import' ]
-				);
+				do_action( Anime_Sync_Manga_Wiki_Cron::HOOK_SINGLE, (int) $post_id, 'import' );
+
+				// handler 會把成敗寫進這個 meta（成功 xxx:ok、查無資料 xxx:no_data）。
+				// 讀回來一併回傳，讓前端 log 直接看得到，不必事後稽核。
+				$wiki_status = (string) get_post_meta( $post_id, 'manga_wiki_last_status', true );
 			}
 
 			$display_title = $data['anime_title_chinese'] ?: $data['anime_title_romaji'] ?: "ID {$anilist_id}";
 			$action        = $is_update ? '已更新' : '已匯入';
 
 			return [
-				'success'  => true,
-				'message'  => "{$action} – {$display_title} (ID {$anilist_id})",
-				'post_id'  => $post_id,
-				'title'    => $display_title,
-				'edit_url' => get_edit_post_link( $post_id, 'raw' ),
+				'success'     => true,
+				'message'     => "{$action} – {$display_title} (ID {$anilist_id})",
+				'post_id'     => $post_id,
+				'title'       => $display_title,
+				'edit_url'    => get_edit_post_link( $post_id, 'raw' ),
+				'wiki_status' => $wiki_status,
 			];
 		} finally {
 			$this->release_import_lock( $anilist_id, $lock_token );

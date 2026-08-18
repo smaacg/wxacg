@@ -194,6 +194,13 @@ class Anime_Sync_Manga_Admin {
 			wp_send_json_error( [ 'message' => '缺少 AniList 漫畫 ID' ], 400 );
 		}
 
+		// 單部匯入現在含維基/Wikidata 抓取，正常約 10 秒，但外部 API 慢的時候
+		// 可能拖到主機預設的執行時間上限。這裡放寬本次請求的上限；
+		// set_time_limit 不在主機的 disable_functions 內，可正常使用。
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 300 );
+		}
+
 		// import_single( anilist_id, bangumi_id, source, args ) → 回傳陣列
 		$result = $this->import_manager->import_single(
 			$anilist_id,
@@ -209,10 +216,12 @@ class Anime_Sync_Manga_Admin {
 		}
 
 		wp_send_json_success( [
-			'message'   => $result['message'] ?? '漫畫匯入成功',
-			'post_id'   => $result['post_id'] ?? 0,
-			'edit_link' => $result['edit_url'] ?? '',
-			'skipped'   => ! empty( $result['skipped'] ),
+			'message'     => $result['message'] ?? '漫畫匯入成功',
+			'post_id'     => $result['post_id'] ?? 0,
+			'edit_link'   => $result['edit_url'] ?? '',
+			'skipped'     => ! empty( $result['skipped'] ),
+			// 維基抓取結果（xxx:ok / xxx:no_data），讓前端 log 當場顯示完整度
+			'wiki_status' => $result['wiki_status'] ?? '',
 		] );
 	}
 
