@@ -3933,3 +3933,62 @@ nav.asd-tabs a.asd-tab.is-active::after {
     font-size: 12px;
   }
 }
+/* ====== 閱讀／購買管道清單 =========================================
+   兩處共用:
+     · 漫畫頁的「哪裡可以線上看」
+     · 動畫頁的「原作漫畫哪裡看」
+   原本寫在 single-manga.css，但那支只在 is_singular('manga') 載入，
+   動畫頁會沒有樣式，因此移到本檔（兩種頁面都會載入）。 */
+.asd-read-channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.asd-read-channel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--asd-radius-md);
+  background: var(--asd-bg-card);
+  border: 1px solid var(--asd-border);
+  text-decoration: none;
+  transition: border-color .18s, background .18s, transform .18s;
+}
+.asd-read-channel:hover,
+.asd-read-channel:focus-visible {
+  border-color: var(--asd-primary);
+  background: var(--asd-bg-hover);
+  transform: translateY(-1px);
+}
+/* 手填的主推連結／站內連結:左側色帶，與自動產生的搜尋連結區分 */
+.asd-read-channel--primary {
+  border-left: 3px solid var(--asd-primary);
+  background: var(--asd-primary-glow);
+}
+.asd-read-channel-name {
+  font-weight: 700;
+  font-size: .95rem;
+  color: var(--asd-text);
+  min-width: 0;
+}
+.asd-read-channel-badge {
+  padding: 3px 10px;
+  border-radius: var(--asd-radius-pill);
+  font-size: .72rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+}
+.asd-read-channel-note {
+  width: 100%;
+  font-size: .82rem;
+  color: var(--asd-text-muted);
+}
+.asd-read-channels-tip {
+  margin: 12px 0 0;
+  font-size: .82rem;
+  color: var(--asd-text-muted);
+}

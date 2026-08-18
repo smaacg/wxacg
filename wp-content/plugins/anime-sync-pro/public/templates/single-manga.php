@@ -279,15 +279,18 @@ while ( have_posts() ) :
      *
      *     BOOK☆WALKER 台灣  ?w=      → 命中 339 次   ✅
      *     博客來             /key/…   → 命中 206 次   ✅
-     *     Pubu               ?q=      → 命中 283 次   ✅
+     *     Pubu               ?q=      → 命中 283 次   ✅（後移除，見下）
      *     少年Jump+          ?q=      → 命中  13 次   ✅
      *     マガポケ            ?q=      → 命中  17 次   ✅
      *
      *   刻意排除的:
      *     MANGA Plus   純 SPA，只回 2,350 bytes 空殼，產不出搜尋連結
+     *     mangamillion 集英社官方，但搜尋是客戶端算的，且只有簡體版
      *     KadoKado     0 命中
      *     ComicWalker  1 命中，疑似 SPA
      *     Readmoo/Kobo 擋機房 IP 無法驗證(不代表壞，是驗不到)
+     *     Pubu         搜尋可用，但站方沒有聯盟方案，依需求移除。
+     *                  網域反查表仍保留它，手填該站連結時才顯示得出平台名。
      *
      *   搜尋結果是空的連結，比完全沒有連結更傷使用者信任，所以寧缺勿濫。
      *   MANGA Plus 雖然是繁中免費最有價值的來源，但只能靠上面的手填欄位。
@@ -399,7 +402,6 @@ while ( have_posts() ) :
             [ 'Renta! 台灣',       'https://tw.myrenta.com/search2?keyword=' . $tw_search_title,          '看漫畫・繁中' ],
             [ 'BOOK☆WALKER 台灣', 'https://www.bookwalker.com.tw/search?w=' . $tw_q,                      '購買・繁中'   ],
             [ '博客來',            'https://search.books.com.tw/search/query/key/' . $tw_q . '/cat/all',  '購買・繁中'   ],
-            [ 'Pubu',              'https://www.pubu.com.tw/search?q=' . $tw_q,                           '購買・繁中'   ],
         ] as $tw_item ) {
             $final_url = function_exists( 'anime_sync_affiliate_url' )
                 ? anime_sync_affiliate_url( $tw_item[1], $affiliate_subid )

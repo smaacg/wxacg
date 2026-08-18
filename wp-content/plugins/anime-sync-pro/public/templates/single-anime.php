@@ -1529,6 +1529,88 @@ while ( have_posts() ) :
 		$get_meta( 'anime_relations_json' )
 	);
 
+	/* =====================================================================
+	 * 原作漫畫（供下方「看原作漫畫」區塊使用）
+	 *
+	 * 追完一季想知道後續，是購買漫畫意圖最強的時刻，而動畫頁正好是這些人
+	 * 停留的地方。站上 1,511 部動畫中有 1,112 部（73.6%）有原作漫畫。
+	 *
+	 * ★ relations 只帶羅馬字標題（例:Shingeki no Kyojin），但 Renta! 台灣
+	 *   是中文站。改用動畫自己的中文標題去搜——改編作品的中文名幾乎都與
+	 *   原作漫畫相同。實測站上人氣前十且有原作漫畫的作品，10/10 都搜得到。
+	 * =================================================================== */
+	$source_manga_id    = 0;   // 原作漫畫的 AniList ID
+	$source_manga_local = 0;   // 站內同一部漫畫的文章 ID（有匯入才會有）
+
+	foreach ( $relations_list as $relation_row ) {
+		if ( ! is_array( $relation_row ) ) {
+			continue;
+		}
+
+		if ( 'MANGA' !== ( $relation_row['type'] ?? '' ) ) {
+			continue;
+		}
+
+		if ( ! in_array( $relation_row['relation_type'] ?? '', [ 'ADAPTATION', 'SOURCE' ], true ) ) {
+			continue;
+		}
+
+		$source_manga_id = (int) ( $relation_row['id'] ?? 0 );
+
+		if ( $source_manga_id > 0 ) {
+			break;   // 取第一筆即可，一部動畫的原作只會有一部
+		}
+	}
+
+	if ( $source_manga_id > 0 ) {
+		// 站內若已匯入這部漫畫，優先給站內連結（留住使用者，也補內部連結）
+		$local_manga = get_posts( [
+			'post_type'      => 'manga',
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_key'       => 'anime_anilist_id',
+			'meta_value'     => (string) $source_manga_id,
+		] );
+
+		$source_manga_local = ! empty( $local_manga ) ? (int) $local_manga[0] : 0;
+	}
+
+	/*
+	 * 拿去搜尋的漫畫標題:動畫中文標題去掉季數字樣。
+	 *
+	 * 「進擊的巨人 第二季」直接拿去搜其實也搜得到，但帶著季號不夠準確，
+	 * 續作越多的作品越容易失準。既有的 strip_season_markers() 是兩個
+	 * mapper 類別的 private 方法，且不處理中文「第二季」，因此不動它們，
+	 * 這裡就地處理需要的幾種寫法。
+	 */
+	$source_manga_query = $title_chinese !== '' ? $title_chinese : $display_title;
+	$source_manga_query = preg_replace(
+		[
+			'/第\s*[0-9０-９一二三四五六七八九十]+\s*(?:季|期|部|篇|章)/u',
+			'/\b\d+(?:st|nd|rd|th)\s+season\b/ui',
+			'/\bseason\s*\d+\b/ui',
+			'/\bpart\s*\d+\b/ui',
+			'/\bfinal\s+season\b/ui',
+		],
+		' ',
+		(string) $source_manga_query
+	);
+	$source_manga_query = trim( (string) preg_replace( '/\s+/u', ' ', $source_manga_query ) );
+
+	// Renta! 台灣（賣漫畫，站上唯一有聯盟合作的通路）
+	$source_manga_shop_url = '';
+
+	if ( $source_manga_id > 0 && $source_manga_query !== '' && function_exists( 'anime_sync_affiliate_url' ) ) {
+		$source_manga_shop_url = anime_sync_affiliate_url(
+			'https://tw.myrenta.com/search2?keyword=' . $source_manga_query,
+			(string) get_post_field( 'post_name', $post_id )
+		);
+	}
+
+	$has_source_manga = ( $source_manga_local > 0 || $source_manga_shop_url !== '' );
+
 	$episodes_list = $decode_json(
 		$get_meta( 'anime_episodes_json' )
 	);
@@ -4304,6 +4386,9 @@ while ( have_posts() ) :
 				<?php if ( $has_online_watch ) : ?>
 					<a class="asd-tab" href="#asd-sec-online">▶ 線上看</a>
 				<?php endif; ?>
+				<?php if ( $has_source_manga ) : ?>
+					<a class="asd-tab" href="#asd-sec-manga">📖 原作漫畫</a>
+				<?php endif; ?>
 
 				<?php if ( ! empty( $faq_display_items ) ) : ?>
 					<a class="asd-tab" href="#asd-sec-faq">❓ 常見問題</a>
@@ -5674,6 +5759,41 @@ while ( have_posts() ) :
 
 							<p class="asd-stream-disclaimer" style="margin-top:20px !important;">
 								影片由 YouTube 頻道提供。若無法播放，可能是影片已下架、限制嵌入、設有地區限制或需要頻道會員資格。
+							</p>
+						</section>
+					<?php endif; ?>
+
+					<?php /* 看原作漫畫（接在「線上看」之後——同樣是「去哪裡看」的延伸） */ ?>
+					<?php if ( $has_source_manga ) : ?>
+						<section class="asd-section" id="asd-sec-manga">
+							<h2 class="asd-section-title">
+								📖 《<?php echo esc_html( $display_title ); ?>》原作漫畫哪裡看?
+							</h2>
+
+							<div class="asd-read-channels">
+								<?php if ( $source_manga_local > 0 ) : ?>
+									<?php /* 站內已有這部漫畫:優先導向自家頁面 */ ?>
+									<a href="<?php echo esc_url( get_permalink( $source_manga_local ) ); ?>"
+									   class="asd-read-channel asd-read-channel--primary">
+										<span class="asd-read-channel-name">本站漫畫資料</span>
+										<span class="asd-read-channel-badge">卷數・台版資訊</span>
+									</a>
+								<?php endif; ?>
+
+								<?php if ( $source_manga_shop_url !== '' ) : ?>
+									<a href="<?php echo esc_url( $source_manga_shop_url ); ?>"
+									   target="_blank"
+									   <?php /* 聯盟連結必須同時標 sponsored 與 nofollow */ ?>
+									   rel="noopener noreferrer nofollow sponsored"
+									   class="asd-read-channel">
+										<span class="asd-read-channel-name">Renta! 台灣</span>
+										<span class="asd-read-channel-badge">看漫畫・繁中</span>
+									</a>
+								<?php endif; ?>
+							</div>
+
+							<p class="asd-read-channels-tip">
+								動畫進度追完了想看後續，可以從原作漫畫接下去。以上為正版電子書平台連結。
 							</p>
 						</section>
 					<?php endif; ?>
