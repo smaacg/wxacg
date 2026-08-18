@@ -791,6 +791,25 @@ function asc_progress_block( $prefix ) {
         $('#season-select-all').off('change').on('change', function(){
             $('.season-item-check:not(:disabled)').prop('checked', $(this).prop('checked'));
         });
+
+        /*
+         * ★ 每一部作品在 DOM 裡有兩份 checkbox——桌機表格一份、手機卡片一份，
+         *   兩份同 class、同 data-id，未匯入時都預設 checked。
+         *
+         *   使用者在表格取消勾選時，被 CSS 藏起來的卡片那份仍是 checked;
+         *   送出時 collectIds('.season-item-check') 會掃到兩份，把取消掉的
+         *   又撿回來。實際發生過:只勾了二十幾部，卻跑了 95 部。
+         *   （collectIds 的去重救不了——它去掉的是重複，不是還原勾選狀態。）
+         *
+         *   同檔的「製作決定」分頁已有這段同步（見 announced-item-check），
+         *   季度與排行漏掉，這裡補上。
+         */
+        $(document).off('change', '.season-item-check').on('change', '.season-item-check', function(){
+            var aid = $(this).data('id');
+            if (aid) {
+                $('.season-item-check[data-id="' + aid + '"]').prop('checked', $(this).prop('checked'));
+            }
+        });
     }
 
     $('#btn-apply-format-filter').on('click', function(){
@@ -825,6 +844,10 @@ function asc_progress_block( $prefix ) {
         //      或格式篩選情境下誤判為「未勾選」。）
         var ids = collectIds('.season-item-check');
         if (ids.length === 0) { alert('請勾選至少一部'); return; }
+        // 送出前把數量講清楚。這一步不是儀式——桌機表格與手機卡片的勾選
+        // 曾經不同步，導致實際送出的部數遠多於畫面上勾的（勾二十幾部卻跑 95 部）。
+        // 即使同步已修好，數量對不上時仍要有機會在這裡喊停。
+        if (ids.length > 10 && !confirm('即將匯入 ' + ids.length + ' 部，確定嗎？')) { return; }
         seasonStop = false;
         runImportQueue('season', ids);
     });
@@ -945,11 +968,21 @@ function asc_progress_block( $prefix ) {
         $('#ranking-select-all').off('change').on('change', function(){
             $('.ranking-item-check:not(:disabled)').prop('checked', $(this).prop('checked'));
         });
+
+        // 表格與手機卡片的兩份 checkbox 要同步，理由同季度那段（見上方註解）
+        $(document).off('change', '.ranking-item-check').on('change', '.ranking-item-check', function(){
+            var aid = $(this).data('id');
+            if (aid) {
+                $('.ranking-item-check[data-id="' + aid + '"]').prop('checked', $(this).prop('checked'));
+            }
+        });
     }
 
     $('#btn-ranking-import').on('click', function(){
         var ids = collectIds('.ranking-item-check');
         if (ids.length === 0) { alert('請勾選至少一部'); return; }
+        // 同季度那段:數量對不上時要有機會喊停
+        if (ids.length > 10 && !confirm('即將匯入 ' + ids.length + ' 部，確定嗎？')) { return; }
         rankingStop = false;
         runImportQueue('ranking', ids);
     });
