@@ -380,6 +380,16 @@ while ( have_posts() ) :
             ? $country_source_labels[ $country ]
             : ( $source_labels[ $source ] ?? $source );
 
+    /*
+     * 「原創」對漫畫讀者沒有資訊量 —— 漫畫本身通常就是原作，AniList 上
+     * 絕大多數漫畫的 source 都是 ORIGINAL，顯示出來只是佔一行。
+     * 只有改編作品（輕小說漫畫化、遊戲漫畫化、韓漫／國漫等）才值得標示，
+     * 因此這裡把「原創」清空，下方 $info_rows 的空值過濾會自動略過該列。
+     */
+    if ( '原創' === $source_label ) {
+        $source_label = '';
+    }
+
     // $volumes_effective 已於上方追蹤列區塊計算（兩處需共用同一個值）
     $volumes_str  = ( $volumes_effective > 0 ) ? $volumes_effective . ' 卷' : '';
     $chapters_str = ( $chapters !== '' && (int) $chapters > 0 ) ? (int) $chapters . ' 話' : '';
