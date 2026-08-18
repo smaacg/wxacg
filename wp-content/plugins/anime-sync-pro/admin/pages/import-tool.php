@@ -614,10 +614,30 @@ function asc_progress_block( $prefix ) {
     }
 
     /* ★ v1.9.1：收集勾選 checkbox 的 data-id，自動過濾 NaN/0/負數並去重 */
+    /*
+     * 只收集「畫面上看得見且已勾選」的項目。
+     *
+     * ★ :visible 這個條件是必要的，不是保險。同一部作品在 DOM 裡有兩份
+     *   checkbox，而且會被兩種機制隱藏，兩種都曾造成「送出的部數遠多於
+     *   畫面上勾的」:
+     *
+     *   ① 表格 / 卡片雙份
+     *      .asc-desktop-only 與 .asc-mobile-only 由媒體查詢二選一顯示，
+     *      桌機時整個卡片容器是 display:none。只算單邊才不會重複，
+     *      也不會把使用者在表格取消掉的、從隱藏的卡片那份撿回來。
+     *
+     *   ② 格式篩選
+     *      被篩掉的列加 .format-hidden（display:none）、卡片走 .toggle()，
+     *      但它們的 checked 狀態原封不動。實際發生過:畫面上只勾 6 部，
+     *      送出時卻是 54 部——其餘 48 部是被篩掉、看不見卻仍勾著的。
+     *
+     *   語意也比較直覺:看不到的東西不算被選取。
+     *   （去重仍然保留，避免同一邊出現重複 data-id 的意外。）
+     */
     function collectIds(selector) {
         var out = [];
         var seen = {};
-        $(selector + ':checked').each(function(){
+        $(selector + ':checked:visible').each(function(){
             var n = validId($(this).data('id'));
             if (n !== null && !seen[n]) { seen[n] = true; out.push(n); }
         });
