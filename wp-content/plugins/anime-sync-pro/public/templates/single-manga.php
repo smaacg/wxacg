@@ -313,6 +313,10 @@ while ( have_posts() ) :
         $preview_host  = preg_replace( '/^www\./i', '', $preview_host );
         $known_hosts   = [
             'mangaplus.shueisha.co.jp'   => 'MANGA Plus',
+            // 集英社官方，簡體中文。搜尋是客戶端算的（實測:亂碼查詢也會被
+            // 原樣回填進頁面，三種查詢回傳長度幾乎相同），產不出搜尋連結，
+            // 只能手填作品頁網址。
+            'mangamillion.shueisha.co.jp' => '百萬漫畫（簡體）',
             'shonenjumpplus.com'         => '少年Jump+',
             'pocket.shonenmagazine.com'  => 'マガポケ',
             'sunday-webry.com'           => 'サンデーうぇぶり',
