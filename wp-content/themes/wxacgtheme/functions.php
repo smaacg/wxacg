@@ -114,8 +114,8 @@ if ( ! defined( 'WXACG_ADSENSE_CLIENT' ) ) {
  * @return string
  */
 function wxacg_header_banner_url(): string {
-	// 原圖 2560×400 僅 21.7 KB，無需改用縮圖。
-	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/banner.webp';
+	// 原圖 2560×400 僅 13.8 KB，無需改用縮圖。
+	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/2026top.webp';
 
 	/**
 	 * 允許以外掛或子主題覆寫橫幅來源（例如依季節輪播）。
