@@ -15,6 +15,17 @@
  *   因此裁切交給 .header-banner 這層自己處理。
  */
 
+:root {
+  /*
+   * 橫幅的垂直取景位置。
+   *
+   * 圖是 2560×400（6.4:1），header 只有 155px 高，以整站寬度鋪滿後
+   * 垂直方向會被裁掉約四成，因此看到的是圖中間的一條帶狀區域。
+   * 想讓畫面往上或往下取景，改這個值即可（0% 取頂部、100% 取底部）。
+   */
+  --header-banner-pos-y: 50%;
+}
+
 .header-banner {
   position: absolute;
   inset: 0;
@@ -34,7 +45,7 @@
   left: -4%;
   right: -4%;
 
-  background-position: center center;
+  background-position: center var(--header-banner-pos-y);
   background-size: cover;
   background-repeat: no-repeat;
 
