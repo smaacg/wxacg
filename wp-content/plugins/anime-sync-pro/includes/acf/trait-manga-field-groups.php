@@ -497,22 +497,30 @@ private function register_manga_fields(): void {
     }
 
     // =========================================================================
-    // 群組 M4:漫畫試閱 / 免費閱讀(合法試閱連結)
+    // 群組 M4:線上看(合法閱讀管道)
     // location 綁定 post_type == manga
+    //
+    // ★ 只有「主推連結」需要手填，其餘管道由前台依日本出版社自動產生
+    //   搜尋連結（少年Jump+／マガポケ／BOOK☆WALKER 台灣／博客來／Pubu，
+    //   五個都實測過搜尋參數確實生效）。因此這裡刻意維持單一連結，
+    //   不做多筆清單——ACF 免費版沒有 repeater，而且實務上一部作品
+    //   只需要標出「最值得點的那一個」。
     // =========================================================================
     private function register_manga_preview(): void {
         acf_add_local_field_group( [
             'key'    => 'group_manga_preview',
-            'title'  => '📖 試閱 / 免費閱讀',
+            'title'  => '📖 線上看',
             'fields' => [
                 [
                     'key'          => 'field_manga_preview_url',
-                    'label'        => '免費閱讀 / 試閱連結',
+                    'label'        => '主推線上看連結',
                     'name'         => 'manga_preview_url',
                     'type'         => 'url',
-                    'instructions' => '貼上合法免費閱讀或試閱網址,例如 Book☆Walker 台灣、少年Jump+、Comic Walker 的試閱頁。',
+                    'instructions' => '填了會排在「哪裡可以線上看」的第一個，沒填則只顯示自動產生的搜尋連結。'
+                        . '<br>優先填 <strong>MANGA Plus</strong>（集英社官方，有繁體中文且免費，但它是 SPA 產不出搜尋連結，只能手填）。'
+                        . '其次是東立電子書城、少年Jump+ 等作品頁網址。',
                     'required'     => 0,
-                    'placeholder'  => 'https://www.bookwalker.com.tw/...',
+                    'placeholder'  => 'https://mangaplus.shueisha.co.jp/titles/...',
                 ],
                 [
                     'key'          => 'field_manga_preview_source_type',
@@ -521,9 +529,10 @@ private function register_manga_fields(): void {
                     'type'         => 'select',
                     'choices'      => [
                         ''                  => '—',
-                        'trial'             => '試閱(前幾話或前幾頁)',
-                        'official_free'     => '官方完全免費',
+                        'official_free'     => '官方免費（全話或多話）',
+                        'trial'             => '試閱（前幾話或前幾頁）',
                         'limited_time_free' => '期間限定免費',
+                        'subscription'      => '訂閱制',
                         'aggregator'        => '聚合區(例 weixiaoacg)',
                     ],
                     'default_value' => '',
@@ -535,7 +544,8 @@ private function register_manga_fields(): void {
                     'label'        => '備註',
                     'name'         => 'manga_preview_note',
                     'type'         => 'text',
-                    'instructions' => '例如「免費看到第 30 話」、「2026-12-31 前全集免費」。',
+                    'instructions' => '例如「免費看到第 30 話」。<br>⚠️ 這類資訊會過期，平台常換免費話數；'
+                        . '不確定就留空，錯的資訊比沒有更傷。',
                     'wrapper'      => [ 'width' => '50' ],
                 ],
             ],

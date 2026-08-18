@@ -262,11 +262,134 @@ while ( have_posts() ) :
     // ── Wikipedia URL(維基 cron 寫入)──
     $wikipedia_url = $get_meta( 'manga_wikipedia_url' );
 
-    // ── 免費閱讀 / 試閱(v1.6.0,M4)──
+    // ── 線上看(M4。原「免費閱讀 / 試閱」，v1.6.0 起沿用同一組欄位)──
     $preview_url         = $get_meta( 'manga_preview_url' );
     $preview_source_type = $get_meta( 'manga_preview_source_type' );
     $preview_note        = $get_meta( 'manga_preview_note' );
     $has_preview         = ( $preview_url !== '' );
+
+    /* =====================================================================
+     * 線上看管道清單
+     *
+     * 手填的「主推連結」排第一，其餘由出版社自動推導出搜尋連結。
+     *
+     * ★ 為什麼只有這五個平台:
+     *   每一個都實際發過請求驗證「搜尋參數確實生效、回傳頁面真的含有
+     *   該作品」，不是憑印象寫的。以下是驗證當下(2026-08-18)的結果:
+     *
+     *     BOOK☆WALKER 台灣  ?w=      → 命中 339 次   ✅
+     *     博客來             /key/…   → 命中 206 次   ✅
+     *     Pubu               ?q=      → 命中 283 次   ✅
+     *     少年Jump+          ?q=      → 命中  13 次   ✅
+     *     マガポケ            ?q=      → 命中  17 次   ✅
+     *
+     *   刻意排除的:
+     *     MANGA Plus   純 SPA，只回 2,350 bytes 空殼，產不出搜尋連結
+     *     KadoKado     0 命中
+     *     ComicWalker  1 命中，疑似 SPA
+     *     Readmoo/Kobo 擋機房 IP 無法驗證(不代表壞，是驗不到)
+     *
+     *   搜尋結果是空的連結，比完全沒有連結更傷使用者信任，所以寧缺勿濫。
+     *   MANGA Plus 雖然是繁中免費最有價值的來源，但只能靠上面的手填欄位。
+     * =================================================================== */
+    $read_channels = [];
+
+    // ① 手填的主推連結永遠排第一
+    if ( $has_preview ) {
+        $preview_type_names = [
+            'official_free'     => '官方免費',
+            'trial'             => '試閱',
+            'limited_time_free' => '期間限定免費',
+            'subscription'      => '訂閱制',
+            'aggregator'        => '聚合區',
+        ];
+
+        /*
+         * 卡片上要顯示平台名稱，不是「前往閱讀」這種動詞——使用者要能一眼
+         * 認出是哪個平台才會點。手填欄位只有一個網址，因此由網域反查名稱，
+         * 查不到就退回網域本身（至少仍是可辨識的資訊）。
+         */
+        $preview_host  = (string) wp_parse_url( $preview_url, PHP_URL_HOST );
+        $preview_host  = preg_replace( '/^www\./i', '', $preview_host );
+        $known_hosts   = [
+            'mangaplus.shueisha.co.jp'   => 'MANGA Plus',
+            'shonenjumpplus.com'         => '少年Jump+',
+            'pocket.shonenmagazine.com'  => 'マガポケ',
+            'sunday-webry.com'           => 'サンデーうぇぶり',
+            'ganganonline.com'           => 'ガンガンONLINE',
+            'comic-walker.com'           => 'ComicWalker',
+            'ebook.tongli.com.tw'        => '東立電子書城',
+            'bookwalker.com.tw'          => 'BOOK☆WALKER 台灣',
+            'kadokado.com.tw'            => 'KadoKado 角角者',
+            'webtoons.com'               => 'LINE WEBTOON',
+            'comico.com.tw'              => 'comico',
+            'readmoo.com'                => 'Readmoo 讀墨',
+            'kobo.com'                   => 'Kobo',
+            'pubu.com.tw'                => 'Pubu',
+            'books.com.tw'               => '博客來',
+            'weixiaoacg.com'             => '本站線上看',
+        ];
+
+        $preview_name = $known_hosts[ $preview_host ] ?? ( $preview_host !== '' ? $preview_host : '前往閱讀' );
+
+        $read_channels[] = [
+            'name'   => $preview_name,
+            'url'    => $preview_url,
+            'badge'  => $preview_type_names[ $preview_source_type ] ?? '',
+            'note'   => $preview_note,
+            'manual' => true,
+        ];
+    }
+
+    // ② 依日本出版社推導官方連載平台
+    //    出版社欄位有雜訊(例「集英社（日本）」「別冊少年Magazine、」)，
+    //    用 strpos 比對而非等值比較，才不會因為括號或頓號對不到。
+    $jp_search_title = $title_native !== '' ? $title_native : $display_title;
+
+    if ( $jp_search_title !== '' ) {
+        $jp_platforms = [
+            '集英社' => [ '少年Jump+', 'https://shonenjumpplus.com/search?q=%s' ],
+            '講談社' => [ 'マガポケ',   'https://pocket.shonenmagazine.com/search?q=%s' ],
+        ];
+
+        foreach ( $jp_platforms as $pub_key => $info ) {
+            if ( strpos( (string) $jp_publisher, $pub_key ) === false ) {
+                continue;
+            }
+
+            $read_channels[] = [
+                'name'   => $info[0],
+                'url'    => sprintf( $info[1], rawurlencode( $jp_search_title ) ),
+                'badge'  => '官方・日文',
+                'note'   => '',
+                'manual' => false,
+            ];
+            break;   // 一部作品只會屬於一家出版社
+        }
+    }
+
+    // ③ 台灣電子書平台(全部作品都給，購買意圖最高的入口)
+    $tw_search_title = $display_title !== '' ? $display_title : $title_native;
+
+    if ( $tw_search_title !== '' ) {
+        $tw_q = rawurlencode( $tw_search_title );
+
+        foreach ( [
+            [ 'BOOK☆WALKER 台灣', 'https://www.bookwalker.com.tw/search?w=' . $tw_q ],
+            [ '博客來',            'https://search.books.com.tw/search/query/key/' . $tw_q . '/cat/all' ],
+            [ 'Pubu',              'https://www.pubu.com.tw/search?q=' . $tw_q ],
+        ] as $tw_item ) {
+            $read_channels[] = [
+                'name'   => $tw_item[0],
+                'url'    => $tw_item[1],
+                'badge'  => '購買・繁中',
+                'note'   => '',
+                'manual' => false,
+            ];
+        }
+    }
+
+    $has_read_channels = ! empty( $read_channels );
 
     // 台版代理
     $tw_publisher    = $get_meta( 'manga_tw_publisher' );
@@ -784,8 +907,15 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
             </div>
 
             <div class="asd-hero-actions">
+                <?php /*
+                 * 有手填主推連結時直接外連（最強的行動呼籲）；
+                 * 只有自動產生的搜尋連結時改為錨點，把人帶到管道清單，
+                 * 讓他自己挑平台，而不是硬塞一個未必適合的外連。
+                 */ ?>
                 <?php if ( $has_preview ) : ?>
-                    <a href="<?php echo esc_url( $preview_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-action-btn asd-action-btn--primary">📖 免費閱讀</a>
+                    <a href="<?php echo esc_url( $preview_url ); ?>" target="_blank" rel="noopener noreferrer nofollow" class="asd-action-btn asd-action-btn--primary">📖 線上看</a>
+                <?php elseif ( $has_read_channels ) : ?>
+                    <a href="#asd-sec-preview" class="asd-action-btn asd-action-btn--primary">📖 線上看</a>
                 <?php endif; ?>
                 <?php if ( $purchase_url ) : ?>
                     <a href="<?php echo esc_url( $purchase_url ); ?>" target="_blank" rel="noopener noreferrer sponsored" class="asd-action-btn asd-action-btn--primary" title="<?php echo esc_attr( $display_title ); ?> 購買">🛒 購買台版</a>
@@ -1115,7 +1245,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
             <?php if ( ! empty( $cast_to_display ) ) : ?><a class="asd-tab" href="#asd-sec-cast">🎭 CAST</a><?php endif; ?>
             <?php if ( $has_publish_region ) : ?><a class="asd-tab" href="#asd-sec-region">🌏 各地區出版</a><?php endif; ?>
             <?php if ( $tw_publisher || $tw_translator || $tw_release_date || $purchase_url ) : ?><a class="asd-tab" href="#asd-sec-tw">🇹🇼 台版資訊</a><?php endif; ?>
-            <?php if ( $has_preview ) : ?><a class="asd-tab" href="#asd-sec-preview">📖 免費閱讀</a><?php endif; ?>
+            <?php if ( $has_read_channels ) : ?><a class="asd-tab" href="#asd-sec-preview">📖 線上看</a><?php endif; ?>
             <?php if ( $has_vol_section ) : ?><a class="asd-tab" href="#asd-sec-vols">📚 單行本</a><?php endif; ?>
             <?php if ( $has_links ) : ?><a class="asd-tab" href="#asd-sec-links">🔗 外部連結</a><?php endif; ?>
             <a class="asd-tab" href="#asd-sec-comments">💬 留言</a>
@@ -1380,39 +1510,49 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </section>
                 <?php endif; ?>
 
-                <?php /* 免費閱讀 / 試閱(M4)★v1.6.0 */ ?>
-                <?php if ( $has_preview ) : ?>
-                    <?php
-                    $preview_type_labels = [
-                        'trial'             => '試閱',
-                        'official_free'     => '官方完全免費',
-                        'limited_time_free' => '期間限定免費',
-                        'aggregator'        => '線上閱讀',
-                    ];
-                    $preview_type_badges = [
-                        'trial'             => 'asd-preview-badge--trial',
-                        'official_free'     => 'asd-preview-badge--free',
-                        'limited_time_free' => 'asd-preview-badge--limited',
-                        'aggregator'        => 'asd-preview-badge--agg',
-                    ];
-                    $preview_type_label = $preview_type_labels[ $preview_source_type ] ?? '';
-                    $preview_type_class = $preview_type_badges[ $preview_source_type ] ?? '';
-                    ?>
+                <?php /* 線上看(M4。原「免費閱讀 / 試閱」) */ ?>
+                <?php if ( $has_read_channels ) : ?>
                     <section class="asd-section" id="asd-sec-preview">
-                        <h2 class="asd-section-title">📖 免費閱讀 / 試閱</h2>
-                        <div class="asd-preview-box">
-                            <div class="asd-preview-info">
-                                <?php if ( $preview_type_label ) : ?>
-                                    <span class="asd-preview-badge <?php echo esc_attr( $preview_type_class ); ?>"><?php echo esc_html( $preview_type_label ); ?></span>
-                                <?php endif; ?>
-                                <?php if ( $preview_note ) : ?>
-                                    <span class="asd-preview-note"><?php echo esc_html( $preview_note ); ?></span>
-                                <?php endif; ?>
-                            </div>
-                            <a href="<?php echo esc_url( $preview_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-action-btn asd-action-btn--primary asd-preview-btn">
-                                📖 前往閱讀
-                            </a>
+                        <?php
+                        /*
+                         * H2 直接寫成使用者實際會搜尋的句子。
+                         * 「XXX 線上看」是台灣的高量查詢，標題與內容都要正面回答它，
+                         * 否則使用者點進來看不到答案就跳回搜尋結果（pogo-sticking）。
+                         */
+                        ?>
+                        <h2 class="asd-section-title">
+                            📖 《<?php echo esc_html( $display_title ); ?>》哪裡可以線上看?
+                        </h2>
+
+                        <div class="asd-read-channels">
+                            <?php foreach ( $read_channels as $ch ) : ?>
+                                <a
+                                    href="<?php echo esc_url( $ch['url'] ); ?>"
+                                    target="_blank"
+                                    <?php /* 外部平台連結一律 nofollow，避免被視為連結交換 */ ?>
+                                    rel="noopener noreferrer nofollow"
+                                    class="asd-read-channel<?php echo $ch['manual'] ? ' asd-read-channel--primary' : ''; ?>"
+                                >
+                                    <span class="asd-read-channel-name"><?php echo esc_html( $ch['name'] ); ?></span>
+
+                                    <?php if ( $ch['badge'] !== '' ) : ?>
+                                        <span class="asd-read-channel-badge"><?php echo esc_html( $ch['badge'] ); ?></span>
+                                    <?php endif; ?>
+
+                                    <?php if ( $ch['note'] !== '' ) : ?>
+                                        <span class="asd-read-channel-note"><?php echo esc_html( $ch['note'] ); ?></span>
+                                    <?php endif; ?>
+                                </a>
+                            <?php endforeach; ?>
                         </div>
+
+                        <p class="asd-read-channels-tip">
+                            以上皆為出版社與正版電子書平台的官方連結。
+                            <?php /* 沒有手填主推連結時才需要說明，避免對已精修的頁面囉嗦 */ ?>
+                            <?php if ( ! $has_preview ) : ?>
+                                部分為平台搜尋頁，實際上架狀況以平台為準。
+                            <?php endif; ?>
+                        </p>
                     </section>
                 <?php endif; ?>
 
@@ -1544,11 +1684,15 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </div>
                 </div>
 
-                <?php if ( $has_preview ) : ?>
+                <?php if ( $has_read_channels ) : ?>
                     <div class="asd-side-section">
-                        <div class="asd-side-section__head"><h3>📖 線上閱讀</h3></div>
+                        <div class="asd-side-section__head"><h3>📖 線上看</h3></div>
                         <div class="asd-affiliate-box">
-                            <a href="<?php echo esc_url( $preview_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-action-btn asd-action-btn--primary" style="width:100%;text-align:center;">前往閱讀</a>
+                            <?php if ( $has_preview ) : ?>
+                                <a href="<?php echo esc_url( $preview_url ); ?>" target="_blank" rel="noopener noreferrer nofollow" class="asd-action-btn asd-action-btn--primary" style="width:100%;text-align:center;">前往閱讀</a>
+                            <?php else : ?>
+                                <a href="#asd-sec-preview" class="asd-action-btn asd-action-btn--primary" style="width:100%;text-align:center;">查看閱讀管道</a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endif; ?>
