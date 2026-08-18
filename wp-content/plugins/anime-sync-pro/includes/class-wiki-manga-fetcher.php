@@ -462,6 +462,58 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 				else                                                                    $region_slots[] = 'other';
 			}
 			if ( empty( $region_slots ) ) $region_slots = [ 'jp', 'tw', 'hk', 'cn' ];
+
+			/*
+			 * ★ 語言欄寫「原版」時，上面的比對全部落空 → 'other'，
+			 *   那一欄的卷數就沒有地區可歸，最後被舊版的整表列數當成日版。
+			 *   實例:《一拳超人》的 header 是「語言 = 原版」，
+			 *   37 卷全部落到 other，manga_volumes_jp 因此被誤寫成 37。
+			 *
+			 *   不能直接把「原版」對應成日本——韓漫的原版是韓國，
+			 *   那樣只是換一種方式寫錯。
+			 *
+			 *   改為看同一段落的 flagicon:它明確標示了國別，
+			 *   而且出現順序與表格欄位順序一致。
+			 *   《一拳超人》的表頭依序是 JPN 集英社、TWN 東立、HKG 文化傳信，
+			 *   正好補上 jp / tw / hk。
+			 */
+			if ( in_array( 'other', $region_slots, true ) ) {
+				$flags = [];
+
+				if ( preg_match_all( '/\{\{\s*flagicon\s*\|\s*([A-Za-z]{2,4})\s*\}\}/i', $wt, $mf ) ) {
+					$map = [
+						'JPN' => 'jp', 'JP' => 'jp',
+						'KOR' => 'kr', 'KR' => 'kr',
+						'TWN' => 'tw', 'ROC' => 'tw', 'TW' => 'tw',
+						'HKG' => 'hk', 'HK' => 'hk',
+						'CHN' => 'cn', 'CN' => 'cn', 'CHNML' => 'cn',
+					];
+
+					foreach ( $mf[1] as $code ) {
+						$code = strtoupper( $code );
+
+						if ( isset( $map[ $code ] ) && ! in_array( $map[ $code ], $flags, true ) ) {
+							$flags[] = $map[ $code ];
+						}
+					}
+				}
+
+				if ( $flags ) {
+					foreach ( $region_slots as $i => $slot ) {
+						if ( 'other' !== $slot ) {
+							continue;
+						}
+
+						// 取還沒被其他欄位用掉的 flagicon，維持欄位順序
+						foreach ( $flags as $f ) {
+							if ( ! in_array( $f, $region_slots, true ) ) {
+								$region_slots[ $i ] = $f;
+								break;
+							}
+						}
+					}
+				}
+			}
 		}
 
 		$gnl_bodies = $this->extract_balanced_templates( $wt, 'Graphic novel list' );
