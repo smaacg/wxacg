@@ -259,14 +259,57 @@ class Anime_Sync_Wikidata_Fetcher {
 			foreach ( ( $json['entities'] ?? [] ) as $q => $ent ) {
 				$labels = $ent['labels'] ?? [];
 				foreach ( [ 'zh-tw', 'zh-hk', 'zh-hant', 'zh', 'ja', 'en' ] as $lang ) {
-					if ( ! empty( $labels[ $lang ]['value'] ) ) {
-						$result[ $q ] = $labels[ $lang ]['value'];
-						break;
+					$value = trim( (string) ( $labels[ $lang ]['value'] ?? '' ) );
+
+					if ( $value === '' || ! $this->label_looks_sane( $value ) ) {
+						continue;   // 換下一個語言，不要把壞資料當答案
 					}
+
+					$result[ $q ] = $value;
+					break;
 				}
 			}
 		}
 		return $result;
+	}
+
+	/**
+	 * 判斷 Wikidata 標籤看起來是不是完整的。
+	 *
+	 * ★ 上游資料是眾人編輯的，偶爾會出現被截斷的標籤。實例:
+	 *   Q11389400(マンガ大賞)的 zh-hant 標籤是
+	 *   「全國書店員が選んだおすすめコミック）」——原文應為
+	 *   「マンガ大賞（全国書店員が選んだおすすめコミック）」，
+	 *   有人存成只剩括號後半段，尾巴多一個右括號。
+	 *
+	 *   語言優先序是 zh-tw → zh-hk → zh-hant → zh → …，因此這個壞標籤
+	 *   會蓋掉排在後面、其實正確的 zh 標籤「日本書店店員票選推薦漫畫」，
+	 *   最後印在漫畫頁的獲獎紀錄上。
+	 *
+	 *   這裡只做括號配對檢查:不配對就跳過該語言，讓後面的語言接手。
+	 *   刻意不做「自動去掉多餘括號」——截斷的標籤補完括號仍然是殘缺的，
+	 *   換一個語言拿到完整名稱才是對的。
+	 *
+	 * @param string $label 待檢查的標籤。
+	 * @return bool 括號配對正常回傳 true。
+	 */
+	private function label_looks_sane( string $label ): bool {
+		$pairs = [
+			'（' => '）',
+			'(' => ')',
+			'「' => '」',
+			'『' => '』',
+			'【' => '】',
+			'《' => '》',
+		];
+
+		foreach ( $pairs as $open => $close ) {
+			if ( substr_count( $label, $open ) !== substr_count( $label, $close ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
