@@ -24,6 +24,20 @@
    * 想讓畫面往上或往下取景，改這個值即可（0% 取頂部、100% 取底部）。
    */
   --header-banner-pos-y: 50%;
+
+  /*
+   * 橫幅的水平取景位置。
+   *
+   * 圖以 --header-banner-zoom 放大後會比容器寬，多出來的部分就是可以
+   * 左右滑動的餘裕。數值越小＝畫面內容越往右移（0% 表示貼齊左緣，
+   * 也就是把圖整個推到最右邊；100% 反之）。
+   *
+   * 註：cover 會剛好鋪滿寬度、沒有多餘寬度可推，因此改用明確的縮放值。
+   */
+  --header-banner-pos-x: 22%;
+
+  /* 放大倍率。越大可滑動範圍越多，但圖也會被拉伸得越明顯。 */
+  --header-banner-zoom: 118%;
 }
 
 .header-banner {
@@ -63,8 +77,8 @@
   left: -4%;
   right: -4%;
 
-  background-position: center var(--header-banner-pos-y);
-  background-size: cover;
+  background-position: var(--header-banner-pos-x) var(--header-banner-pos-y);
+  background-size: var(--header-banner-zoom) auto;
   background-repeat: no-repeat;
 
   /* 交給合成層處理，位移時不觸發重排 */
@@ -96,6 +110,25 @@
       rgba(30, 36, 43, .10) 45%,
       rgba(30, 36, 43, .55) 100%
     );
+}
+
+/*
+ * 有橫幅時移除導覽列上緣的分隔線。
+ *
+ * 那條線原本用來區隔兩排 header，在純色背景下是必要的視覺提示；但底下
+ * 換成插畫後，它會橫貫整個畫面、把圖切成兩半，兩側沒有選單的區段尤其
+ * 明顯。橫幅本身的明暗變化已足夠區隔上下兩排。
+ *
+ * 這條規則放在本檔案（只在橫幅啟用時載入），因此關掉橫幅後分隔線會自動
+ * 恢復，不需要另外還原。
+ *
+ * ⚠ 限 901px 以上：≤900px 時橫幅本身是隱藏的（見下方媒體查詢），
+ *   背景回到純色，此時分隔線仍有作用，不可一併移除。
+ */
+@media (min-width: 901px) {
+  .site-header .header-nav-bar {
+    border-top-color: transparent;
+  }
 }
 
 /*
