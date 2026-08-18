@@ -112,6 +112,18 @@ $converter_stats = $cn_converter->get_stats();
                     <label class="asc-label-hidden">查詢</label>
                     <button type="button" id="btn-season-query" class="button asc-btn-full">第一步：查詢季度清單</button>
                 </div>
+                <?php
+                /*
+                 * 匯入鈕放在查詢鈕旁邊。清單常有上百列，原本擺在表格下方，
+                 * 勾選完要一路捲到底才按得到。
+                 * 查詢完成前沒有東西可匯入，因此預設隱藏，與 #season-preview 同時顯示。
+                 * 停止鈕留在下方——它只在匯入進行中才有意義，跟進度條放一起才看得懂。
+                 */
+                ?>
+                <div class="asc-query-field asc-query-field--btn" id="season-import-field" style="display:none;">
+                    <label class="asc-label-hidden">匯入</label>
+                    <button type="button" id="btn-season-import" class="button button-primary asc-btn-full">第二步：批次匯入選中項</button>
+                </div>
             </div>
             <div id="season-query-spinner" class="asc-spinner" style="display:none;">⏳ 查詢中，可能需要 10–30 秒…</div>
 
@@ -148,7 +160,7 @@ $converter_stats = $cn_converter->get_stats();
                     <div id="season-anime-cards" class="asc-mobile-cards asc-mobile-only"></div>
                 </div>
                 <div class="asc-action-row">
-                    <button type="button" id="btn-season-import" class="button button-primary">第二步：批次匯入選中項</button>
+                    <?php /* 匯入鈕已移到上方查詢鈕旁邊;此處只留停止與節流提示 */ ?>
                     <button type="button" id="btn-season-stop" class="button asc-btn-danger" style="display:none;">停止匯入</button>
                     <span id="season-throttle-notice" class="asc-throttle-notice" style="display:none;"></span>
                 </div>
@@ -587,6 +599,9 @@ function asc_progress_block( $prefix ) {
 .status-imported { color: #46b450; font-weight: bold; }
 .status-new      { color: #2271b1; }
 #season-anime-tbody tr.format-hidden { display: none; }
+/* 匯入開始後，沒勾選的列先收起來，畫面只留正在跑的那幾部 */
+#season-anime-tbody tr.asc-unselected-hidden,
+#season-anime-cards .asc-import-card.asc-unselected-hidden { display: none; }
 #single-import-result.success { background: #edfaef; border: 1px solid #46b450; color: #235926; }
 #single-import-result.warning { background: #fff8e5; border: 1px solid #d97706; color: #7a4b00; }
 #single-import-result.error   { background: #fcf0f1; border: 1px solid #dc3232; color: #a42821; }
@@ -736,6 +751,9 @@ function asc_progress_block( $prefix ) {
         $('#btn-season-query').prop('disabled', true);
         $('#season-query-spinner').show();
         $('#season-preview').hide();
+        $('#season-import-field').hide();
+        // 重新查詢時把上一輪匯入時隱藏的列還原，否則新清單會缺列
+        $('#season-anime-tbody tr, #season-anime-cards .asc-import-card').removeClass('asc-unselected-hidden');
         seasonData = [];
 
         $.post(animeSyncAdmin.ajaxUrl, {
@@ -751,6 +769,7 @@ function asc_progress_block( $prefix ) {
             if (seasonData.length === 0) { alert('查無此季度資料'); return; }
             renderSeasonTable(seasonData);
             $('#season-preview').show();
+            $('#season-import-field').show();   // 有清單了才讓「第二步」出現
         }).fail(function(){
             $('#btn-season-query').prop('disabled', false);
             $('#season-query-spinner').hide();
@@ -868,6 +887,20 @@ function asc_progress_block( $prefix ) {
         // 曾經不同步，導致實際送出的部數遠多於畫面上勾的（勾二十幾部卻跑 95 部）。
         // 即使同步已修好，數量對不上時仍要有機會在這裡喊停。
         if (ids.length > 10 && !confirm('即將匯入 ' + ids.length + ' 部，確定嗎？')) { return; }
+
+        /*
+         * 開始匯入後把沒勾的列收起來，畫面只剩正在跑的那幾部，好對照進度。
+         * 必須在 collectIds 之後才做——collectIds 只取 :visible，先隱藏會把
+         * 要匯入的項目一起排除掉。
+         * 還原時機在「重新查詢」，見 #btn-season-query 的 click。
+         */
+        $('#season-anime-tbody tr').each(function(){
+            $(this).toggleClass('asc-unselected-hidden', !$(this).find('.season-item-check').prop('checked'));
+        });
+        $('#season-anime-cards .asc-import-card').each(function(){
+            $(this).toggleClass('asc-unselected-hidden', !$(this).find('.season-item-check').prop('checked'));
+        });
+
         seasonStop = false;
         runImportQueue('season', ids);
     });
