@@ -40,6 +40,10 @@ $weixiao_team_members = get_users( array(
     'orderby'              => 'post_count',
     'order'                => 'DESC',
     'number'               => 12,
+    // 排除官方發文帳號，與 page-about.php 共用同一份清單
+    'exclude'              => function_exists( 'wxacg_team_excluded_user_ids' )
+        ? wxacg_team_excluded_user_ids()
+        : array(),
 ) );
 
 /**

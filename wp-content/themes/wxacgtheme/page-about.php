@@ -29,12 +29,20 @@ if ( post_type_exists( 'anime' ) ) {
 	}
 }
 
-/* ── 編輯與內容團隊：抓取已發表過至少一篇文章的作者 ───────── */
+/* ── 編輯與內容團隊：抓取已發表過至少一篇文章的作者 ─────────
+ *
+ * 排除官方發文帳號——它是站方的帳號、不是人，列在團隊裡會誤導讀者。
+ * 排除清單放在 functions.php，與 page-join.php 共用同一份，
+ * 才不會改了一邊漏了另一邊。
+ */
 $wx_team_members = get_users( [
 	'has_published_posts' => [ 'post' ],
 	'orderby'              => 'post_count',
 	'order'                => 'DESC',
 	'number'               => 12,
+	'exclude'              => function_exists( 'wxacg_team_excluded_user_ids' )
+		? wxacg_team_excluded_user_ids()
+		: [],
 ] );
 
 get_header();

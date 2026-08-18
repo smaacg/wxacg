@@ -3188,3 +3188,20 @@ add_action(
 	'wxacg_clear_ai_glossary_cache',
 	100
 );
+
+/**
+ * 「編輯與內容團隊」清單要排除的使用者。
+ *
+ * 團隊清單是動態抓「有發表過文章的使用者」產生的（見 page-about.php 與
+ * page-join.php），官方帳號因此也會被列進去，看起來像團隊成員之一。
+ * 但它是站方的發文帳號、不是人，列在團隊裡會誤導讀者。
+ *
+ * 兩個頁面共用這份清單，才不會改了一邊漏了另一邊。
+ *
+ * @return int[] 要排除的使用者 ID。
+ */
+function wxacg_team_excluded_user_ids(): array {
+
+	// ID 5 = 顯示名「微笑動漫」的官方發文帳號
+	return (array) apply_filters( 'wxacg_team_excluded_user_ids', array( 5 ) );
+}
