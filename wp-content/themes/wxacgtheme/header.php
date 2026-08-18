@@ -17,7 +17,13 @@
 defined( 'ABSPATH' ) || exit;
 
 /* 共用品牌資源 */
-$brand_logo_url = 'https://weixiaoacg.com/wp-content/uploads/2026/06/logo-65.webp';
+/*
+ * 用 WordPress 產生的 300×288 縮圖，不要用原圖。
+ * 原圖是 1860×1784、122 KB，但實際只顯示 62px 高（見 --logo-img-h）；
+ * header 每一頁都會載入，直接掛原圖等於每個請求多背 117 KB。
+ * 300×288 為 15 KB，相對顯示尺寸仍有 4.6 倍解析度，高解析螢幕不會糊。
+ */
+$brand_logo_url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/wxacglogo-300x288.webp';
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
