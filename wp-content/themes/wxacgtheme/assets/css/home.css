@@ -475,13 +475,17 @@
     -webkit-line-clamp: 2;
 }
 
+/*
+ * 2026-08-18：放大（33px → 約 37px）。內距與字級對齊 style.css 的
+ * .tab-btn，讓首頁上兩組分頁按鈕的尺寸一致。
+ */
 .smacg-tab-btn {
-    padding: 6px 16px;
+    padding: 9px 20px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
+    border-radius: 22px;
     color: rgba(220, 230, 245, 0.55);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition:
