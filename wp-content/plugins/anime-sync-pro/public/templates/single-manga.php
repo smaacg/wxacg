@@ -1273,6 +1273,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
         <nav class="asd-tabs" id="asd-tabs" aria-label="頁面導航">
             <a class="asd-tab" href="#asd-sec-info">📋 基本資訊</a>
             <?php if ( $synopsis ) : ?><a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a><?php endif; ?>
+            <?php if ( ! empty( $awards_list ) ) : ?><a class="asd-tab" href="#asd-sec-awards">🏆 獲獎紀錄</a><?php endif; ?>
             <?php if ( ! empty( $staff_list ) ) : ?><a class="asd-tab" href="#asd-sec-staff">🎬 STAFF</a><?php endif; ?>
             <?php if ( ! empty( $cast_to_display ) ) : ?><a class="asd-tab" href="#asd-sec-cast">🎭 CAST</a><?php endif; ?>
             <?php if ( $has_publish_region ) : ?><a class="asd-tab" href="#asd-sec-region">🌏 各地區出版</a><?php endif; ?>
@@ -1303,9 +1304,9 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                             '完結日期'   => ( $end_date && $status === 'FINISHED' ) ? $end_date : '',
                             '原作來源'   => $source_label,
                             '台灣出版社' => $tw_publisher,
-                            // 獲獎紀錄放在最後更新之前:資料本身就是這頁的內容，
-                            // 「最後更新」則是頁面的中繼資訊，收尾比較自然。
-                            '獲獎紀錄'   => implode( '、', $awards_list ),
+                            // 獲獎紀錄已改為獨立區塊（見下方 #asd-sec-awards）——
+                            // 它是內容而非規格，擠在基本資訊的鍵值表裡讀起來像附註，
+                            // 獎項多的作品也會把整個表格撐長。
                             '最後更新'   => get_the_modified_date( 'Y-m-d' ),
                         ];
                         foreach ( $info_rows as $label => $val ) :
@@ -1323,6 +1324,23 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     <section class="asd-section" id="asd-sec-synopsis">
                         <h2 class="asd-section-title">📝 劇情簡介</h2>
                         <div class="asd-synopsis"><?php echo wp_kses_post( wpautop( $synopsis ) ); ?></div>
+                    </section>
+                <?php endif; ?>
+
+                <?php /* 獲獎紀錄:原本擠在基本資訊的鍵值表裡，改為獨立區塊 */ ?>
+                <?php if ( ! empty( $awards_list ) ) : ?>
+                    <section class="asd-section" id="asd-sec-awards">
+                        <h2 class="asd-section-title">
+                            🏆 《<?php echo esc_html( $display_title ); ?>》獲獎紀錄
+                        </h2>
+
+                        <ul class="asd-awards">
+                            <?php foreach ( $awards_list as $award_name ) : ?>
+                                <li class="asd-award"><?php echo esc_html( $award_name ); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+
+                        <p class="asd-awards-source">資料來源:Wikidata（P166 獲獎項目）</p>
                     </section>
                 <?php endif; ?>
 

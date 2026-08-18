@@ -310,3 +310,33 @@
 
 /* 線上看的管道清單樣式（.asd-read-channel-*）已移至 anime-single.css，
    因為動畫頁的「看原作漫畫」也要用，而本檔只在 is_singular(manga) 載入。 */
+
+/* ====== 獲獎紀錄（原本在基本資訊表內，改為獨立區塊）====== */
+.asd-awards{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin:0;
+    padding:0;
+    list-style:none;
+}
+.asd-award{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:8px 14px;
+    border-radius:var(--asd-radius-pill);
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--asd-border);
+    font-size:.9rem;
+    color:var(--asd-text);
+}
+.asd-award::before{
+    content:"🏆";
+    font-size:.85rem;
+}
+.asd-awards-source{
+    margin:12px 0 0;
+    font-size:.8rem;
+    color:var(--asd-text-muted);
+}
