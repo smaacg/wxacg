@@ -683,7 +683,8 @@ add_action( 'admin_menu', function () {
 	add_submenu_page(
 		'anime-sync-pro',
 		'編輯短評控管',
-		'✍️ 短評控管',
+		// 用 📝 而非 ✍️：帶變體選擇符的 emoji 在側欄的寬度與其他項不一致，會對不齊。
+		'📝 短評控管',
 		'manage_options',
 		'wxacg-ai-editorial',
 		'wxacg_ai_editorial_page'

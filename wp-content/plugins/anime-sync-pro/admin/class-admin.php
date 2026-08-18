@@ -179,13 +179,13 @@ class Anime_Sync_Admin {
             [ $this, 'render_dashboard' ],
             'dashicons-video-alt', 30
         );
-        add_submenu_page( 'anime-sync-pro', '儀表板',   '儀表板',   $cap, 'anime-sync-pro',       [ $this, 'render_dashboard'      ] );
+        add_submenu_page( 'anime-sync-pro', '儀表板',   '📊 儀表板',   $cap, 'anime-sync-pro',       [ $this, 'render_dashboard'      ] );
         add_submenu_page( 'anime-sync-pro', '動漫匯入', '🎬 動漫匯入', $cap, 'anime-sync-import',    [ $this, 'render_import_tool'    ] );
-        add_submenu_page( 'anime-sync-pro', '審核佇列', '審核佇列', $cap, 'anime-sync-queue',     [ $this, 'render_review_queue'   ] );
-        add_submenu_page( 'anime-sync-pro', '查看動漫', '查看動漫', $cap, 'anime-sync-published', [ $this, 'render_published_page' ] );
-        add_submenu_page( 'anime-sync-pro', '錯誤日誌', '錯誤日誌', $cap, 'anime-sync-logs',      [ $this, 'render_logs_page'      ] );
-        add_submenu_page( 'anime-sync-pro', '插件設定', '插件設定', $cap, 'anime-sync-settings',  [ $this, 'render_settings'       ] );
-        add_submenu_page( 'anime-sync-pro', '操作紀錄', '操作紀錄', $cap, 'anime-sync-activity', [ $this, 'render_activity_page' ] );
+        add_submenu_page( 'anime-sync-pro', '審核佇列', '📋 審核佇列', $cap, 'anime-sync-queue',     [ $this, 'render_review_queue'   ] );
+        add_submenu_page( 'anime-sync-pro', '查看動漫', '📚 查看動漫', $cap, 'anime-sync-published', [ $this, 'render_published_page' ] );
+        add_submenu_page( 'anime-sync-pro', '錯誤日誌', '🐞 錯誤日誌', $cap, 'anime-sync-logs',      [ $this, 'render_logs_page'      ] );
+        add_submenu_page( 'anime-sync-pro', '插件設定', '🔧 插件設定', $cap, 'anime-sync-settings',  [ $this, 'render_settings'       ] );
+        add_submenu_page( 'anime-sync-pro', '操作紀錄', '🕘 操作紀錄', $cap, 'anime-sync-activity', [ $this, 'render_activity_page' ] );
     }
 
     private function safe_include_page( string $file_name ): void {
