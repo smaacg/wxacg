@@ -1520,8 +1520,32 @@ class Anime_Sync_Admin {
             $version = '1.0.0';
         }
 
-        wp_enqueue_style(  'anime-sync-admin', $url . 'admin/assets/css/admin.css', [],          $version );
-        wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js',  [ 'jquery' ], $version, true );
+        /*
+         * ★ 快取版本改用檔案修改時間，不要用外掛版本常數。
+         *
+         *   ANIME_SYNC_PRO_VERSION 是寫死的（目前 1.6.0），只有手動改版號時才會變。
+         *   後果是改了 admin.js 之後，網址仍是 admin.js?ver=1.6.0，瀏覽器繼續用
+         *   舊的快取檔——使用者看到的行為與程式碼不一致，而且極難察覺。
+         *
+         *   實際踩過:2026-08-18 把本檔原有的季度匯入實作移除（它與
+         *   import-tool.php 綁同一組按鈕 ID 會互相覆蓋），但版號沒動，
+         *   瀏覽器仍載入舊版 admin.js，兩份實作同時執行，
+         *   「只顯示未匯入」篩選因此失效。
+         *
+         *   admin/assets/js/manga-import.js 本來就是用 filemtime()，
+         *   所以漫畫那邊改了立刻生效。這裡補齊，兩處作法一致。
+         *
+         *   檔案不存在時退回版本常數（不會 fatal）。
+         */
+        $dir     = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : plugin_dir_path( dirname( __FILE__ ) );
+        $css_abs = trailingslashit( $dir ) . 'admin/assets/css/admin.css';
+        $js_abs  = trailingslashit( $dir ) . 'admin/assets/js/admin.js';
+
+        $css_ver = file_exists( $css_abs ) ? (string) filemtime( $css_abs ) : $version;
+        $js_ver  = file_exists( $js_abs )  ? (string) filemtime( $js_abs )  : $version;
+
+        wp_enqueue_style(  'anime-sync-admin', $url . 'admin/assets/css/admin.css', [],          $css_ver );
+        wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js',  [ 'jquery' ], $js_ver, true );
 
         wp_localize_script( 'anime-sync-admin', 'animeSyncAdmin', [
             'ajaxUrl' => admin_url( 'admin-ajax.php' ),
