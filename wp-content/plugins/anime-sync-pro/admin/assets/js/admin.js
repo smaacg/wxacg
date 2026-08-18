@@ -15,8 +15,13 @@
  *   - 格式篩選只隱藏列，不再強制取消勾選。
  *   - 系列 / 熱門 各自加重入鎖，防連點造成背景迴圈重複送 API。
  *
- * 2026-08-18：整段季度匯入實作已移除（與 import-tool.php 的較新版本重複，
- * 兩者同時綁定同一批按鈕造成重複請求）。詳見下方該區塊的說明註解。
+ * 2026-08-18：季度批次、ID 清單、人氣排行三段匯入實作已移除。
+ * 這三段與 admin/pages/import-tool.php 內嵌的版本重複，而本檔會載入所有
+ * anime-sync 頁面，兩份程式同時綁定同一批按鈕，造成每次操作重複送出 API、
+ * 兩邊搶寫同一組進度 UI。詳見各區塊保留的說明註解。
+ *
+ * 本檔目前仍負責：單筆匯入、系列分析與系列匯入、批次操作（bulk action）、
+ * Bangumi 重新同步。這幾項在 import-tool.php 沒有對應實作，不可移除。
  */
 
 /* global jQuery, ajaxurl, animeSyncAdmin */
@@ -210,95 +215,14 @@
         ══════════════════════════════════════════════════════════════ */
 
         /* ══════════════════════════════════════════════════════════════
-           BATCH IMPORT (ID list)
+           BATCH IMPORT (ID list) — 已於 2026-08-18 移除
+
+           與 admin/pages/import-tool.php 內嵌的版本重複，兩者同時載入且
+           綁定同一批按鈕（#btn-batch-import / #btn-batch-stop），造成每次
+           匯入重複送出 API、兩邊搶寫同一組進度 UI
+           （import-tool.php 以 asc_progress_block('batch') 產生）。
+           理由與季度匯入相同，請一律改動 import-tool.php。
         ══════════════════════════════════════════════════════════════ */
-
-        let batchImportStop = false;
-        let batchImporting  = false;   // ★ 新增：重入鎖
-
-        $( '#batch-id-list' ).on( 'input', function () {
-            const ids = parseIdList( $( this ).val() );
-            $( '#batch-id-count' ).text( ids.length + t( 'id_count_suffix', ' 個 ID' ) );
-        } );
-
-        $( '#btn-batch-import' ).on( 'click', async function () {
-            if ( batchImporting ) { return; }   // ★ 防連點
-
-            const ids = parseIdList( $( '#batch-id-list' ).val() );
-            if ( ! ids.length ) { alert( t( 'no_ids', '請輸入至少一個 ID。' ) ); return; }
-
-            const forceUpdate = $( '#batch-force-update' ).is( ':checked' ) ? 1 : 0;
-            batchImporting  = true;   // ★ 上鎖
-            batchImportStop = false;
-
-            const $btnStart = $( this );
-            const $btnStop  = $( '#btn-batch-stop' );
-            const $bar      = $( '#batch-progress-bar' );
-            const $text     = $( '#batch-progress-text' );
-            const $log      = $( '#batch-import-log' );
-
-            $btnStart.prop( 'disabled', true );
-            $btnStop.show().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
-            $( '#batch-progress-wrap' ).show();
-            $log.empty();
-            updateProgress( $bar, $text, 0, ids.length );
-
-            let done = 0, succeeded = 0, failed = 0, skipped = 0;
-
-            try {
-                for ( const anilistId of ids ) {
-                    if ( batchImportStop ) {
-                        logLine( $log, t( 'import_stopped', '已停止匯入。' ), 'info' ); break;
-                    }
-                    logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
-                    try {
-                        const resp = await $.post( AJAX_URL, {
-                            action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: forceUpdate, force_update: forceUpdate,
-                        } );
-                        done++;
-                        updateProgress( $bar, $text, done, ids.length );
-                        if ( resp.success ) {
-                            if ( resp.data.skipped ) {
-                                skipped++;
-                                logLine( $log, '→ AniList #' + anilistId + ' 已存在，略過', 'skip' );
-                            } else {
-                                succeeded++;
-                                logLine( $log,
-                                    '✓ ' + String( resp.data.title || 'AniList #' + anilistId )
-                                    + ( ( resp.data.bangumi_pending || resp.data.bangumi_missing ) ? ' ⚠ Bangumi 待處理' : '' ),
-                                    resp.data.bangumi_missing ? 'warning' : 'success'
-                                );
-                            }
-                        } else {
-                            failed++;
-                            const errMsg = typeof resp.data === 'object'
-                                ? JSON.stringify( resp.data ) : String( resp.data || t( 'unknown_error', '未知錯誤' ) );
-                            logLine( $log, '✗ AniList #' + anilistId + '：' + errMsg, 'error' );
-                        }
-                    } catch ( e ) {
-                        done++; failed++;
-                        updateProgress( $bar, $text, done, ids.length );
-                        logLine( $log, '✗ AniList #' + anilistId + '：網路錯誤', 'error' );
-                    }
-                    if ( ! batchImportStop && done < ids.length ) { await delay( 3200 ); }
-                }
-
-                logLine( $log,
-                    '完成：成功 ' + succeeded + '，略過 ' + skipped + '，失敗 ' + failed + '，共 ' + ids.length,
-                    'info'
-                );
-            } finally {
-                batchImporting = false;   // ★ 解鎖
-                $btnStart.prop( 'disabled', false );
-                $btnStop.hide().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
-            }
-        } );
-
-        $( '#btn-batch-stop' ).on( 'click', function () {
-            batchImportStop = true;
-            $( this ).prop( 'disabled', true ).text( t( 'stopping', '停止中…' ) );
-        } );
-
         /* ══════════════════════════════════════════════════════════════
            SERIES IMPORT
            ★ action 從 A.analyze_series / A.import_series 讀取
@@ -456,156 +380,14 @@
         } );
 
         /* ══════════════════════════════════════════════════════════════
-           POPULARITY RANKING
-           ★ action 從 A.popularity_ranking 讀取
+           POPULARITY RANKING — 已於 2026-08-18 移除
+
+           與 admin/pages/import-tool.php 內嵌的版本重複，兩者同時載入且
+           綁定同一批按鈕（#btn-ranking-load / -more / -import / -stop），
+           造成每次操作重複送出 API、兩邊搶寫同一組進度 UI
+           （import-tool.php 以 asc_progress_block('ranking') 產生）。
+           理由與季度匯入相同，請一律改動 import-tool.php。
         ══════════════════════════════════════════════════════════════ */
-
-        let rankingPage       = 1;
-        let rankingImportStop = false;
-        let rankingImporting  = false;   // ★ 新增：重入鎖
-
-        function loadRankingPage() {
-            $( '#ranking-load-spinner' ).show();
-            $( '#btn-ranking-load, #btn-ranking-more' ).prop( 'disabled', true );
-
-            $.post( AJAX_URL, { action: A.popularity_ranking, nonce: NONCE, page: rankingPage } )
-            .done( function ( res ) {
-                if ( res.success && res.data && res.data.items ) {
-                    renderRankingTable( res.data.items );
-                    $( '#ranking-preview' ).show();
-                    $( '#btn-ranking-import, #btn-ranking-more' ).show();
-                    $( '#ranking-preview-summary' ).text(
-                        '第 ' + rankingPage + ' 頁，本頁 ' + res.data.items.length +
-                        ' 部，累計 ' + $( '.ranking-item-check' ).length + ' 部'
-                    );
-                    $( '#ranking-page-num' ).text( rankingPage );
-                } else {
-                    alert( '❌ ' + String( ( res.data && res.data.message ) ? res.data.message : '載入失敗' ).replace( /<[^>]*>/g, '' ) );
-                }
-            } ).fail( function ( xhr ) {
-                alert( '❌ 網路錯誤（HTTP ' + xhr.status + '），請稍後重試。' );
-            } ).always( function () {
-                $( '#ranking-load-spinner' ).hide();
-                $( '#btn-ranking-load, #btn-ranking-more' ).prop( 'disabled', false );
-            } );
-        }
-
-        $( '#btn-ranking-load' ).on( 'click', function () {
-            rankingPage = 1; $( '#ranking-tbody' ).empty(); $( '#ranking-page-num' ).text(1);
-            loadRankingPage();
-        } );
-        $( '#btn-ranking-more' ).on( 'click', function () { rankingPage++; loadRankingPage(); } );
-
-        function renderRankingTable( items ) {
-            const startRank = ( rankingPage - 1 ) * 50 + 1;
-            const $tbody    = rankingPage === 1 ? $( '#ranking-tbody' ).empty() : $( '#ranking-tbody' );
-
-            $.each( items, function ( i, item ) {
-                const aid  = parseInt( item.anilist_id );
-                const name = String( item.title_chinese || item.title_romaji || item.title_native || ( 'ID ' + aid ) );
-
-                const $chk = $( '<input type="checkbox">' )
-                    .addClass( 'ranking-item-check' ).val( aid ).prop( 'checked', ! item.imported );
-
-                const $coverTd = $( '<td>' );
-                if ( item.cover_image ) {
-                    $coverTd.append(
-                        $( '<img>' ).addClass( 'asc-cover-thumb' )
-                            .attr( 'src', item.cover_image ).attr( 'loading', 'lazy' ).attr( 'alt', name )
-                    );
-                } else { $coverTd.text( '—' ); }
-
-                const $nameTd = $( '<td>' ).text( name );
-                if ( item.imported && item.edit_url ) {
-                    $nameTd.append( ' ' ).append(
-                        $( '<a>' ).attr( 'href', item.edit_url ).attr( 'target', '_blank' ).css( 'font-size', '11px' ).text( '[編輯]' )
-                    );
-                }
-
-                const $impSpan = $( '<span>' )
-                    .addClass( item.imported ? 'status-imported' : 'status-new' )
-                    .text( item.imported ? '✅ 已匯入' : '⬜ 未匯入' );
-
-                const $tr = $( '<tr>' );
-                $tr.append( $( '<td>' ).append( $chk ) );
-                $tr.append( makeTd( startRank + i ) );
-                $tr.append( $coverTd );
-                $tr.append( $nameTd );
-                $tr.append( makeTd( item.format     || '—' ) );
-                $tr.append( makeTd( item.episodes   || '?' ) );
-                $tr.append( makeTd( item.popularity || 0   ) );
-                $tr.append( $( '<td>' ).append( $impSpan ) );
-                $tbody.append( $tr );
-            } );
-        }
-
-        $( '#ranking-select-all' ).on( 'change', function () {
-            $( '.ranking-item-check' ).prop( 'checked', this.checked );
-        } );
-
-        $( '#btn-ranking-import' ).on( 'click', async function () {
-            if ( rankingImporting ) { return; }   // ★ 防連點
-
-            const ids = $( '.ranking-item-check:checked' ).map( function () { return parseInt( $( this ).val() ); } ).get();
-            if ( ! ids.length ) { alert( '請至少選擇一部' ); return; }
-
-            rankingImporting  = true;   // ★ 上鎖
-            rankingImportStop = false;
-            const $btnImport  = $( this );
-            const $btnStop    = $( '#btn-ranking-stop' );
-            const $bar        = $( '#ranking-progress-bar' );
-            const $text       = $( '#ranking-progress-text' );
-            const $log        = $( '#ranking-import-log' );
-
-            $btnImport.prop( 'disabled', true );
-            $btnStop.show().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
-            $( '#ranking-progress-wrap' ).show();
-            $log.empty();
-            updateProgress( $bar, $text, 0, ids.length );
-
-            let done = 0;
-
-            try {
-                for ( const anilistId of ids ) {
-                    if ( rankingImportStop ) { logLine( $log, t( 'import_stopped', '已停止匯入。' ), 'info' ); break; }
-                    logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
-                    try {
-                        const resp = await $.post( AJAX_URL, {
-                            action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: 0, force_update: 0,
-                        } );
-                        done++;
-                        updateProgress( $bar, $text, done, ids.length );
-                        if ( resp.success ) {
-                            const d = resp.data;
-                            logLine( $log,
-                                '✓ ' + String( d.title || 'AniList #' + anilistId )
-                                + ( ( d.bangumi_pending || d.bangumi_missing ) ? ' ⚠ Bangumi 待處理' : '' ),
-                                d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
-                            );
-                        } else {
-                            logLine( $log, '✗ AniList #' + anilistId + '：' + String( ( resp.data && resp.data.message ) || t( 'unknown_error', '未知錯誤' ) ), 'error' );
-                        }
-                    } catch ( e ) {
-                        done++;
-                        updateProgress( $bar, $text, done, ids.length );
-                        logLine( $log, '✗ AniList #' + anilistId + '：網路錯誤', 'error' );
-                    }
-                    if ( ! rankingImportStop && done < ids.length ) { await delay( 3200 ); }
-                }
-
-                logLine( $log, '── 匯入完成 ──', 'info' );
-            } finally {
-                rankingImporting = false;   // ★ 解鎖
-                $btnImport.prop( 'disabled', false );
-                $btnStop.hide();
-            }
-        } );
-
-        $( '#btn-ranking-stop' ).on( 'click', function () {
-            rankingImportStop = true;
-            $( this ).prop( 'disabled', true ).text( t( 'stopping', '停止中…' ) );
-        } );
-
         /* ══════════════════════════════════════════════════════════════
            DASHBOARD STATS
            [清理 v1.2.2] 已移除 loadDashboardStats() 與 setStatCell()。
