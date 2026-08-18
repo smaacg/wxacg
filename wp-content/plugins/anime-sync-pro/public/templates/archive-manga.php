@@ -360,9 +360,27 @@ if ( $list_elements ) {
         $status_label = $status_labels[ $status ] ?? '';
         $status_class = $status_classes[ $status ] ?? '';
 
-        $count_str = '';
-        if ( $volumes > 0 )       $count_str = $volumes . ' 卷';
-        elseif ( $chapters > 0 ) $count_str = $chapters . ' 話';
+        /*
+         * 卷數:AniList 的 volumes 只在作品完結後才會有值，連載中一律是空的。
+         * 實測站上 8 部——4 部 FINISHED 全都有值，4 部 RELEASING 全都沒有，
+         * 完全對應。結果是《航海王》這種長篇在卡片上反而看不到卷數。
+         *
+         * manga_volumes_jp（維基排程寫入）連載中的作品也有值，例如航海王 114、
+         * 膽大黨 24、躲在超市 9。因此 AniList 沒給時改用它遞補。
+         *
+         * 兩者語意不同，標示也跟著不同:完結是「全 N 卷」，連載中是「已出 N 卷」，
+         * 免得讀者把連載中的當成完結卷數。
+         */
+        $volumes_jp = (int) $g( 'manga_volumes_jp' );
+        $count_str  = '';
+
+        if ( $volumes > 0 ) {
+            $count_str = ( 'FINISHED' === $status ? '全 ' : '' ) . $volumes . ' 卷';
+        } elseif ( $volumes_jp > 0 ) {
+            $count_str = '已出 ' . $volumes_jp . ' 卷';
+        } elseif ( $chapters > 0 ) {
+            $count_str = $chapters . ' 話';
+        }
     ?>
         <article class="aaa-card">
             <a href="<?php the_permalink(); ?>" class="aaa-card-link">
