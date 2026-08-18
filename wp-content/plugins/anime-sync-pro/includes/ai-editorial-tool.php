@@ -305,6 +305,7 @@ function wxacg_sort_choices() {
 		'recent'      => '🆕 最近匯入的頁面（依建立時間倒序）',
 		'new'         => '📅 新番優先（年份＋季度倒序）',
 		'airing'      => '📺 連載中優先',
+		'gsc_only'    => '⭐ 只跑「已有 Google 曝光」的頁面（投報率最高）',
 		'gsc'         => '🔍 Google 曝光優先（Search Console 近 90 天）',
 		'views'       => '👁️ 站內瀏覽數優先（近 60 天實際流量）',
 		'popular'     => '⭐ 熱門優先（站內留言數及 AniList 評分）',
@@ -485,6 +486,7 @@ function wxacg_build_sort_clauses( $sort ) {
 			);
 
 		case 'gsc':
+		case 'gsc_only':
 			$gsc_table = wxacg_gsc_table();
 
 			// 未連接 Search Console 時退回站內瀏覽數排序。
@@ -508,10 +510,25 @@ function wxacg_build_sort_clauses( $sort ) {
 				esc_sql( gmdate( 'Y-m-d', strtotime( '-90 days' ) ) )
 			);
 
+			/*
+			 * gsc_only 與 gsc 的差別只在多一個 HAVING。
+			 *
+			 * 為什麼值得獨立成一個選項:站上實測（近 30 天，動畫單篇）
+			 *   有短評(≥180字)   60 頁 → 14,121 曝光，平均 235.3／頁，51.7% 有曝光
+			 *   無短評          1,455 頁 →  3,329 曝光，平均   2.3／頁，12.6% 有曝光
+			 * 亦即多數頁面 Google 根本還沒開始看。對這些頁寫短評，短期內
+			 * 看不到回饋;寫在「已經有曝光卻還沒短評」的頁面上，才是把力氣
+			 * 放在 Google 已經在評估的位置。
+			 *
+			 * gsc 排序雖然也把高曝光排前面，但零曝光的頁仍在清單裡，
+			 * 翻頁久了容易混進去;gsc_only 直接把它們排除。
+			 */
+			$having = ( 'gsc_only' === $sort ) ? 'HAVING s_impressions > 0' : '';
+
 			return array(
 				'select' => ', COALESCE( SUM( gs.impressions ), 0 ) AS s_impressions',
 				'join'   => $join_gsc,
-				'having' => '',
+				'having' => $having,
 				'order'  => 'ORDER BY s_impressions DESC, p.ID ASC',
 			);
 
@@ -1325,6 +1342,10 @@ function wxacg_ai_editorial_page() {
 						<th style="width:210px;">作品</th>
 						<th>編輯短評</th>
 						<th style="width:62px;">字數</th>
+						<?php /* 曝光數只有走 GSC 相關排序時才查得到，其餘排序不顯示這一欄 */ ?>
+						<?php if ( in_array( $sort, array( 'gsc', 'gsc_only' ), true ) ) : ?>
+							<th style="width:96px;" title="Search Console 近 90 天曝光數">🔍 曝光</th>
+						<?php endif; ?>
 						<th style="width:150px;">審核狀態</th>
 						<th style="width:120px;">操作</th>
 					</tr>
@@ -1373,6 +1394,23 @@ function wxacg_ai_editorial_page() {
 								<?php echo esc_html( $len ); ?>
 							</span>
 						</td>
+						<?php if ( in_array( $sort, array( 'gsc', 'gsc_only' ), true ) ) : ?>
+							<?php
+							/*
+							 * 曝光數直接顯示出來，才看得出這一篇值不值得先寫。
+							 * s_impressions 由 wxacg_build_sort_clauses() 的 SELECT 帶進來，
+							 * 原本只用於排序，畫面上看不到。
+							 */
+							$impressions = isset( $row->s_impressions ) ? (int) $row->s_impressions : 0;
+							?>
+							<td style="text-align:right;font-variant-numeric:tabular-nums;">
+								<?php if ( $impressions > 0 ) : ?>
+									<strong style="font-size:13px;"><?php echo esc_html( number_format( $impressions ) ); ?></strong>
+								<?php else : ?>
+									<span style="color:#999;">—</span>
+								<?php endif; ?>
+							</td>
+						<?php endif; ?>
 						<td style="font-size:11px;color:#666;line-height:1.5;">
 							<?php if ( $reviewer ) : ?>
 								<span style="color:#00a32a;">✓ 已發布</span><br>
