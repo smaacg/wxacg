@@ -414,6 +414,7 @@ class Anime_Sync_Upstream_Diff_Scan {
 		if ( ! is_array( $snapshot ) ) {
 			if ( ! $dry_run ) {
 				$this->maybe_update_banner( $post_id, $current['banner'] );
+				$this->align_status_on_seed( $post_id, $current['status'] );
 				$this->save_snapshot( $post_id, $current );
 			}
 
@@ -771,6 +772,53 @@ class Anime_Sync_Upstream_Diff_Scan {
 			'anime_trailer_url',
 			'' === trim( $current ) ? $url : $current . "\n" . $url
 		);
+	}
+
+	/**
+	 * 建立基準時，把站上的播出狀態對齊上游。
+	 *
+	 * ★ 為什麼需要這一步
+	 *   首次掃描刻意「只建立基準、不產生事件」，避免自匯入以來的舊帳
+	 *   一次淹掉待審清單。但如果 seed 當下站上值本來就跟上游不同，
+	 *   那個差異會被寫進快照後永遠消失——之後每輪比對都是
+	 *   「上游 == 快照」，掃描認為一切正常，站上卻一直是錯的。
+	 *
+	 *   實例：#582 魔女之谷的夜晚、#504 航海王 女英雄們的故事，
+	 *   上游 FINISHED、站上 NOT_YET_RELEASED。而每日同步的佇列只收
+	 *   RELEASING 的作品，這兩部因為狀態是 NOT_YET_RELEASED 而永遠
+	 *   排不進去——狀態錯了導致修不到，修不到所以狀態一直錯。
+	 *
+	 *   狀態不像視覺圖或消息，它沒有「發生日期」可言，對齊是資料修正
+	 *   不是新聞，所以只寫入、不產生事件。
+	 *
+	 * 其他欄位（封面、日期、集數）不在此對齊：它們的站上值可能來自
+	 * Bangumi 或人工編輯，上游優先的假設不成立。狀態的唯一來源是 AniList。
+	 */
+	private function align_status_on_seed( int $post_id, string $upstream_status ): void {
+		if ( '' === $upstream_status ) {
+			return;
+		}
+
+		$locked = get_post_meta( $post_id, 'anime_locked_fields', true );
+
+		if ( is_array( $locked ) && in_array( 'anime_status', $locked, true ) ) {
+			return;
+		}
+
+		$current = (string) get_post_meta( $post_id, 'anime_status', true );
+
+		if ( $current === $upstream_status ) {
+			return;
+		}
+
+		update_post_meta( $post_id, 'anime_status', $upstream_status );
+
+		if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+			Anime_Sync_Error_Logger::info(
+				sprintf( '差異掃描建立基準：播出狀態對齊 %s → %s', $current ?: '（空）', $upstream_status ),
+				[ 'post_id' => $post_id ]
+			);
+		}
 	}
 
 	/**
