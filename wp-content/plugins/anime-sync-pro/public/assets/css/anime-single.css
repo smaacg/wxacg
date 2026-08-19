@@ -3996,8 +3996,19 @@ nav.asd-tabs a.asd-tab.is-active::after {
  *
  * 兩個選擇器共用同一組宣告，避免日後只改到其中一邊又不一致。
  */
-.asd-read-channels-tip,
-.asd-stream-disclaimer {
+/*
+ * ★ 必須帶 .asd-wrap 前綴，否則 margin-top 會被歸零。
+ *
+ * 本檔約 1418 行有一條版面重置：
+ *   .asd-wrap h1, .asd-wrap h2, ... .asd-wrap p, .asd-wrap figure { margin-top: 0 }
+ * 特異度 (0,1,1) 高於單純的 .asd-stream-disclaimer (0,1,0)，
+ * 且明確寫 margin-top:0，因此不論這裡設多少都不會生效。
+ *
+ * 模板原本用 style="margin-top:20px !important" 硬蓋，就是在對抗這條規則；
+ * 那個 !important 並非多餘。改以同等特異度的選擇器解決，不再需要行內樣式。
+ */
+.asd-wrap .asd-read-channels-tip,
+.asd-wrap .asd-stream-disclaimer {
   margin: 30px 0 0;
   font-size: 12px;
   line-height: 1.7;
