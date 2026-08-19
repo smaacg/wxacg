@@ -122,9 +122,29 @@ if ( ! is_wp_error( $all_seasons ) && $all_seasons ) {
             $kids[ $t->parent ][] = $t;
         }
     }
+    /*
+     * 季節必須照時序排（冬→春→夏→秋），不能沿用 get_terms() 的排序。
+     *
+     * 上面的 get_terms() 是 orderby=slug、order=DESC——年份要新的在前，
+     * 這對父層是對的；但子層跟著套用時，slug 倒序排出來會變成
+     * winter → summer → spring → fall，也就是畫面上看到的「冬 夏 春 秋」。
+     *
+     * 年份仍維持 DESC，只有季節這一層改用固定時序。
+     */
+    $season_seq = [ 'winter' => 0, 'spring' => 1, 'summer' => 2, 'fall' => 3 ];
+
     foreach ( $years as $year_term ) {
         if ( empty( $kids[ $year_term->term_id ] ) ) continue;
         $children = $kids[ $year_term->term_id ];
+
+        usort( $children, static function ( $a, $b ) use ( $season_seq ) {
+            // slug 格式為 {year}-{season}，例如 2026-spring
+            $ka = strtolower( explode( '-', $a->slug )[1] ?? '' );
+            $kb = strtolower( explode( '-', $b->slug )[1] ?? '' );
+
+            return ( $season_seq[ $ka ] ?? 99 ) <=> ( $season_seq[ $kb ] ?? 99 );
+        } );
+
         $season_children[ $year_term->name ] = [
             'year_slug' => $year_term->slug,
             'children'  => $children,
