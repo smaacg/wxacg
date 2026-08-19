@@ -3987,9 +3987,15 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-size: .82rem;
   color: var(--asd-text-muted);
 }
+/*
+ * 與 .asd-stream-disclaimer 同一種角色：區塊底部的補充說明。
+ * 兩者原本一個 12px margin + .82rem、一個 20px margin + 12px，
+ * 視覺上漫畫那段明顯貼太近。統一為與串流區塊相同的間距與字級。
+ */
 .asd-read-channels-tip {
-  margin: 12px 0 0;
-  font-size: .82rem;
+  margin: 20px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
   color: var(--asd-text-muted);
 }
 

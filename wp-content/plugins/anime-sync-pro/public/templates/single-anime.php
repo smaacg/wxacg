@@ -5809,7 +5809,7 @@ while ( have_posts() ) :
 								</div>
 							<?php endif; ?>
 
-							<p class="asd-stream-disclaimer" style="margin-top:20px !important;">
+							<p class="asd-stream-disclaimer">
 								串流授權、方案及地區限制可能隨時異動，實際供應狀況請以平台與代理商公告為準。
 							</p>
 						</section>
