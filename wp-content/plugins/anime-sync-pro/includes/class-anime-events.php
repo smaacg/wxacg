@@ -302,16 +302,78 @@ class Anime_Sync_Anime_Events {
 	}
 
 	/**
-	 * 退回事件（誤報）。保留列以免同一個變更下次又被偵測成新事件。
+	 * 退回事件（誤報）。
+	 *
+	 * 資料列保留——dedupe_key 還在，同一個變更下次才不會又被偵測成新事件。
+	 *
+	 * 但附件要刪掉：退回的理由通常就是「上游只是重新編碼，圖其實沒變」，
+	 * 那張圖不會出現在任何地方，留著就是每次退回漏一張約 0.94 MB
+	 * （含 WP 產生的尺寸變體）。
 	 */
 	public static function reject( int $event_id ): bool {
 		global $wpdb;
 
-		return false !== $wpdb->update(
+		$event = self::get( $event_id );
+
+		if ( ! $event ) {
+			return false;
+		}
+
+		$ok = $wpdb->update(
 			self::table(),
 			[ 'status' => 'rejected' ],
 			[ 'id' => $event_id ],
 			[ '%s' ],
+			[ '%d' ]
+		);
+
+		if ( false === $ok ) {
+			return false;
+		}
+
+		self::delete_orphan_attachment( $event );
+
+		return true;
+	}
+
+	/**
+	 * 刪除事件專屬的附件。
+	 *
+	 * 三道防護，避免誤刪使用者的圖：
+	 *   1. 只刪這筆事件自己記錄的 attachment_id
+	 *   2. 是特色圖片就不刪（理論上不會發生，掃描從不設特色圖片，但擋著）
+	 *   3. 被其他事件引用就不刪
+	 */
+	private static function delete_orphan_attachment( object $event ): void {
+		global $wpdb;
+
+		$attachment_id = (int) $event->attachment_id;
+
+		if ( ! $attachment_id ) {
+			return;
+		}
+
+		if ( (int) get_post_thumbnail_id( (int) $event->anime_id ) === $attachment_id ) {
+			return;
+		}
+
+		$others = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . self::table() . ' WHERE attachment_id = %d AND id != %d',
+			$attachment_id,
+			(int) $event->id
+		) );
+
+		if ( $others > 0 ) {
+			return;
+		}
+
+		wp_delete_attachment( $attachment_id, true );
+
+		$wpdb->update(
+			self::table(),
+			[ 'attachment_id' => null ],
+			[ 'id' => (int) $event->id ],
+			[ '%d' ],
 			[ '%d' ]
 		);
 	}
