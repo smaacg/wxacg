@@ -223,9 +223,127 @@ class Anime_Sync_Anime_Events {
 			return false;
 		}
 
+		self::promote_visual( $event_id );
 		self::notify_followers( $event_id );
 
 		return true;
+	}
+
+	/**
+	 * 把已發布的視覺圖設為作品主圖。
+	 *
+	 * ★ 為什麼要換主圖
+	 *   舊圖不會消失——它留在媒體庫，也留在頁首的視覺圖切換器裡。
+	 *   換的只是「顯示指標」。不換的話，搜尋下拉、列表卡片、社群分享的
+	 *   OG 圖會永遠停在匯入當天那張，即使官方早就公開了新視覺圖。
+	 *
+	 *   搜尋縮圖取的是 get_the_post_thumbnail_url()，fallback 才是
+	 *   anime_cover_image，所以兩個都要寫。
+	 *
+	 * ★ 為什麼放在 publish() 而不是偵測時
+	 *   偵測會有誤報（上游只是重新編碼）。發布是人看過圖之後的明確決定，
+	 *   在這個時間點換主圖才安全。
+	 *
+	 * 使用者在 ACF 勾選鎖定 anime_cover_image 的作品完全不動。
+	 */
+	private static function promote_visual( int $event_id ): void {
+		$event = self::get( $event_id );
+
+		if ( ! $event || 'visual' !== $event->event_type || empty( $event->attachment_id ) ) {
+			return;
+		}
+
+		$anime_id      = (int) $event->anime_id;
+		$attachment_id = (int) $event->attachment_id;
+
+		// 尊重 ACF 的欄位鎖定（站上目前有 11 篇鎖了封面）。
+		$locked = get_post_meta( $anime_id, 'anime_locked_fields', true );
+
+		if ( is_array( $locked ) && in_array( 'anime_cover_image', $locked, true ) ) {
+			return;
+		}
+
+		if ( ! wp_attachment_is_image( $attachment_id ) ) {
+			return;
+		}
+
+		$prev_thumb_id = (int) get_post_thumbnail_id( $anime_id );
+
+		if ( $prev_thumb_id === $attachment_id ) {
+			return;
+		}
+
+		/*
+		 * 把換掉之前的封面記在 payload 裡，reject() 才有辦法還原。
+		 * 沒有這一步，「發布後才發現是誤報」就會卡住：封面已經換掉，
+		 * 舊圖的附件 ID 無從得知。
+		 */
+		self::remember_previous_cover( $event_id, $prev_thumb_id, (string) get_post_meta( $anime_id, 'anime_cover_image', true ) );
+
+		set_post_thumbnail( $anime_id, $attachment_id );
+
+		$local_url = wp_get_attachment_url( $attachment_id );
+
+		if ( $local_url ) {
+			update_post_meta( $anime_id, 'anime_cover_image', esc_url_raw( $local_url ) );
+		}
+	}
+
+	/**
+	 * 在事件的 payload 追加換圖前的封面資訊。
+	 */
+	private static function remember_previous_cover( int $event_id, int $prev_thumb_id, string $prev_cover_url ): void {
+		global $wpdb;
+
+		$event = self::get( $event_id );
+
+		if ( ! $event ) {
+			return;
+		}
+
+		$payload = ! empty( $event->payload ) ? json_decode( $event->payload, true ) : [];
+		$payload = is_array( $payload ) ? $payload : [];
+
+		$payload['prev_thumbnail_id'] = $prev_thumb_id;
+		$payload['prev_cover_url']    = $prev_cover_url;
+
+		$wpdb->update(
+			self::table(),
+			[ 'payload' => wp_json_encode( $payload, JSON_UNESCAPED_UNICODE ) ],
+			[ 'id' => $event_id ],
+			[ '%s' ],
+			[ '%d' ]
+		);
+	}
+
+	/**
+	 * 退回時把主圖還原成發布前那張。
+	 *
+	 * 只在「目前的特色圖片正是這筆事件的圖」時才動——使用者若在發布之後
+	 * 又自己換過封面，那是更新的決定，不該被退回動作蓋掉。
+	 */
+	private static function restore_previous_cover( object $event ): void {
+		$attachment_id = (int) $event->attachment_id;
+		$anime_id      = (int) $event->anime_id;
+
+		if ( ! $attachment_id || (int) get_post_thumbnail_id( $anime_id ) !== $attachment_id ) {
+			return;
+		}
+
+		$payload = ! empty( $event->payload ) ? json_decode( $event->payload, true ) : [];
+		$payload = is_array( $payload ) ? $payload : [];
+
+		$prev_id = isset( $payload['prev_thumbnail_id'] ) ? (int) $payload['prev_thumbnail_id'] : 0;
+
+		if ( $prev_id && wp_attachment_is_image( $prev_id ) ) {
+			set_post_thumbnail( $anime_id, $prev_id );
+		} else {
+			delete_post_thumbnail( $anime_id );
+		}
+
+		if ( ! empty( $payload['prev_cover_url'] ) ) {
+			update_post_meta( $anime_id, 'anime_cover_image', esc_url_raw( (string) $payload['prev_cover_url'] ) );
+		}
 	}
 
 	/**
@@ -331,6 +449,8 @@ class Anime_Sync_Anime_Events {
 			return false;
 		}
 
+		// 順序不可調換：先把主圖還原，附件才不再被 delete_orphan_attachment() 視為使用中。
+		self::restore_previous_cover( $event );
 		self::delete_orphan_attachment( $event );
 
 		return true;

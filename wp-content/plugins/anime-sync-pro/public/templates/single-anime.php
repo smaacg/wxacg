@@ -3195,39 +3195,61 @@ while ( have_posts() ) :
 			: [];
 
 		/*
-		 * 視覺圖切換器的圖片清單：現有封面排第一，之後接上歷次公開的視覺圖。
-		 * 只有 2 張以上才會顯示切換列——絕大多數作品在累積初期只有 1 張，
+		 * 視覺圖切換器的圖片清單。
+		 *
+		 * 事件由新到舊排列（get_for_anime() 以 event_date DESC），最新的視覺圖
+		 * 排第一格，符合「優先展示新圖」。
+		 *
+		 * 發布視覺圖事件時會同時把該圖設為特色圖片（見 Anime_Sync_Anime_Events
+		 * 的 promote_visual()），所以現有封面通常就是最新那筆事件的圖——
+		 * 若不比對附件 ID，同一張會在切換列出現兩次。
+		 *
+		 * 只有 2 張以上才輸出切換列：多數作品在累積初期只有 1 張，
 		 * 單格縮圖列沒有意義。
 		 */
-		$asd_visuals = [];
+		$asd_visuals   = [];
+		$asd_seen_atts = [];
 
 		foreach ( $asd_events as $asd_ev ) {
 			if ( 'visual' !== $asd_ev->event_type || ! $asd_ev->attachment_id ) {
 				continue;
 			}
 
-			$asd_vis_full = wp_get_attachment_image_url( (int) $asd_ev->attachment_id, 'large' );
+			$asd_att_id = (int) $asd_ev->attachment_id;
+
+			if ( isset( $asd_seen_atts[ $asd_att_id ] ) ) {
+				continue;
+			}
+
+			$asd_vis_full = wp_get_attachment_image_url( $asd_att_id, 'large' );
 
 			if ( ! $asd_vis_full ) {
 				continue;
 			}
 
+			$asd_seen_atts[ $asd_att_id ] = true;
+
 			$asd_visuals[] = [
 				'full'  => $asd_vis_full,
-				'thumb' => wp_get_attachment_image_url( (int) $asd_ev->attachment_id, 'thumbnail' ) ?: $asd_vis_full,
+				'thumb' => wp_get_attachment_image_url( $asd_att_id, 'thumbnail' ) ?: $asd_vis_full,
 				'label' => $asd_ev->summary,
 			];
 		}
 
 		if ( ! empty( $asd_visuals ) ) {
-			$asd_current_cover = $cover_image ?: get_the_post_thumbnail_url( $post_id, 'large' );
+			$asd_thumb_id = (int) get_post_thumbnail_id( $post_id );
 
-			if ( $asd_current_cover ) {
-				array_unshift( $asd_visuals, [
-					'full'  => $asd_current_cover,
-					'thumb' => get_the_post_thumbnail_url( $post_id, 'thumbnail' ) ?: $asd_current_cover,
-					'label' => '主視覺圖',
-				] );
+			// 特色圖片已經是某筆事件的圖時不重複列入。
+			if ( ! isset( $asd_seen_atts[ $asd_thumb_id ] ) ) {
+				$asd_current_cover = $cover_image ?: get_the_post_thumbnail_url( $post_id, 'large' );
+
+				if ( $asd_current_cover ) {
+					$asd_visuals[] = [
+						'full'  => $asd_current_cover,
+						'thumb' => get_the_post_thumbnail_url( $post_id, 'thumbnail' ) ?: $asd_current_cover,
+						'label' => '原始主視覺圖',
+					];
+				}
 			}
 		}
 
