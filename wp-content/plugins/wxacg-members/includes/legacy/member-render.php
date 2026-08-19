@@ -1405,6 +1405,19 @@ function wxacg_render_entity_favorites( $uid ) {
                 // 角色有中文名就優先顯示；聲優表沒有 name_cn，會是空字串
                 $name = $it['name_cn'] !== '' ? $it['name_cn'] : $it['name'];
                 $url  = home_url( $base . (int) $it['entity_id'] . '/' );
+
+                /*
+                 * 原文名只在「與顯示名實質不同」時才當副標。
+                 * 直接用 !== 比較會因為半形／全形分隔符或前後空白的差異，
+                 * 把看起來一模一樣的名字重複顯示兩次（實測「洛琪希・米格路迪亞・
+                 * 格雷拉特」就是這種情形）。先正規化再比。
+                 */
+                $norm = static function ( string $s ): string {
+                    return preg_replace( '/[\s・·،,、＝=－\-]+/u', '', trim( $s ) );
+                };
+
+                $show_sub = $it['name_cn'] !== ''
+                    && $norm( $it['name'] ) !== $norm( $it['name_cn'] );
                 ?>
                 <article class="mc-anime-card mc-entity-card">
                     <a href="<?php echo esc_url( $url ); ?>" class="mc-card-thumb">
@@ -1418,7 +1431,7 @@ function wxacg_render_entity_favorites( $uid ) {
 
                     <div class="mc-card-body">
                         <a href="<?php echo esc_url( $url ); ?>" class="mc-card-title"><?php echo esc_html( $name ); ?></a>
-                        <?php if ( $it['name_cn'] !== '' && $it['name'] !== $it['name_cn'] ) : ?>
+                        <?php if ( $show_sub ) : ?>
                             <span class="mc-card-sub"><?php echo esc_html( $it['name'] ); ?></span>
                         <?php endif; ?>
                     </div>

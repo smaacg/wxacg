@@ -1727,11 +1727,15 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   font-weight: 700;
 }
 
-/* 角色圖多為直幅人像，維持與作品卡一致的比例即可 */
+/*
+ * 角色圖多是全身直幅、臉在最上方，object-fit:cover 預設從中間裁會把頭切掉。
+ * 對齊頂端保留臉部——實體頁的側欄頭像（.asa-side-avatar img）早就是這樣處理。
+ */
 .mc-entity-card .mc-card-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center top;
 }
 
 /* 沒有圖片時的替代（角色／聲優的 image 欄位可能為空） */
