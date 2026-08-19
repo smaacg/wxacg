@@ -68,6 +68,15 @@ class Anime_Sync_Upstream_Diff_Scan {
 	 */
 	const MAX_VISUALS_PER_RUN = 8;
 
+	/**
+	 * dHash 漢明距離小於等於這個值，視為同一張圖（上游只是重新編碼）。
+	 *
+	 * 64 bit 指紋。實務上重新編碼的差異通常是 0~2，換成另一張圖普遍在
+	 * 20 以上。設 5 留了寬裕的安全邊際：寧可把「輕微修圖」也判成同一張
+	 * 而不發消息，也不要發出一則「公開新視覺圖」但圖看起來一模一樣。
+	 */
+	const DHASH_SAME_THRESHOLD = 5;
+
 	const ENDPOINT = 'https://graphql.anilist.co';
 
 	/** 本次執行已下載的視覺圖數。 */
@@ -477,6 +486,31 @@ class Anime_Sync_Upstream_Diff_Scan {
 
 				$this->visuals_this_run++;
 
+				/*
+				 * 內容比對：上游只是重新編碼時，圖看起來一模一樣，
+				 * 發一則「公開新視覺圖」會是假消息。
+				 * 判定為同一張就把剛下載的檔案刪掉、不產生事件，
+				 * 但基準照樣推進（下一輪不需要再抓一次同樣的東西）。
+				 */
+				$same = $this->is_same_image(
+					(string) get_attached_file( $attachment_id ),
+					(string) get_attached_file( (int) get_post_thumbnail_id( $post_id ) )
+				);
+
+				if ( true === $same ) {
+					wp_delete_attachment( $attachment_id, true );
+
+					$next[ $this->snapshot_key( $type ) ] = $change['new'];
+
+					continue;
+				}
+
+				/*
+				 * $same === null 代表判斷不了（讀不到檔、格式不支援）。
+				 * 這種情況保守處理：事件照建，但不自動發布，退回人工審核。
+				 */
+				$args['needs_review'] = ( null === $same );
+
 				$args['attachment_id'] = $attachment_id;
 			}
 
@@ -499,7 +533,10 @@ class Anime_Sync_Upstream_Diff_Scan {
 				 * 推導不出文案時（回傳空字串）就退回人工審核，
 				 * 不發布一則空白說明的消息。
 				 */
-				if ( Anime_Sync_Anime_Events::is_auto_publish( $type ) ) {
+				// 圖片內容比對不出結果時退回人工審核（見上方 needs_review）。
+				$needs_review = ! empty( $args['needs_review'] );
+
+				if ( ! $needs_review && Anime_Sync_Anime_Events::is_auto_publish( $type ) ) {
 					$auto = Anime_Sync_Anime_Events::auto_summary( $type, $change['old'], $change['new'] );
 
 					if ( '' !== $auto ) {
@@ -590,6 +627,102 @@ class Anime_Sync_Upstream_Diff_Scan {
 		}
 
 		return sprintf( '%04d-%02d-%02d', $y, $m, $day );
+	}
+
+	/**
+	 * 兩張圖在視覺上是不是同一張。
+	 *
+	 * ★ 這是「視覺圖能不能自動發布」的關鍵
+	 *   AniList 有時只是重新編碼、換個檔名，圖的內容完全沒變。單看網址
+	 *   分辨不出來，這正是原本必須人工並排看圖的原因。改為比對「圖片內容」
+	 *   之後，機器就能自己判斷，人工審核可以取消。
+	 *
+	 * ★ 作法：dHash（difference hash）
+	 *   縮成 9×8 灰階，逐列比較相鄰像素的亮度大小，得到 64 bit 指紋。
+	 *   只看「相對明暗關係」，所以對重新編碼、壓縮品質、輕微縮放都不敏感，
+	 *   但換成另一張圖時關係會大量改變。
+	 *
+	 *   比 md5 之類的檔案雜湊好在：重新編碼會讓檔案雜湊完全不同，
+	 *   dHash 卻幾乎不變——這正是我們要的區分能力。
+	 *
+	 * @param string $path_a 本機檔案路徑。
+	 * @param string $path_b 本機檔案路徑。
+	 * @return bool|null true=同一張、false=不同張；無法判斷時回傳 null。
+	 */
+	private function is_same_image( string $path_a, string $path_b ): ?bool {
+		$a = $this->dhash( $path_a );
+		$b = $this->dhash( $path_b );
+
+		if ( null === $a || null === $b ) {
+			return null;
+		}
+
+		$distance = 0;
+
+		for ( $i = 0; $i < 64; $i++ ) {
+			if ( $a[ $i ] !== $b[ $i ] ) {
+				$distance++;
+			}
+		}
+
+		return $distance <= self::DHASH_SAME_THRESHOLD;
+	}
+
+	/**
+	 * 計算 dHash，回傳 64 個字元的 0/1 字串。
+	 *
+	 * @return string|null 讀不到或不是圖片時回傳 null（呼叫端據此走保守路徑）。
+	 */
+	private function dhash( string $path ): ?string {
+		if ( ! $path || ! file_exists( $path ) || ! function_exists( 'imagecreatefromstring' ) ) {
+			return null;
+		}
+
+		$data = file_get_contents( $path );
+
+		if ( false === $data ) {
+			return null;
+		}
+
+		$src = @imagecreatefromstring( $data );
+
+		unset( $data );
+
+		if ( ! $src ) {
+			return null;
+		}
+
+		$small = imagecreatetruecolor( 9, 8 );
+
+		if ( ! $small ) {
+			imagedestroy( $src );
+
+			return null;
+		}
+
+		imagecopyresampled( $small, $src, 0, 0, 0, 0, 9, 8, imagesx( $src ), imagesy( $src ) );
+		imagedestroy( $src );
+
+		$hash = '';
+
+		for ( $y = 0; $y < 8; $y++ ) {
+			$prev = null;
+
+			for ( $x = 0; $x < 9; $x++ ) {
+				$rgb  = imagecolorat( $small, $x, $y );
+				$gray = ( ( $rgb >> 16 & 0xFF ) * 299 + ( $rgb >> 8 & 0xFF ) * 587 + ( $rgb & 0xFF ) * 114 ) / 1000;
+
+				if ( null !== $prev ) {
+					$hash .= $gray > $prev ? '1' : '0';
+				}
+
+				$prev = $gray;
+			}
+		}
+
+		imagedestroy( $small );
+
+		return 64 === strlen( $hash ) ? $hash : null;
 	}
 
 	/**

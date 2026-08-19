@@ -74,7 +74,7 @@ class Anime_Sync_Anime_Events {
 	 *
 	 * @var array<string>
 	 */
-	private static array $AUTO_PUBLISH_TYPES = [ 'schedule', 'status', 'episodes', 'trailer' ];
+	private static array $AUTO_PUBLISH_TYPES = [ 'schedule', 'status', 'episodes', 'trailer', 'visual' ];
 
 	/**
 	 * 這個類型是否自動發布。
@@ -100,6 +100,14 @@ class Anime_Sync_Anime_Events {
 
 			case 'status':
 				return self::summary_for_status( (string) $new );
+
+			case 'visual':
+				/*
+				 * 偵測端已用 dHash 比對過圖片內容，確認不是「上游重新編碼」
+				 * 才會走到這裡（見 Anime_Sync_Upstream_Diff_Scan::is_same_image）。
+				 * 比對不出結果時偵測端會標記 needs_review，不會自動發布。
+				 */
+				return '公開新視覺圖';
 
 			case 'trailer':
 				/*
