@@ -3172,15 +3172,24 @@ while ( have_posts() ) :
 			</div>
 		<?php endif; ?>
 
+		<?php
+		/*
+		 * 沒有橫幅圖就整塊不輸出。
+		 *
+		 * 原本會退回一個只有漸層的 .asd-banner--fallback，但 .asd-banner 是
+		 * height: clamp(220px, 27vw, 340px)，等於在頁面頂端掛一塊最高 340px
+		 * 的空白，第一屏幾乎看不到內容。站上 1522 部有 242 部（15.9%）沒有
+		 * 橫幅圖，這些頁面全都受影響。
+		 *
+		 * 移除是安全的：.asd-hero-new 的 margin 是 0 0 var(--asd-gap)，
+		 * 沒有負邊距、不靠橫幅疊圖，少了它主體會自然往上補位。
+		 */
+		?>
 		<?php if ( $banner_image ) : ?>
 			<div
 				class="asd-banner"
 				style="background-image:url('<?php echo esc_url( $banner_image ); ?>');"
 			>
-				<div class="asd-banner-fade"></div>
-			</div>
-		<?php else : ?>
-			<div class="asd-banner asd-banner--fallback">
 				<div class="asd-banner-fade"></div>
 			</div>
 		<?php endif; ?>
