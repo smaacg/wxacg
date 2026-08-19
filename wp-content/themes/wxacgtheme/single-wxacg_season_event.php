@@ -21,20 +21,31 @@ while ( have_posts() ) : the_post();
     $post_id = get_the_ID();
     $meta    = smacg_get_event_meta( $post_id );
     $status  = $meta['status'];
-    $task_opts = smacg_event_task_options();
-    $task_info = $task_opts[ $meta['task_type'] ] ?? [ 'label' => $meta['task_type'], 'unit' => '', 'desc' => '' ];
+
+    /*
+     * 函式名稱以 wxacg-gamification 的 includes/compat/legacy-functions.php 為準。
+     *
+     * 本模板原本呼叫 smacg_event_get_user_progress() / smacg_event_counts() /
+     * smacg_event_top_progress()，那三個名稱在整個外掛裡都不存在——相容層提供的
+     * 是 smacg_get_user_event_progress() / smacg_get_event_progress_count() /
+     * smacg_get_event_leaderboard()，是命名不一致而非缺功能。
+     *
+     * 因為 wxacg_season_event 目前 0 篇文章，這個模板從未被執行過，所以錯誤
+     * 一直沒有浮現；一旦建立第一篇活動就會是白畫面（未定義函式 fatal error）。
+     */
+    $task_info = [ 'label' => $meta['task_type'] ?? '', 'unit' => '', 'desc' => '' ];
 
     $is_logged_in = is_user_logged_in();
     $current_uid  = get_current_user_id();
-    $my_progress  = $is_logged_in ? smacg_event_get_user_progress( $post_id, $current_uid ) : null;
-    $counts       = smacg_event_counts( $post_id );
+    $my_progress  = $is_logged_in ? smacg_get_user_event_progress( $post_id, $current_uid ) : null;
+    $counts       = smacg_get_event_progress_count( $post_id );
 
     // Top progress：結束後讀快照，進行中讀即時
     if ( $status === 'ended' ) {
         $top = (array) get_post_meta( $post_id, '_smacg_event_final_snapshot', true );
-        if ( empty( $top ) ) $top = smacg_event_top_progress( $post_id, 50 );
+        if ( empty( $top ) ) $top = smacg_get_event_leaderboard( $post_id, 50 );
     } else {
-        $top = smacg_event_top_progress( $post_id, 50 );
+        $top = smacg_get_event_leaderboard( $post_id, 50 );
     }
 
     $status_zh = [
