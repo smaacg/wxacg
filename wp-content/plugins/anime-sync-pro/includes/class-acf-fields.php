@@ -505,6 +505,74 @@ class Anime_Sync_ACF_Fields {
             );
         }
 
+        /*
+         * AI 輔助區塊的最後防線。
+         *
+         * 使用者在 AI 區塊改了內容、忘記按「💾 儲存 AI 輔助區塊」而直接按
+         * 原生「更新」時，內容有機會存不進去。
+         *
+         * ⚠ 誠實記錄:這個失敗在伺服器端重現不出來。分別以三個欄位模擬
+         *   「捷徑先存新值 → 真欄位再用舊表單值存一次」的順序，三次都保住了
+         *   新內容;欄位本身也沒有 readonly／disabled。因此推測問題發生在
+         *   送出之前（瀏覽器端），而不是上面的鏡像判斷邏輯。
+         *
+         * 既然找不到確切原因，就不要靠推測去改鏡像規則——那有可能弄壞
+         * 目前正常的路徑。改為在所有欄位都存完之後，直接拿「這次表單實際
+         * 送出的值」與資料庫比對，不一致就補寫。
+         *
+         * 這一步跑在 acf/save_post 的後段，之後不會再有任何欄位寫入，
+         * 因此不管前面的順序如何、誰覆蓋了誰，最終都以使用者送出的內容為準。
+         *
+         * 只處理 AI 區塊那三格。其餘捷徑欄位維持原本的鏡像規則不動。
+         */
+        add_action(
+            'acf/save_post',
+            function ( $post_id ) {
+                if ( ! is_numeric( $post_id ) ) {
+                    return;   // options page 等非文章的儲存不處理
+                }
+
+                // 表單沒送出 acf 資料（例如快速編輯、程式寫入）就不介入
+                if ( empty( $_POST['acf'] ) || ! is_array( $_POST['acf'] ) ) {
+                    return;
+                }
+
+                $ai_fields = [
+                    'field_shortcut_anime_synopsis_chinese' => 'anime_synopsis_chinese',
+                    'field_shortcut_anime_faq_json'         => 'anime_faq_json',
+                    'field_shortcut_anime_cast_json'        => 'anime_cast_json',
+                ];
+
+                foreach ( $ai_fields as $field_key => $real_key ) {
+                    // 該欄位不在這次表單裡（畫面上沒有這個區塊）就跳過
+                    if ( ! array_key_exists( $field_key, $_POST['acf'] ) ) {
+                        continue;
+                    }
+
+                    $submitted = $_POST['acf'][ $field_key ];
+
+                    if ( ! is_string( $submitted ) ) {
+                        continue;
+                    }
+
+                    /*
+                     * $_POST 是加過斜線的，而 update_post_meta 內部會 wp_unslash，
+                     * 因此這裡直接傳原樣即可——先 unslash 反而會把 JSON 的 \" 吃掉。
+                     */
+                    $current = get_post_meta( $post_id, $real_key, true );
+
+                    if ( wp_unslash( $submitted ) === (string) $current ) {
+                        continue;   // 已經一致，不必多寫一次
+                    }
+
+                    update_post_meta( $post_id, $real_key, $submitted );
+                }
+            },
+            // 30:本檔既有的 acf/save_post 掛在 5 與 20，這裡要確保跑在最後，
+            //     否則補寫完又被別的處理蓋掉，等於沒補。
+            30
+        );
+
         // 處理 Taxonomy 鏡像 (純文字框版)
         add_filter( 'acf/load_value/name=shortcut_anime_series_tax', function( $value, $post_id, $field ) {
             $terms = wp_get_object_terms( $post_id, 'anime_series_tax', [ 'fields' => 'names' ] );
