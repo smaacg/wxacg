@@ -53,6 +53,13 @@ class First_Badge {
 		'first_follow'              => [ 'badge_slug' => 'badge-first-follow',            'exp' => 10,  'label' => '初次追蹤' ],
 		'first_watchlist_add'       => [ 'badge_slug' => 'badge-first-watchlist-add',     'exp' => 10,  'label' => '初次加入片單' ],
 		'first_favorite'            => [ 'badge_slug' => 'badge-first-favorite',          'exp' => 10,  'label' => '初次收藏' ],
+		/*
+		 * 角色／聲優收藏（wxacg_entity_favorites）。與上面的 first_favorite
+		 * 分開：那是作品收藏（anime_user_status.favorited），這是實體收藏，
+		 * 兩者的資料來源與使用者行為都不同，合併會讓其中一個永遠拿不到。
+		 */
+		'first_fav_character'       => [ 'badge_slug' => 'badge-first-fav-character',     'exp' => 10,  'label' => '初次收藏角色' ],
+		'first_fav_person'          => [ 'badge_slug' => 'badge-first-fav-person',        'exp' => 10,  'label' => '初次收藏聲優' ],
 		'first_comment'             => [ 'badge_slug' => 'badge-first-comment',           'exp' => 20,  'label' => '初次留言' ],
 		'first_rating'              => [ 'badge_slug' => 'badge-first-rating',            'exp' => 20,  'label' => '初次評分' ],
 		'first_watchlist_complete'  => [ 'badge_slug' => 'badge-first-watchlist-complete', 'exp' => 40,  'label' => '初次完結作品' ],
@@ -79,6 +86,7 @@ class First_Badge {
 		add_action( 'smacg_rating_added',        [ __CLASS__, 'on_rating' ], 10, 3 );
 		add_action( 'smacg_watchlist_added',     [ __CLASS__, 'on_watchlist_add' ], 10, 2 );
 		add_action( 'smacg_favorite_added',      [ __CLASS__, 'on_favorite' ], 10, 2 );
+		add_action( 'wxacg_entity_favorited',    [ __CLASS__, 'on_entity_favorited' ], 10, 3 );
 		add_action( 'smacg_watchlist_completed', [ __CLASS__, 'on_watchlist_complete' ], 10, 2 );
 		add_action( 'wpforo_after_add_topic',    [ __CLASS__, 'on_forum_topic' ], 10, 2 );
 		add_action( 'wxacg_random_anime_used',   [ __CLASS__, 'on_dice_roll' ], 10, 1 );
@@ -144,6 +152,29 @@ class First_Badge {
 
 	public static function on_favorite( $user_id, $anime_id ) {
 		self::maybe_award( 'first_favorite', (int) $user_id );
+	}
+
+	/**
+	 * 角色／聲優收藏（Anime_Sync_Entity_Favorites::toggle）。
+	 *
+	 * 該 hook 只在「新增收藏」時觸發，取消收藏不發——否則反覆點同一顆愛心
+	 * 就能刷經驗值。角色與聲優各自獨立成就，因為那是兩種不同的行為。
+	 *
+	 * @param int    $user_id
+	 * @param string $type      character|person
+	 * @param int    $entity_id bgm_id
+	 */
+	public static function on_entity_favorited( $user_id, $type, $entity_id ) {
+		$map = [
+			'character' => 'first_fav_character',
+			'person'    => 'first_fav_person',
+		];
+
+		if ( ! isset( $map[ $type ] ) ) {
+			return;
+		}
+
+		self::maybe_award( $map[ $type ], (int) $user_id );
 	}
 
 	public static function on_watchlist_complete( $user_id, $anime_id ) {
