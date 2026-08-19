@@ -4009,7 +4009,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
  */
 .asd-wrap .asd-read-channels-tip,
 .asd-wrap .asd-stream-disclaimer {
-  margin: 30px 0 0;
+  margin: 15px 0 0;
   font-size: 12px;
   line-height: 1.7;
   color: var(--asd-text-muted);
