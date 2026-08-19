@@ -241,8 +241,8 @@ $converter_stats = $cn_converter->get_stats();
             <h3>🏆 AniList 人氣排行匯入</h3>
             <p class="description">依 AniList 人氣排行載入，每次 50 部，標記已匯入狀態，未匯入預設勾選。</p>
             <div class="asc-action-row asc-action-row--top">
-                <button type="button" id="btn-ranking-load" class="button">📄 載入排行（第 <span id="ranking-page-num">1</span> 頁）</button>
-                <button type="button" id="btn-ranking-more" class="button" style="display:none;">➕ 載入更多 50 部</button>
+                <button type="button" id="btn-ranking-load" class="button">📄 載入排行（第 1 頁）</button>
+                <button type="button" id="btn-ranking-more" class="button" style="display:none;">➕ 載入更多 50 部（第 <span id="ranking-page-num">2</span> 頁）</button>
                 <span id="ranking-load-spinner" class="asc-spinner" style="display:none;">⏳ 載入中…</span>
             </div>
             <div id="ranking-preview" style="display:none;">
@@ -958,9 +958,14 @@ function asc_progress_block( $prefix ) {
                 alert('載入失敗：' + (errMsg || '未知錯誤'));
                 return;
             }
-            var list = res.data.list || [];
+            // ★ 修正：後端 handle_ajax_popularity_ranking() 是把 get_popularity_ranking()
+            //         的回傳直接 pass-through，其鍵名為 items（不是季度／已公開那兩個
+            //         handler 自行組出來的 list）。原本讀 list → undefined → 永遠 0 筆。
+            var list = res.data.items || [];
             renderRankingRows(list, (rankingPage - 1) * 50);
             rankingPage++;
+            // 頁碼掛在「載入更多」上，代表下一次會載的頁數；
+            // 「載入排行」是重置回第 1 頁，標籤固定不動。
             $('#ranking-page-num').text(rankingPage);
             $('#ranking-preview, #btn-ranking-import, #btn-ranking-more').show();
             var imported = list.filter(function(i){ return i.imported; }).length;
