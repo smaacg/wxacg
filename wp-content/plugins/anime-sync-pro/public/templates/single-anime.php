@@ -620,27 +620,14 @@ while ( have_posts() ) :
 		}
 	}
 
-	$tw_dist_labels = [
-		'muse'      => '木棉花',
-		'medialink' => '曼迪傳播',
-		'linbang'   => '羚邦',
-		'tropic'    => '回歸線娛樂',
-		'proware'   => '普威爾',
-		'kadokawa'  => '台灣角川',
-		'gungho'    => '群英社',
-		'tien'      => '提恩傳媒',
-		'garage'    => '車庫娛樂',
-		'carsun'    => '采昌國際',
-		'jbf'       => '日本橋文化（JBF）',
-		'righttime' => '利得時代',
-		'aniplus'   => 'ANIPLUS Asia',
-		'tongli'    => '東立出版社',
-		'remow'     => 'REMOW',
-		'gaga'      => 'GaGa OOLala',
-		'liying'    => '麗嬰國際',
-		'yiyixixi'  => '壹壹喜喜',
-		'other'     => '',
-	];
+	/*
+	 * 代理商顯示名稱。清單的唯一來源是 class-distributor-registry.php——
+	 * 這裡原本是複製的第三份，新增代理商時漏改就會顯示成英文代碼
+	 * （下方有 `?? $tw_distributor` 的 fallback，不會報錯，很難察覺）。
+	 */
+	$tw_dist_labels = class_exists( 'Anime_Sync_Distributor_Registry' )
+		? Anime_Sync_Distributor_Registry::get_labels()
+		: [];
 
 	$tw_dist_display = '';
 
