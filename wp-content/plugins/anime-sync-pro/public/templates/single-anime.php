@@ -638,6 +638,7 @@ while ( have_posts() ) :
 		'remow'     => 'REMOW',
 		'gaga'      => 'GaGa OOLala',
 		'liying'    => '麗嬰國際',
+		'yiyixixi'  => '壹壹喜喜',
 		'other'     => '',
 	];
 
