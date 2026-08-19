@@ -424,12 +424,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     ? (WATCH_STATUS_LABEL[data.auto_status] || data.auto_status)
                     : '';
 
+                /*
+                 * 有自動標記時延長到 10 秒——這則訊息要使用者讀完、判斷狀態
+                 * 對不對、必要時往上捲去改，3 秒不夠。單純的「發表成功」
+                 * 不需要動作，維持 3 秒即可。
+                 */
                 showMsg(
                     msgEl,
                     autoLabel
                         ? '發表成功！已將這部標記為「' + autoLabel + '」，可在上方追蹤列調整。'
                         : '發表成功！',
-                    false
+                    false,
+                    autoLabel ? 10000 : 3000
                 );
 
                 /*
@@ -452,11 +458,39 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function showMsg(el, text, isError) {
+    /**
+     * 顯示提示訊息。
+     *
+     * @param {HTMLElement} el
+     * @param {string}      text
+     * @param {boolean}     isError
+     * @param {number}      [ms]  顯示毫秒數；傳 0 表示不自動隱藏，由使用者關閉。
+     *
+     * ★ 為什麼要記住 timer
+     *   原本每次都新開一個 setTimeout 卻不清掉舊的。連續送出兩則留言時，
+     *   第一則的計時器會在第二則訊息還沒讀完就把它關掉——看起來像「閃一下
+     *   就不見」。
+     */
+    let msgTimer = null;
+
+    function showMsg(el, text, isError, ms) {
+        if (msgTimer) {
+            clearTimeout(msgTimer);
+            msgTimer = null;
+        }
+
         el.textContent = text;
         el.style.display = 'block';
         el.classList.toggle('is-error', !!isError);
-        setTimeout(function () { el.style.display = 'none'; }, 3000);
+
+        const delay = (ms === undefined) ? 3000 : ms;
+
+        if (delay > 0) {
+            msgTimer = setTimeout(function () {
+                el.style.display = 'none';
+                msgTimer = null;
+            }, delay);
+        }
     }
 
     /* ── 列表 ── */
