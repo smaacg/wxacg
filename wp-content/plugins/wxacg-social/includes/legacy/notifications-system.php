@@ -93,6 +93,7 @@ function smacg_get_notification_prefs_defaults() {
 		'rank_up_site'        => 1,  // ★ v1.2.0
 		'mention_site'        => 1,  // 評論中被 @提及
 		'thread_site'         => 1,  // 追蹤的討論串有新回覆
+		'anime_update_site'   => 1,  // 追番清單裡的作品有新消息（視覺圖／播出日期等）
 		'system_site'         => 1,
 
 		// Email 通知 — 全關
@@ -104,6 +105,7 @@ function smacg_get_notification_prefs_defaults() {
 		'rank_up_email'       => 0,  // ★ v1.2.0
 		'mention_email'       => 0,
 		'thread_email'        => 0,
+		'anime_update_email'  => 0,
 		'system_email'        => 0,
 
 		// Email 摘要頻率

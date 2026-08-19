@@ -4567,6 +4567,52 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
+					<?php
+					/*
+					 * 消息更新：上游偵測到的資料異動，經後台人工補寫說明並發布後才會出現。
+					 * 沒有已發布事件時整個區塊不輸出——絕大多數作品在累積初期都是 0 筆。
+					 */
+					$asd_events = class_exists( 'Anime_Sync_Anime_Events' )
+						? Anime_Sync_Anime_Events::get_for_anime( $post_id )
+						: [];
+					?>
+
+					<?php if ( ! empty( $asd_events ) ) : ?>
+						<section class="asd-section" id="asd-sec-events">
+							<h2 class="asd-section-title">📰 消息更新</h2>
+
+							<ol class="asd-events">
+								<?php foreach ( $asd_events as $asd_event ) : ?>
+									<li class="asd-event">
+										<time class="asd-event-date" datetime="<?php echo esc_attr( $asd_event->event_date ); ?>">
+											<?php echo esc_html( $asd_event->event_date ); ?>
+										</time>
+
+										<div class="asd-event-body">
+											<p class="asd-event-summary"><?php echo esc_html( $asd_event->summary ); ?></p>
+
+											<?php if ( 'visual' === $asd_event->event_type && $asd_event->attachment_id ) : ?>
+												<figure class="asd-event-visual">
+													<?php
+													echo wp_get_attachment_image(
+														(int) $asd_event->attachment_id,
+														'medium',
+														false,
+														[
+															'alt'     => esc_attr( get_the_title( $post_id ) . ' ' . $asd_event->summary ),
+															'loading' => 'lazy',
+														]
+													);
+													?>
+												</figure>
+											<?php endif; ?>
+										</div>
+									</li>
+								<?php endforeach; ?>
+							</ol>
+						</section>
+					<?php endif; ?>
+
 					<?php if ( $has_trailer ) : ?>
 						<section class="asd-section" id="asd-sec-trailer">
 							<h2 class="asd-section-title">

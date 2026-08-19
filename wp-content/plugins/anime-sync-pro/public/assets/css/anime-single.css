@@ -3992,3 +3992,67 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-size: .82rem;
   color: var(--asd-text-muted);
 }
+
+/* =========================================================================
+   消息更新（#asd-sec-events）
+   上游偵測到的資料異動，經人工審核發布後顯示。左側日期軸 + 右側說明。
+   ========================================================================= */
+.asd-events {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.asd-event {
+	display: flex;
+	gap: 16px;
+	padding: 14px 0;
+	border-bottom: 1px solid rgba(128, 128, 128, .18);
+}
+
+.asd-event:last-child {
+	border-bottom: 0;
+	padding-bottom: 0;
+}
+
+.asd-event-date {
+	flex: 0 0 92px;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+	color: var(--asd-text-muted);
+	padding-top: 2px;
+}
+
+.asd-event-body {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.asd-event-summary {
+	margin: 0;
+	font-size: 15px;
+	line-height: 1.7;
+}
+
+.asd-event-visual {
+	margin: 10px 0 0;
+}
+
+.asd-event-visual img {
+	max-width: 220px;
+	height: auto;
+	border-radius: 6px;
+	display: block;
+}
+
+@media (max-width: 600px) {
+	.asd-event {
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.asd-event-date {
+		flex: none;
+		font-size: 12px;
+	}
+}

@@ -50,6 +50,10 @@ class Anime_Sync_Installer {
 	 * dashboard 系統資訊即可正確顯示，不再 fallback 成「—」。
 	 */
 	/*
+	 * 1.5 — 新增 wxacg_anime_events（作品變更事件）。
+	 *       上游（AniList / Bangumi）的資料異動統一記錄成事件，供單頁「消息更新」、
+	 *       全站「最近更新」、追番會員通知、視覺圖庫四種讀法共用。
+	 *
 	 * 1.4 — 新增 wxacg_review_votes（評論／短評的讚／倒讚）。
 	 *       評論本身走 wxacg_review CPT（wp_posts/wp_postmeta），
 	 *       只有「讚／倒讚」這種需要去重＋計數的關聯資料才需要獨立表。
@@ -57,7 +61,7 @@ class Anime_Sync_Installer {
 	 * 1.3 — anime_user_status_stats 新增 paused_count（暫停狀態）。
 	 *       主表 anime_user_status 不需異動：status 是 tinyint，新增值 4 即可。
 	 */
-	private const DB_VERSION = '1.4';
+	private const DB_VERSION = '1.5';
 
 	/**
 	 * 季度 seed：往前 N 年 + 當年 + 當年+1 的範圍
@@ -582,6 +586,45 @@ class Anime_Sync_Installer {
 			KEY user_id (user_id)
 		) {$charset_collate};";
 		dbDelta( $review_votes_sql );
+
+		// =====================================================================
+		// v1.5 新增：作品變更事件（上游資料異動的統一記錄）
+		//
+		// 為什麼是獨立表而不是 postmeta：
+		//   這張表要同時支撐四種讀法，其中兩種 postmeta 做不到——
+		//     單頁消息更新   WHERE anime_id=X          （postmeta 可以）
+		//     全站最近更新   ORDER BY event_date DESC  （postmeta 得掃全部文章）
+		//     通知會員       JOIN anime_user_status    （postmeta 無法 JOIN）
+		//     視覺圖庫       WHERE event_type='visual' （postmeta 可以）
+		//
+		// dedupe_key 是 UNIQUE：同一個變更只會存在一筆，重複偵測會被資料庫擋掉，
+		// 不依賴呼叫端記得先查有沒有。值為 md5(anime_id|event_type|新值指紋)。
+		//
+		// status 的預設是 pending：機器偵測到的「封面 URL 變了」不是可發布的文案，
+		// 要人工補上 summary（例：「公開超前導視覺圖」）並發布後才會出現在前台。
+		// =====================================================================
+		$events_table = $wpdb->prefix . 'wxacg_anime_events';
+		$events_sql   = "CREATE TABLE {$events_table} (
+			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			anime_id      BIGINT(20) UNSIGNED NOT NULL,
+			event_type    VARCHAR(32) NOT NULL,
+			event_date    DATE NOT NULL,
+			status        ENUM('pending','published','rejected') NOT NULL DEFAULT 'pending',
+			summary       VARCHAR(255) NOT NULL DEFAULT '',
+			payload       LONGTEXT NULL,
+			source        VARCHAR(20) NOT NULL DEFAULT '',
+			attachment_id BIGINT(20) UNSIGNED NULL DEFAULT NULL,
+			dedupe_key    VARCHAR(64) NOT NULL DEFAULT '',
+			notified_at   DATETIME NULL DEFAULT NULL,
+			created_at    DATETIME NOT NULL,
+			updated_at    DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY dedupe_key (dedupe_key),
+			KEY anime_status_date (anime_id, status, event_date),
+			KEY status_date (status, event_date),
+			KEY event_type (event_type)
+		) {$charset_collate};";
+		dbDelta( $events_sql );
 	}
 
 	public function is_table_missing( string $table_name_without_prefix ): bool {

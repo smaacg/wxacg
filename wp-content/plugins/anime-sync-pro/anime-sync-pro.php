@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Anime Sync Pro
  * Description: 從 AniList、Bangumi 自動同步動畫資料，並支援多媒體形式（動畫/漫畫/小說/遊戲/音樂）的作品系列聚合。
- * Version:     1.6.0
+ * Version:     1.7.0
  * Author:      weixiaoacg
  * Requires PHP: 8.0
  * Text Domain: anime-sync-pro
@@ -82,7 +82,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * ============================================================ */
 // ★ 1.6.1：新增 manga_publisher_tax。版本號變動會在 init priority 99
 //   觸發 flush_rewrite_rules()，否則 /manga-publisher/{slug}/ 會 404。
-define( 'ANIME_SYNC_PRO_VERSION',  '1.6.1' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.7.0' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -956,6 +956,10 @@ register_activation_hook( __FILE__, function (): void {
 		Anime_Sync_Upcoming_BGM_Scan::schedule();
 	}
 
+	if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
+		Anime_Sync_Upstream_Diff_Scan::schedule();
+	}
+
 	update_option( 'anime_sync_flush_rewrite', 1 );
 } );
 
@@ -982,6 +986,10 @@ register_deactivation_hook( __FILE__, function (): void {
 
 	if ( class_exists( 'Anime_Sync_Upcoming_BGM_Scan' ) ) {
 		Anime_Sync_Upcoming_BGM_Scan::unschedule();
+	}
+
+	if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
+		Anime_Sync_Upstream_Diff_Scan::unschedule();
 	}
 
 	if ( class_exists( 'Anime_Sync_Installer' ) ) {
@@ -1149,6 +1157,23 @@ add_action( 'plugins_loaded', function (): void {
 		// 未播出作品的 Bangumi 班底輪掃（每小時一批，約一天輪完一圈）
 		if ( class_exists( 'Anime_Sync_Upcoming_BGM_Scan' ) ) {
 			new Anime_Sync_Upcoming_BGM_Scan();
+		}
+
+		// AniList 全站差異掃描（每小時 250 部，約一天掃完一輪並寫成變更事件）
+		if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
+			new Anime_Sync_Upstream_Diff_Scan();
+
+			/*
+			 * 啟用 hook 只在「重新啟用外掛」時觸發，一般部署不會經過。
+			 * 這裡補一次註冊，否則新排程永遠不會被建立。
+			 * wp_next_scheduled() 讀的是已載入的 cron array，成本可忽略。
+			 */
+			Anime_Sync_Upstream_Diff_Scan::schedule();
+		}
+
+		// 變更事件的後台審核清單
+		if ( is_admin() && class_exists( 'Anime_Sync_Events_Admin' ) ) {
+			new Anime_Sync_Events_Admin();
 		}
 
 		if ( is_admin() && class_exists( 'Anime_Sync_Custom_Post_Type' ) ) {
