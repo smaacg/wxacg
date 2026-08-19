@@ -1029,6 +1029,20 @@ add_action( 'plugins_loaded', function (): void {
 		new Anime_Sync_Review_Manager();
 	}
 
+	/*
+	 * 角色／聲優收藏的 REST 端點。
+	 *
+	 * ★ 必須放在這裡，不能放進下方 is_admin() || DOING_CRON || WP_CLI 的區塊
+	 *   ——前台的 REST 請求三個條件都不符合，路由不會被註冊，
+	 *   瀏覽器會收到 404 rest_no_route。而用 WP-CLI 測試剛好符合條件，
+	 *   會誤以為一切正常（實際發生過）。
+	 *
+	 *   與 Anime_Sync_Review_Manager 同樣是前台要用的 REST，放在一起。
+	 */
+	if ( class_exists( 'Anime_Sync_Entity_Favorites' ) ) {
+		new Anime_Sync_Entity_Favorites();
+	}
+
 	if ( class_exists( 'Anime_Sync_User_Status_Cron' ) ) {
 		new Anime_Sync_User_Status_Cron();
 	}
@@ -1176,10 +1190,6 @@ add_action( 'plugins_loaded', function (): void {
 			new Anime_Sync_Events_Admin();
 		}
 
-		// 角色／聲優收藏（REST 端點）
-		if ( class_exists( 'Anime_Sync_Entity_Favorites' ) ) {
-			new Anime_Sync_Entity_Favorites();
-		}
 
 		if ( is_admin() && class_exists( 'Anime_Sync_Custom_Post_Type' ) ) {
 			new Anime_Sync_Custom_Post_Type();
