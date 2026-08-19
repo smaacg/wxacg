@@ -511,7 +511,7 @@ get_header();
                 ?>
                 <div class="asp-entity-edit-block" style="margin:12px 0;padding:10px 14px;background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;">
                     <button type="button" class="asp-entity-edit-toggle button" style="cursor:pointer;">✏️ 修正資料（僅管理員可見）</button>
-                    <div class="asp-entity-edit-form" hidden style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+                    <div class="asp-entity-edit-form" style="margin-top:10px;display:none;flex-direction:column;gap:8px;">
                         <label style="display:block;">姓名<br>
                             <input type="text" class="ase-f-name" value="<?php echo esc_attr( $person['name'] ); ?>" style="width:100%;max-width:400px;">
                         </label>
@@ -555,7 +555,8 @@ get_header();
                     var STORE_KEY = 'asp_entity_edit_open';
 
                     function setOpen(open) {
-                        form.hidden = !open;
+                        // 直接設 display，不用 hidden——行內的 display:flex 會蓋過它
+                        form.style.display = open ? 'flex' : 'none';
                         toggle.textContent = (open ? '▾' : '▸') + ' ✏️ 修正資料（僅管理員可見）';
                         toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 
@@ -568,7 +569,7 @@ get_header();
                     setOpen(saved === '1');
 
                     toggle.addEventListener('click', function () {
-                        setOpen(form.hidden);
+                        setOpen(form.style.display === 'none');
                     });
 
                     block.querySelector('.asp-entity-deepl-btn').addEventListener('click', function () {
