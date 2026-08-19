@@ -677,17 +677,24 @@ class Anime_Sync_Review_Manager {
 			return new WP_Error( 'rate_limited', '發表太頻繁，請稍後再試', [ 'status' => 429 ] );
 		}
 
-		// 收藏門檻：片單裡要有這部作品的紀錄（任何狀態皆可）
+		/*
+		 * 片單紀錄：沒有就自動建立，不再要求使用者先手動點一次狀態。
+		 *
+		 * 原本的門檻會回 403「請先把這部作品加入片單」，多一道手續就少一則留言，
+		 * 而想留言的人本來就對這部作品有興趣，擋著沒有意義。
+		 *
+		 * 狀態依作品當下的播出階段推定（未播出→想看／放送中→追番中／
+		 * 完結→已看完），細節見 ensure_entry_for_comment() 的說明。
+		 * 已經有狀態的人完全不動——使用者自己設過的不該被留言行為覆寫。
+		 *
+		 * $auto_status 回傳給前端，讓它明白告知「已標記為 XXX」並提供修改入口。
+		 * 靜默修改使用者的個人片單是會被討厭的。
+		 */
+		$auto_status = '';
+
 		if ( class_exists( 'Anime_Sync_User_Status_Manager' ) ) {
-			$status_mgr = new Anime_Sync_User_Status_Manager();
-			$entry      = $status_mgr->get_entry( $uid, $anime_id );
-			if ( empty( $entry['status'] ) ) {
-				return new WP_Error(
-					'not_in_list',
-					'請先把這部作品加入片單（想看／在看／看過皆可）才能發表評論',
-					[ 'status' => 403 ]
-				);
-			}
+			$status_mgr  = new Anime_Sync_User_Status_Manager();
+			$auto_status = $status_mgr->ensure_entry_for_comment( $uid, $anime_id );
 		}
 
 		$track = $req->get_param( 'track' ) === self::TRACK_LONG ? self::TRACK_LONG : self::TRACK_SHORT;
@@ -869,10 +876,16 @@ class Anime_Sync_Review_Manager {
 			do_action( 'wxacg_review_submitted', $uid, $review_id, $anime_id, $track );
 		}
 
+		/*
+		 * auto_status 只在「這次留言順便把作品加進片單」時有值。
+		 * 前端據此顯示「已標記為 XXX」的提示與修改入口——
+		 * 使用者的個人片單被改動了，就該讓他知道。
+		 */
 		return rest_ensure_response( [
-			'success'   => true,
-			'review_id' => $review_id,
-			'is_new'    => $is_new,
+			'success'     => true,
+			'review_id'   => $review_id,
+			'is_new'      => $is_new,
+			'auto_status' => $auto_status,
 		] );
 	}
 

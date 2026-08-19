@@ -404,10 +404,45 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             submitBtn.disabled = true;
-            callApi('reviews/' + animeId, 'POST', payload).then(function () {
+            callApi('reviews/' + animeId, 'POST', payload).then(function (data) {
                 contentInput.value = '';
                 counter.textContent = '0 / ' + minLen + '+';
-                showMsg(msgEl, '發表成功！', false);
+
+                /*
+                 * 後端在「片單裡還沒有這部」時會依播出狀態自動建立紀錄
+                 * （未播出→想看／放送中→追番中／完結→已看完），
+                 * 並以 auto_status 回報實際寫入的狀態。
+                 *
+                 * 一定要明講：使用者的個人片單被改動了，靜默處理會被討厭。
+                 * 提示裡直接指向上方追蹤列，讓他能立刻改。
+                 */
+                /*
+                 * WATCH_STATUS_LABEL 定義在本檔後段，但這裡是 click 回呼、
+                 * 執行時模組早已初始化完畢，不會踩到 const 的暫時死區。
+                 */
+                const autoLabel = data && data.auto_status
+                    ? (WATCH_STATUS_LABEL[data.auto_status] || data.auto_status)
+                    : '';
+
+                showMsg(
+                    msgEl,
+                    autoLabel
+                        ? '發表成功！已將這部標記為「' + autoLabel + '」，可在上方追蹤列調整。'
+                        : '發表成功！',
+                    false
+                );
+
+                /*
+                 * 通知追蹤列同步反白。追蹤列由 anime-status.js 以獨立模組作用域
+                 * 管理，這裡不直接改 DOM——它內部的 state.status 也必須更新，
+                 * 否則使用者接著點同一顆狀態按鈕時會判斷成「重設」而非「取消」。
+                 */
+                if (data && data.auto_status) {
+                    document.dispatchEvent(new CustomEvent('wxacg:status-changed', {
+                        detail: { status: data.auto_status },
+                    }));
+                }
+
                 loadList();
             }).catch(function (err) {
                 showMsg(msgEl, err.message || '發表失敗，請稍後再試', true);

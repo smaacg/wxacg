@@ -151,6 +151,24 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    /*
+     * 外部（目前是 review.js）在後端自動建立片單紀錄之後，用這個事件通知
+     * 追蹤列同步。不讓外部直接改 DOM 是因為本模組的 state.status 也要跟著更新
+     * ——否則使用者接著點同一顆按鈕時，切換邏輯
+     * （state.status === value ? 'none' : value）會判斷錯，變成重設一次而非取消。
+     */
+    document.addEventListener('wxacg:status-changed', function (e) {
+        const s = e && e.detail ? e.detail.status : null;
+
+        if (!s || !VALID_STATUS.includes(s)) {
+            return;
+        }
+
+        state.status = s;
+        bar.dataset.status = s;
+        renderStatus(s);
+    });
+
     function renderProgress(prog) {
         if (progCurrent) progCurrent.textContent = prog;
         if (progBar && totalEp > 0) {

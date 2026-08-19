@@ -597,6 +597,93 @@ class Anime_Sync_User_Status_Manager {
      * 讀取方法（含快取）
      * ────────────────────────────────────────────── */
 
+    /**
+     * 依作品播出狀態，為「尚未建立紀錄」的使用者建立一筆片單紀錄。
+     *
+     * ★ 用途
+     *   發表評論時自動把作品加進片單，讓使用者不必先手動點一次狀態
+     *   才能留言。狀態依作品當下的播出階段推定：
+     *
+     *     NOT_YET_RELEASED → 想看     還沒播，不可能在看
+     *     RELEASING        → 追番中   會來留言多半正在追
+     *     FINISHED         → 已看完   完結作品留言多半是看過了
+     *
+     * ★ 為什麼不直接呼叫 set_status()
+     *   set_status() 是「使用者主動點按」的路徑，會做兩件這裡不該做的事：
+     *
+     *     1. 標記已看完時把 progress 自動補滿到總集數
+     *     2. 觸發 smacg_watchlist_added / smacg_watchlist_completed，
+     *        由 wxacg-gamification 發 EXP 與徽章
+     *
+     *   自動標記不是使用者的表態，補滿進度會讓他的片單出現沒看過的紀錄；
+     *   給 EXP 則等於「留一句話就能刷經驗值」。因此這裡只寫入狀態本身。
+     *
+     *   使用者若真的看完了，會自己去點「已看完」——那一下才是主動行為，
+     *   屆時 set_status() 會照常補進度、發 EXP。
+     *
+     * 已有紀錄時完全不動：使用者自己設過的狀態不該被留言行為覆寫。
+     *
+     * @return string 實際寫入的狀態 key；已有紀錄或失敗時回傳空字串。
+     */
+    public function ensure_entry_for_comment( int $user_id, int $anime_id ): string {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'anime_user_status';
+
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT status FROM {$table} WHERE user_id = %d AND anime_id = %d",
+            $user_id,
+            $anime_id
+        ) );
+
+        // 已經有狀態就不動（NULL 代表有列但沒設狀態，仍可補）。
+        if ( null !== $existing && '' !== $existing ) {
+            return '';
+        }
+
+        $airing = (string) get_post_meta( $anime_id, 'anime_status', true );
+
+        switch ( $airing ) {
+            case 'RELEASING':
+                $key = 'watching';
+                break;
+
+            case 'FINISHED':
+                $key = 'completed';
+                break;
+
+            default:
+                // NOT_YET_RELEASED、CANCELLED、HIATUS、空值都當成「想看」
+                $key = 'want';
+        }
+
+        $status_int = self::STATUS_MAP[ $key ];
+        $now        = current_time( 'mysql' );
+
+        $ok = $wpdb->query( $wpdb->prepare(
+            "INSERT INTO {$table} (user_id, anime_id, status, progress, started_at, created_at, updated_at)
+             VALUES (%d, %d, %d, 0, %s, %s, %s)
+             ON DUPLICATE KEY UPDATE
+                status     = VALUES(status),
+                started_at = COALESCE(started_at, VALUES(started_at)),
+                updated_at = VALUES(updated_at)",
+            $user_id,
+            $anime_id,
+            $status_int,
+            $now,
+            $now,
+            $now
+        ) );
+
+        if ( false === $ok ) {
+            return '';
+        }
+
+        $this->flush_cache( $user_id, $anime_id );
+
+        return $key;
+    }
+
     public function get_entry( int $user_id, int $anime_id, bool $use_cache = true ): array {
         if ( ! $user_id || ! $anime_id ) return $this->empty_entry();
 
