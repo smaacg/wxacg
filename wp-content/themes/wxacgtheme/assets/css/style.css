@@ -1944,6 +1944,19 @@
   #site-header .header-top,
   .site-header .header-top {
     display: flex !important; align-items: center !important; flex-wrap: nowrap !important;
+    /*
+     * 桌機版 .header-top 寫死 height:113px（見本檔約 108 行），那個高度是為了
+     * 讓 logo 與搜尋列在寬螢幕上有呼吸空間，但沒有限定斷點，手機也照套——
+     * 一排圖示（漢堡 20px、頭像 36px）佔掉 113px，把內容整個往下推。
+     *
+     * home.css 早就有這個覆寫（height:60px），但 home.css 只在 is_front_page()
+     * 載入，所以只有首頁是對的，動漫列表、新聞頁等其他頁面全部維持 113px。
+     * 這裡補進全站載入的 style.css，值沿用 home.css 的 60px 保持一致。
+     *
+     * 斷點用 900px 而非 home.css 的 768px：手機版 header 佈局（漢堡左置）
+     * 就是從 900px 開始，769～900px 之間同樣需要壓低高度。
+     */
+    height: 60px !important;
   }
   .site-header .header-actions { margin-left: auto !important; }
 }
