@@ -347,8 +347,13 @@ class Anime_Sync_Events_Admin {
 			$this->render_value_diff( $payload );
 		}
 
-		if ( 'pending' === $status ) {
-			$this->render_actions( $event );
+		/*
+		 * 已發布的事件也要能操作——原本只有待審分頁有按鈕，
+		 * 發布後想改錯字或撤回都沒有入口，只能進資料庫。
+		 * 退回會一併還原主圖並刪掉該事件下載的圖。
+		 */
+		if ( in_array( $status, [ 'pending', 'published' ], true ) ) {
+			$this->render_actions( $event, $status );
 		} elseif ( '' !== $event->summary ) {
 			printf(
 				'<p style="margin:12px 0 0;"><strong>說明：</strong>%s</p>',
@@ -381,8 +386,19 @@ class Anime_Sync_Events_Admin {
 			printf( '<p style="margin:0 0 6px;font-weight:600;font-size:12px;">%s</p>', esc_html( $label ) );
 
 			if ( '' !== $url ) {
+				/*
+				 * 舊圖用的是上游被換掉之前的外部網址，上游換圖後常常直接 404。
+				 * 讓它壞掉時顯示說明文字，而不是一個破圖 icon——
+				 * 破圖看起來像系統壞了，實際上是正常現象。
+				 */
 				printf(
-					'<img src="%s" alt="%s" style="max-width:180px;height:auto;border:1px solid #ddd;">',
+					'<img src="%s" alt="%s" loading="lazy"
+					      style="max-width:180px;height:auto;border:1px solid #ddd;display:block;"
+					      onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';">
+					 <span style="display:none;color:#999;font-size:12px;line-height:1.6;
+					              width:180px;padding:24px 8px;border:1px dashed #ddd;">
+						舊圖已從上游移除<br>（換圖後原網址失效，屬正常）
+					 </span>',
 					esc_url( $url ),
 					esc_attr( $label )
 				);
@@ -413,8 +429,11 @@ class Anime_Sync_Events_Admin {
 
 	/**
 	 * 說明輸入與發布／退回按鈕。
+	 *
+	 * @param object $event  事件。
+	 * @param string $status 目前分頁，決定主要按鈕的字樣。
 	 */
-	private function render_actions( object $event ): void {
+	private function render_actions( object $event, string $status = 'pending' ): void {
 		echo '<form method="post" style="margin:14px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
 
 		wp_nonce_field( self::NONCE );
@@ -437,8 +456,18 @@ class Anime_Sync_Events_Admin {
 			esc_attr( $this->placeholder_for( $event->event_type ) )
 		);
 
-		echo '<button type="submit" name="anime_sync_event_action" value="publish" class="button button-primary">發布</button>';
-		echo '<button type="submit" name="anime_sync_event_action" value="reject" class="button">退回</button>';
+		printf(
+			'<button type="submit" name="anime_sync_event_action" value="publish" class="button button-primary">%s</button>',
+			'published' === $status ? '更新' : '發布'
+		);
+
+		printf(
+			'<button type="submit" name="anime_sync_event_action" value="reject" class="button"
+			        onclick="return confirm(%s);">退回</button>',
+			'published' === $status
+				? "'退回會把這則消息從前台移除，並把作品主圖還原成發布前那張、刪掉這次下載的圖。確定嗎？'"
+				: "'確定退回？這次下載的圖會一併刪除。'"
+		);
 
 		echo '</form>';
 	}
