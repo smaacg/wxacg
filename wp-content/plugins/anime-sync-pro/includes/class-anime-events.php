@@ -98,7 +98,13 @@ class Anime_Sync_Anime_Events {
 	 *     @type int    $attachment_id 視覺圖事件的圖片附件 ID。
 	 *     @type string $summary       人工說明，偵測寫入時通常留空。
 	 * }
-	 * @return int 新事件的 ID；重複事件回傳 0；參數錯誤或寫入失敗回傳 0。
+	 * @return int 三種結果，呼叫端必須分辨——
+	 *             >0  新事件的 ID
+	 *              0  這筆已經存在（重複偵測，正常情況）
+	 *             -1  參數錯誤或寫入失敗
+	 *
+	 *             「重複」與「失敗」不可混為一談：偵測端會依據回傳值決定
+	 *             要不要推進比對基準，把失敗當成重複會讓那個變更永久遺失。
 	 */
 	public static function record( array $args ): int {
 		global $wpdb;
@@ -108,12 +114,12 @@ class Anime_Sync_Anime_Events {
 		$fingerprint = isset( $args['fingerprint'] ) ? (string) $args['fingerprint'] : '';
 
 		if ( ! $anime_id || ! $event_type || '' === $fingerprint ) {
-			return 0;
+			return -1;
 		}
 
 		// 未登錄的類型視為錯誤——寧可不寫，也不要在前台冒出無名標籤。
 		if ( ! isset( self::$TYPES[ $event_type ] ) ) {
-			return 0;
+			return -1;
 		}
 
 		$dedupe_key = md5( $anime_id . '|' . $event_type . '|' . $fingerprint );
@@ -144,8 +150,32 @@ class Anime_Sync_Anime_Events {
 		);
 
 		if ( false === $ok ) {
-			// 重複（UNIQUE 衝突）是預期內的正常結果，不當成錯誤記錄。
-			return 0;
+			/*
+			 * 寫入失敗有兩種：UNIQUE 衝突（重複偵測，正常）與其他 DB 錯誤。
+			 * 必須分辨——把後者當成前者，呼叫端會推進比對基準，
+			 * 那個變更就再也偵測不到了。
+			 */
+			$exists = (int) $wpdb->get_var( $wpdb->prepare(
+				'SELECT id FROM ' . self::table() . ' WHERE dedupe_key = %s',
+				$dedupe_key
+			) );
+
+			if ( $exists ) {
+				return 0;
+			}
+
+			if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+				Anime_Sync_Error_Logger::error(
+					'事件寫入失敗：' . $wpdb->last_error,
+					[
+						'anime_id'   => $anime_id,
+						'event_type' => $event_type,
+						'dedupe_key' => $dedupe_key,
+					]
+				);
+			}
+
+			return -1;
 		}
 
 		return (int) $wpdb->insert_id;
@@ -154,11 +184,14 @@ class Anime_Sync_Anime_Events {
 	/**
 	 * 發布事件：寫入 summary、轉為 published，並通知追番會員。
 	 *
-	 * @param int    $event_id 事件 ID。
-	 * @param string $summary  顯示在前台的中文說明。
+	 * @param int    $event_id   事件 ID。
+	 * @param string $summary    顯示在前台的中文說明。
+	 * @param string $event_date 修正後的事件日期 Y-m-d，留空表示沿用原值。
+	 *                           掃描寫入的是「偵測日」，但官方公告可能早幾天，
+	 *                           前台要顯示的是公告日，因此開放審核時修正。
 	 * @return bool 是否成功。
 	 */
-	public static function publish( int $event_id, string $summary ): bool {
+	public static function publish( int $event_id, string $summary, string $event_date = '' ): bool {
 		global $wpdb;
 
 		$event = self::get( $event_id );
@@ -167,14 +200,22 @@ class Anime_Sync_Anime_Events {
 			return false;
 		}
 
+		$data    = [
+			'status'  => 'published',
+			'summary' => mb_substr( $summary, 0, 255 ),
+		];
+		$formats = [ '%s', '%s' ];
+
+		if ( '' !== $event_date && self::is_valid_date( $event_date ) ) {
+			$data['event_date'] = $event_date;
+			$formats[]          = '%s';
+		}
+
 		$ok = $wpdb->update(
 			self::table(),
-			[
-				'status'  => 'published',
-				'summary' => mb_substr( $summary, 0, 255 ),
-			],
+			$data,
 			[ 'id' => $event_id ],
-			[ '%s', '%s' ],
+			$formats,
 			[ '%d' ]
 		);
 
@@ -185,6 +226,79 @@ class Anime_Sync_Anime_Events {
 		self::notify_followers( $event_id );
 
 		return true;
+	}
+
+	/**
+	 * 人工新增一則消息。
+	 *
+	 * ★ 為什麼一定要有這個入口
+	 *   偵測只看得到 AniList 欄位的異動。但真正的作品消息有一大半不在
+	 *   任何 API 裡——「第一季全24話播出後宣布第二季製作決定」「監督確定」
+	 *   「主視覺公開」這類要嘛只在官方推特、要嘛只在新聞稿。少了手動入口，
+	 *   消息更新就只是一份「封面換了／日期改了」的機械紀錄。
+	 *
+	 *   直接以 published 寫入，不經審核——這是人寫的，沒有誤報問題。
+	 *
+	 * @param int    $anime_id   作品 post ID。
+	 * @param string $summary    消息內容。
+	 * @param string $event_date 消息日期 Y-m-d。
+	 * @param string $event_type 事件類型，預設 visual 以外的通用類型由呼叫端指定。
+	 * @return int 事件 ID；失敗回傳 -1；重複回傳 0。
+	 */
+	public static function add_manual( int $anime_id, string $summary, string $event_date, string $event_type ): int {
+		global $wpdb;
+
+		$summary = trim( $summary );
+
+		if ( ! $anime_id || '' === $summary || ! isset( self::$TYPES[ $event_type ] ) ) {
+			return -1;
+		}
+
+		if ( ! self::is_valid_date( $event_date ) ) {
+			return -1;
+		}
+
+		// 人工消息用「日期＋內容」當指紋，避免同一則被重複貼上。
+		$dedupe_key = md5( $anime_id . '|' . $event_type . '|manual|' . $event_date . '|' . $summary );
+
+		$ok = $wpdb->insert(
+			self::table(),
+			[
+				'anime_id'   => $anime_id,
+				'event_type' => $event_type,
+				'event_date' => $event_date,
+				'status'     => 'published',
+				'summary'    => mb_substr( $summary, 0, 255 ),
+				'source'     => 'manual',
+				'dedupe_key' => $dedupe_key,
+				'created_at' => current_time( 'mysql' ),
+			],
+			[ '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
+		);
+
+		if ( false === $ok ) {
+			$exists = (int) $wpdb->get_var( $wpdb->prepare(
+				'SELECT id FROM ' . self::table() . ' WHERE dedupe_key = %s',
+				$dedupe_key
+			) );
+
+			return $exists ? 0 : -1;
+		}
+
+		$event_id = (int) $wpdb->insert_id;
+
+		self::notify_followers( $event_id );
+
+		return $event_id;
+	}
+
+	/**
+	 * Y-m-d 格式與真實性檢查（擋掉 2026-02-31 這種）。
+	 */
+	private static function is_valid_date( string $date ): bool {
+		$d = DateTime::createFromFormat( 'Y-m-d', $date );
+
+		return $d && $d->format( 'Y-m-d' ) === $date;
 	}
 
 	/**

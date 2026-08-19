@@ -454,12 +454,22 @@ class Anime_Sync_Upstream_Diff_Scan {
 				$args['attachment_id'] = $attachment_id;
 			}
 
-			if ( Anime_Sync_Anime_Events::record( $args ) ) {
+			$recorded = Anime_Sync_Anime_Events::record( $args );
+
+			/*
+			 * -1 是寫入失敗（不是重複）。基準維持舊值，下一輪重試，
+			 * 否則這個變更會永久遺失而且無聲無息。
+			 */
+			if ( -1 === $recorded ) {
+				continue;
+			}
+
+			if ( $recorded > 0 ) {
 				$events++;
 			}
 
 			/*
-			 * 這一欄處理完了才推進基準。
+			 * 這一欄確實記錄完了（新寫入或已存在）才推進基準。
 			 * dedupe_key 已經擋掉重複寫入，這裡是為了避免重複下載視覺圖。
 			 */
 			$next[ $this->snapshot_key( $type ) ] = $change['new'];

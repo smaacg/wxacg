@@ -105,7 +105,11 @@ class Anime_Sync_Events_Admin {
 				return '請先填寫消息說明再發布——空白的說明在前台沒有意義。';
 			}
 
-			if ( ! Anime_Sync_Anime_Events::publish( $event_id, $summary ) ) {
+			$event_date = isset( $_POST['event_date'] )
+				? sanitize_text_field( wp_unslash( $_POST['event_date'] ) )
+				: '';
+
+			if ( ! Anime_Sync_Anime_Events::publish( $event_id, $summary, $event_date ) ) {
 				return '發布失敗。';
 			}
 
@@ -113,6 +117,50 @@ class Anime_Sync_Events_Admin {
 		}
 
 		return '';
+	}
+
+	/**
+	 * 處理「手動新增消息」。
+	 *
+	 * @return string 結果訊息（空字串代表這次沒有動作）。
+	 */
+	private function handle_manual(): string {
+		if ( empty( $_POST['anime_sync_manual_add'] ) ) {
+			return '';
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return '權限不足。';
+		}
+
+		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ), self::NONCE ) ) {
+			return '安全驗證失敗，請重新整理後再試。';
+		}
+
+		$anime_id   = isset( $_POST['manual_anime_id'] ) ? absint( $_POST['manual_anime_id'] ) : 0;
+		$summary    = isset( $_POST['manual_summary'] ) ? sanitize_text_field( wp_unslash( $_POST['manual_summary'] ) ) : '';
+		$event_date = isset( $_POST['manual_date'] ) ? sanitize_text_field( wp_unslash( $_POST['manual_date'] ) ) : '';
+		$event_type = isset( $_POST['manual_type'] ) ? sanitize_key( wp_unslash( $_POST['manual_type'] ) ) : '';
+
+		if ( ! $anime_id || '' === trim( $summary ) ) {
+			return '請填寫作品與消息內容。';
+		}
+
+		if ( 'anime' !== get_post_type( $anime_id ) ) {
+			return '找不到這部作品（ID ' . $anime_id . '），請確認是動畫文章的 ID。';
+		}
+
+		$result = Anime_Sync_Anime_Events::add_manual( $anime_id, $summary, $event_date, $event_type );
+
+		if ( -1 === $result ) {
+			return '新增失敗，請確認日期格式（YYYY-MM-DD）與類型是否正確。';
+		}
+
+		if ( 0 === $result ) {
+			return '這則消息已經存在，未重複新增。';
+		}
+
+		return '已新增消息，並已通知追番這部作品的會員。';
 	}
 
 	// =========================================================================
@@ -125,6 +173,10 @@ class Anime_Sync_Events_Admin {
 		}
 
 		$message = $this->handle_post();
+
+		if ( '' === $message ) {
+			$message = $this->handle_manual();
+		}
 
 		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : 'pending';
 
@@ -156,6 +208,8 @@ class Anime_Sync_Events_Admin {
 			);
 		}
 
+		$this->render_manual_form();
+
 		$this->render_tabs( $status );
 
 		if ( empty( $events ) ) {
@@ -169,6 +223,60 @@ class Anime_Sync_Events_Admin {
 		}
 
 		echo '</div>';
+	}
+
+	/**
+	 * 手動新增消息。
+	 *
+	 * 偵測只看得到 AniList 欄位的異動，但作品消息有一大半不在任何 API 裡
+	 * ——「宣布第二季製作決定」「監督確定」這類只在官方推特或新聞稿。
+	 * 沒有這個入口，消息更新就只是一份「封面換了／日期改了」的機械紀錄。
+	 */
+	private function render_manual_form(): void {
+		echo '<details style="background:#fff;border:1px solid #ccd0d4;padding:12px 20px;margin:16px 0;max-width:1000px;">';
+		echo '<summary style="cursor:pointer;font-weight:600;">➕ 手動新增消息</summary>';
+
+		echo '<p class="description" style="margin:10px 0;">'
+			. '偵測抓不到的消息寫在這裡——例如「宣布第二季製作決定」「公開主視覺」「監督確定」。'
+			. '人工填寫的內容不需審核，直接發布並通知追番會員。</p>';
+
+		echo '<form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px;">';
+
+		wp_nonce_field( self::NONCE );
+
+		echo '<input type="number" name="manual_anime_id" placeholder="作品 ID" required
+		             style="width:110px;" min="1">';
+
+		printf(
+			'<input type="date" name="manual_date" value="%s" required>',
+			esc_attr( current_time( 'Y-m-d' ) )
+		);
+
+		echo '<select name="manual_type">';
+
+		foreach ( Anime_Sync_Anime_Events::types() as $key => $label ) {
+			printf(
+				'<option value="%s"%s>%s</option>',
+				esc_attr( $key ),
+				'schedule' === $key ? ' selected' : '',
+				esc_html( $label )
+			);
+		}
+
+		echo '</select>';
+
+		echo '<input type="text" name="manual_summary" required maxlength="255"
+		             placeholder="例：第一季全 24 話播出後，宣布第二季製作決定"
+		             style="flex:1;min-width:300px;">';
+
+		echo '<button type="submit" name="anime_sync_manual_add" value="1" class="button button-primary">新增</button>';
+
+		echo '</form>';
+
+		echo '<p class="description" style="margin:0;font-size:11px;color:#888;">'
+			. '作品 ID 可在動畫文章的編輯網址列 <code>post=數字</code> 找到。</p>';
+
+		echo '</details>';
 	}
 
 	private function render_tabs( string $current ): void {
@@ -313,9 +421,18 @@ class Anime_Sync_Events_Admin {
 
 		printf( '<input type="hidden" name="event_id" value="%d">', (int) $event->id );
 
+		/*
+		 * 日期可修正：掃描寫入的是「偵測日」，但官方公告常常早幾天。
+		 * 前台顯示的應該是公告日，這裡讓審核時一併改掉。
+		 */
+		printf(
+			'<input type="date" name="event_date" value="%s" title="消息日期（預設為偵測日，可改成實際公告日）">',
+			esc_attr( $event->event_date )
+		);
+
 		printf(
 			'<input type="text" name="summary" value="%s" placeholder="%s"
-			        style="flex:1;min-width:320px;" maxlength="255">',
+			        style="flex:1;min-width:280px;" maxlength="255">',
 			esc_attr( $event->summary ),
 			esc_attr( $this->placeholder_for( $event->event_type ) )
 		);
