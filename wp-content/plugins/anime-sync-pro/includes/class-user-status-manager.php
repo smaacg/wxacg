@@ -628,6 +628,18 @@ class Anime_Sync_User_Status_Manager {
     public function ensure_entry_for_comment( int $user_id, int $anime_id ): string {
         global $wpdb;
 
+        /*
+         * 只有「有片單概念」的內容才建立紀錄。
+         *
+         * 留言 API 的 allowed_post_types() 涵蓋四種：anime、manga、post（新聞）、
+         * asa_char_comments（角色頁留言的影子文章）。後兩者沒有追番狀態可言，
+         * 若照樣寫入，使用者的片單裡會混進新聞文章與角色影子文章，
+         * 而 anime_user_status 是「追番清單」，那等於污染資料。
+         */
+        if ( ! in_array( get_post_type( $anime_id ), [ 'anime', 'manga' ], true ) ) {
+            return '';
+        }
+
         $table = $wpdb->prefix . 'anime_user_status';
 
         $existing = $wpdb->get_var( $wpdb->prepare(
