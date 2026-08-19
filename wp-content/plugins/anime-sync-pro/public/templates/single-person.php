@@ -722,6 +722,29 @@ get_header();
              * 之後立即還原，避免影響頁面其餘部分。
              */
             ?>
+            <?php if ( $person_comment_post_id > 0 ) : ?>
+                <?php
+                /*
+                 * ★ 排在糾錯回報之前：留言是多數訪客會用的互動，糾錯是少數人
+                 *   才會動用的維護功能，放在前面會把主要互動區往下推。
+                 *   與 single-character.php 的順序保持一致。
+                 */
+                ?>
+                <section class="asa-entity-comments" id="asa-sec-comments">
+                    <h2 class="asa-section-title">💬 留言</h2>
+                    <div
+                        class="asd-review-root"
+                        id="asd-review-root"
+                        data-anime-id="<?php echo (int) $person_comment_post_id; ?>"
+                        data-episodes="[]"
+                        data-tracks="short"
+                        data-noun="留言"
+                    >
+                        <p class="asd-review-loading">留言載入中…</p>
+                    </div>
+                </section>
+            <?php endif; ?>
+
             <section class="asa-entity-corrections" id="asa-sec-corrections">
                 <h2 class="asa-section-title">✏ 糾錯回報</h2>
                 <?php
@@ -741,22 +764,6 @@ get_header();
                 }
                 ?>
             </section>
-
-            <?php if ( $person_comment_post_id > 0 ) : ?>
-                <section class="asa-entity-comments" id="asa-sec-comments">
-                    <h2 class="asa-section-title">💬 留言</h2>
-                    <div
-                        class="asd-review-root"
-                        id="asd-review-root"
-                        data-anime-id="<?php echo (int) $person_comment_post_id; ?>"
-                        data-episodes="[]"
-                        data-tracks="short"
-                        data-noun="留言"
-                    >
-                        <p class="asd-review-loading">留言載入中…</p>
-                    </div>
-                </section>
-            <?php endif; ?>
 
         </div><!-- /.asa-layout-main -->
 

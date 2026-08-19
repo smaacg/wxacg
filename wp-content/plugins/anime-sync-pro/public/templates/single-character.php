@@ -704,6 +704,35 @@ get_header();
                 </section>
             <?php endif; ?>
 
+            <?php if ( $character_comment_post_id > 0 ) : ?>
+                <?php
+                /*
+                 * 留言：改用自建評論系統（原 wpDiscuz 於 2026-08-18 移除）。
+                 *
+                 * 原本為了讓 wpDiscuz 的 is_singular() 通過，得先把 $post 換成
+                 * 影子文章、再偽造 $wp_query 的 is_singular／queried_object，
+                 * 輸出後又要逐項還原。自建系統只需要把載體 ID 當屬性傳給前端，
+                 * 那整段偽裝與還原都不再需要。
+                 *
+                 * ★ 排在糾錯回報之前：留言是多數訪客會用的互動，糾錯是少數人
+                 *   才會動用的維護功能，放在前面會把主要互動區往下推。
+                 */
+                ?>
+                <section class="asa-entity-comments" id="asa-sec-comments">
+                    <h2 class="asa-section-title">💬 留言</h2>
+                    <div
+                        class="asd-review-root"
+                        id="asd-review-root"
+                        data-anime-id="<?php echo (int) $character_comment_post_id; ?>"
+                        data-episodes="[]"
+                        data-tracks="short"
+                        data-noun="留言"
+                    >
+                        <p class="asd-review-loading">留言載入中…</p>
+                    </div>
+                </section>
+            <?php endif; ?>
+
             <section class="asa-entity-corrections" id="asa-sec-corrections">
                 <h2 class="asa-section-title">✏ 糾錯回報</h2>
                 <?php
@@ -723,32 +752,6 @@ get_header();
                 }
                 ?>
             </section>
-
-            <?php if ( $character_comment_post_id > 0 ) : ?>
-                <?php
-                /*
-                 * 留言：改用自建評論系統（原 wpDiscuz 於 2026-08-18 移除）。
-                 *
-                 * 原本為了讓 wpDiscuz 的 is_singular() 通過，得先把 $post 換成
-                 * 影子文章、再偽造 $wp_query 的 is_singular／queried_object，
-                 * 輸出後又要逐項還原。自建系統只需要把載體 ID 當屬性傳給前端，
-                 * 那整段偽裝與還原都不再需要。
-                 */
-                ?>
-                <section class="asa-entity-comments" id="asa-sec-comments">
-                    <h2 class="asa-section-title">💬 留言</h2>
-                    <div
-                        class="asd-review-root"
-                        id="asd-review-root"
-                        data-anime-id="<?php echo (int) $character_comment_post_id; ?>"
-                        data-episodes="[]"
-                        data-tracks="short"
-                        data-noun="留言"
-                    >
-                        <p class="asd-review-loading">留言載入中…</p>
-                    </div>
-                </section>
-            <?php endif; ?>
 
         </div><!-- /.asa-layout-main -->
 
