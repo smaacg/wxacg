@@ -547,8 +547,28 @@ get_header();
                     var nonce   = <?php echo wp_json_encode( $ase_nonce ); ?>;
                     var bgmId   = <?php echo (int) $person_bgm_id; ?>;
 
+                    /*
+                     * 展開狀態記進 localStorage，與角色頁一致。
+                     * 這塊只有管理員看得到，卻佔掉第一屏一大半；原本每次重新整理
+                     * 都會收合，要編輯得重點一次，不編輯時展開著又擋內容。
+                     */
+                    var STORE_KEY = 'asp_entity_edit_open';
+
+                    function setOpen(open) {
+                        form.hidden = !open;
+                        toggle.textContent = (open ? '▾' : '▸') + ' ✏️ 修正資料（僅管理員可見）';
+                        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+                        try { localStorage.setItem(STORE_KEY, open ? '1' : '0'); } catch (e) {}
+                    }
+
+                    var saved = '0';
+                    try { saved = localStorage.getItem(STORE_KEY) || '0'; } catch (e) {}
+
+                    setOpen(saved === '1');
+
                     toggle.addEventListener('click', function () {
-                        form.hidden = !form.hidden;
+                        setOpen(form.hidden);
                     });
 
                     block.querySelector('.asp-entity-deepl-btn').addEventListener('click', function () {

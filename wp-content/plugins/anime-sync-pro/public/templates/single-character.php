@@ -555,8 +555,36 @@ get_header();
                     var nonce   = <?php echo wp_json_encode( $ase_nonce ); ?>;
                     var bgmId   = <?php echo (int) $character_bgm_id; ?>;
 
+                    /*
+                     * 展開狀態記進 localStorage。
+                     *
+                     * 這塊只有管理員看得到，但它佔掉第一屏一大半——原本每次
+                     * 重新整理都會收合，要編輯得重點一次；而不編輯的時候
+                     * 展開著又擋住內容。記住偏好讓兩種使用情境都不用重複操作。
+                     *
+                     * 用 localStorage 而非 cookie：純前端偏好，不需要送到伺服器。
+                     */
+                    var STORE_KEY = 'asp_entity_edit_open';
+
+                    function setOpen(open) {
+                        form.hidden = !open;
+                        toggle.textContent = (open ? '▾' : '▸') + ' ✏️ 修正資料（僅管理員可見）';
+                        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+                        try {
+                            localStorage.setItem(STORE_KEY, open ? '1' : '0');
+                        } catch (e) {
+                            // 無痕模式或停用儲存時忽略，功能照常只是不記憶
+                        }
+                    }
+
+                    var saved = '0';
+                    try { saved = localStorage.getItem(STORE_KEY) || '0'; } catch (e) {}
+
+                    setOpen(saved === '1');
+
                     toggle.addEventListener('click', function () {
-                        form.hidden = !form.hidden;
+                        setOpen(form.hidden);
                     });
 
                     block.querySelector('.asp-entity-deepl-btn').addEventListener('click', function () {

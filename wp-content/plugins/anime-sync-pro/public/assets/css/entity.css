@@ -228,14 +228,24 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 }
 
 /* 照片下方「登場 N 部作品」小標籤 */
+/*
+ * 側欄很窄，emoji 加上文字容易超過寬度而換行——emoji 會被擠到自己一行，
+ * 看起來像對齊跑掉。改用 flex 置中並禁止換行，emoji 與文字保持同一行、
+ * 垂直對齊；字級略縮以確保窄側欄放得下。
+ */
 .asa-side-works-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
     margin: 10px 0 2px;
     padding: 6px 10px;
     background: rgba(99, 168, 255, .10);
     border: 1px solid rgba(99, 168, 255, .25);
     border-radius: var(--asa-radius-pill);
-    text-align: center;
-    font-size: .78rem;
+    font-size: .76rem;
+    line-height: 1.5;
+    white-space: nowrap;
     color: var(--asa-text-soft);
     letter-spacing: .02em;
 }
@@ -1136,4 +1146,37 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 
 @media (prefers-reduced-motion: reduce) {
     .asa-fav-icon { transition: none; }
+}
+
+/* =========================================================================
+   管理員的「修正資料」摺疊區
+   .asp-entity-edit-toggle 原本完全沒有樣式，只靠瀏覽器預設的 <button>——
+   在深色頁面上又窄又不像可點擊的元素，emoji 還會被擠到自己一行，
+   看起來像一段標題文字，找不到哪裡可以收合。
+   ========================================================================= */
+.asp-entity-edit-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    background: #fff;
+    color: #2c3338;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.asp-entity-edit-toggle:hover {
+    background: #f0f0f1;
+    border-color: #8c8f94;
+}
+
+.asp-entity-edit-toggle:focus-visible {
+    outline: 2px solid #2271b1;
+    outline-offset: 1px;
 }
