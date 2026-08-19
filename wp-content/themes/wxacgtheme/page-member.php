@@ -368,6 +368,7 @@ get_header(); ?>
         $tabs = [
             'dashboard'     => '📊 總覽',
             'watchlist'     => '🎬 我的清單',
+            'favorites'     => '❤️ 我的收藏',
             'stats'         => '📈 統計',
             'ratings'       => '⭐ 我的評分',
             'achievements'  => '🏆 成就',
@@ -412,6 +413,18 @@ get_header(); ?>
             <?php if ( function_exists( 'smacg_render_watchlist' ) ) {
                 smacg_render_watchlist( $watchlist, $stats['counts'] );
             } else { echo '<p class="mc-empty">清單模組尚未載入</p>'; } ?>
+        </section>
+
+        <section class="mc-panel" data-panel="favorites">
+            <?php
+            /*
+             * 角色／聲優收藏。與「我的清單」分開：那是作品的追番狀態，
+             * 這是實體收藏，兩者的資料來源與語意都不同
+             * （wxacg_entity_favorites vs anime_user_status）。
+             */
+            if ( function_exists( 'wxacg_render_entity_favorites' ) ) {
+                wxacg_render_entity_favorites( $uid );
+            } else { echo '<p class="mc-empty">收藏模組尚未載入</p>'; } ?>
         </section>
         <section class="mc-panel" data-panel="stats">
             <?php if ( function_exists( 'smacg_render_stats' ) ) {

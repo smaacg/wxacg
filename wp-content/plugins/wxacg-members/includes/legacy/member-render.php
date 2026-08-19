@@ -1350,3 +1350,81 @@ function smacg_render_continue_watching( $watchlist ) {
     </section>
     <?php
 }
+
+/* ===== 我的收藏（角色／聲優）===== */
+
+/**
+ * 會員中心的「❤️ 我的收藏」分頁。
+ *
+ * 與「我的清單」分開：那是作品的追番狀態（anime_user_status），
+ * 這是角色／聲優的實體收藏（wxacg_entity_favorites），
+ * 兩者的資料來源與語意都不同。
+ *
+ * 角色與聲優不是 WordPress 文章，無法沿用 wxacg_render_anime_card()，
+ * 但共用 .mc-card-grid / .mc-anime-card 的樣式，視覺上與其他分頁一致。
+ */
+function wxacg_render_entity_favorites( $uid ) {
+    $uid = (int) $uid;
+
+    if ( $uid <= 0 || ! class_exists( 'Anime_Sync_Entity_Favorites' ) ) {
+        echo '<p class="mc-empty">收藏模組尚未載入</p>';
+        return;
+    }
+
+    $groups = [
+        'character' => [ '🎭', '角色', '/character/' ],
+        'person'    => [ '🎤', '聲優', '/person/' ],
+    ];
+
+    $counts = Anime_Sync_Entity_Favorites::count_by_type( $uid );
+    $total  = array_sum( $counts );
+
+    if ( $total === 0 ) {
+        ?>
+        <p class="mc-empty">
+            還沒有收藏任何角色或聲優。<br>
+            到角色頁或聲優頁點右上的 🤍 就能加入收藏。
+        </p>
+        <?php
+        return;
+    }
+
+    foreach ( $groups as $type => [ $icon, $label, $base ] ) {
+        $items = Anime_Sync_Entity_Favorites::get_user_favorites( $uid, $type );
+
+        if ( ! $items ) {
+            continue;
+        }
+        ?>
+        <div class="mc-list-toolbar">
+            <h3 class="mc-fav-group-title"><?php echo $icon; ?> <?php echo esc_html( $label ); ?>（<?php echo count( $items ); ?>）</h3>
+        </div>
+
+        <div class="mc-card-grid">
+            <?php foreach ( $items as $it ) :
+                // 角色有中文名就優先顯示；聲優表沒有 name_cn，會是空字串
+                $name = $it['name_cn'] !== '' ? $it['name_cn'] : $it['name'];
+                $url  = home_url( $base . (int) $it['entity_id'] . '/' );
+                ?>
+                <article class="mc-anime-card mc-entity-card">
+                    <a href="<?php echo esc_url( $url ); ?>" class="mc-card-thumb">
+                        <?php if ( ! empty( $it['image'] ) ) : ?>
+                            <img src="<?php echo esc_url( $it['image'] ); ?>"
+                                 alt="<?php echo esc_attr( $name ); ?>" loading="lazy">
+                        <?php else : ?>
+                            <span class="mc-card-noimg"><?php echo $icon; ?></span>
+                        <?php endif; ?>
+                    </a>
+
+                    <div class="mc-card-body">
+                        <a href="<?php echo esc_url( $url ); ?>" class="mc-card-title"><?php echo esc_html( $name ); ?></a>
+                        <?php if ( $it['name_cn'] !== '' && $it['name'] !== $it['name_cn'] ) : ?>
+                            <span class="mc-card-sub"><?php echo esc_html( $it['name'] ); ?></span>
+                        <?php endif; ?>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+}
