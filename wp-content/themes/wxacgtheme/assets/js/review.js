@@ -55,6 +55,44 @@ document.addEventListener('DOMContentLoaded', function () {
         return div.innerHTML;
     }
 
+    /* ── 發表時間 ──
+     *
+     * API 回傳的 date 是 ISO 8601（含時區），交給 Date 解析即可，
+     * 不自行拆字串——手動拆會在時區與夏令時間上出錯。
+     */
+    function parseDate(iso) {
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    /** 相對時間：剛剛／N 分鐘前／N 小時前／N 天前，超過一年顯示日期 */
+    function timeAgo(iso) {
+        const d = parseDate(iso);
+        if (!d) return '';
+
+        const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+
+        // 時鐘誤差或伺服器時間略快時可能是負數，一律當成剛剛
+        if (sec < 60)     return '剛剛';
+        if (sec < 3600)   return Math.floor(sec / 60) + ' 分鐘前';
+        if (sec < 86400)  return Math.floor(sec / 3600) + ' 小時前';
+        if (sec < 2592000) return Math.floor(sec / 86400) + ' 天前';
+        if (sec < 31536000) return Math.floor(sec / 2592000) + ' 個月前';
+
+        return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+    }
+
+    /** 完整時間，給 title 屬性用 */
+    function formatFullTime(iso) {
+        const d = parseDate(iso);
+        if (!d) return '';
+
+        const p = function (n) { return n < 10 ? '0' + n : String(n); };
+
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+               ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
     /* ── 輕量標記：內容一律以純文字儲存，顯示時才轉成標籤 ──
      *
      * 不存 HTML 是刻意的：存純文字就沒有 XSS 的疑慮，也不必在後端維護
@@ -419,6 +457,20 @@ document.addEventListener('DOMContentLoaded', function () {
             ? '<span class="asd-review-edited-tag" title="最後編輯：' + escapeHtml(item.edited_at) + '">已編輯</span>'
             : '';
 
+        /*
+         * 發表時間。API 一直都有回傳 date（ISO 8601），只是先前沒有顯示，
+         * 讀者無從判斷這則留言是今天的還是半年前的。
+         *
+         * 顯示相對時間（3 分鐘前／2 天前），完整時間放進 title 供滑鼠停留查看；
+         * <time datetime> 讓機器也讀得到。
+         */
+        const timeTag = item.date
+            ? '<time class="asd-review-time" datetime="' + escapeHtml(item.date) + '"' +
+                  ' title="' + escapeHtml(formatFullTime(item.date)) + '">' +
+                  escapeHtml(timeAgo(item.date)) +
+              '</time>'
+            : '';
+
         // 只有主留言能被回覆（巢狀一層），回覆本身不再顯示回覆鈕
         const replyBtn = isReply
             ? ''
@@ -453,7 +505,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         '<a class="asd-review-author" href="' + escapeHtml(item.author_url || '#') + '">' +
                             escapeHtml(item.author) +
                         '</a>' +
-                        episodeTag + statusTag + scoreTag + editedTag +
+                        episodeTag + statusTag + scoreTag + editedTag + timeTag +
                     '</div>' +
                     deleteBtn +
                 '</div>' +

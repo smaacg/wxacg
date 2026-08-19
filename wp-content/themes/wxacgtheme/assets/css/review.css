@@ -629,6 +629,27 @@
   opacity: .8;
 }
 
+/*
+ * 發表時間。與「已編輯」同一個層級的次要資訊，樣式對齊；
+ * margin-left:auto 讓它靠右，不與作者名和狀態標籤擠在一起。
+ * 父層 .asd-review-card-meta 是 flex + wrap，窄螢幕會自然折行。
+ */
+.asd-review-time {
+  color: var(--rv-text-dim);
+  font-size: 11px;
+  opacity: .75;
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  /* 折行後靠右會變成獨佔一行，改回貼齊前面的標籤 */
+  .asd-review-time {
+    margin-left: 0;
+  }
+}
+
 .asd-review-edit-input {
   background: var(--rv-bg);
   border: 1px solid var(--rv-border);
