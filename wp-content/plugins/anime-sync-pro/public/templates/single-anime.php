@@ -3236,7 +3236,7 @@ while ( have_posts() ) :
 
 		<div class="asd-hero-new">
 
-			<div class="asd-hero-poster-wrap">
+			<div class="asd-hero-poster-wrap<?php echo $asd_has_switcher ? ' has-switcher' : ''; ?>">
 				<div class="asd-hero-poster">
 					<?php if ( $cover_image ) : ?>
 						<img
@@ -4660,21 +4660,13 @@ while ( have_posts() ) :
 										<div class="asd-event-body">
 											<p class="asd-event-summary"><?php echo esc_html( $asd_event->summary ); ?></p>
 
-											<?php if ( 'visual' === $asd_event->event_type && $asd_event->attachment_id ) : ?>
-												<figure class="asd-event-visual">
-													<?php
-													echo wp_get_attachment_image(
-														(int) $asd_event->attachment_id,
-														'medium',
-														false,
-														[
-															'alt'     => esc_attr( get_the_title( $post_id ) . ' ' . $asd_event->summary ),
-															'loading' => 'lazy',
-														]
-													);
-													?>
-												</figure>
-											<?php endif; ?>
+											<?php
+											/*
+											 * 刻意不放圖：視覺圖統一在頁首的切換器呈現。
+											 * 消息列表插大圖會把時間軸拉得很長，一則消息就佔掉一個螢幕，
+											 * 反而看不出「這部作品最近發生了哪些事」。
+											 */
+											?>
 										</div>
 									</li>
 								<?php endforeach; ?>

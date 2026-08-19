@@ -4034,17 +4034,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
 	line-height: 1.7;
 }
 
-.asd-event-visual {
-	margin: 10px 0 0;
-}
-
-.asd-event-visual img {
-	max-width: 220px;
-	height: auto;
-	border-radius: 6px;
-	display: block;
-}
-
 @media (max-width: 600px) {
 	.asd-event {
 		flex-direction: column;
@@ -4061,11 +4050,32 @@ nav.asd-tabs a.asd-tab.is-active::after {
    視覺圖切換器（.asd-visual-switcher）
    主視覺 + 歷次公開的視覺圖。只有 2 張以上時模板才會輸出這一段。
    ========================================================================= */
+
+/*
+ * .asd-hero-poster 原本是 height:100% + min-height:424px，
+ * .asd-hero-poster-wrap 又是 align-self:stretch——直接把縮圖列塞進 wrap
+ * 會被擠出容器、撞到下方的追蹤列。
+ *
+ * 改成 flex 直排，讓海報自己收縮、縮圖列佔固定高度。
+ * 只在有切換器時（.has-switcher）才改變版面，沒有切換器的頁面完全不受影響。
+ */
+.asd-hero-poster-wrap.has-switcher {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.asd-hero-poster-wrap.has-switcher .asd-hero-poster {
+	height: auto;
+	flex: 1 1 auto;
+}
+
 .asd-visual-switcher {
 	display: flex;
 	gap: 8px;
-	margin: 10px 0 0;
+	margin: 0;
 	flex-wrap: wrap;
+	flex: 0 0 auto;
 }
 
 .asd-visual-thumb {
