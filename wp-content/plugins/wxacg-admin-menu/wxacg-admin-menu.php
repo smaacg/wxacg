@@ -181,6 +181,67 @@ add_filter(
 );
 
 /**
+ * 把「進不去的頂層選單」改指向使用者第一個有權限的子頁。
+ *
+ * ★ 這是在補 WordPress 的一個空隙，不是重複造輪子：
+ *   add_submenu_page() 在使用者沒有該權限時「直接不註冊」，但 add_menu_page()
+ *   照樣把頂層項目寫進 $menu。於是會出現「頂層看得到、點下去卻無權存取」。
+ *   實測案例：編輯的「動漫同步」底下只剩消息審核與短評控管兩項（其餘 8 項
+ *   需要 manage_options，根本沒註冊），但頂層連結仍是 admin.php?page=
+ *   anime-sync-pro，該頁需要 manage_options，點下去會被 user_can_access_
+ *   admin_page() 擋掉。
+ *
+ *   wp-admin/includes/menu.php:107 有一段用意相同的處理，但實測在本站的組合下
+ *   沒有涵蓋到這個情形，因此在這裡補上。做法比照該段：改寫頂層 slug 與所需
+ *   權限、把子選單陣列一併搬到新的父鍵、並把對照登記到 $_wp_real_parent_file
+ *   （本外掛的排序邏輯會查這張表，兩邊才不會對不上）。
+ *
+ * ★ 優先權 9999：要晚於所有選單註冊，也要晚於 anime-sync-pro 自己那個
+ *   priority 999 的 reorder_menu（它會用 usort 重排子選單順序）。
+ *   admin_menu 全部跑完後、includes/menu.php 的權限過濾之前，正是時機。
+ */
+add_action(
+	'admin_menu',
+	function (): void {
+		global $menu, $submenu, $_wp_real_parent_file;
+
+		if ( ! is_array( $menu ) || ! is_array( $submenu ) ) {
+			return;
+		}
+
+		foreach ( $menu as $i => $item ) {
+			$slug = $item[2] ?? '';
+			$cap  = $item[1] ?? '';
+
+			// 進得去就不用動；沒有子選單的交給 WordPress 自己移除
+			if ( '' === $slug || '' === $cap || current_user_can( $cap ) ) {
+				continue;
+			}
+			if ( empty( $submenu[ $slug ] ) ) {
+				continue;
+			}
+
+			$first = reset( $submenu[ $slug ] );
+			if ( ! isset( $first[2] ) || $first[2] === $slug ) {
+				continue;   // 第一個子選單就是父頁本身，沒有可改指的對象
+			}
+
+			$menu[ $i ][2] = $first[2];
+			$menu[ $i ][1] = $first[1];
+
+			$submenu[ $first[2] ] = $submenu[ $slug ];
+			unset( $submenu[ $slug ] );
+
+			if ( ! is_array( $_wp_real_parent_file ) ) {
+				$_wp_real_parent_file = array();
+			}
+			$_wp_real_parent_file[ $slug ] = $first[2];
+		}
+	},
+	9999
+);
+
+/**
  * 「限時挑戰」對非管理員隱藏。
  *
  * ★ 這只是「隱藏選單」，不是「擋權限」：
