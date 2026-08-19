@@ -4056,3 +4056,49 @@ nav.asd-tabs a.asd-tab.is-active::after {
 		font-size: 12px;
 	}
 }
+
+/* =========================================================================
+   視覺圖切換器（.asd-visual-switcher）
+   主視覺 + 歷次公開的視覺圖。只有 2 張以上時模板才會輸出這一段。
+   ========================================================================= */
+.asd-visual-switcher {
+	display: flex;
+	gap: 8px;
+	margin: 10px 0 0;
+	flex-wrap: wrap;
+}
+
+.asd-visual-thumb {
+	padding: 0;
+	border: 2px solid transparent;
+	border-radius: 6px;
+	background: none;
+	cursor: pointer;
+	line-height: 0;
+	overflow: hidden;
+	transition: border-color .18s ease, opacity .18s ease;
+	opacity: .68;
+}
+
+.asd-visual-thumb img {
+	width: 52px;
+	height: 74px;
+	object-fit: cover;
+	display: block;
+}
+
+.asd-visual-thumb:hover,
+.asd-visual-thumb:focus-visible {
+	opacity: 1;
+}
+
+.asd-visual-thumb.is-active {
+	border-color: var(--asd-accent, #6c8cff);
+	opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.asd-visual-thumb {
+		transition: none;
+	}
+}

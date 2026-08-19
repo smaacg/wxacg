@@ -674,3 +674,32 @@ function initOwTabs() {
         });
     });
 }
+
+/* =========================================================================
+   視覺圖切換器
+   點縮圖換主視覺。模板只有在 2 張以上時才輸出 .asd-visual-switcher，
+   因此這裡找不到節點就直接結束。
+   ========================================================================= */
+document.addEventListener('DOMContentLoaded', function () {
+    var switcher = document.querySelector('.asd-visual-switcher');
+    var poster   = document.querySelector('.asd-poster-img');
+
+    if (!switcher || !poster) {
+        return;
+    }
+
+    switcher.addEventListener('click', function (e) {
+        var btn = e.target.closest('.asd-visual-thumb');
+
+        if (!btn || !btn.dataset.full) {
+            return;
+        }
+
+        poster.src = btn.dataset.full;
+        poster.removeAttribute('srcset');
+
+        switcher.querySelectorAll('.asd-visual-thumb').forEach(function (b) {
+            b.classList.toggle('is-active', b === btn);
+        });
+    });
+});

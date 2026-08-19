@@ -3185,6 +3185,55 @@ while ( have_posts() ) :
 			</div>
 		<?php endif; ?>
 
+		<?php
+		/*
+		 * 消息更新事件。在此先取一次，頁首的視覺圖切換器與下方的「消息更新」
+		 * 區塊共用同一份結果，不重複查詢。
+		 */
+		$asd_events = class_exists( 'Anime_Sync_Anime_Events' )
+			? Anime_Sync_Anime_Events::get_for_anime( $post_id )
+			: [];
+
+		/*
+		 * 視覺圖切換器的圖片清單：現有封面排第一，之後接上歷次公開的視覺圖。
+		 * 只有 2 張以上才會顯示切換列——絕大多數作品在累積初期只有 1 張，
+		 * 單格縮圖列沒有意義。
+		 */
+		$asd_visuals = [];
+
+		foreach ( $asd_events as $asd_ev ) {
+			if ( 'visual' !== $asd_ev->event_type || ! $asd_ev->attachment_id ) {
+				continue;
+			}
+
+			$asd_vis_full = wp_get_attachment_image_url( (int) $asd_ev->attachment_id, 'large' );
+
+			if ( ! $asd_vis_full ) {
+				continue;
+			}
+
+			$asd_visuals[] = [
+				'full'  => $asd_vis_full,
+				'thumb' => wp_get_attachment_image_url( (int) $asd_ev->attachment_id, 'thumbnail' ) ?: $asd_vis_full,
+				'label' => $asd_ev->summary,
+			];
+		}
+
+		if ( ! empty( $asd_visuals ) ) {
+			$asd_current_cover = $cover_image ?: get_the_post_thumbnail_url( $post_id, 'large' );
+
+			if ( $asd_current_cover ) {
+				array_unshift( $asd_visuals, [
+					'full'  => $asd_current_cover,
+					'thumb' => get_the_post_thumbnail_url( $post_id, 'thumbnail' ) ?: $asd_current_cover,
+					'label' => '主視覺圖',
+				] );
+			}
+		}
+
+		$asd_has_switcher = count( $asd_visuals ) >= 2;
+		?>
+
 		<div class="asd-hero-new">
 
 			<div class="asd-hero-poster-wrap">
@@ -3224,6 +3273,27 @@ while ( have_posts() ) :
 						</div>
 					<?php endif; ?>
 				</div>
+
+				<?php if ( $asd_has_switcher ) : ?>
+					<div class="asd-visual-switcher" role="group" aria-label="視覺圖">
+						<?php foreach ( $asd_visuals as $asd_vi => $asd_visual ) : ?>
+							<button
+								type="button"
+								class="asd-visual-thumb<?php echo 0 === $asd_vi ? ' is-active' : ''; ?>"
+								data-full="<?php echo esc_url( $asd_visual['full'] ); ?>"
+								aria-label="<?php echo esc_attr( $asd_visual['label'] ); ?>"
+								title="<?php echo esc_attr( $asd_visual['label'] ); ?>"
+							>
+								<img
+									src="<?php echo esc_url( $asd_visual['thumb'] ); ?>"
+									alt="<?php echo esc_attr( $asd_visual['label'] ); ?>"
+									loading="lazy"
+									decoding="async"
+								>
+							</button>
+						<?php endforeach; ?>
+					</div>
+				<?php endif; ?>
 			</div>
 
 			<div class="asd-hero-body">
@@ -4571,10 +4641,9 @@ while ( have_posts() ) :
 					/*
 					 * 消息更新：上游偵測到的資料異動，經後台人工補寫說明並發布後才會出現。
 					 * 沒有已發布事件時整個區塊不輸出——絕大多數作品在累積初期都是 0 筆。
+					 *
+					 * $asd_events 已在頁首（視覺圖切換器）取過，此處沿用不重複查詢。
 					 */
-					$asd_events = class_exists( 'Anime_Sync_Anime_Events' )
-						? Anime_Sync_Anime_Events::get_for_anime( $post_id )
-						: [];
 					?>
 
 					<?php if ( ! empty( $asd_events ) ) : ?>
