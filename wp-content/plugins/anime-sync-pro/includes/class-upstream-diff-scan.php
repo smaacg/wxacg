@@ -86,6 +86,7 @@ class Anime_Sync_Upstream_Diff_Scan {
 	private function snapshot_key( string $event_type ): string {
 		$map = [
 			'visual'   => 'cover',
+			'trailer'  => 'trailer',
 			'schedule' => 'start_date',
 			'episodes' => 'episodes',
 			'status'   => 'status',
@@ -334,6 +335,8 @@ class Anime_Sync_Upstream_Diff_Scan {
 					episodes
 					startDate { year month day }
 					coverImage { extraLarge large }
+					bannerImage
+					trailer { id site }
 				}
 			}
 		}';
@@ -391,6 +394,8 @@ class Anime_Sync_Upstream_Diff_Scan {
 			'start_date' => $this->format_start_date( $media['startDate'] ?? [] ),
 			'episodes'   => isset( $media['episodes'] ) ? (int) $media['episodes'] : 0,
 			'status'     => (string) ( $media['status'] ?? '' ),
+			'banner'     => (string) ( $media['bannerImage'] ?? '' ),
+			'trailer'    => $this->format_trailer( $media['trailer'] ?? [] ),
 		];
 
 		$raw      = get_post_meta( $post_id, self::SNAPSHOT_META, true );
@@ -399,10 +404,22 @@ class Anime_Sync_Upstream_Diff_Scan {
 		// ── 首次掃描：只建立基準，不產生事件（見檔頭說明）。
 		if ( ! is_array( $snapshot ) ) {
 			if ( ! $dry_run ) {
+				$this->maybe_update_banner( $post_id, $current['banner'] );
 				$this->save_snapshot( $post_id, $current );
 			}
 
 			return [ 'seeded' => 1, 'events' => 0 ];
+		}
+
+		/*
+		 * 橫幅圖靜默更新，不產生事件。
+		 *
+		 * 它是頁首的背景裝飾，不是消息——上游換了背景圖不值得通知會員，
+		 * 也不該佔用待審清單。而且它不影響搜尋縮圖、列表卡片與 OG 圖，
+		 * 覆寫的風險遠低於封面。
+		 */
+		if ( ! $dry_run ) {
+			$this->maybe_update_banner( $post_id, $current['banner'] );
 		}
 
 		$events = 0;
@@ -430,6 +447,15 @@ class Anime_Sync_Upstream_Diff_Scan {
 					'new' => $change['new'],
 				],
 			];
+
+			/*
+			 * 宣傳影片：追加到既有清單，不覆寫。
+			 * anime_trailer_url 本來就是分隔字串（模板以 ,，、;； 與換行切分），
+			 * 舊 PV 留著才有「第 1 彈／第 2 彈」的完整歷程可看。
+			 */
+			if ( 'trailer' === $type ) {
+				$this->append_trailer( $post_id, (string) $change['new'] );
+			}
 
 			// 視覺圖：把新圖抓下來存成附件，事件才有東西可看可比。
 			if ( 'visual' === $type ) {
@@ -466,6 +492,20 @@ class Anime_Sync_Upstream_Diff_Scan {
 
 			if ( $recorded > 0 ) {
 				$events++;
+
+				/*
+				 * 文案能從新舊值機械推導出來的類型直接發布，不進待審清單。
+				 * 只有 visual 需要人並排看圖判斷是不是誤報。
+				 * 推導不出文案時（回傳空字串）就退回人工審核，
+				 * 不發布一則空白說明的消息。
+				 */
+				if ( Anime_Sync_Anime_Events::is_auto_publish( $type ) ) {
+					$auto = Anime_Sync_Anime_Events::auto_summary( $type, $change['old'], $change['new'] );
+
+					if ( '' !== $auto ) {
+						Anime_Sync_Anime_Events::publish( $recorded, $auto );
+					}
+				}
 			}
 
 			/*
@@ -514,6 +554,14 @@ class Anime_Sync_Upstream_Diff_Scan {
 			$changes['status'] = [ 'old' => $old['status'] ?? '', 'new' => $new['status'] ];
 		}
 
+		/*
+		 * 宣傳影片。AniList 的 trailer 是單一欄位，換了就代表官方換上新影片
+		 * ——不同的 YouTube ID 必定是不同支片，不像封面會因為重新編碼而變網址。
+		 */
+		if ( '' !== $new['trailer'] && ( $old['trailer'] ?? '' ) !== $new['trailer'] ) {
+			$changes['trailer'] = [ 'old' => $old['trailer'] ?? '', 'new' => $new['trailer'] ];
+		}
+
 		return $changes;
 	}
 
@@ -542,6 +590,78 @@ class Anime_Sync_Upstream_Diff_Scan {
 		}
 
 		return sprintf( '%04d-%02d-%02d', $y, $m, $day );
+	}
+
+	/**
+	 * AniList 的 trailer 轉成可比對的網址。
+	 *
+	 * 只收 youtube——站上的 anime_trailer_url 是 YouTube 網址格式，
+	 * dailymotion 等其他站台混進去模板解析不了。
+	 */
+	private function format_trailer( array $t ): string {
+		$id   = isset( $t['id'] ) ? (string) $t['id'] : '';
+		$site = isset( $t['site'] ) ? strtolower( (string) $t['site'] ) : '';
+
+		if ( '' === $id || 'youtube' !== $site ) {
+			return '';
+		}
+
+		return 'https://www.youtube.com/watch?v=' . $id;
+	}
+
+	/**
+	 * 把新的宣傳影片追加進 anime_trailer_url。
+	 *
+	 * 不覆寫：舊 PV 留著才看得到「第 1 彈 → 第 2 彈」的歷程，
+	 * 與視覺圖採同一個原則（只增不減）。
+	 */
+	private function append_trailer( int $post_id, string $url ): void {
+		if ( '' === $url ) {
+			return;
+		}
+
+		$locked = get_post_meta( $post_id, 'anime_locked_fields', true );
+
+		if ( is_array( $locked ) && in_array( 'anime_trailer_url', $locked, true ) ) {
+			return;
+		}
+
+		$current = (string) get_post_meta( $post_id, 'anime_trailer_url', true );
+
+		// 已經在清單裡就不重複追加（人工先貼過的情況）。
+		if ( '' !== $current && false !== strpos( $current, $url ) ) {
+			return;
+		}
+
+		update_post_meta(
+			$post_id,
+			'anime_trailer_url',
+			'' === trim( $current ) ? $url : $current . "\n" . $url
+		);
+	}
+
+	/**
+	 * 更新橫幅圖（靜默，不產生事件）。
+	 *
+	 * 空值不覆寫——上游暫時抓不到就清掉現有橫幅是淨損失。
+	 * 尊重 ACF 的欄位鎖定，比照封面的處理。
+	 */
+	private function maybe_update_banner( int $post_id, string $banner_url ): void {
+		if ( '' === $banner_url ) {
+			return;
+		}
+
+		if ( (string) get_post_meta( $post_id, 'anime_banner_image', true ) === $banner_url ) {
+			return;
+		}
+
+		$locked = get_post_meta( $post_id, 'anime_locked_fields', true );
+
+		if ( is_array( $locked ) && in_array( 'anime_banner_image', $locked, true ) ) {
+			return;
+		}
+
+		update_post_meta( $post_id, 'anime_banner_image', esc_url_raw( $banner_url ) );
 	}
 
 	/**

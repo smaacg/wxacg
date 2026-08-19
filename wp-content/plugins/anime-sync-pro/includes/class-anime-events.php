@@ -40,6 +40,7 @@ class Anime_Sync_Anime_Events {
 	 */
 	private static array $TYPES = [
 		'visual'    => '視覺圖',
+		'trailer'   => '宣傳影片',
 		'schedule'  => '播出時間',
 		'status'    => '播出狀態',
 		'episodes'  => '集數',
@@ -54,6 +55,135 @@ class Anime_Sync_Anime_Events {
 	 * 用途是防洗版：日後補審一批舊事件時，不會把追番會員的鈴鐺灌爆。
 	 */
 	private const NOTIFY_MAX_AGE_DAYS = 14;
+
+	/**
+	 * ★ 偵測後直接自動發布、不進待審清單的類型 ★
+	 *
+	 * 判準是「文案能不能從新舊值機械推導出來」：
+	 *
+	 *   schedule / status / episodes
+	 *       「2027 → 2027-10」只可能是「宣布 2027 年 10 月播出」，
+	 *       沒有寫錯的空間，也沒有誤報的空間——日期就是變了。
+	 *
+	 *   visual（不在此列）
+	 *       AniList 有時只是重新編碼、圖其實沒變，需要人並排看一眼才知道
+	 *       是不是誤報。這是唯一真的需要判斷的類型。
+	 *
+	 * 想把某一類改回人工審核，從這個陣列拿掉即可。
+	 * 自動發布的事件一樣會通知追番會員，事後也能在「已發布」分頁改文字或退回。
+	 *
+	 * @var array<string>
+	 */
+	private static array $AUTO_PUBLISH_TYPES = [ 'schedule', 'status', 'episodes', 'trailer' ];
+
+	/**
+	 * 這個類型是否自動發布。
+	 */
+	public static function is_auto_publish( string $type ): bool {
+		return in_array( $type, self::$AUTO_PUBLISH_TYPES, true );
+	}
+
+	/**
+	 * 由新舊值推導中文文案。
+	 *
+	 * 推導不出來時回傳空字串——呼叫端應據此改走人工審核，
+	 * 而不是發布一則空白說明的消息。
+	 *
+	 * @param string $type 事件類型。
+	 * @param mixed  $old  舊值。
+	 * @param mixed  $new  新值。
+	 */
+	public static function auto_summary( string $type, $old, $new ): string {
+		switch ( $type ) {
+			case 'schedule':
+				return self::summary_for_schedule( (string) $old, (string) $new );
+
+			case 'status':
+				return self::summary_for_status( (string) $new );
+
+			case 'trailer':
+				/*
+				 * AniList 的 trailer 是單一欄位，換了就代表官方換上新影片。
+				 * 不像封面會因為重新編碼而變網址——不同的 YouTube ID
+				 * 必定是不同支影片，誤報空間極小。
+				 */
+				if ( '' === (string) $new ) {
+					return '';
+				}
+
+				return '' === (string) $old ? '公開宣傳影片' : '公開新宣傳影片';
+
+			case 'episodes':
+				$o = (int) $old;
+				$n = (int) $new;
+
+				if ( $n <= 0 ) {
+					return '';
+				}
+
+				return $o > 0
+					? sprintf( '集數由 %d 話更新為 %d 話', $o, $n )
+					: sprintf( '全 %d 話確定', $n );
+		}
+
+		return '';
+	}
+
+	/**
+	 * 播出日期的文案。
+	 *
+	 * format_start_date() 產出三種精度：YYYY / YYYY-MM / YYYY-MM-DD。
+	 * 由粗到細是「檔期逐步確定」，同精度改變則是「檔期異動」，兩者語意不同。
+	 */
+	private static function summary_for_schedule( string $old, string $new ): string {
+		$parts = explode( '-', $new );
+		$y     = isset( $parts[0] ) ? (int) $parts[0] : 0;
+
+		if ( ! $y ) {
+			return '';
+		}
+
+		$old_len = strlen( $old );
+		$new_len = strlen( $new );
+
+		// 精度變細＝檔期逐步確定。
+		$refining = $new_len > $old_len;
+
+		if ( 4 === $new_len ) {
+			return $refining ? sprintf( '宣布 %d 年播出', $y ) : sprintf( '播出時間變更為 %d 年', $y );
+		}
+
+		$m = isset( $parts[1] ) ? (int) $parts[1] : 0;
+
+		if ( 7 === $new_len ) {
+			return $refining
+				? sprintf( '宣布 %d 年 %d 月播出', $y, $m )
+				: sprintf( '播出時間變更為 %d 年 %d 月', $y, $m );
+		}
+
+		$d = isset( $parts[2] ) ? (int) $parts[2] : 0;
+
+		return $refining
+			? sprintf( '播出日期確定為 %d 年 %d 月 %d 日', $y, $m, $d )
+			: sprintf( '播出日期變更為 %d 年 %d 月 %d 日', $y, $m, $d );
+	}
+
+	/**
+	 * 播出狀態的文案。
+	 *
+	 * 只看新值——「變成放送中」就是開播，不需要知道之前是什麼。
+	 */
+	private static function summary_for_status( string $new ): string {
+		$map = [
+			'RELEASING'        => '正式開播',
+			'FINISHED'         => '播出完結',
+			'CANCELLED'        => '製作中止',
+			'HIATUS'           => '暫停播出',
+			'NOT_YET_RELEASED' => '狀態調整為未播出',
+		];
+
+		return $map[ $new ] ?? '';
+	}
 
 	/**
 	 * 資料表名稱。
