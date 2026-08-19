@@ -467,6 +467,34 @@ get_header();
                 <span class="asa-entity-label">🎭 角色個人頁</span>
 
                 <div class="asa-entity-actions">
+                    <?php
+                    /*
+                     * 收藏。未登入時導向登入頁並帶回原網址，與糾錯按鈕同樣處理，
+                     * 不用彈窗——這頁沒有既有的登入彈窗機制。
+                     */
+                    $asa_fav_id = (int) ( $character['bgm_id'] ?? 0 );
+
+                    if ( $asa_fav_id > 0 ) :
+                        $asa_is_fav = is_user_logged_in()
+                            && class_exists( 'Anime_Sync_Entity_Favorites' )
+                            && Anime_Sync_Entity_Favorites::is_favorited( get_current_user_id(), 'character', $asa_fav_id );
+                        ?>
+                        <?php if ( is_user_logged_in() ) : ?>
+                            <button type="button"
+                                    class="asa-action-btn asa-fav-btn<?php echo $asa_is_fav ? ' is-active' : ''; ?>"
+                                    data-entity-type="character"
+                                    data-entity-id="<?php echo $asa_fav_id; ?>"
+                                    aria-pressed="<?php echo $asa_is_fav ? 'true' : 'false'; ?>"
+                                    title="<?php echo $asa_is_fav ? '取消收藏' : '收藏'; ?>">
+                                <span class="asa-fav-icon" aria-hidden="true"><?php echo $asa_is_fav ? '❤️' : '🤍'; ?></span>
+                                <span class="asa-fav-text"><?php echo $asa_is_fav ? '已收藏' : '收藏'; ?></span>
+                            </button>
+                        <?php else : ?>
+                            <a href="<?php echo esc_url( wp_login_url( $character_permalink ) ); ?>"
+                               class="asa-action-btn" title="登入後可收藏">🤍 收藏</a>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
                     <?php if ( is_user_logged_in() ) : ?>
                         <a href="#asa-sec-corrections" class="asa-action-btn" id="asa-hero-corr-btn">✏ 糾錯回報</a>
                     <?php else : ?>

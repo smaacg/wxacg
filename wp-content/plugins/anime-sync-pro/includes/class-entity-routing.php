@@ -173,12 +173,49 @@ class Anime_Sync_Entity_Routing {
             return;
         }
 
+        $base_url = plugin_dir_url( dirname( __FILE__ ) );
+        $base_dir = plugin_dir_path( dirname( __FILE__ ) );
+
+        /*
+         * 版本號用 filemtime() 而非 ANIME_SYNC_PRO_VERSION——改了 CSS 卻沒動
+         * 外掛版本時，瀏覽器與 CDN 會繼續使用舊檔。實測站上 CSS 的邊緣快取
+         * max-age 是一年，靠版本號沒變就等於改了看不到。
+         */
+        $css_path = $base_dir . 'public/assets/css/entity.css';
+
         wp_enqueue_style(
             'anime-sync-entity',
-            plugin_dir_url( dirname( __FILE__ ) ) . 'public/assets/css/entity.css',
+            $base_url . 'public/assets/css/entity.css',
             [],
-            defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0'
+            file_exists( $css_path ) ? (string) filemtime( $css_path ) : ANIME_SYNC_PRO_VERSION
         );
+
+        /*
+         * 收藏按鈕。只有登入者才會渲染出 <button>，未登入看到的是導向登入頁的
+         * <a>，因此未登入時不需要載入這支腳本。
+         */
+        if ( ! is_user_logged_in() ) {
+            return;
+        }
+
+        $js_path = $base_dir . 'public/assets/js/entity-favorite.js';
+
+        if ( ! file_exists( $js_path ) ) {
+            return;
+        }
+
+        wp_enqueue_script(
+            'anime-sync-entity-favorite',
+            $base_url . 'public/assets/js/entity-favorite.js',
+            [],
+            (string) filemtime( $js_path ),
+            true
+        );
+
+        wp_localize_script( 'anime-sync-entity-favorite', 'aspEntityFav', [
+            'restUrl' => esc_url_raw( rest_url( 'weixiaoacg/v1/entity-favorite' ) ),
+            'nonce'   => wp_create_nonce( 'wp_rest' ),
+        ] );
     }
 
     /**

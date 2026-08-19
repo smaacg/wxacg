@@ -1102,3 +1102,38 @@ body:has(.asa-entity-page) .ct-section-inner-container {
         transform: none !important;
     }
 }
+/* =========================================================================
+   收藏按鈕（角色／聲優）
+   沿用 .asa-action-btn 的外型，只在「已收藏」時換成紅色系，
+   讓它跟旁邊的糾錯／留言按鈕看起來是同一組動作。
+   ========================================================================= */
+.asa-fav-btn.is-active {
+    background: rgba(244, 114, 182, .14);
+    border-color: rgba(244, 114, 182, .4);
+    color: #f472b6;
+}
+
+.asa-fav-btn.is-active:hover {
+    background: rgba(244, 114, 182, .22);
+    border-color: rgba(244, 114, 182, .55);
+    color: #f9a8d4;
+}
+
+.asa-fav-btn:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+
+/* 點擊當下的回饋；已收藏狀態下再點會縮一下再放開 */
+.asa-fav-btn:active .asa-fav-icon {
+    transform: scale(.82);
+}
+
+.asa-fav-icon {
+    display: inline-block;
+    transition: transform .16s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .asa-fav-icon { transition: none; }
+}

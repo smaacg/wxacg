@@ -50,6 +50,12 @@ class Anime_Sync_Installer {
 	 * dashboard 系統資訊即可正確顯示，不再 fallback 成「—」。
 	 */
 	/*
+	 * 1.6 — 新增 wxacg_entity_favorites（角色／聲優收藏）。
+	 *       角色與聲優不是 WordPress 文章，而是 anime_characters（25,770 列）
+	 *       與 anime_persons（10,410 列）的資料列，無法沿用 postmeta；
+	 *       而 anime_user_status 是「追番清單」，混入實體收藏會污染統計與
+	 *       消息通知的收件人查詢，因此另立一張關聯表。
+	 *
 	 * 1.5 — 新增 wxacg_anime_events（作品變更事件）。
 	 *       上游（AniList / Bangumi）的資料異動統一記錄成事件，供單頁「消息更新」、
 	 *       全站「最近更新」、追番會員通知、視覺圖庫四種讀法共用。
@@ -61,7 +67,7 @@ class Anime_Sync_Installer {
 	 * 1.3 — anime_user_status_stats 新增 paused_count（暫停狀態）。
 	 *       主表 anime_user_status 不需異動：status 是 tinyint，新增值 4 即可。
 	 */
-	private const DB_VERSION = '1.5';
+	private const DB_VERSION = '1.6';
 
 	/**
 	 * 季度 seed：往前 N 年 + 當年 + 當年+1 的範圍
@@ -625,6 +631,34 @@ class Anime_Sync_Installer {
 			KEY event_type (event_type)
 		) {$charset_collate};";
 		dbDelta( $events_sql );
+
+		// =====================================================================
+		// v1.6 新增：角色／聲優收藏
+		//
+		// 為什麼需要獨立表：
+		//   角色與聲優不是 WordPress 文章，而是 anime_characters（25,770 列）
+		//   與 anime_persons（10,410 列）的資料列，沒有 post_id 可掛 postmeta。
+		//
+		//   也不能借用 anime_user_status——那是「追番清單」，其 anime_id 會被
+		//   統計表、消息通知的收件人查詢、個人片單頁一起讀，混入實體收藏會讓
+		//   「追番中 N 人」等數字失真。
+		//
+		// entity_id 存的是 bgm_id（兩張實體表的唯一鍵），不是自增 id，
+		// 這樣重建實體表時收藏不會對錯人。
+		// =====================================================================
+		$fav_table = $wpdb->prefix . 'wxacg_entity_favorites';
+		$fav_sql   = "CREATE TABLE {$fav_table} (
+			id          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id     BIGINT(20) UNSIGNED NOT NULL,
+			entity_type VARCHAR(16) NOT NULL,
+			entity_id   BIGINT(20) UNSIGNED NOT NULL,
+			created_at  DATETIME NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY user_entity (user_id, entity_type, entity_id),
+			KEY user_type (user_id, entity_type),
+			KEY entity (entity_type, entity_id)
+		) {$charset_collate};";
+		dbDelta( $fav_sql );
 	}
 
 	public function is_table_missing( string $table_name_without_prefix ): bool {

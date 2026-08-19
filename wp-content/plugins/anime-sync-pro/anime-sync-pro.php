@@ -1176,6 +1176,11 @@ add_action( 'plugins_loaded', function (): void {
 			new Anime_Sync_Events_Admin();
 		}
 
+		// 角色／聲優收藏（REST 端點）
+		if ( class_exists( 'Anime_Sync_Entity_Favorites' ) ) {
+			new Anime_Sync_Entity_Favorites();
+		}
+
 		if ( is_admin() && class_exists( 'Anime_Sync_Custom_Post_Type' ) ) {
 			new Anime_Sync_Custom_Post_Type();
 		}
