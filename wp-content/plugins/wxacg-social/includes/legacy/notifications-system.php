@@ -83,45 +83,32 @@ add_action( 'init', 'wxacg_notifications_install', 5 );
    v1.2.0：新增 rank_up_site / rank_up_email
    ============================================================ */
 function smacg_get_notification_prefs_defaults() {
-	return [
-		// 站內通知（鈴鐺）— 全開
-		'follow_site'         => 1,
-		'comment_reply_site'  => 1,
-		'rating_site'         => 1,
-		'badge_site'          => 1,
-		'level_up_site'       => 1,
-		'rank_up_site'        => 1,  // ★ v1.2.0
-		'mention_site'        => 1,  // 評論中被 @提及
-		'thread_site'         => 1,  // 追蹤的討論串有新回覆
-		'anime_update_site'   => 1,  // 追番清單裡的作品有新消息（視覺圖／播出日期等）
-		/*
-		 * 季度活動結束結算。class-event-settle.php 以 force=false 呼叫，
-		 * 而這個鍵原本不存在——wxacg_should_notify() 永遠回 false，
-		 * 通知從來沒有送出去過（資料庫 event_ended 筆數為 0），
-		 * 且呼叫端沒檢查回傳值，完全無聲。
-		 *
-		 * （event_completed 用 force=true 繞過偏好，由管理員逐活動以
-		 *   _smacg_event_force_notify 決定，不需要這裡的鍵。）
-		 */
-		'event_ended_site'    => 1,
-		'system_site'         => 1,
+	/*
+	 * 清單的唯一來源是 legacy/notification-types.php。
+	 *
+	 * 這裡原本是寫死的第二份，與 wxacg-members 設定頁的 $types 各自維護，
+	 * 兩處不同步不會報錯：只加這裡→會員關不掉；只加設定頁→通知靜默不送。
+	 * 後者實際發生過（event_ended 從上線以來一則都沒送出去）。
+	 *
+	 * ★ 這裡自己 require，不依賴 class-plugin.php 的載入順序。
+	 *   class-activator.php 會在啟用流程單獨 require 本檔，若那條路徑上
+	 *   註冊表還沒載入，本函式就會回傳一份缺了所有類型的偏好，
+	 *   而 wxacg_should_notify() 對每個類型都會回 false——
+	 *   全站通知靜默停擺，而且完全無聲。
+	 */
+	require_once __DIR__ . '/notification-types.php';
 
-		// Email 通知 — 全關
-		'follow_email'        => 0,
-		'comment_reply_email' => 0,
-		'rating_email'        => 0,
-		'badge_email'         => 0,
-		'level_up_email'      => 0,
-		'rank_up_email'       => 0,  // ★ v1.2.0
-		'mention_email'       => 0,
-		'thread_email'        => 0,
-		'anime_update_email'  => 0,
-		'event_ended_email'   => 0,
-		'system_email'        => 0,
+	$defaults = [];
 
-		// Email 摘要頻率
-		'email_digest'        => 'off',
-	];
+	foreach ( wxacg_notification_types_configurable() as $key => $type ) {
+		$defaults[ $key . '_site' ]  = isset( $type['site'] ) ? (int) $type['site'] : 1;
+		$defaults[ $key . '_email' ] = isset( $type['email'] ) ? (int) $type['email'] : 0;
+	}
+
+	// Email 摘要頻率不屬於任何單一類型，維持獨立。
+	$defaults['email_digest'] = 'off';
+
+	return $defaults;
 }
 
 function smacg_get_notification_prefs( $user_id ) {

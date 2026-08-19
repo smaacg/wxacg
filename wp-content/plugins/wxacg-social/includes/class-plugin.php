@@ -87,6 +87,10 @@ final class Plugin {
         require_once $legacy . 'follow-system.php';
         require_once $legacy . 'follow-ajax.php';
 
+        // 通知類型登錄表：必須在 notifications-system 之前，
+        // 後者的 smacg_get_notification_prefs_defaults() 直接讀它。
+        require_once $legacy . 'notification-types.php';
+
         require_once $legacy . 'notifications-system.php';
         require_once $legacy . 'notifications-events.php';
         require_once $legacy . 'notifications-ajax.php';

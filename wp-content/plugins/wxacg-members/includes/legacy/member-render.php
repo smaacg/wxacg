@@ -1176,23 +1176,32 @@ function wxacg_render_notification_prefs_card( $uid ) {
     $nonce = wp_create_nonce( 'smacg_notif_save_prefs' );
 
     /*
-     * 這份清單決定設定頁顯示哪些開關。新增通知類型時，
-     * smacg_get_notification_prefs_defaults() 與這裡要一起加——
-     * 只加 defaults 的話開關預設生效但會員看不到也關不掉。
+     * 顯示哪些開關由 wxacg-social 的 legacy/notification-types.php 決定，
+     * 與 smacg_get_notification_prefs_defaults() 同一份來源。
+     *
+     * 這裡原本是寫死的第二份清單，跟 defaults 各自維護：只加 defaults
+     * 會員就看不到也關不掉，只加這裡通知則會靜默不送。兩種都發生過。
+     *
+     * wxacg-social 的 plugins_loaded 優先序是 12、本外掛是 10，載入時
+     * 取不到函式；但本函式是在頁面渲染時才呼叫，那時已經載入完成。
+     * 仍保留 function_exists 防護，缺少時退回舊的六項寫死清單。
      */
-    $types = [
-        'follow'        => [ '👥', '有人追蹤我',          '當有用戶開始追蹤你時通知' ],
-        'comment_reply' => [ '💬', '留言被回覆',          '當有人回覆你的留言時通知' ],
-        'mention'       => [ '📣', '被 @提及',            '有人在評論中 @你時通知' ],
-        'thread'        => [ '🧵', '追蹤的討論串有回覆',  '你追蹤的討論串出現新回覆時通知' ],
-        'rating'        => [ '⭐', '收藏的動畫有人評分',  '當你收藏的作品收到新評分時通知' ],
-        'anime_update'  => [ '📰', '追蹤的作品有新消息',  '你標記「想看／追番中／暫停」的作品公開新視覺圖、宣布播出日期時通知' ],
-        'level_up'      => [ '🎖', '等級提升',            '當你升級時通知' ],
-        'rank_up'       => [ '📈', '排名提升',            '當你在排行榜的名次上升時通知' ],
-        'badge'         => [ '🏅', '獲得徽章',            '當你解鎖新徽章時通知' ],
-        'event_ended'   => [ '🏁', '季度活動結束',        '你參加的季度活動結束、公布最終排名時通知' ],
-        'system'        => [ '📢', '系統公告',            '網站重要更新與公告' ],
-    ];
+    $types = [];
+
+    if ( function_exists( 'wxacg_notification_types_configurable' ) ) {
+        foreach ( wxacg_notification_types_configurable() as $key => $t ) {
+            $types[ $key ] = [ $t['icon'] ?? '🔔', $t['name'] ?? $key, $t['desc'] ?? '' ];
+        }
+    } else {
+        $types = [
+            'follow'        => [ '👥', '有人追蹤我',          '當有用戶開始追蹤你時通知' ],
+            'comment_reply' => [ '💬', '留言被回覆',          '當有人回覆你的留言時通知' ],
+            'rating'        => [ '⭐', '收藏的動畫有人評分',  '當你收藏的作品收到新評分時通知' ],
+            'level_up'      => [ '🎖', '等級提升',            '當你升級時通知' ],
+            'badge'         => [ '🏅', '獲得徽章',            '當你解鎖新徽章時通知' ],
+            'system'        => [ '📢', '系統公告',            '網站重要更新與公告' ],
+        ];
+    }
     ?>
     <div class="mc-set-card mc-set-card--notif-prefs" data-uid="<?php echo $uid; ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>">
         <h3 class="mc-set-title"><i class="fa-solid fa-bell"></i> 通知偏好</h3>
