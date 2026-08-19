@@ -94,6 +94,16 @@ function smacg_get_notification_prefs_defaults() {
 		'mention_site'        => 1,  // 評論中被 @提及
 		'thread_site'         => 1,  // 追蹤的討論串有新回覆
 		'anime_update_site'   => 1,  // 追番清單裡的作品有新消息（視覺圖／播出日期等）
+		/*
+		 * 季度活動結束結算。class-event-settle.php 以 force=false 呼叫，
+		 * 而這個鍵原本不存在——wxacg_should_notify() 永遠回 false，
+		 * 通知從來沒有送出去過（資料庫 event_ended 筆數為 0），
+		 * 且呼叫端沒檢查回傳值，完全無聲。
+		 *
+		 * （event_completed 用 force=true 繞過偏好，由管理員逐活動以
+		 *   _smacg_event_force_notify 決定，不需要這裡的鍵。）
+		 */
+		'event_ended_site'    => 1,
 		'system_site'         => 1,
 
 		// Email 通知 — 全關
@@ -106,6 +116,7 @@ function smacg_get_notification_prefs_defaults() {
 		'mention_email'       => 0,
 		'thread_email'        => 0,
 		'anime_update_email'  => 0,
+		'event_ended_email'   => 0,
 		'system_email'        => 0,
 
 		// Email 摘要頻率
