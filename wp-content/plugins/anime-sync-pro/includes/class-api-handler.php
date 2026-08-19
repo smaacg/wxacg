@@ -1932,12 +1932,36 @@ class Anime_Sync_API_Handler {
             // 其他 4xx（如 404 查無此 MAL ID、401/403 Client ID 無效）：不重試，直接放棄
             if ( $code !== 200 ) {
                 $this->rate_limiter->record_stat( 'jikan', 'failed' );
+
+                /*
+                 * ★ 404 要快取，否則同一個壞 ID 會被無限重打。
+                 *
+                 * 本函式內部確實不重試（直接 return 0），但它是被外部佇列反覆
+                 * 呼叫的——而 404 這條路徑原本完全不設 transient，於是下一輪
+                 * 又是一次全新的請求。正式站實測：近 30 天 167 次，全部集中在
+                 * 兩個不存在的 ID（999999、638290），對應兩篇文章。
+                 *
+                 * 404 的語意是「這個 ID 在 MAL 不存在」，屬於本地資料壞掉，
+                 * 重試一萬次也不會成功——這與 class-cron-manager.php 對 AniList
+                 * 404 的判斷一致（見 ANILIST_404_MAX_RETRY 的註解）。
+                 *
+                 * 不永久封鎖：MAL 條目偶爾會重建，一週後放行一次重試，
+                 * 成本是每個壞 ID 每週一次請求，而不是每天數次。
+                 * 401/403 是憑證問題，屬於全站性故障，不該記在單一 ID 上，
+                 * 因此只快取 404。
+                 */
+                if ( 404 === $code ) {
+                    set_transient( $cache_key, 0, WEEK_IN_SECONDS );
+                }
+
                 if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
                     Anime_Sync_Error_Logger::warning( 'MAL HTTP 非 200', [
                         'mal_id' => $mal_id,
                         'code'   => $code,
+                        'cached' => 404 === $code ? '已快取 7 天，暫停重試' : '未快取',
                     ] );
                 }
+
                 return 0;
             }
 
