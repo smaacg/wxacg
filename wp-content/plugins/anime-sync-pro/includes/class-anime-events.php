@@ -421,16 +421,22 @@ class Anime_Sync_Anime_Events {
 		$sent = 0;
 
 		foreach ( $user_ids as $user_id ) {
+			/*
+			 * data 的欄位名由 wxacg_render_notification_item() 決定，
+			 * 它只認得 title / excerpt / url / icon 四個鍵——
+			 * 自己另外取名（例如 summary）不會報錯，但鈴鐺上就是空白一片。
+			 */
 			$result = wxacg_create_notification( [
 				'user_id'     => (int) $user_id,
 				'type'        => 'anime_update',
 				'object_type' => 'anime',
 				'object_id'   => (int) $event->anime_id,
 				'data'        => [
-					'title'      => get_the_title( $event->anime_id ),
-					'summary'    => $event->summary,
+					'title'      => sprintf( '《%s》有新消息', get_the_title( $event->anime_id ) ),
+					'excerpt'    => $event->summary,
+					'url'        => get_permalink( $event->anime_id ) . '#asd-sec-events',
+					'icon'       => 'fa-bullhorn',
 					'event_type' => $event->event_type,
-					'url'        => get_permalink( $event->anime_id ),
 				],
 			] );
 
