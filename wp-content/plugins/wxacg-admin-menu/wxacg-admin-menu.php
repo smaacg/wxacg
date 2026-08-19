@@ -1,10 +1,12 @@
 <?php
 /**
- * Plugin Name: WXACG 後台選單整理
- * Description: 依實際使用頻率重排後台側邊選單並分組，另將「限時挑戰」對非管理員隱藏。停用本外掛即完全復原。
- * Version:     1.0.0
+ * Plugin Name: WXACG 後台介面
+ * Description: 後台介面調整：側邊選單依使用頻率重排並分組、「限時挑戰」對非管理員隱藏、控制台加上「營運概況」小工具。停用本外掛即完全復原。
+ * Version:     1.1.0
  * Author:      wxacg
  * Requires PHP: 8.0
+ *
+ * 資料夾名維持 wxacg-admin-menu（改名會讓外掛被視為新外掛而需要重新啟用）。
  *
  * @package WXACG_Admin_Menu
  */
@@ -12,6 +14,8 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+require_once __DIR__ . '/dashboard-widget.php';
 
 /**
  * 選單順序（單一來源）。
