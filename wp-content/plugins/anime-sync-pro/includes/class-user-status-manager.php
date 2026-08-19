@@ -199,7 +199,19 @@ class Anime_Sync_User_Status_Manager {
         $result = false;
         switch ( $action ) {
             case 'status':
-                $result = $this->set_status( $user_id, $anime_id, (string) $value );
+                /*
+                 * 前端點擊「已選中」的狀態按鈕代表取消追番，送出的值是 'none'
+                 * （見 themes/wxacgtheme/assets/js/anime-status.js 的
+                 *   const newVal = state.status === value ? 'none' : value）。
+                 *
+                 * 'none' 不在 STATUS_MAP 裡，原本會讓 set_status() 回傳 false，
+                 * 被上層當成資料庫寫入失敗：記一筆 error 日誌、回傳「儲存失敗」500。
+                 * 使用者按第二下想取消，看到的是系統錯誤，狀態還留著——
+                 * 近 30 天發生 40 次，其中 19 次集中在追番人數最多的作品。
+                 */
+                $result = ( 'none' === $value )
+                    ? $this->clear_status( $user_id, $anime_id )
+                    : $this->set_status( $user_id, $anime_id, (string) $value );
                 break;
             case 'progress':
                 $result = $this->adjust_progress( $user_id, $anime_id, (int) $value );
@@ -223,12 +235,21 @@ class Anime_Sync_User_Status_Manager {
                 return new WP_Error( 'invalid_action', '不支援的動作', [ 'status' => 400 ] );
         }
 
+        /*
+         * 業務規則拒絕（例如未播出作品不能標記為追番中）由下層回傳 WP_Error，
+         * 帶著使用者看得懂的原因直接往上傳，不記 error 日誌——那不是系統故障。
+         */
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
         if ( $result === false ) {
             if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
                 Anime_Sync_Error_Logger::error( 'User status write failed', [
                     'user_id'  => $user_id,
                     'anime_id' => $anime_id,
                     'action'   => $action,
+                    'value'    => is_scalar( $value ) ? (string) $value : gettype( $value ),
                     'db_error' => $GLOBALS['wpdb']->last_error,
                 ] );
             }
@@ -266,7 +287,10 @@ class Anime_Sync_User_Status_Manager {
      * 寫入方法（皆使用 ON DUPLICATE KEY UPDATE 原子 upsert）
      * ────────────────────────────────────────────── */
 
-    private function set_status( int $user_id, int $anime_id, string $status ): bool {
+    /**
+     * @return bool|WP_Error true 成功／false 系統錯誤／WP_Error 業務規則拒絕（帶原因）
+     */
+    private function set_status( int $user_id, int $anime_id, string $status ) {
         if ( ! isset( self::STATUS_MAP[ $status ] ) ) return false;
 
         // 🚫 未播出動畫只能點「想看」「棄坑」，不能點「追番中」「已看完」
@@ -275,7 +299,17 @@ class Anime_Sync_User_Status_Manager {
              && get_post_type( $anime_id ) === 'anime' ) {
             $airing = get_post_meta( $anime_id, 'anime_status', true );
             if ( $airing === 'NOT_YET_RELEASED' ) {
-                return false;
+                /*
+                 * 這是業務規則拒絕，不是系統錯誤。
+                 * 原本回傳 false，與資料庫寫入失敗共用同一個值，導致上層
+                 * 記一筆 error 日誌、並對使用者顯示「儲存失敗」——訊息完全
+                 * 沒說明真正的原因。改為丟出帶原因的 WP_Error。
+                 */
+                return new WP_Error(
+                    'not_yet_released',
+                    '這部作品尚未播出，目前只能標記「想看」或「棄坑」。',
+                    [ 'status' => 400 ]
+                );
             }
         }
 
@@ -342,6 +376,56 @@ class Anime_Sync_User_Status_Manager {
                 do_action( 'smacg_watchlist_completed', $user_id, $anime_id );
             }
         }
+
+        return true;
+    }
+
+
+    /**
+     * 取消追番：清掉狀態，保留其他資料。
+     *
+     * ★ 為什麼是 UPDATE status = NULL 而不是刪除整列
+     *   status 欄位本來就允許 NULL（Null=YES, Default=NULL），而且站上已有
+     *   43 列處於這個狀態——adjust_progress()／toggle_favorite() 等函式
+     *   INSERT 時都不帶 status，所以「有互動紀錄但沒設狀態」是既有的正常情形，
+     *   adjust_progress() 內部也有 `status IS NULL OR status != %d` 的判斷。
+     *
+     *   刪除整列會連帶失去 progress（66 列有值）、favorited（19 列）、
+     *   note、fullcleared。而收藏在前端是獨立的 data-action="favorite" 按鈕，
+     *   使用者按「取消追番」時不會預期收藏也一起消失。
+     *
+     * 找不到該列時回傳 true：使用者本來就沒有追番紀錄，取消的結果與預期一致，
+     * 不該回報成失敗。
+     */
+    private function clear_status( int $user_id, int $anime_id ): bool {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'anime_user_status';
+
+        $prev = $wpdb->get_var( $wpdb->prepare(
+            "SELECT status FROM {$table} WHERE user_id = %d AND anime_id = %d",
+            $user_id,
+            $anime_id
+        ) );
+
+        // 沒有紀錄，或狀態本來就是空的——無事可做，視為成功。
+        if ( null === $prev ) {
+            return true;
+        }
+
+        $result = $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET status = NULL, updated_at = %s
+              WHERE user_id = %d AND anime_id = %d",
+            current_time( 'mysql' ),
+            $user_id,
+            $anime_id
+        ) );
+
+        if ( false === $result ) {
+            return false;
+        }
+
+        $this->flush_cache( $user_id, $anime_id );
 
         return true;
     }
