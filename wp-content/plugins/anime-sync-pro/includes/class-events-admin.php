@@ -54,7 +54,7 @@ class Anime_Sync_Events_Admin {
 			'anime-sync-pro',
 			'消息審核',
 			$label,
-			'manage_options',
+			wxacg_editorial_tools_cap(),
 			self::PAGE_SLUG,
 			[ $this, 'render' ]
 		);
@@ -74,7 +74,7 @@ class Anime_Sync_Events_Admin {
 			return '';
 		}
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( wxacg_editorial_tools_cap() ) ) {
 			return '權限不足。';
 		}
 
@@ -129,7 +129,7 @@ class Anime_Sync_Events_Admin {
 			return '';
 		}
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( wxacg_editorial_tools_cap() ) ) {
 			return '權限不足。';
 		}
 
@@ -168,7 +168,7 @@ class Anime_Sync_Events_Admin {
 	// =========================================================================
 
 	public function render(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( wxacg_editorial_tools_cap() ) ) {
 			wp_die( '權限不足。' );
 		}
 

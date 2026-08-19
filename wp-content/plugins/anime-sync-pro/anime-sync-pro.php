@@ -97,6 +97,14 @@ if ( file_exists( $anime_sync_seo_auto_file ) ) {
 }
 
 /* ============================================================
+ * 1.15. 後台權限單一來源
+ *
+ * 必須早於 ai-editorial-tool.php 與 class-events-admin.php，
+ * 兩者的權限判斷都從這裡取得。
+ * ============================================================ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/capabilities.php';
+
+/* ============================================================
  * 1.2. AI 編輯短評批次產生工具
  * ============================================================ */
 require_once ANIME_SYNC_PRO_DIR . 'includes/ai-editorial-tool.php';

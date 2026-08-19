@@ -702,7 +702,7 @@ add_action( 'admin_menu', function () {
 		'編輯短評控管',
 		// 用 📝 而非 ✍️：帶變體選擇符的 emoji 在側欄的寬度與其他項不一致，會對不齊。
 		'📝 短評控管',
-		'manage_options',
+		wxacg_editorial_tools_cap(),
 		'wxacg-ai-editorial',
 		'wxacg_ai_editorial_page'
 	);
@@ -1107,7 +1107,7 @@ add_action( 'wp_ajax_wxacg_editorial_save', 'wxacg_editorial_save_handler' );
 function wxacg_editorial_save_handler() {
 	check_ajax_referer( 'wxacg_editorial_save' );
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! current_user_can( wxacg_editorial_tools_cap() ) ) {
 		wp_send_json_error( array( 'message' => '權限不足' ) );
 	}
 
@@ -1149,7 +1149,7 @@ function wxacg_editorial_save_handler() {
 
 function wxacg_ai_editorial_page() {
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! current_user_can( wxacg_editorial_tools_cap() ) ) {
 		wp_die( '權限不足' );
 	}
 
