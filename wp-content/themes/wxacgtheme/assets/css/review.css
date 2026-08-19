@@ -168,14 +168,41 @@
   cursor: not-allowed;
 }
 
+/*
+ * 表單提示訊息。
+ *
+ * 原本只有 13px 的綠色文字，沒有背景與邊框——在深色底上幾乎看不見，
+ * 而「已將這部標記為 XXX」這種需要使用者判斷並可能動手修改的訊息，
+ * 必須夠顯眼才有意義。改為有底色與左側色條的通知框。
+ */
 .asd-review-form-msg {
-  margin: 0;
-  font-size: 13px;
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 500;
   color: var(--rv-green);
+  background: rgba(52, 211, 153, .12);
+  border: 1px solid rgba(52, 211, 153, .3);
+  border-left: 3px solid var(--rv-green);
+  border-radius: 8px;
+  animation: rvMsgIn .22s ease-out;
 }
 
 .asd-review-form-msg.is-error {
   color: var(--rv-red);
+  background: rgba(251, 113, 133, .12);
+  border-color: rgba(251, 113, 133, .3);
+  border-left-color: var(--rv-red);
+}
+
+@keyframes rvMsgIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asd-review-form-msg { animation: none; }
 }
 
 /* ── 排序 ── */
