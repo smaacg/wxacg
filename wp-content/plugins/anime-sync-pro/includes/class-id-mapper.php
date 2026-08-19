@@ -502,9 +502,31 @@ class Anime_Sync_ID_Mapper {
             $mal_id   = isset( $entry['mal_id']   ) && $entry['mal_id']   !== null ? (int) $entry['mal_id']   : null;
             $anidb_id = isset( $entry['anidb_id'] ) && $entry['anidb_id'] !== null ? (int) $entry['anidb_id'] : null;
             $name     = (string) ( $entry['name'] ?? '' );
+            $name_cn  = (string) ( $entry['name_cn'] ?? '' );
             $date     = (string) ( $entry['date'] ?? '' );
 
             if ( ! $bgm_id ) continue;
+
+            /*
+             * ★ 中文名快取要在這裡建，不能靠第一段來源。
+             *
+             *   第一段（anime-offline-database）的迴圈裡有一段
+             *   `if ( $bgm_id ) { ...建 name_cache... }`，但那份來源根本沒有
+             *   Bangumi 網址，$bgm_id 恆為 null，所以 name_cache 從來沒有內容
+             *   ——name_cache.json 一直是 2 bytes。
+             *
+             *   後果是 get_chinese_title() 永遠回空字串，
+             *   class-api-handler.php 的兩處呼叫（261、686 行）一直靜默走備援，
+             *   等於每次都多打一次 Bangumi API。沒有錯誤訊息，很難察覺。
+             *
+             *   這份來源本身就帶 name_cn，直接用它建立即可。
+             */
+            if ( $name_cn !== '' ) {
+                $name_cache[ $bgm_id ] = $name_cn;
+            } elseif ( $name !== '' && ! isset( $name_cache[ $bgm_id ] ) ) {
+                // 沒有中文名時退回原名，總比讓呼叫端拿到空字串好
+                $name_cache[ $bgm_id ] = $name;
+            }
 
             if ( $mal_id ) {
                 $bgm_ext_mal_index[ $mal_id ] = [
@@ -572,13 +594,21 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // 串接後才是最終內容，因此重寫這三個檔（第一段寫過一次的是未串接版本）
-        $this->write_json( self::MAP_FILE,       $al_index );
-        $this->write_json( self::AL_INDEX_FILE,  $al_index );
-        $this->write_json( self::MAL_INDEX_FILE, $mal_index );
+        /*
+         * 串接後才是最終內容，因此重寫這幾個檔（第一段寫過一次的是未串接版本）。
+         *
+         * name_cache 同理:它的內容是在第二段迴圈才填進去的，
+         * 而第一段結尾已經先寫過一次空的檔案（見上方 NAME_CACHE_FILE 那行），
+         * 不在這裡重寫的話，磁碟上留下的仍是空檔。
+         */
+        $this->write_json( self::MAP_FILE,        $al_index );
+        $this->write_json( self::AL_INDEX_FILE,   $al_index );
+        $this->write_json( self::MAL_INDEX_FILE,  $mal_index );
+        $this->write_json( self::NAME_CACHE_FILE, $name_cache );
 
-        $this->al_index  = $al_index;
-        $this->mal_index = $mal_index;
+        $this->al_index   = $al_index;
+        $this->mal_index  = $mal_index;
+        $this->name_cache = $name_cache;
 
         $this->write_json( self::BGM_EXT_MAL_INDEX_FILE,   $bgm_ext_mal_index );
         $this->write_json( self::BGM_EXT_NAME_INDEX_FILE,  $bgm_ext_name_index );
