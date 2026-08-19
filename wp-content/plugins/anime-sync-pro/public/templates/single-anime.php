@@ -3209,47 +3209,55 @@ while ( have_posts() ) :
 		 */
 		$asd_visuals   = [];
 		$asd_seen_atts = [];
+		$asd_replaced  = [];
+
+		/** 把一個附件加入切換列，重複的自動略過。 */
+		$asd_add_visual = static function ( int $att_id, string $label ) use ( &$asd_visuals, &$asd_seen_atts ): void {
+			if ( ! $att_id || isset( $asd_seen_atts[ $att_id ] ) ) {
+				return;
+			}
+
+			$full = wp_get_attachment_image_url( $att_id, 'large' );
+
+			if ( ! $full ) {
+				return;
+			}
+
+			$asd_seen_atts[ $att_id ] = true;
+
+			$asd_visuals[] = [
+				'full'  => $full,
+				'thumb' => wp_get_attachment_image_url( $att_id, 'thumbnail' ) ?: $full,
+				'label' => $label,
+			];
+		};
 
 		foreach ( $asd_events as $asd_ev ) {
 			if ( 'visual' !== $asd_ev->event_type || ! $asd_ev->attachment_id ) {
 				continue;
 			}
 
-			$asd_att_id = (int) $asd_ev->attachment_id;
+			$asd_add_visual( (int) $asd_ev->attachment_id, $asd_ev->summary );
 
-			if ( isset( $asd_seen_atts[ $asd_att_id ] ) ) {
-				continue;
+			/*
+			 * 每筆事件都記著它換掉的那張（promote_visual() 寫進 payload）。
+			 * 靠這個才找得回被取代的舊視覺圖——它已經不是特色圖片，
+			 * 本身也不是任何一筆事件，兩邊都撈不到。
+			 */
+			$asd_pl = ! empty( $asd_ev->payload ) ? json_decode( $asd_ev->payload, true ) : [];
+
+			if ( is_array( $asd_pl ) && ! empty( $asd_pl['prev_thumbnail_id'] ) ) {
+				$asd_replaced[] = (int) $asd_pl['prev_thumbnail_id'];
 			}
-
-			$asd_vis_full = wp_get_attachment_image_url( $asd_att_id, 'large' );
-
-			if ( ! $asd_vis_full ) {
-				continue;
-			}
-
-			$asd_seen_atts[ $asd_att_id ] = true;
-
-			$asd_visuals[] = [
-				'full'  => $asd_vis_full,
-				'thumb' => wp_get_attachment_image_url( $asd_att_id, 'thumbnail' ) ?: $asd_vis_full,
-				'label' => $asd_ev->summary,
-			];
 		}
 
 		if ( ! empty( $asd_visuals ) ) {
-			$asd_thumb_id = (int) get_post_thumbnail_id( $post_id );
+			// 目前的特色圖片（未經促升的作品會走到這裡）。
+			$asd_add_visual( (int) get_post_thumbnail_id( $post_id ), '主視覺圖' );
 
-			// 特色圖片已經是某筆事件的圖時不重複列入。
-			if ( ! isset( $asd_seen_atts[ $asd_thumb_id ] ) ) {
-				$asd_current_cover = $cover_image ?: get_the_post_thumbnail_url( $post_id, 'large' );
-
-				if ( $asd_current_cover ) {
-					$asd_visuals[] = [
-						'full'  => $asd_current_cover,
-						'thumb' => get_the_post_thumbnail_url( $post_id, 'thumbnail' ) ?: $asd_current_cover,
-						'label' => '原始主視覺圖',
-					];
-				}
+			// 被取代的舊視覺圖排在最後，由新到舊。
+			foreach ( $asd_replaced as $asd_old_id ) {
+				$asd_add_visual( $asd_old_id, '先前的視覺圖' );
 			}
 		}
 
