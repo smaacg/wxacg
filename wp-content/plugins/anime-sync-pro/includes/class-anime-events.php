@@ -413,9 +413,22 @@ class Anime_Sync_Anime_Events {
 			return 0;
 		}
 
+		/*
+		 * 只通知「還在意這部作品」的人。
+		 *
+		 *   0 想看 / 1 追番中 / 4 暫停  → 通知
+		 *   2 已看完 / 3 棄坑           → 不通知
+		 *
+		 * 已看完的人對這一篇不會再有新期待（續作是另一篇文章，不會漏掉），
+		 * 棄坑更是明確表達過不想再收到。原本沒有這層過濾，等於棄坑了還被打擾。
+		 */
 		$user_ids = $wpdb->get_col( $wpdb->prepare(
-			"SELECT DISTINCT user_id FROM {$wpdb->prefix}anime_user_status WHERE anime_id = %d",
-			$event->anime_id
+			"SELECT DISTINCT user_id FROM {$wpdb->prefix}anime_user_status
+			  WHERE anime_id = %d AND status IN ( %d, %d, %d )",
+			$event->anime_id,
+			Anime_Sync_User_Status_Manager::STATUS_WANT,
+			Anime_Sync_User_Status_Manager::STATUS_WATCHING,
+			Anime_Sync_User_Status_Manager::STATUS_PAUSED
 		) );
 
 		$sent = 0;

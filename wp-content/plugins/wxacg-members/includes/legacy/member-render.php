@@ -1175,10 +1175,16 @@ function wxacg_render_notification_prefs_card( $uid ) {
     $prefs = wp_parse_args( $prefs, $fallback_defaults );
     $nonce = wp_create_nonce( 'smacg_notif_save_prefs' );
 
+    /*
+     * 這份清單決定設定頁顯示哪些開關。新增通知類型時，
+     * smacg_get_notification_prefs_defaults() 與這裡要一起加——
+     * 只加 defaults 的話開關預設生效但會員看不到也關不掉。
+     */
     $types = [
         'follow'        => [ '👥', '有人追蹤我',          '當有用戶開始追蹤你時通知' ],
         'comment_reply' => [ '💬', '留言被回覆',          '當有人回覆你的留言時通知' ],
         'rating'        => [ '⭐', '收藏的動畫有人評分',  '當你收藏的作品收到新評分時通知' ],
+        'anime_update'  => [ '📰', '追蹤的作品有新消息',  '你標記「想看／追番中／暫停」的作品公開新視覺圖、宣布播出日期時通知' ],
         'level_up'      => [ '🎖', '等級提升',            '當你升級時通知' ],
         'badge'         => [ '🏅', '獲得徽章',            '當你解鎖新徽章時通知' ],
         'system'        => [ '📢', '系統公告',            '網站重要更新與公告' ],
