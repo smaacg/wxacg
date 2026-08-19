@@ -2453,12 +2453,11 @@ nav.asd-tabs a.asd-tab.is-active::after {
   display: inline-block;
 }
 
-.asd-stream-disclaimer {
-  margin: 20px 0 0;
-  color: var(--asd-text-muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
+/*
+ * .asd-stream-disclaimer 的樣式移至檔案後段，與 .asd-read-channels-tip
+ * 共用同一組宣告（搜尋 asd-read-channels-tip 可找到）——兩者是同一種
+ * 「區塊底部附註」，分開定義過去已經造成間距與字級不一致。
+ */
 
 /* ================================================================
    14. FAQ 與外部連結
@@ -3989,11 +3988,17 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 /*
  * 與 .asd-stream-disclaimer 同一種角色：區塊底部的補充說明。
- * 兩者原本一個 12px margin + .82rem、一個 20px margin + 12px，
- * 視覺上漫畫那段明顯貼太近。統一為與串流區塊相同的間距與字級。
+ *
+ * 兩者原本一個 12px margin + .82rem、一個 20px margin + 12px，漫畫那段
+ * 明顯貼著上方卡片。先統一為 20px，但實際看仍嫌黏——這兩句是「離開主要
+ * 內容之後的附註」，需要看得出換段落的空白，而不只是行距。
+ * 改為 30px，視覺上約等於空一行。
+ *
+ * 兩個選擇器共用同一組宣告，避免日後只改到其中一邊又不一致。
  */
-.asd-read-channels-tip {
-  margin: 20px 0 0;
+.asd-read-channels-tip,
+.asd-stream-disclaimer {
+  margin: 30px 0 0;
   font-size: 12px;
   line-height: 1.7;
   color: var(--asd-text-muted);
