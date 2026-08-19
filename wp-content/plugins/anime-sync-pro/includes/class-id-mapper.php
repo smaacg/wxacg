@@ -379,6 +379,8 @@ class Anime_Sync_ID_Mapper {
         $al_index   = [];
         $mal_index  = [];
         $name_cache = [];
+        // AniList → MAL。本來源沒有 Bangumi，靠這個中繼才串得到（見下方說明）
+        $al_to_mal  = [];
 
         foreach ( $data['data'] as $entry ) {
             $sources = $entry['sources'] ?? [];
@@ -397,6 +399,27 @@ class Anime_Sync_ID_Mapper {
 
             if ( $al_id  && $bgm_id ) $al_index[ $al_id ]  = $bgm_id;
             if ( $mal_id && $bgm_id ) $mal_index[ $mal_id ] = $bgm_id;
+
+            /*
+             * ★ 這一份來源（anime-offline-database）的 sources 裡「沒有」
+             *   Bangumi 網址——實測 293KB 樣本:anilist.co 200 次、
+             *   myanimelist.net 314 次、bgm/bangumi.tv 0 次。
+             *
+             *   因此上面兩行的 $bgm_id 恆為 null，兩個索引永遠是空的。
+             *   這不是偶發失敗而是結構性的:meta 檔記錄的 al_count 一直是 0，
+             *   anime_map.json 也一直是 0 bytes，等於 AniList／MAL 兩條
+             *   解析路徑從未生效，每次匯入都退回標題比對去猜。
+             *
+             *   Bangumi 對應在另一份來源（BangumiExtLinker）裡，它有
+             *   bgm_id 與 mal_id 但沒有 anilist_id。兩邊缺的剛好互補:
+             *     這份    AniList ←→ MAL
+             *     另一份  MAL     ←→ Bangumi
+             *   先把 AniList → MAL 記下來，等另一份載入後再串成
+             *   AniList → Bangumi（見 rebuild_indexes() 的串接段落）。
+             */
+            if ( $al_id && $mal_id ) {
+                $al_to_mal[ $al_id ] = $mal_id;
+            }
 
             if ( $bgm_id ) {
                 $titles = $entry['titles'] ?? [];
@@ -508,6 +531,54 @@ class Anime_Sync_ID_Mapper {
                 }
             }
         }
+
+        /*
+         * ★ 串接:AniList → MAL → Bangumi
+         *
+         * 第一段的來源沒有 Bangumi 網址，第二段的來源沒有 anilist_id，
+         * 兩邊各缺一半但剛好互補。以 MAL ID 當中繼把它們接起來，
+         * al_index / mal_index 才會有內容——在此之前這兩個索引一直是空的，
+         * 每次匯入都只能退回標題比對去猜。
+         *
+         * 只在該 AniList／MAL ID 尚無對應時才補，不覆蓋第一段直接解析到的值
+         * （若來源日後補上 Bangumi 網址，直接解析仍應優先）。
+         */
+        $joined_al  = 0;
+        $joined_mal = 0;
+
+        foreach ( $al_to_mal as $al_id => $mal_id ) {
+            if ( isset( $al_index[ $al_id ] ) ) {
+                continue;
+            }
+
+            $bgm_id = (int) ( $bgm_ext_mal_index[ $mal_id ]['bgm_id'] ?? 0 );
+
+            if ( $bgm_id > 0 ) {
+                $al_index[ $al_id ] = $bgm_id;
+                $joined_al++;
+            }
+        }
+
+        foreach ( $bgm_ext_mal_index as $mal_id => $row ) {
+            if ( isset( $mal_index[ $mal_id ] ) ) {
+                continue;
+            }
+
+            $bgm_id = (int) ( $row['bgm_id'] ?? 0 );
+
+            if ( $bgm_id > 0 ) {
+                $mal_index[ (int) $mal_id ] = $bgm_id;
+                $joined_mal++;
+            }
+        }
+
+        // 串接後才是最終內容，因此重寫這三個檔（第一段寫過一次的是未串接版本）
+        $this->write_json( self::MAP_FILE,       $al_index );
+        $this->write_json( self::AL_INDEX_FILE,  $al_index );
+        $this->write_json( self::MAL_INDEX_FILE, $mal_index );
+
+        $this->al_index  = $al_index;
+        $this->mal_index = $mal_index;
 
         $this->write_json( self::BGM_EXT_MAL_INDEX_FILE,   $bgm_ext_mal_index );
         $this->write_json( self::BGM_EXT_NAME_INDEX_FILE,  $bgm_ext_name_index );
