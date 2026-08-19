@@ -58,10 +58,15 @@ class Anime_Sync_Upstream_Diff_Scan {
 	/**
 	 * 單次執行最多下載幾張視覺圖。
 	 *
-	 * 每張圖含 WP 自動產生的尺寸變體約 0.94 MB。上游若批次重傳封面，
-	 * 沒有上限會在一次排程裡灌進幾百 MB。超過的留到下一輪。
+	 * 限制的不只是磁碟（每張含 WP 尺寸變體約 0.94 MB），更是 CPU——
+	 * 站台每張圖會產生 36 個尺寸，縮圖運算比下載本身重得多。
+	 * 而外部觸發會把同一次到期的排程全部串在一個請求裡跑完，
+	 * 這支拖太久會連累同一批的其他排程。
+	 *
+	 * 穩態下 277 部作品一天大概只有 1~5 張新視覺圖，這個上限平常不會碰到，
+	 * 它是防上游批次重傳的保險絲。超過的留到下一輪（基準不會推進）。
 	 */
-	const MAX_VISUALS_PER_RUN = 20;
+	const MAX_VISUALS_PER_RUN = 8;
 
 	const ENDPOINT = 'https://graphql.anilist.co';
 
@@ -92,13 +97,37 @@ class Anime_Sync_Upstream_Diff_Scan {
 	/**
 	 * 註冊排程。
 	 *
-	 * 起始時間往後推 30 分鐘，錯開 04:30 的 anime_sync_new_release_scan
-	 * ——那支也吃 AniList 額度，同時跑會互相擠壓限流。
+	 * ★ 釘死在每小時第 RUN_AT_MINUTE 分，不用 time() + 位移。
+	 *   站台是 DISABLE_WP_CRON=true 靠外部觸發，同一次觸發會把所有到期的
+	 *   排程依序跑完，撞在同一分鐘等於疊加執行時間。而 time() 位移的落點
+	 *   取決於「外掛第一次初始化的時刻」，等同隨機，可能正好壓在別人身上。
+	 *
+	 *   既有的每小時排程佔用 :00 :01 :02 :09 :12 :16 :43 :52 :53，
+	 *   :35 是空檔，且與 anime_sync_upcoming_bgm_scan（:43）保持距離。
+	 *   每日的 anime_sync_new_release_scan（12:30）也吃 AniList 額度，
+	 *   兩者相隔 5 分鐘以上，不會在同一次觸發裡爭搶限流。
 	 */
+	const RUN_AT_MINUTE = 35;
+
 	public static function schedule(): void {
-		if ( ! wp_next_scheduled( self::HOOK_HOURLY ) ) {
-			wp_schedule_event( time() + 1800, 'hourly', self::HOOK_HOURLY );
+		if ( wp_next_scheduled( self::HOOK_HOURLY ) ) {
+			return;
 		}
+
+		/*
+		 * 下一個 :RUN_AT_MINUTE，純以 UTC 時間戳計算。
+		 * 不混用 wp_date()（站台時區）與 mktime()（WP 已把 PHP 預設時區設為 UTC）
+		 * ——兩者相減會算出偏移 8 小時的錯誤時間。cron 時間戳本來就是 UTC，
+		 * 而「第幾分」在整點時區偏移下與當地時間一致。
+		 */
+		$now   = time();
+		$first = $now - ( $now % HOUR_IN_SECONDS ) + self::RUN_AT_MINUTE * MINUTE_IN_SECONDS;
+
+		if ( $first <= $now ) {
+			$first += HOUR_IN_SECONDS;
+		}
+
+		wp_schedule_event( $first, 'hourly', self::HOOK_HOURLY );
 	}
 
 	public static function unschedule(): void {
