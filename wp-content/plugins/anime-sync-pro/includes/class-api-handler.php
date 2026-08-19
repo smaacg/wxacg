@@ -1193,7 +1193,8 @@ class Anime_Sync_API_Handler {
 
         $cache_key = 'anime_sync_popularity_p' . $page;
         $cached    = get_transient( $cache_key );
-        if ( $cached !== false ) return $cached;
+        // ★ 站內狀態不吃這份快取，一律在 decorate 階段即時計算，理由見該方法註解。
+        if ( $cached !== false ) return $this->decorate_popularity_items( $cached );
 
         $query = '
         query ($page: Int) {
@@ -1220,12 +1221,11 @@ class Anime_Sync_API_Handler {
             return new WP_Error( 'anilist_no_page', 'AniList popularity: no Page in response.' );
         }
 
+        // ★ 這裡只放 AniList 回傳的內容，站內狀態不摻進來（見 decorate 註解）。
         $items = [];
         foreach ( $page_obj['media'] ?? [] as $media ) {
-            $al_id   = (int) ( $media['id'] ?? 0 );
-            $post_id = $this->find_existing_post( $al_id );
             $items[] = [
-                'anilist_id'   => $al_id,
+                'anilist_id'   => (int) ( $media['id'] ?? 0 ),
                 'title_romaji' => $media['title']['romaji']  ?? '',
                 'title_native' => $media['title']['native']  ?? '',
                 'cover_image'  => $media['coverImage']['large'] ?? '',
@@ -1234,9 +1234,6 @@ class Anime_Sync_API_Handler {
                 'season_year'  => $media['seasonYear'] ?? 0,
                 'episodes'     => (int) ( $media['episodes'] ?? 0 ),
                 'popularity'   => (int) ( $media['popularity'] ?? 0 ),
-                'imported'     => $post_id > 0,
-                'post_id'      => $post_id,
-                'edit_url'     => $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '',
             ];
         }
 
@@ -1246,6 +1243,63 @@ class Anime_Sync_API_Handler {
         ];
 
         set_transient( $cache_key, $result, 30 * MINUTE_IN_SECONDS );
+        return $this->decorate_popularity_items( $result );
+    }
+
+    /**
+     * 替人氣排行的每一筆補上站內狀態（imported / post_id / edit_url）。
+     *
+     * ★ 為什麼站內狀態不跟 AniList 資料一起快取：
+     *   這三個欄位反映的是本站資料庫，跟 AniList 回傳的內容無關。原本兩者
+     *   一起被冰在 30 分鐘的 transient 裡，而且全站沒有任何一處會在匯入成功
+     *   後清掉它，導致剛匯入完的作品在排行頁仍顯示「未匯入」，最長要等半
+     *   小時才會反映。改成每次讀取時即時計算，就不需要任何 invalidate 邏輯。
+     *
+     * ★ 為什麼不沿用 find_existing_post()：
+     *   那個方法是單筆查詢，且自帶 5 分鐘物件快取（本站有 persistent object
+     *   cache），一頁 50 筆就是 50 次 WP_Query 而且同樣會延遲。這裡改用一次
+     *   批次查詢，既即時又比原本快。post_status 的排除條件對齊 WP_Query 的
+     *   'any'（排除 trash 與 auto-draft），避免兩邊判定不一致。
+     */
+    private function decorate_popularity_items( array $result ): array {
+        $items = $result['items'] ?? [];
+        if ( ! $items ) return $result;
+
+        $ids = array_values( array_filter( array_map(
+            static fn( $i ) => (int) ( $i['anilist_id'] ?? 0 ),
+            $items
+        ) ) );
+        if ( ! $ids ) return $result;
+
+        global $wpdb;
+        $in   = implode( ',', array_map( 'intval', $ids ) );
+        $rows = $wpdb->get_results(
+            "SELECT pm.meta_value AS al_id, p.ID AS post_id
+               FROM {$wpdb->postmeta} pm
+               INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+              WHERE pm.meta_key = 'anime_anilist_id'
+                AND pm.meta_value IN ($in)
+                AND p.post_type = 'anime'
+                AND p.post_status NOT IN ( 'trash', 'auto-draft' )
+              ORDER BY p.post_date DESC",
+            ARRAY_A
+        );
+
+        // 同一個 AniList ID 若有多篇，取最新那篇（與原本 WP_Query 預設排序一致）
+        $map = [];
+        foreach ( $rows as $row ) {
+            $al = (int) $row['al_id'];
+            if ( ! isset( $map[ $al ] ) ) $map[ $al ] = (int) $row['post_id'];
+        }
+
+        foreach ( $result['items'] as &$item ) {
+            $post_id          = $map[ (int) ( $item['anilist_id'] ?? 0 ) ] ?? 0;
+            $item['imported'] = $post_id > 0;
+            $item['post_id']  = $post_id;
+            $item['edit_url'] = $post_id > 0 ? (string) get_edit_post_link( $post_id, 'raw' ) : '';
+        }
+        unset( $item );
+
         return $result;
     }
 

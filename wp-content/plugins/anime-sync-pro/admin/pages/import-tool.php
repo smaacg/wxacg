@@ -244,9 +244,13 @@ $converter_stats = $cn_converter->get_stats();
                 <button type="button" id="btn-ranking-load" class="button">📄 載入排行（第 1 頁）</button>
                 <button type="button" id="btn-ranking-more" class="button" style="display:none;">➕ 載入更多 50 部（第 <span id="ranking-page-num">2</span> 頁）</button>
                 <span id="ranking-load-spinner" class="asc-spinner" style="display:none;">⏳ 載入中…</span>
+                <span id="ranking-end-notice" class="description" style="display:none;">✅ 已到榜單末端</span>
             </div>
             <div id="ranking-preview" style="display:none;">
                 <p id="ranking-preview-summary" class="description"></p>
+                <p class="description">
+                    <label><input type="checkbox" id="ranking-hide-imported"> 只顯示未匯入</label>
+                </p>
                 <div class="asc-table-wrap">
                     <table class="wp-list-table widefat fixed striped asc-ranking-table asc-desktop-only">
                         <thead><tr>
@@ -598,7 +602,8 @@ function asc_progress_block( $prefix ) {
 .asc-info-box { background: #f0f7ff; border: 1px solid #b8d4f5; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 13px; }
 .status-imported { color: #46b450; font-weight: bold; }
 .status-new      { color: #2271b1; }
-#season-anime-tbody tr.format-hidden { display: none; }
+#season-anime-tbody tr.format-hidden,
+#ranking-tbody tr.format-hidden { display: none; }
 /* 匯入開始後，沒勾選的列先收起來，畫面只留正在跑的那幾部 */
 #season-anime-tbody tr.asc-unselected-hidden,
 #season-anime-cards .asc-import-card.asc-unselected-hidden { display: none; }
@@ -930,14 +935,50 @@ function asc_progress_block( $prefix ) {
     ========================================================================= */
     var rankingPage = 1;
     var rankingStop = false;
+    // 累計狀態：摘要要講的是「載到現在總共幾部」，不是最後一頁幾部
+    var rankingStats = { loaded: 0, imported: 0, pages: 0, total: 0, hasNext: true };
+
+    function resetRankingStats(){
+        rankingStats = { loaded: 0, imported: 0, pages: 0, total: 0, hasNext: true };
+    }
 
     $('#btn-ranking-load').on('click', function(){
         rankingPage = 1;
+        resetRankingStats();
         $('#ranking-tbody').empty();
         $('#ranking-cards').empty();
+        $('#ranking-end-notice').hide();
+        $('#ranking-select-all').prop('checked', true);
         loadRankingPage();
     });
     $('#btn-ranking-more').on('click', function(){ loadRankingPage(); });
+
+    // 只顯示未匯入：完全沿用季度分頁那套（表格看 data-imported 加 .format-hidden、
+    // 卡片看 is-imported class 走 toggle），不另立類別。
+    // collectIds() 的 :visible 語意因此自動相容——已匯入的本來就 disabled 且未勾選，
+    // 藏起來不會改變選取結果。
+    $('#ranking-hide-imported').on('change', function(){
+        applyRankingImportedFilter();
+        updateRankingSelectedCount();
+    });
+
+    function applyRankingImportedFilter(){
+        var hide = $('#ranking-hide-imported').prop('checked');
+        $('#ranking-tbody tr').each(function(){
+            var done = $(this).attr('data-imported') === '1';
+            $(this).toggleClass('format-hidden', hide && done);
+        });
+        $('#ranking-cards .asc-import-card').each(function(){
+            var done = $(this).hasClass('is-imported');
+            $(this).toggle(!(hide && done));
+        });
+    }
+
+    function updateRankingSelectedCount(){
+        var count = collectIds('.ranking-item-check').length;
+        $('#ranking-selected-badge').text('（已勾選 ' + count + ' 部）');
+        $('#btn-ranking-import').text(count > 0 ? '📥 匯入選中的 ' + count + ' 部作品' : '📥 匯入選中作品');
+    }
 
     function loadRankingPage(){
         $('#ranking-load-spinner').show();
@@ -962,14 +1003,34 @@ function asc_progress_block( $prefix ) {
             //         的回傳直接 pass-through，其鍵名為 items（不是季度／已公開那兩個
             //         handler 自行組出來的 list）。原本讀 list → undefined → 永遠 0 筆。
             var list = res.data.items || [];
+            var info = res.data.page_info || {};
             renderRankingRows(list, (rankingPage - 1) * 50);
+
+            // 累計，而不是覆蓋成本頁數字
+            rankingStats.loaded   += list.length;
+            rankingStats.imported += list.filter(function(i){ return i.imported; }).length;
+            rankingStats.pages     = rankingPage;
+            rankingStats.total     = parseInt(info.total, 10) || rankingStats.total;
+            rankingStats.hasNext   = (info.hasNextPage !== false);
+
             rankingPage++;
             // 頁碼掛在「載入更多」上，代表下一次會載的頁數；
             // 「載入排行」是重置回第 1 頁，標籤固定不動。
             $('#ranking-page-num').text(rankingPage);
-            $('#ranking-preview, #btn-ranking-import, #btn-ranking-more').show();
-            var imported = list.filter(function(i){ return i.imported; }).length;
-            $('#ranking-preview-summary').text('本頁 ' + list.length + ' 部，已匯入 ' + imported + ' 部。');
+            $('#ranking-preview, #btn-ranking-import').show();
+            $('#btn-ranking-load').text('🔄 重新載入（回到第 1 頁）');
+
+            // 榜單載到底就不該再留一顆按了也沒東西的按鈕
+            if (rankingStats.hasNext) {
+                $('#btn-ranking-more').show();
+                $('#ranking-end-notice').hide();
+            } else {
+                $('#btn-ranking-more').hide();
+                $('#ranking-end-notice').show();
+            }
+
+            renderRankingSummary();
+            updateRankingSelectedCount();
         }).fail(function(xhr){
             $('#ranking-load-spinner').hide();
             $('#btn-ranking-load, #btn-ranking-more').prop('disabled', false);
@@ -981,9 +1042,22 @@ function asc_progress_block( $prefix ) {
         });
     }
 
+    /* 累計摘要：講的是「載到現在」的總量，不是最後一頁 */
+    function renderRankingSummary() {
+        var s   = rankingStats;
+        var txt = '已載入 ' + s.loaded + ' 部（第 1–' + s.pages + ' 頁';
+        if (s.total > 0) { txt += '，AniList 榜單共 ' + s.total + ' 部'; }
+        txt += '）｜✓ 已匯入 ' + s.imported + ' 部 ・ 未匯入 ' + (s.loaded - s.imported) + ' 部';
+        $('#ranking-preview-summary').html(
+            escHtml(txt) +
+            '<strong id="ranking-selected-badge" style="color:#63A8FF;margin-left:8px;">（已勾選 0 部）</strong>'
+        );
+    }
+
     function renderRankingRows(list, offset) {
         var tbody = $('#ranking-tbody');
         var cards = $('#ranking-cards');
+
         $.each(list, function(i, item){
             // ★ v1.9.1：跳過無效 ID 的資料列
             var aid = validId(item.anilist_id);
@@ -994,23 +1068,34 @@ function asc_progress_block( $prefix ) {
             var chk = imported
                 ? '<input type="checkbox" class="ranking-item-check" data-id="' + aid + '" disabled>'
                 : '<input type="checkbox" class="ranking-item-check" data-id="' + aid + '" checked>';
-            var status = imported
-                ? '<span class="status-imported">✓ 已匯入</span>'
-                : '<span class="status-new">未匯入</span>';
+            // 已匯入的接上後端本來就有回傳、但先前被丟掉的 edit_url，直接跳去編輯
+            var status;
+            if (imported && item.edit_url) {
+                status = '<a class="status-imported" href="' + escHtml(item.edit_url) + '" target="_blank" rel="noopener">✓ 已匯入 ↗</a>';
+            } else if (imported) {
+                status = '<span class="status-imported">✓ 已匯入</span>';
+            } else {
+                status = '<span class="status-new">未匯入</span>';
+            }
             var coverSrc  = item.cover_image ? escHtml(item.cover_image) : '';
             var coverHtml = coverSrc ? '<img src="' + coverSrc + '" class="asc-cover-thumb" alt="">' : '—';
 
-            tbody.append($('<tr>').html(
-                '<td>' + chk + '</td>' +
-                '<td>' + rank + '</td>' +
-                '<td>' + coverHtml + '</td>' +
-                '<td>' + escHtml(item.title_romaji || '') + '</td>' +
-                '<td>' + escHtml(item.format || '') + '</td>' +
-                '<td>' + escHtml(String(item.episodes || '—')) + '</td>' +
-                '<td>' + escHtml(String(item.popularity || 0)) + '</td>' +
-                '<td>' + status + '</td>'
-            ));
+            // data-imported 供「只顯示未匯入」篩選使用（卡片改用 is-imported class），
+            // 屬性名與季度分頁一致
+            tbody.append($('<tr>')
+                .attr('data-imported', imported ? '1' : '0')
+                .html(
+                    '<td>' + chk + '</td>' +
+                    '<td>' + rank + '</td>' +
+                    '<td>' + coverHtml + '</td>' +
+                    '<td>' + escHtml(item.title_romaji || '') + '</td>' +
+                    '<td>' + escHtml(item.format || '') + '</td>' +
+                    '<td>' + escHtml(String(item.episodes || '—')) + '</td>' +
+                    '<td>' + escHtml(String(item.popularity || 0)) + '</td>' +
+                    '<td>' + status + '</td>'
+                ));
 
+            // buildImportCard 內部已依 imported 掛上 .is-imported，篩選直接沿用
             cards.append(buildImportCardWithCover({
                 anilist_id:   aid,
                 title_romaji: '#' + rank + ' ' + (item.title_romaji || ''),
@@ -1023,8 +1108,13 @@ function asc_progress_block( $prefix ) {
             }, 'ranking-item-check'));
         });
 
+        // 新載進來的列也要遵守目前的篩選狀態，否則下一頁會把藏起來的又冒出來
+        applyRankingImportedFilter();
+
         $('#ranking-select-all').off('change').on('change', function(){
-            $('.ranking-item-check:not(:disabled)').prop('checked', $(this).prop('checked'));
+            // 只動看得見的，語意與 collectIds() 的 :visible 一致
+            $('.ranking-item-check:not(:disabled):visible').prop('checked', $(this).prop('checked'));
+            updateRankingSelectedCount();
         });
 
         // 表格與手機卡片的兩份 checkbox 要同步，理由同季度那段（見上方註解）
@@ -1033,6 +1123,7 @@ function asc_progress_block( $prefix ) {
             if (aid) {
                 $('.ranking-item-check[data-id="' + aid + '"]').prop('checked', $(this).prop('checked'));
             }
+            updateRankingSelectedCount();
         });
     }
 
