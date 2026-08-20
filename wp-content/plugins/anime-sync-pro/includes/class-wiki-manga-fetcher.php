@@ -287,10 +287,49 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		$gnl = $this->parse_graphic_novel_list( $wt );
 		if ( ! empty( $gnl ) ) return $gnl;
 
-		if ( ! preg_match( '/\{\|\s*class="?[^"\n]*wikitable[^"\n]*"?(.*?)\|\}/s', $wt, $m ) ) {
+		/*
+		 * ★ 必須掃「所有」wikitable，不能只取第一個。
+		 *
+		 *   原本用 preg_match（單數）配非貪婪 .*?，永遠只吃到條目裡的第一個表格。
+		 *   長壽作品的維基條目常同時列出多個版本，例如《海盜戰記》：
+		 *
+		 *       ;Magazine Comics版   ← 初版，出到第 2 卷就停刊改版
+		 *       {| class=wikitable … |}
+		 *       ;Afternoon KC版      ← 現行版本，29 卷
+		 *       {| class=wikitable … |}
+		 *
+		 *   結果站上只顯示 2 卷，其餘 27 卷完全沒讀到（封面另有來源，抓滿 29 張，
+		 *   所以畫面上是「29 張封面配 2 列發售資訊」的矛盾狀態）。
+		 *
+		 * ★ 為什麼取「卷數最多的那一個」而不是全部合併：
+		 *   不同版本（初版／文庫版／新裝版）的第 1 卷是不同的書，合併會產生
+		 *   重複卷號與互相矛盾的發售日與 ISBN。取最完整的那一版才是讀者要看的。
+		 */
+		if ( ! preg_match_all( '/\{\|\s*class="?[^"\n]*wikitable[^"\n]*"?(.*?)\|\}/s', $wt, $ms ) ) {
 			return [];
 		}
-		$table = $m[1];
+
+		$best = [];
+		foreach ( $ms[1] as $table_wt ) {
+			$parsed = $this->parse_one_wikitable( $table_wt );
+			if ( count( $parsed ) > count( $best ) ) {
+				$best = $parsed;
+			}
+		}
+
+		return $best;
+	}
+
+	/**
+	 * 解析單一個 wikitable 的內容部分（不含 {| 與 |}）。
+	 *
+	 * 由 parse_publish_table() 逐表格呼叫；原本這段就是該方法的本體，
+	 * 為了能對多個表格各跑一次才抽出來，邏輯未做任何更動。
+	 *
+	 * @param string $table wikitable 的內容部分。
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function parse_one_wikitable( string $table ): array {
 		$lines = preg_split( '/\r?\n/', $table );
 		$nlines = count( $lines );
 
