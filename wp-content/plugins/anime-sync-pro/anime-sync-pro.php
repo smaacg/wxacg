@@ -105,6 +105,14 @@ if ( file_exists( $anime_sync_seo_auto_file ) ) {
 require_once ANIME_SYNC_PRO_DIR . 'includes/capabilities.php';
 
 /* ============================================================
+ * 1.16. 日期／播出時間欄位的共用解析
+ *
+ * 必須早於模板與 cron：三個讀取端原本各寫一份解析，導致
+ * anime_next_airing 的兩種格式在首頁被漏掉一種。
+ * ============================================================ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/date-helpers.php';
+
+/* ============================================================
  * 1.2. AI 編輯短評批次產生工具
  * ============================================================ */
 require_once ANIME_SYNC_PRO_DIR . 'includes/ai-editorial-tool.php';

@@ -602,6 +602,24 @@ class Anime_Sync_Upstream_Diff_Scan {
 				$this->append_trailer( $post_id, (string) $change['new'] );
 			}
 
+			/*
+			 * ★ 純數值類型也要回寫站上欄位（2026-08-21 修正）。
+			 *
+			 *   原本只有 visual／trailer／banner 會回寫——因為那兩者有明確的
+			 *   「把檔案抓下來存起來」動作，順手就寫了；schedule／status／
+			 *   episodes 是純數值，被漏掉，變成「偵測到變更、發了消息、推進了
+			 *   快照，但站上的資料沒有跟著更新」。
+			 *
+			 *   實例：《冰劍的魔術師將要統一世界 第二季》消息更新寫著「播出日期
+			 *   確定為 2026 年 10 月 9 日」，資料欄位卻仍顯示 2026-10-01。全站
+			 *   量測有 13 部日期不符、49 部集數錯誤或空白。
+			 *
+			 *   讀者看到的是自相矛盾的兩塊資訊，比沒有消息更糟。
+			 */
+			if ( ! $dry_run ) {
+				$this->write_back_field( $post_id, $type, $change['new'] );
+			}
+
 			// 視覺圖：把新圖抓下來存成附件，事件才有東西可看可比。
 			if ( 'visual' === $type ) {
 				/*
@@ -876,6 +894,76 @@ class Anime_Sync_Upstream_Diff_Scan {
 		}
 
 		return 'https://www.youtube.com/watch?v=' . $id;
+	}
+
+	/**
+	 * 把 schedule／status／episodes 的新值回寫到站上的 meta 欄位。
+	 *
+	 * ★ 為什麼要有這一步
+	 *   掃描器原本只寫事件、不動資料，導致「消息說 10 月 9 日開播、資料欄位
+	 *   還是 10 月 1 日」這種自相矛盾。visual／trailer／banner 因為有下載檔案
+	 *   的動作而順手寫了，純數值的三種被漏掉。
+	 *
+	 * ★ 日期的精度規則
+	 *   快照用可變精度（2026 / 2026-10 / 2026-10-09），meta 用 8 碼純數字。
+	 *   轉換交給 wxacg_fuzzy_date_to_meta()：年月日俱全才寫，精度不足就不動。
+	 *   否則「上游只知道 2026 年 10 月」會被硬補成 20261001，變成假的精確日期
+	 *   ——全站已經有 41 部處於這種狀態，不能再製造更多。
+	 *
+	 * ★ 尊重 anime_locked_fields
+	 *   比照 append_trailer() 與 maybe_update_banner()：使用者手動鎖定的欄位
+	 *   不覆寫。
+	 *
+	 * @param int    $post_id 文章 ID。
+	 * @param string $type    事件類型。
+	 * @param mixed  $new     快照格式的新值。
+	 */
+	private function write_back_field( int $post_id, string $type, $new ): void {
+		$map = [
+			'schedule' => 'anime_start_date',
+			'status'   => 'anime_status',
+			'episodes' => 'anime_episodes',
+		];
+
+		if ( ! isset( $map[ $type ] ) ) {
+			return;
+		}
+
+		$meta_key = $map[ $type ];
+		$locked   = get_post_meta( $post_id, 'anime_locked_fields', true );
+
+		if ( is_array( $locked ) && in_array( $meta_key, $locked, true ) ) {
+			return;
+		}
+
+		if ( 'schedule' === $type ) {
+			$value = wxacg_fuzzy_date_to_meta( (string) $new );
+
+			// 精度不足（只有年或年月）就不動，避免補出假的日
+			if ( '' === $value ) {
+				return;
+			}
+		} elseif ( 'episodes' === $type ) {
+			$value = (int) $new;
+
+			if ( $value <= 0 ) {
+				return;
+			}
+
+			$value = (string) $value;
+		} else {
+			$value = trim( (string) $new );
+
+			if ( '' === $value ) {
+				return;
+			}
+		}
+
+		if ( (string) get_post_meta( $post_id, $meta_key, true ) === $value ) {
+			return;
+		}
+
+		update_post_meta( $post_id, $meta_key, $value );
 	}
 
 	/**

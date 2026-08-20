@@ -651,25 +651,24 @@ if ( $season_query->have_posts() ) {
         );
 
         /*
-         * ★ anime_next_airing 存的是 Unix 時間戳，不是日期字串。
+         * ★ anime_next_airing 有兩種歷史格式，解析一律走外掛的共用函式。
          *
-         *   實際值長這樣：'1787409000'。strtotime() 對純數字字串一律回 false
-         *   （它不會把數字當成時間戳），所以原本的 strtotime( $next_airing )
-         *   對「全部」正在播出的作品都失敗——81 部無一例外。首頁之所以還能
-         *   顯示出 16 部，是靠下面 anime_start_date 那段後備救回來的，其餘的
-         *   就整批消失，週三甚至完全空白。
+         *   匯入端寫 JSON {"airingAt":…,"episode":…}，cron 曾經寫純 Unix
+         *   時間戳，全站 137 筆中兩種各半。原本這裡先用 strtotime() ——它對
+         *   純數字字串一律回 false——81 部正在播出的作品全部失敗，只靠下面
+         *   anime_start_date 的後備救回 16 部，週三甚至完全空白。
          *
-         *   數字字串直接轉 int 當時間戳用即可。修正後 81 部全部歸得出星期。
+         *   後來改成 is_numeric() 判斷，數字那種修好了，JSON 那 51 筆仍然
+         *   解析失敗。兩個讀取端各寫一份解析正是問題根源，因此統一改用
+         *   wxacg_parse_next_airing()（includes/date-helpers.php）。
          */
-        if ( $next_airing ) {
-            $airing_timestamp = is_numeric( $next_airing )
-                ? (int) $next_airing
-                : strtotime( (string) $next_airing );
+        if ( $next_airing && function_exists( 'wxacg_parse_next_airing' ) ) {
+            $parsed_airing = wxacg_parse_next_airing( $next_airing );
 
-            if ( $airing_timestamp > 0 ) {
+            if ( $parsed_airing['airingAt'] > 0 ) {
                 $weekday = (int) wp_date(
                     'N',
-                    $airing_timestamp
+                    $parsed_airing['airingAt']
                 );
             }
         }

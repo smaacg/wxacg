@@ -944,7 +944,26 @@ class Anime_Sync_Cron_Manager {
 
         if ( ! $is_locked( 'anime_next_airing' ) ) {
             if ( isset( $media['nextAiringEpisode']['airingAt'] ) ) {
-                update_post_meta( $post_id, 'anime_next_airing', (int) $media['nextAiringEpisode']['airingAt'] );
+                /*
+                 * ★ 統一寫成 JSON，不再寫純時間戳。
+                 *
+                 *   匯入端（class-api-handler.php）一直寫 JSON
+                 *   {"airingAt":…,"episode":…}，這裡卻只寫時間戳，於是同一個
+                 *   欄位出現兩種格式，實際值取決於哪一支程式最後寫過（全站
+                 *   137 筆中 86 筆數字、51 筆 JSON）。首頁只解析數字那種，
+                 *   造成 51 部作品的播出星期分類永遠失敗。
+                 *
+                 *   純數字版還會遺失集數，讀取端得改用 anime_episodes_aired
+                 *   推算，而那個欄位未必準。統一成 JSON 資訊比較完整。
+                 */
+                update_post_meta(
+                    $post_id,
+                    'anime_next_airing',
+                    wxacg_encode_next_airing(
+                        (int) $media['nextAiringEpisode']['airingAt'],
+                        (int) ( $media['nextAiringEpisode']['episode'] ?? 0 )
+                    )
+                );
             } else {
                 delete_post_meta( $post_id, 'anime_next_airing' );
             }
@@ -1028,12 +1047,23 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
-        if ( ! $is_locked( 'anime_end_date' ) && ! empty( $media['endDate']['year'] ) ) {
+        /*
+         * ★ 精度規則與上面的 anime_start_date 對齊：年月日俱全才寫入。
+         *
+         *   原本只要有「年」就寫、月日缺就補 1，於是「只知道 2026 年完結」
+         *   被存成 20260101，前台顯示成精確的 1 月 1 日——那是站方憑空補出來
+         *   的假精度，會誤導讀者。同一支程式裡兩個日期欄位用不同規則，沒有
+         *   理由；匯入端的 parse_fuzzy_date() 也是年月日俱全才寫。
+         */
+        if ( ! $is_locked( 'anime_end_date' )
+          && ! empty( $media['endDate']['year'] )
+          && ! empty( $media['endDate']['month'] )
+          && ! empty( $media['endDate']['day'] ) ) {
             $end_date = sprintf(
                 '%04d%02d%02d',
                 (int) $media['endDate']['year'],
-                (int) ( $media['endDate']['month'] ?? 1 ),
-                (int) ( $media['endDate']['day'] ?? 1 )
+                (int) $media['endDate']['month'],
+                (int) $media['endDate']['day']
             );
             $old_val = (string) get_post_meta( $post_id, 'anime_end_date', true );
             if ( $old_val !== $end_date ) {

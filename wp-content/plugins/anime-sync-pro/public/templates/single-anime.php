@@ -1319,29 +1319,27 @@ while ( have_posts() ) :
 	$next_airing_raw = $get_meta( 'anime_next_airing' );
 	$airing_data     = [];
 
-	if ( $next_airing_raw ) {
-		if ( is_numeric( $next_airing_raw ) ) {
-			$aired_now = (int) $get_meta(
-				'anime_episodes_aired'
-			);
+	/*
+	 * anime_next_airing 有兩種歷史格式（JSON 與純時間戳），解析一律走
+	 * wxacg_parse_next_airing()。原本這裡自己寫一份、首頁又寫另一份，
+	 * 結果首頁漏掉 JSON 那種，51 部作品的播出星期分類永遠失敗。
+	 */
+	if ( $next_airing_raw && function_exists( 'wxacg_parse_next_airing' ) ) {
+		$parsed_airing = wxacg_parse_next_airing( $next_airing_raw );
+
+		if ( $parsed_airing['airingAt'] > 0 ) {
+			$episode = $parsed_airing['episode'];
+
+			// 舊的純時間戳沒有集數，沿用原本的推算方式補上
+			if ( $episode <= 0 ) {
+				$aired_now = (int) $get_meta( 'anime_episodes_aired' );
+				$episode   = $aired_now > 0 ? $aired_now + 1 : '';
+			}
 
 			$airing_data = [
-				'airingAt' => (int) $next_airing_raw,
-				'episode'  => $aired_now > 0
-					? $aired_now + 1
-					: '',
+				'airingAt' => $parsed_airing['airingAt'],
+				'episode'  => $episode,
 			];
-		} else {
-			$decoded_airing = is_array( $next_airing_raw )
-				? $next_airing_raw
-				: json_decode(
-					(string) $next_airing_raw,
-					true
-				);
-
-			if ( is_array( $decoded_airing ) ) {
-				$airing_data = $decoded_airing;
-			}
 		}
 	}
 

@@ -473,15 +473,31 @@ $parse_tw_platforms = function( $raw ) {
     return array_filter( array_map( 'trim', explode( ',', $raw ) ) );
 };
 
-/* next_airing 解析（AniList 格式：{"airingAt":1716...,"episode":N}） */
+/*
+ * next_airing 解析。
+ *
+ * ★ 改為呼叫外掛的共用函式 wxacg_parse_next_airing()。
+ *   這個欄位有兩種歷史格式：匯入端寫 JSON {"airingAt":…,"episode":…}，
+ *   cron 曾經寫純 Unix 時間戳（全站 137 筆中兩種各半）。原本這裡的
+ *   fallback 是 strtotime( $raw )，而 strtotime() 對純數字字串一律回
+ *   false，所以那 86 筆時間戳格式在本頁一樣解析失敗。
+ *
+ *   三個讀取端各寫一份解析、各漏一種格式，是這個 bug 的根源。
+ */
 $parse_next_airing = function( $raw ) {
+    if ( function_exists( 'wxacg_parse_next_airing' ) ) {
+        $p = wxacg_parse_next_airing( $raw );
+        return [ 'ts' => $p['airingAt'], 'episode' => $p['episode'] ];
+    }
+
+    // 外掛未載入時的最小後備，行為與共用函式一致
     if ( ! $raw ) return [ 'ts' => 0, 'episode' => 0 ];
-    $arr = json_decode( $raw, true );
+    if ( ctype_digit( (string) $raw ) ) return [ 'ts' => (int) $raw, 'episode' => 0 ];
+    $arr = json_decode( (string) $raw, true );
     if ( is_array( $arr ) && isset( $arr['airingAt'] ) ) {
         return [ 'ts' => (int) $arr['airingAt'], 'episode' => (int) ( $arr['episode'] ?? 0 ) ];
     }
-    $ts = strtotime( $raw );
-    return [ 'ts' => $ts ? (int) $ts : 0, 'episode' => 0 ];
+    return [ 'ts' => 0, 'episode' => 0 ];
 };
 
 /* ============================================================
