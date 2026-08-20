@@ -52,7 +52,7 @@ final class Wxacg_Catalog_Api_V2_Router {
 			'/anime',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ Wxacg_Catalog_Api_Rest_Controller::class, 'check_permission' ],
 				'callback'            => [ $this, 'dispatch_anime_collection' ],
 				'args'                => $this->collection_args(),
 			]
@@ -63,7 +63,7 @@ final class Wxacg_Catalog_Api_V2_Router {
 			'/anime/(?P<id>\d+)',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ Wxacg_Catalog_Api_Rest_Controller::class, 'check_permission' ],
 				'callback'            => [ $this, 'dispatch_anime_item' ],
 				'args'                => [
 					'id' => [
@@ -79,7 +79,7 @@ final class Wxacg_Catalog_Api_V2_Router {
 			'/search',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => '__return_true',
+				'permission_callback' => [ Wxacg_Catalog_Api_Rest_Controller::class, 'check_permission' ],
 				'callback'            => [ $this, 'dispatch_search' ],
 				'args'                => array_merge(
 					$this->collection_args(),

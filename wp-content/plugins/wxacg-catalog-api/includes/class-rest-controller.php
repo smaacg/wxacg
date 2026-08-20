@@ -29,9 +29,17 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 	 *   權限者才可存取。日後要對外開放時，改以 API key 掛在這個 filter 上，
 	 *   不必再動每一條路由。
 	 *
+	 * ★ 2026-08-20 改為 static：v2（wxacg-catalog/v2 的 /anime、/anime/{id}、
+	 *   /search）當初新增時全部留著 __return_true，等於 v1 關起來了、v2 卻
+	 *   整個對外敞開——實測未帶任何憑證即可 HTTP 200 取得完整資料，且無速率
+	 *   限制、LiteSpeed 也不快取（x-litespeed-cache-control: no-cache），
+	 *   每次請求都直接打到 PHP 與 MySQL。
+	 *
+	 *   兩個版本共用這一個判斷，才不會再出現「改了一邊、另一邊還開著」。
+	 *
 	 * @return bool|WP_Error
 	 */
-	public function check_permission() {
+	public static function check_permission() {
 		$allowed = is_user_logged_in()
 			|| (bool) wp_verify_nonce(
 				(string) ( $_SERVER['HTTP_X_WP_NONCE'] ?? '' ),
@@ -62,7 +70,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/items',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => [ $this, 'check_permission' ],
+				'permission_callback' => [ self::class, 'check_permission' ],
 				'callback'            => [ $this, 'get_items' ],
 				'args'                => $this->collection_args(),
 			]
@@ -73,7 +81,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/items/(?P<id>\d+)',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => [ $this, 'check_permission' ],
+				'permission_callback' => [ self::class, 'check_permission' ],
 				'callback'            => [ $this, 'get_item' ],
 				'args'                => [
 					'id' => [
@@ -91,7 +99,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/search',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => [ $this, 'check_permission' ],
+				'permission_callback' => [ self::class, 'check_permission' ],
 				'callback'            => [ $this, 'search' ],
 				'args'                => array_merge(
 					$this->collection_args(),
@@ -114,7 +122,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/lookup',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => [ $this, 'check_permission' ],
+				'permission_callback' => [ self::class, 'check_permission' ],
 				'callback'            => [ $this, 'lookup' ],
 				'args'                => [
 					'anilist_ids' => [
@@ -136,7 +144,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/taxonomies/(?P<taxonomy>[a-z-]+)',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => [ $this, 'check_permission' ],
+				'permission_callback' => [ self::class, 'check_permission' ],
 				'callback'            => [ $this, 'get_terms' ],
 				'args'                => [
 					'taxonomy' => [
@@ -176,7 +184,7 @@ final class Wxacg_Catalog_Api_Rest_Controller {
 			'/series/(?P<slug>[a-z0-9-]+)',
 			[
 				'methods'             => WP_REST_Server::READABLE,
-				'permission_callback' => [ $this, 'check_permission' ],
+				'permission_callback' => [ self::class, 'check_permission' ],
 				'callback'            => [ $this, 'get_series' ],
 				'args'                => [
 					'slug' => [
