@@ -178,10 +178,21 @@ class Anime_Sync_Events_Admin {
 			$message = $this->handle_manual();
 		}
 
-		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : 'pending';
+		/*
+		 * 預設開「已發布」而不是「待審」。
+		 *
+		 * ★ 待審在結構上幾乎永遠是空的：掃描器產出的五種類型
+		 *   （visual／trailer／schedule／status／episodes）全部設定為自動發布，
+		 *   手動新增的預設狀態也是 published。只有「文案推導不出來」這個保險
+		 *   路徑才會留下待審件。
+		 *
+		 *   預設開在一個必然空白的分頁，會讓人以為系統沒在運作——實際發生過。
+		 *   分頁標題本來就有筆數，真的有待審件一眼就看得到。
+		 */
+		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : 'published';
 
 		if ( ! in_array( $status, [ 'pending', 'published', 'rejected' ], true ) ) {
-			$status = 'pending';
+			$status = 'published';
 		}
 
 		global $wpdb;
@@ -207,6 +218,8 @@ class Anime_Sync_Events_Admin {
 				esc_html( $message )
 			);
 		}
+
+		$this->render_scan_status();
 
 		$this->render_manual_form();
 
@@ -309,6 +322,79 @@ class Anime_Sync_Events_Admin {
 		}
 
 		echo '</h2>';
+	}
+
+	/**
+	 * 掃描狀態列。
+	 *
+	 * ★ 為什麼要有這一區
+	 *   這個頁面沒有東西時，畫面跟「掃描壞掉」長得一模一樣。2026-08-20 那次
+	 *   227 則假消息，就是因為沒有任何地方看得出掃描做了什麼，錯了一整天才
+	 *   被發現；在那之前也發生過「打開看是空的，以為功能沒運作」。
+	 *
+	 *   有了這一行，「沒有新消息」跟「掃描沒在跑」就分得開了。
+	 *
+	 * 資料一律向掃描器要（get_status），不在這裡自己查——判斷條件只該有一處。
+	 */
+	private function render_scan_status(): void {
+		if ( ! class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
+			return;
+		}
+
+		$s   = Anime_Sync_Upstream_Diff_Scan::get_status();
+		$fmt = static function ( int $ts ): string {
+			if ( ! $ts ) {
+				return '—';
+			}
+
+			$diff = human_time_diff( $ts );
+
+			return wp_date( 'm-d H:i', $ts ) . ( $ts < time() ? "（{$diff}前）" : "（{$diff}後）" );
+		};
+
+		$parts = [
+			'上次掃完全站：<strong>' . esc_html( $fmt( $s['last_sweep'] ) ) . '</strong>',
+			'監看範圍：<strong>' . (int) $s['monitored'] . ' 部</strong>（連載中 '
+				. (int) ( $s['by_status']['RELEASING'] ?? 0 ) . '．未播出 '
+				. (int) ( $s['by_status']['NOT_YET_RELEASED'] ?? 0 ) . '）',
+			'下次重建佇列：<strong>' . esc_html( $fmt( $s['next_rebuild'] ) ) . '</strong>',
+		];
+
+		if ( $s['queue_remaining'] > 0 ) {
+			$parts[] = '佇列剩餘：<strong>' . (int) $s['queue_remaining'] . ' 部</strong>';
+		}
+
+		$report = $s['report'];
+		$errors = is_array( $report ) ? (array) ( $report['errors'] ?? [] ) : [];
+
+		if ( is_array( $report ) ) {
+			$parts[] = '最後一輪：檢查 <strong>' . (int) $report['checked']
+				. '</strong> 部．新事件 <strong>' . (int) $report['events']
+				. '</strong>．建立基準 <strong>' . (int) $report['seeded'] . '</strong>';
+		}
+
+		printf(
+			'<div class="notice notice-%s" style="padding:10px 12px;"><p style="margin:0;line-height:1.9;">%s%s</p></div>',
+			$errors ? 'error' : 'info',
+			$errors ? '⚠️ ' : '🛰️ ',
+			implode( '　｜　', $parts )
+		);
+
+		if ( $errors ) {
+			echo '<div class="notice notice-error"><p style="margin:0;"><strong>掃描錯誤：</strong></p><ul style="margin:6px 0 0 18px;list-style:disc;">';
+			foreach ( $errors as $err ) {
+				printf( '<li>%s</li>', esc_html( (string) $err ) );
+			}
+			echo '</ul></div>';
+		}
+
+		/*
+		 * 沒有紀錄 = 這一版部署後排程還沒跑過。
+		 * 明說原因，免得被當成「掃描壞了」——那正是這一區要解決的問題。
+		 */
+		if ( ! is_array( $report ) ) {
+			echo '<p class="description" style="margin:-6px 0 12px;">（尚未有執行紀錄：排程跑過一輪之後這裡就會顯示結果）</p>';
+		}
 	}
 
 	/**

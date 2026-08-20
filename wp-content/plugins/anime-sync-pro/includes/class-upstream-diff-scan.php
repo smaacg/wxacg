@@ -40,6 +40,8 @@ class Anime_Sync_Upstream_Diff_Scan {
 
 	const HOOK_HOURLY   = 'anime_sync_upstream_diff_scan';
 	const QUEUE_OPTION  = 'anime_sync_upstream_diff_queue';
+	/** 最後一輪執行結果，供管理頁顯示「掃描是不是活的」。 */
+	const REPORT_OPTION = 'anime_sync_upstream_diff_report';
 	const SWEEP_OPTION  = 'anime_sync_upstream_diff_last_sweep';
 	const SNAPSHOT_META = 'anime_upstream_snapshot';
 
@@ -155,7 +157,119 @@ class Anime_Sync_Upstream_Diff_Scan {
 	// =========================================================================
 
 	public function run_scheduled(): void {
-		$this->run( self::REQUESTS_PER_RUN );
+		$stats = $this->run( self::REQUESTS_PER_RUN );
+
+		$this->save_run_report( $stats );
+	}
+
+	/**
+	 * 把這一輪的執行結果存起來，供管理頁顯示。
+	 *
+	 * ★ 為什麼需要這個
+	 *   run() 一直都有回傳 checked／seeded／events／skipped／errors，但排程
+	 *   進入點原本把回傳值整包丟掉。結果是：AniList 連續失敗、撞到限流、
+	 *   佇列空轉，畫面上通通看不出來——管理頁只有一片空白，分不清「沒有
+	 *   新消息」和「掃描壞了」。
+	 *
+	 *   2026-08-20 那次 227 則假消息，正是因為沒有任何地方看得出掃描做了
+	 *   什麼，錯了一整天才被發現。這裡把結果落地，管理頁才有東西可讀。
+	 *
+	 * ★ 只存最後一輪
+	 *   目的是回答「現在還活著嗎、上次做了什麼」，不是做歷史報表。
+	 *   要追歷史請看 Error_Logger，錯誤會另外寫進去。
+	 *
+	 * @param array $stats run() 的回傳值。
+	 */
+	private function save_run_report( array $stats ): void {
+		$queue = get_option( self::QUEUE_OPTION, null );
+
+		$report = [
+			'time'      => time(),
+			'checked'   => (int) ( $stats['checked'] ?? 0 ),
+			'seeded'    => (int) ( $stats['seeded'] ?? 0 ),
+			'events'    => (int) ( $stats['events'] ?? 0 ),
+			'skipped'   => (int) ( $stats['skipped'] ?? 0 ),
+			'errors'    => array_values( array_slice( (array) ( $stats['errors'] ?? [] ), 0, 5 ) ),
+			'remaining' => is_array( $queue ) ? count( $queue ) : 0,
+		];
+
+		update_option( self::REPORT_OPTION, $report, false );
+
+		// 有錯誤才寫 log，正常執行不製造噪音
+		if ( $report['errors'] && class_exists( 'Anime_Sync_Error_Logger' ) ) {
+			Anime_Sync_Error_Logger::warning(
+				sprintf(
+					'上游差異掃描出現 %d 個錯誤（檢查 %d 部、剩餘 %d 部）',
+					count( $report['errors'] ),
+					$report['checked'],
+					$report['remaining']
+				),
+				[ 'errors' => $report['errors'] ]
+			);
+		}
+	}
+
+	/**
+	 * 讀取最後一輪的執行結果。管理頁用。
+	 *
+	 * @return array|null 沒跑過就回 null。
+	 */
+	public static function get_run_report(): ?array {
+		$report = get_option( self::REPORT_OPTION, null );
+
+		return is_array( $report ) ? $report : null;
+	}
+
+	/**
+	 * 掃描器的整體狀態，一次給齊。
+	 *
+	 * ★ 由掃描器自己回報，而不是讓管理頁各自查
+	 *   「監看範圍」的判斷條件（連載中／未播出、要有數字型 AniList ID）
+	 *   只存在 build_queue() 一處。若管理頁自己再寫一份 SQL，兩邊遲早會
+	 *   漂移——畫面顯示 275 部、實際掃的卻是別的數字，那比沒有狀態列更糟。
+	 *
+	 * @return array{
+	 *   last_sweep:int, next_cron:int, queue_remaining:int,
+	 *   monitored:int, by_status:array<string,int>, sweep_interval_hours:int,
+	 *   next_rebuild:int, report:array|null
+	 * }
+	 */
+	public static function get_status(): array {
+		global $wpdb;
+
+		$by_status = [];
+		$rows      = $wpdb->get_results(
+			"SELECT st.meta_value AS st, COUNT(*) AS c
+			   FROM {$wpdb->posts} p
+			   JOIN {$wpdb->postmeta} al ON al.post_id = p.ID AND al.meta_key = 'anime_anilist_id'
+			   JOIN {$wpdb->postmeta} st ON st.post_id = p.ID AND st.meta_key = 'anime_status'
+			  WHERE p.post_type = 'anime'
+			    AND p.post_status = 'publish'
+			    AND al.meta_value REGEXP '^[0-9]+$'
+			    AND st.meta_value IN ( 'NOT_YET_RELEASED', 'RELEASING' )
+			  GROUP BY st.meta_value",
+			ARRAY_A
+		);
+
+		$monitored = 0;
+		foreach ( (array) $rows as $r ) {
+			$by_status[ $r['st'] ] = (int) $r['c'];
+			$monitored            += (int) $r['c'];
+		}
+
+		$queue      = get_option( self::QUEUE_OPTION, null );
+		$last_sweep = (int) get_option( self::SWEEP_OPTION, 0 );
+
+		return [
+			'last_sweep'           => $last_sweep,
+			'next_cron'            => (int) wp_next_scheduled( self::HOOK_HOURLY ),
+			'queue_remaining'      => is_array( $queue ) ? count( $queue ) : 0,
+			'monitored'            => $monitored,
+			'by_status'            => $by_status,
+			'sweep_interval_hours' => self::SWEEP_INTERVAL_HOURS,
+			'next_rebuild'         => $last_sweep ? $last_sweep + self::SWEEP_INTERVAL_HOURS * HOUR_IN_SECONDS : 0,
+			'report'               => self::get_run_report(),
+		];
 	}
 
 	/**
