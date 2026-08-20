@@ -147,3 +147,46 @@
     grid-template-columns:1fr 1fr;
   }
 }
+
+/* ── 手機版/電腦版檢視切換按鈕 ── */
+.footer-view-mode-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.footer-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.footer-view-toggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #3b82f6;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.footer-view-toggle i {
+  font-size: 14px;
+  color: #38bdf8;
+}
+
+/* 在一般電腦大螢幕（且非手動強制切換狀態下）自動隱藏此切換按鈕 */
+@media (min-width: 1025px) {
+  html:not(.view-as-desktop) .footer-view-mode-wrap {
+    display: none;
+  }
+}
+

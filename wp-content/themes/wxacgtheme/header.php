@@ -32,7 +32,18 @@ $header_banner_fg_url = function_exists( 'wxacg_header_banner_fg_url' ) ? wxacg_
 <html <?php language_attributes(); ?>>
 <head>
   <meta charset="<?php bloginfo( 'charset' ); ?>" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" id="wxacg-viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+  (function(){
+    try {
+      if (localStorage.getItem('wxacg_view_mode') === 'desktop') {
+        var vp = document.getElementById('wxacg-viewport');
+        if (vp) { vp.setAttribute('content', 'width=1280, initial-scale=0.3, minimum-scale=0.2, maximum-scale=3.0, user-scalable=yes'); }
+        document.documentElement.classList.add('view-as-desktop');
+      }
+    } catch(e){}
+  })();
+  </script>
   <?php wp_head(); ?>
 </head>
 <body <?php body_class(); ?>>

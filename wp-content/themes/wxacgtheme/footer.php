@@ -122,8 +122,8 @@ $footer_columns = apply_filters( 'smacg_footer_columns', [
             __( '動畫百科',   'blocksy-child' ) => home_url( '/anime/' ),
             __( '新番導覽',   'blocksy-child' ) => home_url( '/bangumi/' ),
             __( '音樂庫',     'blocksy-child' ) => home_url( '/music/' ),
-            __( 'COSPLAY',    'blocksy-child' ) => home_url( '/cosplay/' ),
-            __( '聖地巡禮',   'blocksy-child' ) => home_url( '/pilgrimage/' ),
+            // __( 'COSPLAY',    'blocksy-child' ) => home_url( '/cosplay/' ),    // 施工中暫時隱藏（AdSense 審核避坑）
+            // __( '聖地巡禮',   'blocksy-child' ) => home_url( '/pilgrimage/' ), // 施工中暫時隱藏（AdSense 審核避坑）
             __( '專欄',       'blocksy-child' ) => home_url( '/columns/' ),
         ],
     ],
@@ -131,9 +131,9 @@ $footer_columns = apply_filters( 'smacg_footer_columns', [
         'title' => __( '互動', 'blocksy-child' ),
         'links' => [
             __( '討論區',     'blocksy-child' ) => home_url( '/forum/' ),
-            __( '季番投票',   'blocksy-child' ) => home_url( '/vote/' ),
-            __( '投稿須知',   'blocksy-child' ) => home_url( '/submit/' ),
-            __( 'AI 工具',    'blocksy-child' ) => home_url( '/ai-tools/' ),
+            // __( '季番投票',   'blocksy-child' ) => home_url( '/vote/' ),       // 施工中暫時隱藏（AdSense 審核避坑）
+            // __( '投稿須知',   'blocksy-child' ) => home_url( '/submit/' ),     // 施工中暫時隱藏（AdSense 審核避坑）
+            // __( 'AI 工具',    'blocksy-child' ) => home_url( '/ai-tools/' ),   // 施工中暫時隱藏（AdSense 審核避坑）
             __( '會員中心',   'blocksy-child' ) => home_url( '/member/' ),
         ],
     ],
@@ -228,8 +228,14 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
 
     <div class="footer-divider" role="separator"></div>
 
-    <!-- ── Footer Bottom：版權 + 資料來源 ── -->
+    <!-- ── Footer Bottom：版權 + 資料來源 + 電腦版切換 ── -->
     <div class="footer-bottom">
+      <div class="footer-view-mode-wrap">
+        <button type="button" id="wxacg-view-mode-toggle" class="footer-view-toggle" aria-label="<?php echo esc_attr__( '切換檢視模式', 'blocksy-child' ); ?>" title="<?php echo esc_attr__( '切換至電腦版檢視', 'blocksy-child' ); ?>">
+          <i class="fa-solid fa-desktop" aria-hidden="true"></i>
+          <span class="view-toggle-text">電腦版</span>
+        </button>
+      </div>
       <p class="footer-copy">
         © <?php echo esc_html( wp_date( 'Y' ) ); ?> <?php echo esc_html( $site_name ); ?> WeixiaoACG．
         <?php echo esc_html__( 'All rights reserved．', 'blocksy-child' ); ?>
@@ -541,7 +547,40 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
         setTimeout(function(){ banner.hidden = true; }, 250);
       });
     }
-  } catch (e) { /* localStorage 不可用時靜默忽略 */ }
+  } catch (e) {}
+
+  /* View Mode Toggle (切換電腦版 / 手機版) */
+  try {
+    var viewBtn = document.getElementById('wxacg-view-mode-toggle');
+    if (viewBtn) {
+      var isDesktop = (localStorage.getItem('wxacg_view_mode') === 'desktop');
+      var icon = viewBtn.querySelector('i');
+      var text = viewBtn.querySelector('.view-toggle-text');
+
+      if (isDesktop) {
+        if (icon) icon.className = 'fa-solid fa-mobile-screen-button';
+        if (text) text.textContent = '手機版';
+        viewBtn.setAttribute('title', '切換回手機版檢視');
+      }
+
+      viewBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var currentDesktop = (localStorage.getItem('wxacg_view_mode') === 'desktop');
+        var vp = document.getElementById('wxacg-viewport') || document.querySelector('meta[name="viewport"]');
+
+        if (currentDesktop) {
+          localStorage.removeItem('wxacg_view_mode');
+          if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0');
+          document.documentElement.classList.remove('view-as-desktop');
+        } else {
+          localStorage.setItem('wxacg_view_mode', 'desktop');
+          if (vp) vp.setAttribute('content', 'width=1280, initial-scale=0.3, minimum-scale=0.2, maximum-scale=3.0, user-scalable=yes');
+          document.documentElement.classList.add('view-as-desktop');
+        }
+        window.location.reload();
+      });
+    }
+  } catch (e) {}
 
 })();
 </script>
