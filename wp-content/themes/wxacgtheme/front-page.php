@@ -443,15 +443,11 @@ $current_month     = (int) wp_date( 'n', $current_timestamp );
 $current_year      = (int) wp_date( 'Y', $current_timestamp );
 $current_weekday   = (int) wp_date( 'N', $current_timestamp );
 
-if ( $current_month <= 3 ) {
-    $current_season = 'WINTER';
-} elseif ( $current_month <= 6 ) {
-    $current_season = 'SPRING';
-} elseif ( $current_month <= 9 ) {
-    $current_season = 'SUMMER';
-} else {
-    $current_season = 'FALL';
-}
+/*
+ * 本季季節的推算已移除：這一區改用 anime_status = RELEASING 判斷，
+ * 不再需要季節名稱。下方「動漫作品推薦」另有一份 $next_season 推算，
+ * 那個仍在使用，兩者互不相干。
+ */
 
 $weekday_labels = [
     0 => '全部',
@@ -464,18 +460,24 @@ $weekday_labels = [
     7 => '週日',
 ];
 
-$previous_map = [
-    'WINTER' => [ 'FALL', $current_year - 1 ],
-    'SPRING' => [ 'WINTER', $current_year ],
-    'SUMMER' => [ 'SPRING', $current_year ],
-    'FALL'   => [ 'SUMMER', $current_year ],
-];
-
-list(
-    $previous_season,
-    $previous_year
-) = $previous_map[ $current_season ];
-
+/*
+ * 「本季 TV 新番」= 目前正在播出的 TV 作品。
+ *
+ * ★ 為什麼改用 anime_status 而不是季度
+ *   原本的條件是 anime_season IN（本季, 上一季）。但 anime_season 存的是
+ *   SUMMER／SPRING 這種「不含年份」的字串——2015 年的夏番跟 2026 年的夏番
+ *   在這個條件下完全一樣。實測撈到 408 部，其中只有 66 部是今年的。
+ *
+ *   年份判斷原本寫在下面的 PHP 迴圈裡，但 posts_per_page 的 300 筆上限是在
+ *   SQL 階段就生效的：408 部先被截成 300 部，PHP 才開始比對年份。被截掉的
+ *   108 部裡就有本季作品，它們根本沒機會進到判斷。截哪些取決於 post_date
+ *   排序，與季度無關，所以缺漏是隨機的——首頁因此只顯示 16 部、還整天沒有
+ *   週三。
+ *
+ *   直接用播出狀態就沒有這個問題：實測 81 部，遠低於上限，不會被截斷，
+ *   也不需要「本季／上一季」那套推算。語意也更直接——首頁要的就是現在
+ *   正在播的。
+ */
 $season_query = new WP_Query(
     [
         'post_type'              => 'anime',
@@ -487,12 +489,9 @@ $season_query = new WP_Query(
         'meta_query'             => [
             'relation' => 'AND',
             [
-                'key'     => 'anime_season',
-                'value'   => [
-                    $current_season,
-                    $previous_season,
-                ],
-                'compare' => 'IN',
+                'key'     => 'anime_status',
+                'value'   => 'RELEASING',
+                'compare' => '=',
             ],
             [
                 'key'     => 'anime_format',
@@ -535,18 +534,6 @@ if ( $season_query->have_posts() ) {
             continue;
         }
 
-        $anime_season = (string) get_post_meta(
-            $post_id,
-            'anime_season',
-            true
-        );
-
-        $anime_year = (int) get_post_meta(
-            $post_id,
-            'anime_season_year',
-            true
-        );
-
         $status = strtoupper(
             trim(
                 (string) get_post_meta(
@@ -569,32 +556,12 @@ if ( $season_query->have_posts() ) {
             true
         );
 
-        $still_airing =
-            $status === 'RELEASING' ||
-            (
-                $episode_total > 0 &&
-                $episode_aired > 0 &&
-                $episode_aired < $episode_total
-            );
-
-        $keep = false;
-
-        if (
-            $anime_season === $current_season &&
-            $anime_year === $current_year
-        ) {
-            $keep = true;
-        } elseif (
-            $anime_season === $previous_season &&
-            $anime_year === $previous_year &&
-            $still_airing
-        ) {
-            $keep = true;
-        }
-
-        if ( ! $keep ) {
-            continue;
-        }
+        /*
+         * 季度／年份的二次過濾已移除：查詢本身就是 anime_status = RELEASING，
+         * 撈出來的每一部都正在播出，不需要再判斷一次。
+         * （原本的判斷寫在這裡，但 SQL 的 300 筆上限先一步截斷了資料，
+         *   反而讓本季作品漏掉——詳見上方查詢的說明。）
+         */
 
         $cover = get_post_meta(
             $post_id,
@@ -683,10 +650,23 @@ if ( $season_query->have_posts() ) {
             true
         );
 
+        /*
+         * ★ anime_next_airing 存的是 Unix 時間戳，不是日期字串。
+         *
+         *   實際值長這樣：'1787409000'。strtotime() 對純數字字串一律回 false
+         *   （它不會把數字當成時間戳），所以原本的 strtotime( $next_airing )
+         *   對「全部」正在播出的作品都失敗——81 部無一例外。首頁之所以還能
+         *   顯示出 16 部，是靠下面 anime_start_date 那段後備救回來的，其餘的
+         *   就整批消失，週三甚至完全空白。
+         *
+         *   數字字串直接轉 int 當時間戳用即可。修正後 81 部全部歸得出星期。
+         */
         if ( $next_airing ) {
-            $airing_timestamp = strtotime( $next_airing );
+            $airing_timestamp = is_numeric( $next_airing )
+                ? (int) $next_airing
+                : strtotime( (string) $next_airing );
 
-            if ( $airing_timestamp ) {
+            if ( $airing_timestamp > 0 ) {
                 $weekday = (int) wp_date(
                     'N',
                     $airing_timestamp
