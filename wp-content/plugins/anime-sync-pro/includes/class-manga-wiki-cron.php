@@ -176,13 +176,21 @@ class Anime_Sync_Manga_Wiki_Cron {
 			}
 		}
 
+		/*
+		 * 維基解析出的卷數。
+		 *
+		 * ★ 必須宣告在維基區塊「之外」：下面第 3.1 段的 Bangumi 比對要讀它，
+		 *   而那是平行的另一個區塊。原本宣告在 if 內部，作品沒有維基條目時
+		 *   （$wiki_query_title 為空）變數不存在，比對會讀到未定義變數。
+		 */
+		$table_vol_count = 0;
+
 		// ---- 2. Wikipedia wikitext(每卷 ISBN + infobox 為 magazine/publisher/首刊日 主來源)----
 		//   ★v1.4.0 改用 $wiki_query_title 查詢(繁體/手填),命中率大幅提升。
 		if ( class_exists( 'Anime_Sync_Wiki_Manga_Fetcher' ) && $wiki_query_title !== '' ) {
 			$wp   = new Anime_Sync_Wiki_Manga_Fetcher();
 			$wiki = $wp->fetch_by_title( $wiki_query_title );
 
-			$table_vol_count = 0;
 			if ( ! empty( $wiki['volumes'] ) ) {
 				$data['manga_volumes_json']    = wp_json_encode( $wiki['volumes'], JSON_UNESCAPED_UNICODE );
 				$data['manga_volumes_summary'] = $wiki['volumes_markdown'] ?? '';
@@ -310,6 +318,49 @@ class Anime_Sync_Manga_Wiki_Cron {
 					$covers,
 					JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
 				);
+			}
+
+			/*
+			 * ---- 3.1 Bangumi 每卷發售日／ISBN(v1.5.0)----
+			 *
+			 * ★ 為什麼要多一個來源：
+			 *   維基的卷列表每篇條目格式都不一樣，解析器已經堆了 GNL 模板解析、
+			 *   wikitable 解析、地區欄位偵測與二十幾個章節關鍵字，每加一部新作品
+			 *   都可能再破一次。實測 14 部：維基解得出來的 8 部，Bangumi 解得出來
+			 *   的 12 部，其中 5 部是維基完全拿不到而 Bangumi 完整的
+			 *   （航海王 115 卷、咒術 30、約定的夢幻島 20、東京喰種 14、
+			 *     冰海戰記 29——維基只給 2 卷，因為條目裡並列了已停刊的初版表格）。
+			 *
+			 * ★ 為什麼是「逐部二選一」而不是逐卷合併：
+			 *   兩邊追的可能是不同版本。冰海戰記的 Bangumi 資料是現行的
+			 *   Afternoon KC 版，維基第一個表格是出到第 2 卷就停刊的
+			 *   Magazine Comics 版——兩邊的「第 1 卷」是不同的書。逐卷合併會
+			 *   產生同一卷兩個發售日的矛盾資料，寧可整份取比較完整的那一邊。
+			 *
+			 * ★ 為什麼比「卷數」而不是比來源優先序：
+			 *   Bangumi 並非總是比較好。鏈鋸人 Bangumi 只收了 11 卷、維基有 24 卷；
+			 *   我獨自升級 Bangumi 沒有單行本關聯條目、維基有 5 卷。寫死優先序
+			 *   會讓這兩部變差。
+			 */
+			if ( method_exists( $bgm_covers, 'fetch_volume_details' ) ) {
+				// 上一輪的結果當快取：已經有發售日／ISBN 的卷不再重打 API
+				$known     = [];
+				$prev_json = json_decode( (string) get_post_meta( $post_id, 'manga_volumes_json', true ), true );
+				foreach ( (array) $prev_json as $prev_row ) {
+					$prev_id = (int) ( $prev_row['bgm_id'] ?? 0 );
+					if ( $prev_id > 0 ) $known[ $prev_id ] = $prev_row;
+				}
+
+				$bgm_vols = $bgm_covers->fetch_volume_details( $bangumi_id, $known );
+
+				if ( count( $bgm_vols ) > $table_vol_count ) {
+					$data['manga_volumes_json']    = wp_json_encode( $bgm_vols, JSON_UNESCAPED_UNICODE );
+					$data['manga_volumes_summary'] = Anime_Sync_Wiki_Manga_Fetcher::volumes_to_markdown( $bgm_vols );
+					$data['manga_volumes_source']  = 'bangumi';
+					$table_vol_count               = count( $bgm_vols );
+				} elseif ( $table_vol_count > 0 ) {
+					$data['manga_volumes_source'] = 'wikipedia';
+				}
 			}
 		}
 

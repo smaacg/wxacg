@@ -21,6 +21,15 @@ class Anime_Sync_BGM_Volume_Covers {
 	const TIMEOUT    = 20;
 
 	/**
+	 * 逐卷抓明細時的請求間隔。
+	 *
+	 * Bangumi 沒有公布明確的速率上限，只要求合理使用。0.7 秒約等於每分鐘 85 次，
+	 * 對一個公益站台的公開 API 算客氣。首次同步 400 卷約 4.7 分鐘，之後每輪
+	 * 只抓新出的幾卷，實際不會再付這個成本（見 fetch_volume_details 註解）。
+	 */
+	const DETAIL_SLEEP_US = 700000;
+
+	/**
 	 * 主入口：給 Bangumi 主 subject id + post_id，回傳每卷封面陣列。
 	 * 封面已下載到本地，cover 欄位是本地 URL。
 	 *
@@ -68,6 +77,126 @@ class Anime_Sync_BGM_Volume_Covers {
 		usort( $volumes, fn( $a, $b ) => $a['vol'] <=> $b['vol'] );
 
 		return $volumes;
+	}
+
+	/**
+	 * 抓每卷的發售日與 ISBN。
+	 *
+	 * ★ 為什麼要逐卷再打一次 API：
+	 *   /v0/subjects/{id}/subjects 這份關聯清單只回傳 id / name / images /
+	 *   relation / type，實測不含 date 也不含 infobox。發售日與 ISBN 只存在於
+	 *   單卷條目本身，所以每一卷都必須再打一次 /v0/subjects/{卷id}。
+	 *
+	 * ★ 為什麼這個成本可以接受：
+	 *   單行本一旦出版，發售日與 ISBN 就不會再變。$known 帶入上一輪的結果，
+	 *   已經有資料的卷直接沿用、不再發請求；首次同步付一次全量成本（目前
+	 *   14 部共約 400 卷），之後每輪只抓新出的那幾卷。這與 download_cover()
+	 *   既有的「檔案已存在就跳過」是同一個模式。
+	 *
+	 * ★ 為什麼只填 jp：
+	 *   Bangumi 的單卷條目是日版書目，發售日與 ISBN 都是日版。infobox 裡雖然
+	 *   有「版本:东立版」之類的欄位，但只有書名與別名，沒有台版發售日與 ISBN，
+	 *   硬塞進 tw 欄會變成把日版資料標成台版——寧可留空，也不要誤導讀者。
+	 *
+	 * @param int   $bangumi_id 主條目 id。
+	 * @param array $known      已知資料，以 bgm_id 為鍵。
+	 * @return array [ ['vol'=>1,'bgm_id'=>4931,'jp'=>['date'=>'','isbn'=>'','note'=>'']], ... ]
+	 */
+	public function fetch_volume_details( int $bangumi_id, array $known = [] ): array {
+		if ( $bangumi_id <= 0 ) return [];
+
+		$body = $this->http_get( self::API_BASE . $bangumi_id . '/subjects' );
+		if ( $body === '' ) return [];
+
+		$json = json_decode( $body, true );
+		if ( ! is_array( $json ) ) return [];
+
+		$out = [];
+
+		foreach ( $json as $rel ) {
+			if ( ( $rel['relation'] ?? '' ) !== '单行本' ) continue;
+
+			$name = (string) ( $rel['name'] ?? '' );
+			if ( ! preg_match( '/\((\d+)\)\s*$/u', $name, $m ) ) continue;
+
+			$vol    = (int) $m[1];
+			$sub_id = (int) ( $rel['id'] ?? 0 );
+			if ( $vol <= 0 || $sub_id <= 0 ) continue;
+
+			// 已經抓過而且抓到東西 → 沿用，不再發請求
+			$cached = $known[ $sub_id ] ?? null;
+			if ( is_array( $cached )
+			  && ( ! empty( $cached['jp']['date'] ) || ! empty( $cached['jp']['isbn'] ) ) ) {
+				$cached['vol']    = $vol;
+				$cached['bgm_id'] = $sub_id;
+				$out[]            = $cached;
+				continue;
+			}
+
+			// 只有真的要發請求時才等，沿用快取的卷不必付這個延遲
+			usleep( self::DETAIL_SLEEP_US );
+
+			$detail = $this->fetch_subject_detail( $sub_id );
+
+			$out[] = [
+				'vol'    => $vol,
+				'bgm_id' => $sub_id,
+				'jp'     => [
+					'date' => $detail['date'] ?? '',
+					'isbn' => $detail['isbn'] ?? '',
+					'note' => '',
+				],
+			];
+		}
+
+		usort( $out, fn( $a, $b ) => $a['vol'] <=> $b['vol'] );
+
+		return $out;
+	}
+
+	/**
+	 * 取單卷條目的發售日與 ISBN。
+	 *
+	 * 發售日優先讀 infobox 的「发售日」，沒有才退回頂層 date——兩者通常一致，
+	 * 但 infobox 是書目本身的欄位，語意比較明確。
+	 *
+	 * @return array{date:string,isbn:string}
+	 */
+	private function fetch_subject_detail( int $subject_id ): array {
+		$empty = [ 'date' => '', 'isbn' => '' ];
+
+		$body = $this->http_get( self::API_BASE . $subject_id );
+		if ( $body === '' ) return $empty;
+
+		$s = json_decode( $body, true );
+		if ( ! is_array( $s ) ) return $empty;
+
+		$date = '';
+		$isbn = '';
+
+		foreach ( (array) ( $s['infobox'] ?? [] ) as $box ) {
+			$key = trim( (string) ( $box['key'] ?? '' ) );
+			$val = $box['value'] ?? '';
+			// 「版本:东立版」這類欄位的 value 是陣列，直接略過
+			if ( ! is_string( $val ) ) continue;
+			$val = trim( $val );
+			if ( $val === '' ) continue;
+
+			if ( $date === '' && ( '发售日' === $key || '發售日' === $key ) ) {
+				$date = $val;
+			} elseif ( $isbn === '' && 'ISBN' === strtoupper( $key ) ) {
+				$isbn = $val;
+			}
+		}
+
+		if ( $date === '' ) {
+			$date = trim( (string) ( $s['date'] ?? '' ) );
+		}
+
+		// 只接受 YYYY-MM-DD / YYYY-MM / YYYY，其餘視為無效，不塞髒資料給讀者
+		$date = preg_match( '/^\d{4}(?:-\d{2}){0,2}$/', $date ) ? $date : '';
+
+		return [ 'date' => $date, 'isbn' => $isbn ];
 	}
 
 	/**

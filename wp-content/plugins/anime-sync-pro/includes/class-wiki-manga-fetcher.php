@@ -74,7 +74,7 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 
 		$out['raw_section_wt']   = $section_wt;
 		$out['volumes']          = $this->parse_publish_table( $section_wt );
-		$out['volumes_markdown'] = $this->volumes_to_markdown( $out['volumes'] );
+		$out['volumes_markdown'] = self::volumes_to_markdown( $out['volumes'] );
 
 		return $out;
 	}
@@ -762,7 +762,15 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		return $s;
 	}
 
-	private function volumes_to_markdown( array $volumes ): string {
+	/**
+	 * 把每卷資料轉成 Markdown 表格。
+	 *
+	 * ★ 改為 public static：Bangumi 那條資料源（class-bgm-volume-covers.php）
+	 *   產出的每卷資料是同一個結構，前台也是讀同一個 manga_volumes_summary
+	 *   欄位來渲染。兩邊共用這一份格式化程式，才不會出現「維基來源的表格
+	 *   長這樣、Bangumi 來源的表格長那樣」的漂移。
+	 */
+	public static function volumes_to_markdown( array $volumes ): string {
 		if ( empty( $volumes ) ) return '';
 
 		$regions = [];
