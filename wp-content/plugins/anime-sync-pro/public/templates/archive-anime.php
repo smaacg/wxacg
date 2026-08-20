@@ -267,6 +267,26 @@ if ( $list_elements ) {
 
 <?php
 $season_labels  = [ 'WINTER' => '冬季', 'SPRING' => '春季', 'SUMMER' => '夏季', 'FALL' => '秋季' ];
+
+/*
+ * 季度篩選按鈕專用：季名後面標出對應月份。
+ *
+ * ★ 為什麼要標月份
+ *   「冬 春 夏 秋」的排列本身是照時序的（1／4／7／10 月），但年份那一層是
+ *   遞減排序（2027 → 2026 → …）。畫面上只看到四個季名時，兩層方向看起來
+ *   相反，會被誤讀成排序壞掉。標上月份之後，順序就自己解釋了自己。
+ *
+ * ★ 為什麼不直接改 $season_labels
+ *   那份對照表同時給下方的作品卡片用（第 456 行，輸出「2026 冬季」）。
+ *   共用會讓卡片變成「2026 冬季 1月」——同一張卡上年月重複、字串也更長。
+ *   篩選按鈕與卡片的需求不同，各用各的。
+ */
+$season_filter_labels = [
+    'WINTER' => '冬季 1月',
+    'SPRING' => '春季 4月',
+    'SUMMER' => '夏季 7月',
+    'FALL'   => '秋季 10月',
+];
 $format_labels  = [ 'TV' => 'TV', 'TV_SHORT' => 'TV短篇', 'MOVIE' => '劇場版', 'OVA' => 'OVA', 'ONA' => 'ONA', 'SPECIAL' => '特別篇', 'MUSIC' => 'MV' ];
 $status_labels  = [ 'FINISHED' => '已完結', 'RELEASING' => '連載中', 'NOT_YET_RELEASED' => '尚未播出', 'CANCELLED' => '已取消', 'HIATUS' => '暫停中' ];
 $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELEASED' => 's-pre', 'CANCELLED' => 's-can', 'HIATUS' => 's-hia' ];
@@ -352,7 +372,7 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
                 <div class="aaa-year-body">
                 <?php foreach ( $data['children'] as $child ) :
                     $is_act = ( $child->slug === $active_season );
-                    $lbl    = $season_labels[ strtoupper( explode( '-', $child->slug )[1] ?? '' ) ] ?? $child->name;
+                    $lbl    = $season_filter_labels[ strtoupper( explode( '-', $child->slug )[1] ?? '' ) ] ?? $child->name;
                 ?>
                     <a href="<?php echo esc_url( get_term_link( $child ) ); ?>"
                        class="aaa-filter-btn <?php echo $is_act ? 'active' : ''; ?>">
