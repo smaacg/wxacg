@@ -817,6 +817,45 @@ while ( have_posts() ) :
 		}
 	}
 
+	/*
+	 * 濾掉 hulu.com 的連結。
+	 *
+	 * ★ 為什麼：Hulu 已併入 Disney+，hulu.com 的作品網址不再指向作品。
+	 *   實測《村井之戀》三個海外連結（1 個 Disney+、2 個 Hulu）：Disney+ 那個
+	 *   正常開到作品頁，兩個 hulu.com 在台灣都只會轉到 Disney+ 首頁
+	 *   （https://www.disneyplus.com/zh-tw）。全站有 210 部帶著共 222 個這種
+	 *   連結，讀者點了一定落空。
+	 *
+	 *   畫面上還會出現三個一模一樣的圖示——因為登錄表把 hulu 對應到
+	 *   disneyplus_icon.webp。那個對應本身沒錯（Hulu 現在就是 Disney+），
+	 *   錯的是同一個服務被列了三次，而其中兩次還是死連結。
+	 *
+	 * ★ 為什麼做在顯示層而不是匯入層：
+	 *   匯入層過濾會把原始資料丟掉，日後若 Disney 恢復 hulu.com 的作品網址，
+	 *   得重新同步全站才救得回來。顯示層過濾則資料照存、隨時可開關。
+	 *
+	 * ★ 那 10 部「只有 Hulu、沒有其他平台」的作品，過濾後海外區塊會是空的。
+	 *   這是刻意的：一個必定落空的連結比沒有連結更糟。
+	 *
+	 * 要恢復顯示就把 wxacg/anime_hide_dead_hulu 這個 filter 回傳 false。
+	 */
+	if ( apply_filters( 'wxacg/anime_hide_dead_hulu', true ) ) {
+		$overseas_streams = array_values(
+			array_filter(
+				$overseas_streams,
+				static function ( $stream_row ) {
+					if ( ! is_array( $stream_row ) ) {
+						return false;
+					}
+
+					$row_url = strtolower( (string) ( $stream_row['url'] ?? '' ) );
+
+					return false === strpos( $row_url, 'hulu.com' );
+				}
+			)
+		);
+	}
+
 	/* =========================================================
 	 * 配音觀看平台
 	 * ======================================================= */
