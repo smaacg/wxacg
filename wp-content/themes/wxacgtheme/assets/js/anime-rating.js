@@ -378,7 +378,15 @@ document.addEventListener('DOMContentLoaded', function () {
     function smacgPromptComment(story, music, animation, voice) {
         const avg = ((story + music + animation + voice) / 4).toFixed(1);
 
-        const section = document.getElementById('asd-sec-comments')
+        /*
+         * 留言區 2026-08-18 由 wpDiscuz 改為自建評論系統（review.js），
+         * 區塊 id 變成 asd-sec-reviews。原本只找 asd-sec-comments /
+         * wpdcom / comments 三個 id，改版後三個都不存在，這裡直接 return，
+         * 評分成功的引導彈窗就再也沒出現過。
+         * 自建系統擺第一順位，wpDiscuz 的 id 保留當後備。
+         */
+        const section = document.getElementById('asd-sec-reviews')
+            || document.getElementById('asd-sec-comments')
             || document.getElementById('wpdcom')
             || document.getElementById('comments');
         if (!section) return;
@@ -393,6 +401,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 section.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 setTimeout(function () {
                     const editor =
+                        document.querySelector('.asd-review-content-input') ||
                         document.querySelector('#wpdcom .wpd-form-foot textarea') ||
                         document.querySelector('#wpdcom textarea.wpd-field-textarea') ||
                         document.querySelector('#wpdiscuz-textarea-0') ||
@@ -402,6 +411,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!editor) return;
                     if (!editor.value || editor.value.trim() === '') {
                         editor.value = '我給了 ' + avg + ' 分，因為';
+                        /*
+                         * 自建評論的字數計數器綁在 input 事件上（review.js），
+                         * 直接指派 value 不會觸發，計數器會停在 0 與實際內容不符。
+                         */
+                        editor.dispatchEvent(new Event('input'));
                     }
                     editor.focus();
                     try {
