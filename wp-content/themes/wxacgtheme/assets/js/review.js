@@ -707,6 +707,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }).catch(function (err) {
                     if (typeof window.smacgToast === 'function') {
                         window.smacgToast(err.message || '操作失敗');
+                    } else {
+                        alert(err.message || '操作失敗');
                     }
                 }).finally(function () {
                     btn.disabled = false;
@@ -793,6 +795,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }).catch(function (err) {
                     if (typeof window.smacgToast === 'function') {
                         window.smacgToast(err.message || '操作失敗');
+                    } else {
+                        alert(err.message || '操作失敗');
                     }
                 });
             });
@@ -806,6 +810,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }).catch(function (err) {
                     if (typeof window.smacgToast === 'function') {
                         window.smacgToast(err.message || '刪除失敗');
+                    } else {
+                        alert(err.message || '刪除失敗');
                     }
                 });
             });
