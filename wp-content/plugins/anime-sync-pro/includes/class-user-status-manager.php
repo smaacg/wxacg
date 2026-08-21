@@ -196,6 +196,25 @@ class Anime_Sync_User_Status_Manager {
             return new WP_Error( 'rate_limited', '操作過於頻繁，請稍候 1 分鐘', [ 'status' => 429 ] );
         }
 
+        /*
+         * 這個動作可能觸發 smacg_favorite_added / smacg_watchlist_added /
+         * smacg_watchlist_completed，由 wxacg-gamification 監聽並發 EXP。
+         * 該外掛實際發放時一律會 fire smacg_exp_awarded($uid, $amount, ...)
+         * （含 GamiPress 啟用與 fallback 兩種路徑），這裡暫時監聽一次、
+         * 加總屬於本次請求使用者的發放量，讓前端的 showPointToast() 能顯示
+         * 真實數字。若當日額度已被 dedupe/cap 擋下，該 hook 不會 fire，
+         * 這裡自然是 0，不會顯示誤導的提示。
+         *
+         * 不直接依賴 wxacg-gamification 的內部實作——外掛沒啟用時這裡就是 0。
+         */
+        $exp_gained  = 0;
+        $collect_exp = function ( $awarded_uid, $amount ) use ( $user_id, &$exp_gained ) {
+            if ( (int) $awarded_uid === $user_id ) {
+                $exp_gained += (int) $amount;
+            }
+        };
+        add_action( 'smacg_exp_awarded', $collect_exp, 10, 2 );
+
         $result = false;
         switch ( $action ) {
             case 'status':
@@ -232,8 +251,11 @@ class Anime_Sync_User_Status_Manager {
                 $result = $this->set_private( $user_id, $anime_id, (int) $value );
                 break;
             default:
+                remove_action( 'smacg_exp_awarded', $collect_exp, 10 );
                 return new WP_Error( 'invalid_action', '不支援的動作', [ 'status' => 400 ] );
         }
+
+        remove_action( 'smacg_exp_awarded', $collect_exp, 10 );
 
         /*
          * 業務規則拒絕（例如未播出作品不能標記為追番中）由下層回傳 WP_Error，
@@ -259,7 +281,7 @@ class Anime_Sync_User_Status_Manager {
         return rest_ensure_response( [
             'success'       => true,
             'entry'         => $this->get_entry( $user_id, $anime_id, false ),
-            'points_earned' => 0,
+            'points_earned' => $exp_gained,
         ] );
     }
 
