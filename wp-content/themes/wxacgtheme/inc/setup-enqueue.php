@@ -240,11 +240,20 @@ add_action( 'wp_enqueue_scripts', function () {
     // 注意：anime-rating.js（評分）仍只在 anime 載入，漫畫暫不啟用評分
     if ( is_singular( [ 'anime', 'manga' ] ) ) {
 
-        // 評分腳本只給動畫；漫畫只載追蹤相關
+        /*
+         * 評分腳本只給動畫；漫畫只載追蹤相關
+         *
+         * comment-rating.js 已於 2026-08-22 停止載入：
+         * 它的用途是「在留言旁顯示作者評分」，靠 SmacgConfig.commentRatings
+         * 對照 wpDiscuz 留言的 .wpd-comment 元素。留言區 2026-08-18 改為自建
+         * 系統後那些元素不再存在，且自建系統已由後端直接回傳分數
+         * （class-review-manager.php 的 'score' 欄位，review.js 渲染成
+         *   .asd-review-score-tag），功能完整取代。
+         * 檔案保留未刪，與模板註解一致：日後若切回 wpDiscuz 可直接恢復本行。
+         */
         $status_js = [
             'weixiaoacg-anime-js'  => 'anime.js',
             'smacg-anime-status'   => 'anime-status.js',
-            'smacg-comment-rating' => 'comment-rating.js',  // anime + manga 都載，留言顯示評分小標
         ];
         if ( is_singular( 'anime' ) ) {
             $status_js['smacg-anime-rating'] = 'anime-rating.js';
@@ -267,25 +276,12 @@ add_action( 'wp_enqueue_scripts', function () {
             wp_enqueue_script( 'wxacg-review', weixiaoacg_THEME_URL . '/assets/js/review.js', [ 'smacg-anime-status' ], filemtime( $rv_js ), true );
         }
 
-        // 這部作品所有評分者：user_nicename → 分數（供留言區顯示評分小標）
-        $smacg_comment_ratings = [];
-        global $wpdb;
-        $rt_table = $wpdb->prefix . 'anime_ratings';
-        $rt_rows  = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT u.user_nicename, r.score_overall
-                 FROM {$rt_table} r
-                 INNER JOIN {$wpdb->users} u ON u.ID = r.user_id
-                 WHERE r.anime_id = %d",
-                get_the_ID()
-            )
-        );
-        if ( $rt_rows ) {
-            foreach ( $rt_rows as $rt_row ) {
-                $smacg_comment_ratings[ strtolower( $rt_row->user_nicename ) ] = (float) $rt_row->score_overall;
-            }
-        }
-
+        /*
+         * 原本這裡會查詢「這部作品所有評分者：user_nicename → 分數」，
+         * localize 成 SmacgConfig.commentRatings 給 comment-rating.js 用。
+         * 該腳本已停止載入（見上方說明），而 commentRatings 沒有其他使用者，
+         * 這段 JOIN users 表的查詢等於每次瀏覽作品頁都白跑一次，一併移除。
+         */
         wp_localize_script( 'smacg-anime-status', 'SmacgConfig', [
             'apiUrl'    => esc_url_raw( rest_url( 'weixiaoacg/v1/' ) ),
             'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
@@ -297,7 +293,6 @@ add_action( 'wp_enqueue_scripts', function () {
             'permalink' => get_permalink(),
             'title'     => get_the_title(),
             'userName'       => is_user_logged_in() ? wp_get_current_user()->display_name : '',
-            'commentRatings' => $smacg_comment_ratings,
         ] );
     }
 
@@ -306,7 +301,10 @@ add_action( 'wp_enqueue_scripts', function () {
      *
      * 動漫頁的 SmacgConfig 是 localize 在 smacg-anime-status 上，而該腳本
      * 只在 anime/manga 載入，所以新聞頁必須自己補一份，否則 review.js 取不到
-     * apiUrl / nonce 會靜默失效。這裡不帶 commentRatings（那是動漫評分專用）。
+     * apiUrl / nonce 會靜默失效。
+     *
+     * （原本這裡註明「不帶 commentRatings」，該欄位已於 2026-08-22 隨
+     *   comment-rating.js 一併移除，兩邊的設定內容現在沒有這項差異。）
      */
     // 新聞、角色頁、人物頁：這幾種都沒有載入 smacg-anime-status，必須自己補設定
     if ( is_singular( 'post' )

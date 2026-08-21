@@ -4,6 +4,20 @@
    版本：1.0 — 2026-07-27
    說明：從 SmacgConfig.commentRatings（user_nicename→分數）對照，
          每則 wpDiscuz 留言若作者有評過分，就在留言內容前加「⭐ X.X」。
+
+   ⚠ 2026-08-22 起已停止載入（見 inc/setup-enqueue.php）
+   ------------------------------------------------------------
+   留言區 2026-08-18 由 wpDiscuz 改為自建評論系統後，本檔依賴的
+   .wpd-comment / .wpd-comment-text / #wpdcom 元素都不再存在，
+   整支腳本不會有任何作用。
+
+   同樣的功能已由自建系統以更好的方式提供：後端直接回傳分數
+   （anime-sync-pro/includes/class-review-manager.php 的 'score'
+     欄位），前端 review.js 渲染成 .asd-review-score-tag，
+   不需要前端拿使用者名稱去對照。
+
+   檔案保留未刪，與各模板註解的做法一致：日後若要切回 wpDiscuz，
+   恢復 setup-enqueue.php 的載入行與 commentRatings 查詢即可。
    ============================================================ */
 'use strict';
 
