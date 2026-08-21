@@ -418,6 +418,7 @@ $random_anime_url = add_query_arg(
                         <?php if ( $index === 0 ) : ?>
                             loading="eager"
                             fetchpriority="high"
+                            data-no-lazy="1"
                         <?php else : ?>
                             loading="lazy"
                         <?php endif; ?>

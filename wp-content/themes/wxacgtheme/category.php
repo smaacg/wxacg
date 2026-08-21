@@ -358,7 +358,7 @@ if ( ! $is_empty && isset( $wp_query ) && $wp_query->have_posts() ) {
               <img class="carousel-main-img"
                    src="<?php echo esc_url( $carousel_img_url ); ?>"
                    alt="<?php echo esc_attr( get_the_title() ); ?>"
-                   <?php if ( $is_first ) : ?>loading="eager" fetchpriority="high"<?php else : ?>loading="lazy"<?php endif; ?> />
+                   <?php if ( $is_first ) : ?>loading="eager" fetchpriority="high" data-no-lazy="1"<?php else : ?>loading="lazy"<?php endif; ?> />
             <?php else : ?>
               <div class="carousel-no-img">📰</div>
             <?php endif; ?>

@@ -831,10 +831,11 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     <img src="<?php echo esc_url( $cover_image ); ?>"
                          alt="<?php echo esc_attr( $display_title ); ?> 封面"
                          class="asd-poster-img" loading="eager"
+                         data-no-lazy="1"
                          onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
                     <div class="asd-poster-fallback" style="display:none"><span><?php echo esc_html( $poster_fallback ); ?></span></div>
                 <?php elseif ( has_post_thumbnail() ) : ?>
-                    <?php echo get_the_post_thumbnail( $post_id, 'large', [ 'class' => 'asd-poster-img', 'loading' => 'eager', 'alt' => $display_title . ' 封面' ] ); ?>
+                    <?php echo get_the_post_thumbnail( $post_id, 'large', [ 'class' => 'asd-poster-img', 'loading' => 'eager', 'data-no-lazy' => '1', 'alt' => $display_title . ' 封面' ] ); ?>
                 <?php else : ?>
                     <div class="asd-poster-fallback"><span><?php echo esc_html( $poster_fallback ); ?></span></div>
                 <?php endif; ?>

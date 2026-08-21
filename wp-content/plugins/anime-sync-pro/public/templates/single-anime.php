@@ -3322,6 +3322,7 @@ while ( have_posts() ) :
 							loading="eager"
 							fetchpriority="high"
 							decoding="async"
+							data-no-lazy="1"
 						>
 						<div
 							class="asd-poster-fallback asd-poster-fallback--backup"
@@ -3339,6 +3340,7 @@ while ( have_posts() ) :
 								'loading'       => 'eager',
 								'fetchpriority' => 'high',
 								'decoding'      => 'async',
+								'data-no-lazy'  => '1',
 								'alt'           => $display_title . ' 封面',
 							]
 						);
