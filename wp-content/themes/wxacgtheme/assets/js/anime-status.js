@@ -105,10 +105,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (pointToast) {
             pointToast.textContent = msg;
-            pointToast.classList.remove('show');
+            pointToast.classList.remove('is-show');
             void pointToast.offsetWidth;
-            pointToast.classList.add('show');
-            setTimeout(function () { pointToast.classList.remove('show'); }, 1900);
+            pointToast.classList.add('is-show');
+            setTimeout(function () { pointToast.classList.remove('is-show'); }, 1900);
         } else {
             alert(msg);
         }
@@ -118,10 +118,10 @@ document.addEventListener('DOMContentLoaded', function () {
     function showPointToast(points) {
         if (!points || points <= 0 || !pointToast) return;
         pointToast.textContent = '+' + points + ' ✨';
-        pointToast.classList.remove('show');
+        pointToast.classList.remove('is-show');
         void pointToast.offsetWidth;
-        pointToast.classList.add('show');
-        setTimeout(function () { pointToast.classList.remove('show'); }, 1900);
+        pointToast.classList.add('is-show');
+        setTimeout(function () { pointToast.classList.remove('is-show'); }, 1900);
     }
 
     /* ── 彩紙 ── */
