@@ -143,6 +143,8 @@ class Plugin {
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_rank_season_css' ], 20 );
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_level_guide_assets' ], 20 );
         add_action( 'init', [ $this, 'maybe_upgrade_db' ], 5 );
+        // 20：晚於 GamiPress 在 init 10 註冊 achievements CPT（見方法註解）
+        add_action( 'init', [ $this, 'maybe_install_milestone_badges' ], 20 );
         add_action( 'init', [ $this, 'maybe_flush_rewrite' ], 99 );
 
         // v2.7.0：確保 anniversary cron 已排程（活躍升級時用）
@@ -257,9 +259,29 @@ class Plugin {
         if ( get_option( 'smacg_rank_season_db_version', '0' ) !== WXACG_RANK_SEASON_DB_VERSION ) {
             Activator::install_rank_season_tables();
         }
-        if ( get_option( 'smacg_milestone_badge_version', '0' ) !== WXACG_MILESTONE_BADGE_VERSION ) {
-            Activator::install_milestone_badges();
+    }
+
+    /**
+     * 建立累積型里程碑徽章。
+     *
+     * 與 maybe_upgrade_db() 分開掛在較晚的優先序，因為它依賴
+     * achievements CPT 已註冊，而 maybe_upgrade_db 掛在 init 5：
+     *
+     *   plugins_loaded 50  GamiPress 只把 achievement types 收進陣列
+     *                      （gamipress_register_achievement_types）
+     *   init 5             maybe_upgrade_db —— 此時 CPT 尚未註冊
+     *   init 10            gamipress_register_post_types 才真的
+     *                      register_post_type( 'achievements' )
+     *   init 20            本方法 —— CPT 已就緒
+     *
+     * 建表不依賴 CPT，維持在 init 5 沒問題，因此只把徽章這段移出來。
+     */
+    public function maybe_install_milestone_badges() {
+        if ( get_option( 'smacg_milestone_badge_version', '0' ) === WXACG_MILESTONE_BADGE_VERSION ) {
+            return;
         }
+        require_once WXACG_GAMIFY_DIR . 'includes/class-activator.php';
+        Activator::install_milestone_badges();
     }
 
     public function maybe_flush_rewrite() {
