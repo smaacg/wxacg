@@ -32,12 +32,31 @@
 }
 
 /* ─────────── 社群圖示列 ─────────── */
+/*
+ * 固定每列 5 個。原本是 flex-wrap + max-width:380px，但實際每列擠得下
+ * 幾個要看 brand 欄被 grid（1.6fr）分到多寬——約 310px 時每列只放 6 個，
+ * 15 個圖示排成 6/6/3，最後一列落單看起來像沒對齊。
+ * 改用固定欄數後 15 ÷ 5 = 3 列整齊，且不再受容器寬度變動影響。
+ * 日後增減圖示時，數量若不是 5 的倍數要記得回來調這個值。
+ */
 .site-footer .social-links{
-  display:flex;
-  flex-wrap:wrap;
+  display:grid;
+  grid-template-columns:repeat(5, 36px);
   gap:10px;
   margin-top:18px;
-  max-width:380px;
+  justify-content:start;
+}
+/*
+ * 1024px 以下品牌區已橫跨整排（見上方 .footer-brand{grid-column:1/-1}），
+ * 寬度足夠讓圖示自然排開，固定 5 欄反而會擠在左側、右邊空一大片。
+ * 這段必須放在桌機版規則「之後」——同特異性下由後者勝出，寫在上面的
+ * media query 會被下面的 grid 覆蓋掉。
+ */
+@media (max-width:1024px){
+  .site-footer .social-links{
+    display:flex;
+    flex-wrap:wrap;
+  }
 }
 .site-footer .footer-social-btn{
   width:36px;
@@ -106,8 +125,12 @@
     margin:8px 0 0;
   }
 
-  /* 社群圖示置中、縮小、縮排 */
+  /* 社群圖示置中、縮小、縮排
+     小螢幕的品牌區橫跨整排（見上方 grid-column:1 / -1），寬度夠放更多，
+     固定 5 欄會太窄；改回自動換行並置中，圖示尺寸同步縮到 32px。 */
   .site-footer .social-links{
+    display:flex;
+    flex-wrap:wrap;
     justify-content:center;
     max-width:none;
     gap:8px;
@@ -190,3 +213,39 @@
   }
 }
 
+
+/* ─────────── 法務連結（版權列下方） ───────────
+ * 從「關於」欄移下來，讓該欄從 7 項降到 5 項、四欄高度接近。
+ * .footer-bottom 是 flex + space-between（左：檢視切換／右：版權），
+ * 這裡用 flex-basis:100% 佔滿一整行換到下方，避免擠成三欄。
+ */
+.site-footer .footer-legal{
+  flex-basis:100%;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:6px;
+  font-size:12px;
+}
+.site-footer .footer-legal a{
+  color:var(--text-muted, #aab0c4);
+  text-decoration:none;
+  transition:color .2s ease;
+}
+.site-footer .footer-legal a:hover{
+  color:var(--accent-blue, #63a8ff);
+}
+.site-footer .footer-legal-sep{
+  color:rgba(255,255,255,.25);
+}
+
+@media (max-width:600px){
+  /* 版權區在小螢幕已置中，法務列跟著置中才不會突兀 */
+  .site-footer .footer-legal{
+    justify-content:center;
+    font-size:11px;
+    margin-top:8px;
+  }
+}

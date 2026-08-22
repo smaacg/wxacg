@@ -104,16 +104,26 @@ $social = apply_filters( 'smacg_footer_social', [
  * ★ 如果某個項目目前頁面還是空的／施工中，請直接把該行註解掉或刪除，
  *   等內容做好了再放回來 —— 不要放著等做完，這種連結會出現在全站每一頁。
  */
+/*
+ * 分欄原則（2026-08-22 重新分組）
+ * ------------------------------------------------------------------
+ * 原本 6 / 4 / 2 / 7，「互動」只有兩項、下方空一大片，「關於」卻長到
+ * 七項，右半邊明顯不平衡；分類本身也有些放錯位置（「會員排行榜」
+ * 「等級指南」是社群功能卻放在站內欄目、「專欄」是內容卻放在資料庫、
+ * 「站務中心」是站務卻放在站內欄目）。
+ *
+ * 改依「使用者想做什麼」分組，並把三個法務連結移到最下方的版權列
+ * ——那是法務連結的慣例位置，也讓「關於」從 7 項降到 5 項。
+ * 結果為 4 / 3 / 4 / 5，高度接近。
+ */
 $footer_columns = apply_filters( 'smacg_footer_columns', [
     'site' => [
-        'title' => __( '站內欄目', 'blocksy-child' ),
+        'title' => __( '瀏覽', 'blocksy-child' ),
         'links' => [
             __( '首頁',       'blocksy-child' ) => home_url( '/' ),
             __( '最新新聞',   'blocksy-child' ) => home_url( '/news/' ),
+            __( '專欄',       'blocksy-child' ) => home_url( '/columns/' ),
             __( '排行榜',     'blocksy-child' ) => home_url( '/ranking/' ),
-            __( '會員排行榜', 'blocksy-child' ) => home_url( '/ranking-users/' ),
-            __( '等級指南',   'blocksy-child' ) => home_url( '/level-guide/' ),
-            __( '站務中心',   'blocksy-child' ) => home_url( '/announcement/' ),
         ],
     ],
     'database' => [
@@ -124,17 +134,18 @@ $footer_columns = apply_filters( 'smacg_footer_columns', [
             __( '音樂庫',     'blocksy-child' ) => home_url( '/music/' ),
             // __( 'COSPLAY',    'blocksy-child' ) => home_url( '/cosplay/' ),    // 施工中暫時隱藏（AdSense 審核避坑）
             // __( '聖地巡禮',   'blocksy-child' ) => home_url( '/pilgrimage/' ), // 施工中暫時隱藏（AdSense 審核避坑）
-            __( '專欄',       'blocksy-child' ) => home_url( '/columns/' ),
         ],
     ],
     'interact' => [
-        'title' => __( '互動', 'blocksy-child' ),
+        'title' => __( '社群', 'blocksy-child' ),
         'links' => [
             __( '討論區',     'blocksy-child' ) => home_url( '/forum/' ),
+            __( '會員中心',   'blocksy-child' ) => home_url( '/member/' ),
+            __( '會員排行榜', 'blocksy-child' ) => home_url( '/ranking-users/' ),
+            __( '等級指南',   'blocksy-child' ) => home_url( '/level-guide/' ),
             // __( '季番投票',   'blocksy-child' ) => home_url( '/vote/' ),       // 施工中暫時隱藏（AdSense 審核避坑）
             // __( '投稿須知',   'blocksy-child' ) => home_url( '/submit/' ),     // 施工中暫時隱藏（AdSense 審核避坑）
             // __( 'AI 工具',    'blocksy-child' ) => home_url( '/ai-tools/' ),   // 施工中暫時隱藏（AdSense 審核避坑）
-            __( '會員中心',   'blocksy-child' ) => home_url( '/member/' ),
         ],
     ],
     'about' => [
@@ -144,11 +155,16 @@ $footer_columns = apply_filters( 'smacg_footer_columns', [
             __( '加入我們',     'blocksy-child' ) => home_url( '/join/' ),
             __( '贊助我們',     'blocksy-child' ) => home_url( '/sponsor/' ),
             __( '聯絡／合作',   'blocksy-child' ) => home_url( '/contact/' ),
-            __( '服務條款',     'blocksy-child' ) => home_url( '/terms/' ),
-            __( '免責聲明',     'blocksy-child' ) => home_url( '/disclaimer/' ),
-            __( '隱私政策',     'blocksy-child' ) => home_url( '/privacy-policy/' ),
+            __( '站務中心',     'blocksy-child' ) => home_url( '/announcement/' ),
         ],
     ],
+] );
+
+/* ── 法務連結：放在最下方版權列，不佔欄目版位 ── */
+$footer_legal = apply_filters( 'smacg_footer_legal', [
+    __( '服務條款',   'blocksy-child' ) => home_url( '/terms/' ),
+    __( '隱私政策',   'blocksy-child' ) => home_url( '/privacy-policy/' ),
+    __( '免責聲明',   'blocksy-child' ) => home_url( '/disclaimer/' ),
 ] );
 
 /* ── 資料來源（可由 filter 擴充）── */
@@ -252,6 +268,26 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
         echo implode( '、', $ds_html ); // phpcs:ignore WordPress.Security.EscapeOutput
         ?>。
       </p>
+
+      <?php /* 法務連結：從「關於」欄移來，這是它們的慣例位置 */ ?>
+      <?php if ( ! empty( $footer_legal ) ) : ?>
+        <nav class="footer-legal" aria-label="<?php echo esc_attr__( '法務資訊', 'blocksy-child' ); ?>">
+          <?php
+          $legal_html = [];
+          foreach ( $footer_legal as $label => $url ) {
+              if ( ! wxacg_footer_link_is_valid( $url ) ) {
+                  continue;
+              }
+              $legal_html[] = sprintf(
+                  '<a href="%s">%s</a>',
+                  esc_url( $url ),
+                  esc_html( $label )
+              );
+          }
+          echo implode( '<span class="footer-legal-sep" aria-hidden="true">·</span>', $legal_html ); // phpcs:ignore WordPress.Security.EscapeOutput
+          ?>
+        </nav>
+      <?php endif; ?>
     </div>
 
   </div>

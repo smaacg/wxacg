@@ -1419,6 +1419,41 @@ add_action(
 	'template_redirect',
 	'wxacg_legacy_random_anime_redirect'
 );
+
+/* ============================================================
+ * Ultimate Member 的 /members/ 目錄頁 → 導向會員排行榜
+ * ============================================================
+ * 該頁內容是 [ultimatemember form_id="21"]，實際輸出是一段英文的
+ * 空結果（「We are sorry. We cannot find any users…」），且 Rank Math
+ * 判定為 index, follow——一個可被 Google 收錄、內容空白又語言不符的
+ * 孤兒頁（站內沒有任何連結指向它，也不在 sitemap 裡）。
+ *
+ * 用 301 導向既有的會員排行榜，而不是直接刪頁：
+ *   - 已被收錄的網址若變 404，累積的權重會直接丟掉
+ *   - UM 內部若有連結指向會員目錄，導向排行榜是語意最接近的去處
+ *
+ * 以 _um_core meta 判斷而非寫死頁面 ID：UM 重建核心頁時 ID 會變，
+ * 寫死會在某次重建後靜默失效。
+ */
+function wxacg_redirect_um_members_page(): void {
+	if ( is_admin() || ! is_page() ) {
+		return;
+	}
+
+	$page_id = get_queried_object_id();
+	if ( ! $page_id ) {
+		return;
+	}
+
+	if ( get_post_meta( $page_id, '_um_core', true ) !== 'members' ) {
+		return;
+	}
+
+	wp_safe_redirect( home_url( '/ranking-users/' ), 301 );
+	exit;
+}
+add_action( 'template_redirect', 'wxacg_redirect_um_members_page' );
+
 /* ============================================================
  * 熱門標籤
  * ============================================================ */
