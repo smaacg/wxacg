@@ -219,6 +219,15 @@
  * .footer-bottom 是 flex + space-between（左：檢視切換／右：版權），
  * 這裡用 flex-basis:100% 佔滿一整行換到下方，避免擠成三欄。
  */
+/*
+ * .footer-copy 是 <p>，從未被 reset 掉瀏覽器預設的 margin:1em 0。
+ * 它在 .footer-bottom 這個 flex 容器裡，margin 會與 gap 疊加：
+ * 12px(p margin) + 16px(gap) + 6px(自訂 margin) ≈ 34px，法務列因此
+ * 離版權文字過遠、孤零零掉在右下角。間距統一交給 flex gap 控制。
+ */
+.site-footer .footer-copy{
+  margin:0;
+}
 .site-footer .footer-legal{
   flex-basis:100%;
   display:flex;
@@ -226,11 +235,12 @@
   align-items:center;
   justify-content:flex-end;
   gap:8px;
-  margin-top:6px;
   font-size:12px;
 }
+/* 用 --text-secondary 而非 --text-muted：法務連結原本太淡幾乎看不清，
+   而 muted 在深色底上只有 #7B8594／65% 白，對比不足 */
 .site-footer .footer-legal a{
-  color:var(--text-muted, #aab0c4);
+  color:var(--text-secondary, #C3C6CE);
   text-decoration:none;
   transition:color .2s ease;
 }
@@ -246,6 +256,5 @@
   .site-footer .footer-legal{
     justify-content:center;
     font-size:11px;
-    margin-top:8px;
   }
 }
