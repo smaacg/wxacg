@@ -262,6 +262,26 @@ document.addEventListener('DOMContentLoaded', function () {
                             renderProgress(state.progress);
                         }
                         showPointToast(res.points_earned);
+
+                        /*
+                         * 剛看完 → 廣播事件，由 anime-rating.js 接手引導寫心得。
+                         *
+                         * 站上 30 人看完過作品，只有 4 人留下評論；而引導彈窗
+                         * 原本只在「評分」後觸發，看完的人裡僅 6 人評過分，
+                         * 等於多數人從沒被引導過。
+                         *
+                         * 用事件而非直接呼叫：anime-rating.js 只在動畫頁載入，
+                         * 漫畫頁沒有監聽者時事件自然無作用，不必在這裡檢查一個
+                         * 可能不存在的全域函式。
+                         *
+                         * oldStatus 比對確保只在「真的從其他狀態變成已看完」時
+                         * 觸發，重複點同一顆或取消再點不會一直跳。
+                         */
+                        if (res.entry.status === 'completed' && oldStatus !== 'completed') {
+                            document.dispatchEvent(new CustomEvent('smacg:watchCompleted', {
+                                detail: { postId: postId }
+                            }));
+                        }
                     }
                 })
                 .catch(function () { state.status = oldStatus; renderStatus(state.status); })
@@ -277,6 +297,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const oldProg = state.progress;
             const newProg = Math.max(0, Math.min(totalEp || Infinity, oldProg + delta));
             if (newProg === oldProg) return;
+            const oldStatus = state.status;
             state.progress = newProg;
             renderProgress(newProg);
             btn.classList.add('is-loading');
@@ -294,6 +315,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         state._prevCleared = res.entry.fullcleared;
                         showPointToast(res.points_earned);
+
+                        /*
+                         * 進度推到最後一集時，後端會自動把狀態改為已看完
+                         * （class-user-status-manager.php 的 adjust_progress），
+                         * 這條路徑同樣要引導寫心得——一集一集推進度的人正是
+                         * 最認真追完的那群，不該只有按「已看完」的人被引導。
+                         */
+                        if (res.entry.status === 'completed' && oldStatus !== 'completed') {
+                            document.dispatchEvent(new CustomEvent('smacg:watchCompleted', {
+                                detail: { postId: postId }
+                            }));
+                        }
                     }
                 })
                 .catch(function () { state.progress = oldProg; renderProgress(oldProg); })

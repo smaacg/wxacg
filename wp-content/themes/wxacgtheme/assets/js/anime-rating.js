@@ -374,9 +374,18 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     });
 
-    /* ── 評分成功後：引導留言（自訂彈窗版） ── */
+    /* ── 引導留言（自訂彈窗版） ──
+       兩種入口：
+         1. 評分送出成功（帶四項分數）
+         2. 追蹤列點「已看完」（不帶分數，由 smacg:watchCompleted 事件觸發）
+       不帶分數時文案與預填內容改為「看完了」的版本。 */
     function smacgPromptComment(story, music, animation, voice) {
-        const avg = ((story + music + animation + voice) / 4).toFixed(1);
+        const hasScore = [ story, music, animation, voice ].every(function (n) {
+            return typeof n === 'number' && isFinite(n);
+        });
+        const avg = hasScore
+            ? ((story + music + animation + voice) / 4).toFixed(1)
+            : null;
 
         /*
          * 留言區 2026-08-18 由 wpDiscuz 改為自建評論系統（review.js），
@@ -392,9 +401,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!section) return;
 
         smacgModal({
-            emoji: '🎉',
-            title: '感謝評分！',
-            html: '你給了 <strong>' + avg + '</strong> 分<br>要不要順便留下你的心得？',
+            emoji: hasScore ? '🎉' : '🎬',
+            title: hasScore ? '感謝評分！' : '看完啦！',
+            html: hasScore
+                ? '你給了 <strong>' + avg + '</strong> 分<br>要不要順便留下你的心得？'
+                : '恭喜看完這部作品<br>要不要留下你的心得？',
             okText: '好，去留言',
             cancelText: '下次再說',
             onOk: function () {
@@ -410,7 +421,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         document.querySelector('#comment');
                     if (!editor) return;
                     if (!editor.value || editor.value.trim() === '') {
-                        editor.value = '我給了 ' + avg + ' 分，因為';
+                        editor.value = hasScore
+                            ? '我給了 ' + avg + ' 分，因為'
+                            : '看完了，我覺得';
                         /*
                          * 自建評論的字數計數器綁在 input 事件上（review.js），
                          * 直接指派 value 不會觸發，計數器會停在 0 與實際內容不符。
@@ -426,5 +439,18 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    /* ── 追蹤列點「已看完」→ 同樣引導寫心得 ──
+       事件由 anime-status.js 廣播（該檔在動畫與漫畫都載入，本檔只在動畫
+       載入，因此漫畫頁不會有引導，這是預期行為）。
+
+       promptedThisPage 確保同一次瀏覽只引導一次：使用者可能反覆切換狀態，
+       每次都跳彈窗會很煩。評分那條入口維持原本行為，不受此旗標影響。 */
+    let promptedThisPage = false;
+    document.addEventListener('smacg:watchCompleted', function () {
+        if (promptedThisPage) return;
+        promptedThisPage = true;
+        setTimeout(function () { smacgPromptComment(); }, 700);
+    });
 
 });
