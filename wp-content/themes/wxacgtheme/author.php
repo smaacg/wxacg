@@ -21,6 +21,16 @@ $author_website = get_the_author_meta( 'user_url', $author_id );
 $author_avatar  = get_avatar_url( $author_id, [ 'size' => 96 ] );
 $author_post_cnt = (int) count_user_posts( $author_id, 'post', true );
 
+$author_user = get_userdata( $author_id );
+$author_login = $author_user ? strtolower((string)$author_user->user_login) : '';
+if ( $author_login === 'kousei' || $author_name === 'Kousei' ) {
+    $author_role_title = '日文翻譯人員 + 洽談公關';
+} elseif ( $author_post_cnt >= 20 ) {
+    $author_role_title = '核心編輯';
+} else {
+    $author_role_title = '專欄作者';
+}
+
 get_header();
 ?>
 
@@ -39,7 +49,7 @@ get_header();
         decoding="async"
       />
       <div class="author-archive-info">
-        <span class="page-badge"><i class="fa-solid fa-pen-nib"></i> 作者</span>
+        <span class="page-badge"><i class="fa-solid fa-pen-nib"></i> <?php echo esc_html( $author_role_title ); ?></span>
         <h1 class="page-title"><?php echo esc_html( $author_name ); ?></h1>
         <?php if ( $author_bio !== '' ) : ?>
           <p class="page-subtitle"><?php echo esc_html( $author_bio ); ?></p>

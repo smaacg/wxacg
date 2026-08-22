@@ -29,3 +29,597 @@ body.page,
 .main-wrap {
     background: transparent !important;
 }
+
+/* ============================================================
+   Anime1 Article Design System - 專用獨立樣式 (無全域污染)
+   ============================================================ */
+.anime1-guide {
+  color: #E2E8F0;
+  line-height: 1.85;
+  font-size: 17px;
+  word-break: break-word;
+}
+
+.anime1-guide *,
+.anime1-guide *::before,
+.anime1-guide *::after {
+  box-sizing: border-box;
+}
+
+/* 標題與基礎間距 */
+.anime1-guide h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 46px;
+  margin-bottom: 18px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #FFFFFF;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #334155;
+  scroll-margin-top: 100px;
+}
+
+.anime1-guide h2::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 24px;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  border-radius: 4px;
+}
+
+.anime1-guide h3 {
+  margin-top: 32px;
+  margin-bottom: 14px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #F1F5F9;
+  scroll-margin-top: 100px;
+}
+
+.anime1-guide p {
+  margin: 0 0 18px;
+  color: #CBD5E1;
+}
+
+.anime1-guide ul,
+.anime1-guide ol {
+  margin: 0 0 20px;
+  padding-left: 24px;
+  color: #CBD5E1;
+}
+
+.anime1-guide li {
+  margin-bottom: 9px;
+}
+
+.anime1-guide a {
+  color: #818CF8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+
+.anime1-guide a:hover {
+  color: #A5B4FC;
+}
+
+/* 首圖與內容圖片 */
+.anime1-cover,
+.anime1-content-image {
+  margin: 24px 0 28px;
+  text-align: center;
+}
+
+.anime1-cover img,
+.anime1-content-image img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border: 1px solid #334155;
+}
+
+.anime1-content-image figcaption,
+.anime1-cover figcaption {
+  margin-top: 10px;
+  color: #94A3B8;
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* 更新時間標籤 */
+.anime1-update-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 24px;
+  padding: 12px 18px;
+  background: #182230;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #94A3B8;
+  border-left: 4px solid #64748B;
+  border: 1px solid #283548;
+}
+
+/* 30秒快速結論 Hero Card */
+.anime1-hero-box {
+  margin: 30px 0;
+  padding: 26px 28px;
+  color: #F8FAFC;
+  background: linear-gradient(145deg, #0F172A 0%, #1E293B 100%);
+  border: 1px solid #334155;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.anime1-hero-box::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, #F59E0B, #EC4899, #6366F1);
+}
+
+.anime1-hero-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  color: #FFFFFF;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.anime1-hero-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+  background: #FBBF24;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.anime1-hero-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: grid;
+  gap: 14px;
+}
+
+.anime1-hero-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.anime1-hero-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.anime1-hero-text {
+  color: #CBD5E1;
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+
+.anime1-hero-text strong {
+  color: #FDE047;
+  font-weight: 600;
+}
+
+/* 精緻目錄導覽 Grid Card */
+.anime1-toc-box {
+  margin: 32px 0;
+  padding: 24px 26px;
+  background: #182230;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.anime1-toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #334155;
+}
+
+.anime1-toc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.anime1-toc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px 20px;
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.anime1-toc-item {
+  margin: 0 !important;
+}
+
+.anime1-toc-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  color: #CBD5E1;
+  text-decoration: none !important;
+  font-size: 15px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.anime1-toc-link:hover {
+  background: #243042;
+  color: #A5B4FC;
+  transform: translateX(4px);
+}
+
+.anime1-toc-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #312E81;
+  color: #A5B4FC;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* 警告與提示 Callout 區塊 (深色適配) */
+.anime1-alert {
+  margin: 24px 0;
+  padding: 18px 22px;
+  border-radius: 12px;
+  font-size: 15.5px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.anime1-alert-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.anime1-alert-content {
+  flex: 1;
+}
+
+.anime1-alert-warning {
+  background: #2D2305;
+  color: #FDE68A;
+  border: 1px solid #78350F;
+  border-left: 5px solid #F59E0B;
+}
+
+.anime1-alert-danger {
+  background: #311317;
+  color: #FECACA;
+  border: 1px solid #7F1D1D;
+  border-left: 5px solid #EF4444;
+}
+
+.anime1-alert-info {
+  background: #062817;
+  color: #A7F3D0;
+  border: 1px solid #065F46;
+  border-left: 5px solid #10B981;
+}
+
+/* 現代精緻深色表格 */
+.anime1-table-wrap {
+  width: 100%;
+  margin: 26px 0;
+  overflow-x: auto;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  -webkit-overflow-scrolling: touch;
+}
+
+.anime1-table-hint {
+  font-size: 13px;
+  color: #94A3B8;
+  margin: -16px 0 20px;
+  text-align: right;
+}
+
+.anime1-guide table {
+  width: 100%;
+  min-width: 720px;
+  margin: 0;
+  border-collapse: collapse;
+  background: #182230;
+  color: #CBD5E1;
+  font-size: 15px;
+}
+
+.anime1-guide th,
+.anime1-guide td {
+  padding: 15px 18px;
+  text-align: left;
+  vertical-align: middle;
+  border: 1px solid #334155;
+}
+
+.anime1-guide th {
+  background: #1E293B;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.anime1-guide tr:nth-child(even) td {
+  background: #151D28;
+}
+
+.anime1-guide tr:hover td {
+  background: #232F42;
+}
+
+/* 標籤徽章 Badges */
+.anime1-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.badge-free {
+  background: #064E3B;
+  color: #A7F3D0;
+  border: 1px solid #047857;
+}
+
+.badge-sub {
+  background: #312E81;
+  color: #C7D2FE;
+  border: 1px solid #4338CA;
+}
+
+.badge-partial {
+  background: #78350F;
+  color: #FDE68A;
+  border: 1px solid #B45309;
+}
+
+.risk-low {
+  background: #064E3B;
+  color: #A7F3D0;
+}
+
+.risk-med {
+  background: #78350F;
+  color: #FDE68A;
+}
+
+.risk-high {
+  background: #7F1D1D;
+  color: #FECACA;
+}
+
+.risk-danger {
+  background: #831843;
+  color: #FBCFE8;
+  border: 1px solid #BE185D;
+}
+
+.risk-critical {
+  background: #500724;
+  color: #FFE4E6;
+  border: 1px solid #9F1239;
+}
+
+.anime1-btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #A5B4FC !important;
+  background: #312E81;
+  border-radius: 6px;
+  text-decoration: none !important;
+  transition: all 0.2s ease;
+  border: 1px solid #4338CA;
+}
+
+.anime1-btn-link:hover {
+  background: #4F46E5;
+  color: #FFFFFF !important;
+}
+
+/* 真實判決案例卡片 */
+.anime1-case-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.anime1-case-card {
+  padding: 20px;
+  background: #182230;
+  border: 1px solid #334155;
+  border-top: 4px solid #EF4444;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.anime1-case-card h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #FCA5A5;
+}
+
+.anime1-case-card p {
+  margin: 0;
+  font-size: 14.5px;
+  color: #CBD5E1;
+}
+
+/* FAQ 精緻卡片 */
+.anime1-faq-wrap {
+  display: grid;
+  gap: 14px;
+  margin: 24px 0;
+}
+
+.anime1-faq-card {
+  padding: 20px 22px;
+  background: #182230;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.2s ease;
+}
+
+.anime1-faq-card:hover {
+  border-color: #475569;
+}
+
+.anime1-faq-q {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 17.5px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.anime1-faq-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: #4F46E5;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 800;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.anime1-faq-a {
+  margin: 0 !important;
+  color: #94A3B8;
+  font-size: 15.5px;
+  line-height: 1.7;
+}
+
+/* 延伸閱讀與聲明 */
+.anime1-related-box {
+  margin: 36px 0;
+  padding: 24px 26px;
+  background: linear-gradient(145deg, #1E1B4B 0%, #312E81 100%);
+  color: #FFFFFF;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(49, 46, 129, 0.3);
+  border: 1px solid #4338CA;
+}
+
+.anime1-related-title {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.anime1-related-box ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.anime1-related-box li {
+  margin-bottom: 8px;
+}
+
+.anime1-related-box a {
+  color: #C7D2FE;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.anime1-related-box a:hover {
+  color: #FFFFFF;
+  text-decoration: underline;
+}
+
+.anime1-sources-list {
+  font-size: 14.5px;
+  color: #94A3B8;
+}
+
+.anime1-sources-list li {
+  margin-bottom: 8px;
+}
+
+/* 行動端調整 */
+@media (max-width: 680px) {
+  .anime1-guide {
+    font-size: 16px;
+  }
+  
+  .anime1-hero-box,
+  .anime1-toc-box,
+  .anime1-related-box {
+    padding: 18px 16px;
+  }
+
+  .anime1-hero-title {
+    font-size: 19px;
+  }
+
+  .anime1-toc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .anime1-guide h2 {
+    font-size: 21px;
+    margin-top: 36px;
+  }
+}
+

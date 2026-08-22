@@ -1060,7 +1060,13 @@ get_header();
 					$m_url      = get_author_posts_url( $m_id );
 					$m_avatar   = get_avatar_url( $m_id, [ 'size' => 112 ] );
 					$m_posts    = (int) count_user_posts( $m_id, 'post', true );
-					$m_role     = ( $m_posts >= 20 ) ? '主編輯' : '內容作者';
+					if ( strtolower( (string) $member->user_login ) === 'kousei' || $m_name === 'Kousei' ) {
+						$m_role = '日文翻譯人員 + 洽談公關';
+					} elseif ( $m_posts >= 20 ) {
+						$m_role = '主編輯';
+					} else {
+						$m_role = '內容作者';
+					}
 					if ( $m_posts < 1 ) continue;
 				?>
 					<div class="wx-about-team-card">

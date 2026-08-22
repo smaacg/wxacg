@@ -601,6 +601,77 @@ get_header();
     line-height: 1.8; padding-bottom: 18px;
   }
 
+  /* ── 吉卜力風 守護寵物（左貓右狗・楚楚可憐・固定側翼） ── */
+  .sponsor-flank-pet {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+  .sponsor-flank-pet.left {
+    left: calc(50vw - 520px - 260px);
+  }
+  .sponsor-flank-pet.right {
+    right: calc(50vw - 520px - 260px);
+  }
+
+  .sponsor-flank-pet img {
+    width: clamp(190px, 13vw, 240px);
+    height: auto;
+    max-height: 68vh;
+    object-fit: contain;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    filter: drop-shadow(0 16px 36px rgba(0,0,0,0.75)) drop-shadow(0 0 25px rgba(212,175,55,0.25));
+  }
+
+  .sponsor-flank-pet.left img {
+    filter: drop-shadow(0 16px 36px rgba(0,0,0,0.75)) drop-shadow(0 0 25px rgba(244,114,182,0.3));
+  }
+
+  .sponsor-flank-pet.right img {
+    filter: drop-shadow(0 16px 36px rgba(0,0,0,0.75)) drop-shadow(0 0 25px rgba(129,140,248,0.3));
+  }
+
+  .flank-pet-bubble {
+    margin-bottom: 12px;
+    background: rgba(15, 17, 30, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    letter-spacing: .02em;
+  }
+  .sponsor-flank-pet.left .flank-pet-bubble {
+    border-color: rgba(244, 114, 182, 0.5);
+    color: #fce7f3;
+  }
+  .sponsor-flank-pet.right .flank-pet-bubble {
+    border-color: rgba(129, 140, 248, 0.5);
+    color: #e0e7ff;
+  }
+
+  @media (max-width: 1650px) {
+    .sponsor-flank-pet.left { left: 10px; }
+    .sponsor-flank-pet.right { right: 10px; }
+    .sponsor-flank-pet img { width: 180px; max-height: 58vh; }
+  }
+
+  @media (max-width: 1480px) {
+    .sponsor-flank-pet { display: none; }
+  }
+
   /* ── RWD ── */
   @media (max-width: 768px) {
     .sponsor-hero { padding: 70px 0 40px; min-height: auto; }
@@ -620,9 +691,21 @@ get_header();
 
 <div class="sponsor-page-wrap">
 
+  <!-- 京阿尼風 守護寵物：左側楚楚可憐貓咪、右側楚楚可憐小狗（固定側翼） -->
+  <div class="sponsor-flank-pet left">
+    <div class="flank-pet-bubble">🥺 請我們喝杯暖暖咖啡～</div>
+    <img src="<?php echo esc_url(get_template_directory_uri() . '/assets/images/ghibli-cat.png?v=6'); ?>" alt="京阿尼畫風 楚楚可憐祈願貓咪" loading="lazy">
+  </div>
+
+  <div class="sponsor-flank-pet right">
+    <div class="flank-pet-bubble">🥺 守著你下一部最愛的番！</div>
+    <img src="<?php echo esc_url(get_template_directory_uri() . '/assets/images/ghibli-dog.png?v=6'); ?>" alt="京阿尼畫風 楚楚可憐守護小狗" loading="lazy">
+  </div>
+
   <!-- ===================== HERO（陪伴感） ===================== -->
   <section class="sponsor-hero">
     <div class="sponsor-hero-bg"></div>
+
     <div class="container">
       <div class="sponsor-hero-content">
         <div class="sponsor-eyebrow">

@@ -252,3 +252,2996 @@
   .single-nav a{padding:10px 14px}
 }
 
+/* ============================================================
+   Anime1 Article Design System - 專題高質感深色排版 (完全隔離)
+   ============================================================ */
+.single-content .anime1-guide {
+  color: #E2E8F0 !important;
+  line-height: 1.85 !important;
+  font-size: 16.5px !important;
+  word-break: break-word !important;
+}
+
+.single-content .anime1-guide h2 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 48px !important;
+  margin-bottom: 20px !important;
+  font-size: 23px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+  padding-bottom: 12px !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1) !important;
+  border-left: none !important;
+  padding-left: 0 !important;
+  scroll-margin-top: 100px !important;
+}
+
+.single-content .anime1-guide h2::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 5px !important;
+  height: 24px !important;
+  background: linear-gradient(135deg, #6366f1, #3b82f6) !important;
+  border-radius: 4px !important;
+  flex-shrink: 0 !important;
+}
+
+.single-content .anime1-guide h3 {
+  margin-top: 34px !important;
+  margin-bottom: 16px !important;
+  font-size: 19.5px !important;
+  font-weight: 700 !important;
+  color: #F8FAFC !important;
+  scroll-margin-top: 100px !important;
+}
+
+.single-content .anime1-guide p {
+  margin: 0 0 18px !important;
+  color: #CBD5E1 !important;
+  line-height: 1.85 !important;
+}
+
+.single-content .anime1-guide ul,
+.single-content .anime1-guide ol {
+  margin: 0 0 22px !important;
+  padding-left: 24px !important;
+  color: #CBD5E1 !important;
+}
+
+.single-content .anime1-guide li {
+  margin-bottom: 9px !important;
+  line-height: 1.75 !important;
+}
+
+/* 封面與內容圖片 */
+.single-content .anime1-guide .anime1-cover,
+.single-content .anime1-guide .anime1-content-image {
+  margin: 26px 0 30px !important;
+  text-align: center !important;
+}
+
+.single-content .anime1-guide .anime1-cover img,
+.single-content .anime1-guide .anime1-content-image img {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  margin: 0 auto !important;
+}
+
+.single-content .anime1-guide figcaption {
+  margin-top: 10px !important;
+  color: #94A3B8 !important;
+  font-size: 14px !important;
+  font-style: italic !important;
+}
+
+/* 更新時間標籤 */
+.single-content .anime1-guide .anime1-update-bar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 0 24px !important;
+  padding: 12px 18px !important;
+  background: rgba(30, 41, 59, 0.7) !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  color: #94A3B8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 4px solid #6366F1 !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* 30秒快速結論 Hero Card */
+.single-content .anime1-guide .anime1-hero-box {
+  margin: 32px 0 !important;
+  padding: 26px 28px !important;
+  color: #F8FAFC !important;
+  background: linear-gradient(145deg, #0B1120 0%, #151F32 100%) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.single-content .anime1-guide .anime1-hero-box::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 4px !important;
+  background: linear-gradient(90deg, #F59E0B, #EC4899, #6366F1) !important;
+}
+
+.single-content .anime1-guide .anime1-hero-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 0 20px !important;
+  color: #FFFFFF !important;
+  font-size: 21px !important;
+  font-weight: 800 !important;
+}
+
+.single-content .anime1-guide .anime1-hero-badge {
+  display: inline-block !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #0F172A !important;
+  background: #FBBF24 !important;
+  border-radius: 20px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.single-content .anime1-guide .anime1-hero-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: grid !important;
+  gap: 12px !important;
+}
+
+.single-content .anime1-guide .anime1-hero-item {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  padding: 14px 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  margin: 0 !important;
+}
+
+.single-content .anime1-guide .anime1-hero-icon {
+  flex-shrink: 0 !important;
+  font-size: 20px !important;
+  line-height: 1.3 !important;
+}
+
+.single-content .anime1-guide .anime1-hero-text {
+  color: #CBD5E1 !important;
+  font-size: 15.5px !important;
+  line-height: 1.65 !important;
+}
+
+.single-content .anime1-guide .anime1-hero-text strong {
+  color: #FDE047 !important;
+  font-weight: 700 !important;
+}
+
+/* 精緻雙欄毛玻璃目錄 Grid Card */
+.single-content .anime1-guide .anime1-toc-box {
+  margin: 34px 0 !important;
+  padding: 24px 26px !important;
+  background: rgba(21, 31, 50, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.single-content .anime1-guide .anime1-toc-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 18px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12) !important;
+}
+
+.single-content .anime1-guide .anime1-toc-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  font-size: 18.5px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .anime1-guide .anime1-toc-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 10px 18px !important;
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.single-content .anime1-guide .anime1-toc-item {
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+.single-content .anime1-guide .anime1-toc-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+  color: #CBD5E1 !important;
+  text-decoration: none !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.single-content .anime1-guide .anime1-toc-link:hover {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  color: #FFFFFF !important;
+  transform: translateX(4px) !important;
+}
+
+.single-content .anime1-guide .anime1-toc-num {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  height: 26px !important;
+  background: linear-gradient(135deg, #4338CA, #6366F1) !important;
+  color: #FFFFFF !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4) !important;
+}
+
+/* 警告與提示 Callout 區塊 */
+.single-content .anime1-guide .anime1-alert {
+  margin: 26px 0 !important;
+  padding: 18px 22px !important;
+  border-radius: 12px !important;
+  font-size: 15.5px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 14px !important;
+}
+
+.single-content .anime1-guide .anime1-alert-icon {
+  font-size: 22px !important;
+  flex-shrink: 0 !important;
+  margin-top: 1px !important;
+}
+
+.single-content .anime1-guide .anime1-alert-content {
+  flex: 1 !important;
+}
+
+.single-content .anime1-guide .anime1-alert-warning {
+  background: rgba(120, 53, 15, 0.25) !important;
+  color: #FDE68A !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  border-left: 5px solid #F59E0B !important;
+}
+
+.single-content .anime1-guide .anime1-alert-danger {
+  background: rgba(127, 29, 29, 0.28) !important;
+  color: #FECACA !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  border-left: 5px solid #EF4444 !important;
+}
+
+.single-content .anime1-guide .anime1-alert-info {
+  background: rgba(6, 78, 59, 0.25) !important;
+  color: #A7F3D0 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  border-left: 5px solid #10B981 !important;
+}
+
+/* 現代精緻深色表格 */
+.single-content .anime1-guide .anime1-table-wrap {
+  width: 100% !important;
+  margin: 28px 0 !important;
+  overflow-x: auto !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+  background: #151F30 !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.single-content .anime1-guide .anime1-table-hint {
+  font-size: 13px !important;
+  color: #94A3B8 !important;
+  margin: -18px 0 22px !important;
+  text-align: right !important;
+}
+
+.single-content .anime1-guide table {
+  width: 100% !important;
+  min-width: 700px !important;
+  margin: 0 !important;
+  border-collapse: collapse !important;
+  display: table !important;
+  background: transparent !important;
+  color: #CBD5E1 !important;
+  font-size: 15px !important;
+}
+
+.single-content .anime1-guide th,
+.single-content .anime1-guide td {
+  padding: 16px 18px !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.single-content .anime1-guide th {
+  background: linear-gradient(180deg, #1E293B 0%, #172033 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  letter-spacing: 0.3px !important;
+}
+
+.single-content .anime1-guide tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.single-content .anime1-guide tr:hover td {
+  background: rgba(99, 102, 241, 0.08) !important;
+}
+
+/* 標籤徽章 Badges */
+.single-content .anime1-guide .anime1-badge {
+  display: inline-block !important;
+  padding: 4px 10px !important;
+  border-radius: 20px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  white-space: nowrap !important;
+}
+
+.single-content .anime1-guide .badge-free {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #6EE7B7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+.single-content .anime1-guide .badge-sub {
+  background: rgba(99, 102, 241, 0.2) !important;
+  color: #C7D2FE !important;
+  border: 1px solid rgba(99, 102, 241, 0.4) !important;
+}
+
+.single-content .anime1-guide .badge-partial {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FDE68A !important;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+.single-content .anime1-guide .risk-low {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #6EE7B7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.single-content .anime1-guide .risk-med {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FDE68A !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+}
+
+.single-content .anime1-guide .risk-high {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #FCA5A5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+}
+
+.single-content .anime1-guide .risk-danger {
+  background: rgba(219, 39, 119, 0.2) !important;
+  color: #FBCFE8 !important;
+  border: 1px solid rgba(219, 39, 119, 0.4) !important;
+}
+
+.single-content .anime1-guide .risk-critical {
+  background: rgba(159, 18, 57, 0.35) !important;
+  color: #FFE4E6 !important;
+  border: 1px solid rgba(225, 29, 72, 0.5) !important;
+}
+
+/* 官方按鈕 CTA */
+.single-content .anime1-guide .anime1-btn-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 7px 14px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: #FFFFFF !important;
+  background: linear-gradient(135deg, #4338CA, #6366F1) !important;
+  border-radius: 20px !important;
+  text-decoration: none !important;
+  transition: all 0.25s ease !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 3px 10px rgba(99, 102, 241, 0.35) !important;
+  white-space: nowrap !important;
+}
+
+.single-content .anime1-guide .anime1-btn-link:hover {
+  background: linear-gradient(135deg, #4F46E5, #3B82F6) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5) !important;
+}
+
+/* 真實判決案例卡片 */
+.single-content .anime1-guide .anime1-case-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 18px !important;
+  margin: 26px 0 !important;
+}
+
+.single-content .anime1-guide .anime1-case-card {
+  padding: 22px !important;
+  background: rgba(25, 35, 52, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-top: 4px solid #EF4444 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+.single-content .anime1-guide .anime1-case-card h3 {
+  margin: 0 0 10px !important;
+  font-size: 17.5px !important;
+  font-weight: 800 !important;
+  color: #FCA5A5 !important;
+}
+
+.single-content .anime1-guide .anime1-case-card p {
+  margin: 0 !important;
+  font-size: 14.5px !important;
+  color: #CBD5E1 !important;
+  line-height: 1.7 !important;
+}
+
+/* FAQ 精緻卡片 */
+.single-content .anime1-guide .anime1-faq-wrap {
+  display: grid !important;
+  gap: 16px !important;
+  margin: 26px 0 !important;
+}
+
+.single-content .anime1-guide .anime1-faq-card {
+  padding: 22px 24px !important;
+  background: rgba(22, 32, 48, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
+  transition: all 0.2s ease !important;
+}
+
+.single-content .anime1-guide .anime1-faq-card:hover {
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+.single-content .anime1-guide .anime1-faq-q {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 0 12px !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .anime1-guide .anime1-faq-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  background: linear-gradient(135deg, #4338CA, #6366F1) !important;
+  color: #FFFFFF !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+}
+
+.single-content .anime1-guide .anime1-faq-a {
+  margin: 0 !important;
+  color: #94A3B8 !important;
+  font-size: 15.5px !important;
+  line-height: 1.75 !important;
+}
+
+/* 延伸閱讀與聲明 */
+.single-content .anime1-guide .anime1-related-box {
+  margin: 38px 0 !important;
+  padding: 26px 28px !important;
+  background: linear-gradient(145deg, #1E1B4B 0%, #312E81 100%) !important;
+  color: #FFFFFF !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px rgba(49, 46, 129, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.single-content .anime1-guide .anime1-related-title {
+  margin: 0 0 16px !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .anime1-guide .anime1-related-box ul {
+  margin: 0 !important;
+  padding-left: 22px !important;
+}
+
+.single-content .anime1-guide .anime1-related-box li {
+  margin-bottom: 10px !important;
+}
+
+.single-content .anime1-guide .anime1-related-box a {
+  color: #C7D2FE !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  transition: color 0.2s ease !important;
+}
+
+.single-content .anime1-guide .anime1-related-box a:hover {
+  color: #FFFFFF !important;
+  text-decoration: underline !important;
+}
+
+.single-content .anime1-guide .anime1-sources-list {
+  font-size: 14.5px !important;
+  color: #94A3B8 !important;
+}
+
+.single-content .anime1-guide .anime1-sources-list li {
+  margin-bottom: 8px !important;
+}
+
+/* ============================================================
+   Adaptation Guide Design System - 動漫改編來源專題 (完全隔離)
+   ============================================================ */
+.single-content .adaptation-guide {
+  color: #E2E8F0 !important;
+  line-height: 1.85 !important;
+  font-size: 16.5px !important;
+  word-break: break-word !important;
+}
+
+.single-content .adaptation-guide h2 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 48px !important;
+  margin-bottom: 20px !important;
+  font-size: 23px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+  padding-bottom: 12px !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1) !important;
+  border-left: none !important;
+  padding-left: 0 !important;
+  scroll-margin-top: 100px !important;
+}
+
+.single-content .adaptation-guide h2::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 5px !important;
+  height: 24px !important;
+  background: linear-gradient(135deg, #EC4899, #8B5CF6) !important;
+  border-radius: 4px !important;
+  flex-shrink: 0 !important;
+}
+
+.single-content .adaptation-guide h3 {
+  margin-top: 32px !important;
+  margin-bottom: 16px !important;
+  font-size: 19.5px !important;
+  font-weight: 700 !important;
+  color: #F8FAFC !important;
+  scroll-margin-top: 100px !important;
+}
+
+.single-content .adaptation-guide p {
+  margin: 0 0 18px !important;
+  color: #CBD5E1 !important;
+  line-height: 1.85 !important;
+}
+
+.single-content .adaptation-guide ul,
+.single-content .adaptation-guide ol {
+  margin: 0 0 22px !important;
+  padding-left: 24px !important;
+  color: #CBD5E1 !important;
+}
+
+.single-content .adaptation-guide li {
+  margin-bottom: 9px !important;
+  line-height: 1.75 !important;
+}
+
+/* 封面與內容圖片 */
+.single-content .adaptation-guide .adapt-cover,
+.single-content .adaptation-guide .adapt-content-image {
+  margin: 26px 0 30px !important;
+  text-align: center !important;
+}
+
+.single-content .adaptation-guide .adapt-cover img,
+.single-content .adaptation-guide .adapt-content-image img {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  margin: 0 auto !important;
+}
+
+.single-content .adaptation-guide figcaption {
+  margin-top: 10px !important;
+  color: #94A3B8 !important;
+  font-size: 14px !important;
+  font-style: italic !important;
+}
+
+/* 更新時間與前言導言條 */
+.single-content .adaptation-guide .adapt-intro-box {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  margin: 0 0 26px !important;
+  padding: 16px 20px !important;
+  background: rgba(30, 41, 59, 0.7) !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  color: #CBD5E1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 4px solid #8B5CF6 !important;
+  backdrop-filter: blur(8px) !important;
+  line-height: 1.7 !important;
+}
+
+/* 30秒速讀 Hero Card */
+.single-content .adaptation-guide .adapt-hero-box {
+  margin: 32px 0 !important;
+  padding: 26px 28px !important;
+  color: #F8FAFC !important;
+  background: linear-gradient(145deg, #0B1120 0%, #151F32 100%) !important;
+  border: 1px solid rgba(139, 92, 246, 0.35) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.single-content .adaptation-guide .adapt-hero-box::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 4px !important;
+  background: linear-gradient(90deg, #8B5CF6, #3B82F6, #F59E0B, #EC4899) !important;
+}
+
+.single-content .adaptation-guide .adapt-hero-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 0 20px !important;
+  color: #FFFFFF !important;
+  font-size: 21px !important;
+  font-weight: 800 !important;
+}
+
+.single-content .adaptation-guide .adapt-hero-badge {
+  display: inline-block !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #0F172A !important;
+  background: #FBBF24 !important;
+  border-radius: 20px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.single-content .adaptation-guide .adapt-hero-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+.single-content .adaptation-guide .adapt-hero-item {
+  background: rgba(255, 255, 255, 0.04) !important;
+  padding: 14px 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.single-content .adaptation-guide .adapt-hero-type {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  margin-bottom: 6px !important;
+}
+
+.single-content .adaptation-guide .adapt-hero-desc {
+  font-size: 14px !important;
+  color: #94A3B8 !important;
+  line-height: 1.6 !important;
+  margin: 0 !important;
+}
+
+/* 雙欄毛玻璃目錄 TOC Card */
+.single-content .adaptation-guide .adapt-toc-box {
+  margin: 34px 0 !important;
+  padding: 24px 26px !important;
+  background: rgba(21, 31, 50, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.single-content .adaptation-guide .adapt-toc-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 18px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12) !important;
+}
+
+.single-content .adaptation-guide .adapt-toc-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  font-size: 18.5px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .adaptation-guide .adapt-toc-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 10px 18px !important;
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.single-content .adaptation-guide .adapt-toc-item {
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+.single-content .adaptation-guide .adapt-toc-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+  color: #CBD5E1 !important;
+  text-decoration: none !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.single-content .adaptation-guide .adapt-toc-link:hover {
+  background: rgba(139, 92, 246, 0.15) !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
+  color: #FFFFFF !important;
+  transform: translateX(4px) !important;
+}
+
+.single-content .adaptation-guide .adapt-toc-num {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  height: 26px !important;
+  background: linear-gradient(135deg, #7C3AED, #8B5CF6) !important;
+  color: #FFFFFF !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4) !important;
+}
+
+/* 四大改編卡片 Type Card */
+.single-content .adaptation-guide .adapt-type-card {
+  margin: 30px 0 !important;
+  padding: 24px 26px !important;
+  background: rgba(21, 31, 50, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+  position: relative !important;
+}
+
+.single-content .adaptation-guide .type-card-original {
+  border-left: 5px solid #8B5CF6 !important;
+}
+
+.single-content .adaptation-guide .type-card-manga {
+  border-left: 5px solid #3B82F6 !important;
+}
+
+.single-content .adaptation-guide .type-card-novel {
+  border-left: 5px solid #F59E0B !important;
+}
+
+.single-content .adaptation-guide .type-card-game {
+  border-left: 5px solid #EC4899 !important;
+}
+
+.single-content .adaptation-guide .type-card-other {
+  border-left: 5px solid #10B981 !important;
+}
+
+/* 現代深色表格 Table Matrix */
+.single-content .adaptation-guide .adapt-table-wrap {
+  width: 100% !important;
+  margin: 28px 0 !important;
+  overflow-x: auto !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+  background: #151F30 !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.single-content .adaptation-guide table {
+  width: 100% !important;
+  min-width: 680px !important;
+  margin: 0 !important;
+  border-collapse: collapse !important;
+  display: table !important;
+  background: transparent !important;
+  color: #CBD5E1 !important;
+  font-size: 15px !important;
+}
+
+.single-content .adaptation-guide th,
+.single-content .adaptation-guide td {
+  padding: 16px 18px !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.single-content .adaptation-guide th {
+  background: linear-gradient(180deg, #1E293B 0%, #172033 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+}
+
+.single-content .adaptation-guide tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.single-content .adaptation-guide tr:hover td {
+  background: rgba(139, 92, 246, 0.08) !important;
+}
+
+/* 標籤徽章 Badges */
+.single-content .adaptation-guide .adapt-badge {
+  display: inline-block !important;
+  padding: 4px 10px !important;
+  border-radius: 20px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  white-space: nowrap !important;
+}
+
+.single-content .adaptation-guide .badge-original {
+  background: rgba(139, 92, 246, 0.2) !important;
+  color: #C4B5FD !important;
+  border: 1px solid rgba(139, 92, 246, 0.4) !important;
+}
+
+.single-content .adaptation-guide .badge-manga {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: #93C5FD !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+}
+
+.single-content .adaptation-guide .badge-novel {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FDE68A !important;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+.single-content .adaptation-guide .badge-game {
+  background: rgba(236, 72, 153, 0.2) !important;
+  color: #FBCFE8 !important;
+  border: 1px solid rgba(236, 72, 153, 0.4) !important;
+}
+
+.single-content .adaptation-guide .risk-low {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #6EE7B7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.single-content .adaptation-guide .risk-med {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FDE68A !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+}
+
+.single-content .adaptation-guide .risk-high {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #FCA5A5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+}
+
+.single-content .adaptation-guide .risk-critical {
+  background: rgba(219, 39, 119, 0.25) !important;
+  color: #FBCFE8 !important;
+  border: 1px solid rgba(219, 39, 119, 0.5) !important;
+}
+
+.single-content .adaptation-guide .rating-stars {
+  color: #FBBF24 !important;
+  letter-spacing: 2px !important;
+  font-weight: 700 !important;
+}
+
+/* FAQ 精緻卡片 */
+.single-content .adaptation-guide .adapt-faq-wrap {
+  display: grid !important;
+  gap: 16px !important;
+  margin: 26px 0 !important;
+}
+
+.single-content .adaptation-guide .adapt-faq-card {
+  padding: 22px 24px !important;
+  background: rgba(22, 32, 48, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
+  transition: all 0.2s ease !important;
+}
+
+.single-content .adaptation-guide .adapt-faq-card:hover {
+  border-color: rgba(139, 92, 246, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+.single-content .adaptation-guide .adapt-faq-q {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 0 12px !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .adaptation-guide .adapt-faq-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  background: linear-gradient(135deg, #7C3AED, #8B5CF6) !important;
+  color: #FFFFFF !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+}
+
+.single-content .adaptation-guide .adapt-faq-a {
+  margin: 0 !important;
+  color: #94A3B8 !important;
+  font-size: 15.5px !important;
+  line-height: 1.75 !important;
+}
+
+/* 延伸閱讀與結論卡片 */
+.single-content .adaptation-guide .adapt-conclusion-box {
+  margin: 30px 0 !important;
+  padding: 22px 24px !important;
+  background: linear-gradient(145deg, #1E1B4B 0%, #312E81 100%) !important;
+  color: #FFFFFF !important;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 24px rgba(49, 46, 129, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  font-size: 16px !important;
+  line-height: 1.8 !important;
+}
+
+.single-content .adaptation-guide .adapt-related-box {
+  margin: 38px 0 !important;
+  padding: 26px 28px !important;
+  background: linear-gradient(145deg, #0F172A 0%, #1E293B 100%) !important;
+  color: #FFFFFF !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.single-content .adaptation-guide .adapt-related-title {
+  margin: 0 0 16px !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .adaptation-guide .adapt-related-box ul {
+  margin: 0 !important;
+  padding-left: 22px !important;
+}
+
+.single-content .adaptation-guide .adapt-related-box li {
+  margin-bottom: 10px !important;
+}
+
+.single-content .adaptation-guide .adapt-related-box a {
+  color: #C7D2FE !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  transition: color 0.2s ease !important;
+}
+
+.single-content .adaptation-guide .adapt-related-box a:hover {
+  color: #FFFFFF !important;
+  text-decoration: underline !important;
+}
+
+@media (max-width: 680px) {
+  .single-content .adaptation-guide {
+    font-size: 15.5px !important;
+  }
+  
+  .single-content .adaptation-guide .adapt-hero-box,
+  .single-content .adaptation-guide .adapt-toc-box,
+  .single-content .adaptation-guide .adapt-type-card,
+  .single-content .adaptation-guide .adapt-related-box {
+    padding: 18px 16px !important;
+  }
+
+  .single-content .adaptation-guide .adapt-hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .single-content .adaptation-guide .adapt-toc-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .single-content .adaptation-guide h2 {
+    font-size: 20px !important;
+    margin-top: 36px !important;
+  }
+}
+
+/* ============================================================
+   Platform Guide Design System - 台灣合法看動漫平台專題 (完全隔離)
+   ============================================================ */
+.single-content .platform-guide {
+  color: #E2E8F0 !important;
+  line-height: 1.85 !important;
+  font-size: 16.5px !important;
+  word-break: break-word !important;
+}
+
+.single-content .platform-guide h2 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 48px !important;
+  margin-bottom: 20px !important;
+  font-size: 23px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+  padding-bottom: 12px !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1) !important;
+  border-left: none !important;
+  padding-left: 0 !important;
+  scroll-margin-top: 100px !important;
+}
+
+.single-content .platform-guide h2::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 5px !important;
+  height: 24px !important;
+  background: linear-gradient(135deg, #10B981, #3B82F6) !important;
+  border-radius: 4px !important;
+  flex-shrink: 0 !important;
+}
+
+.single-content .platform-guide h3 {
+  margin-top: 32px !important;
+  margin-bottom: 16px !important;
+  font-size: 19.5px !important;
+  font-weight: 700 !important;
+  color: #F8FAFC !important;
+  scroll-margin-top: 100px !important;
+}
+
+.single-content .platform-guide h4 {
+  margin-top: 22px !important;
+  margin-bottom: 12px !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: #E2E8F0 !important;
+}
+
+.single-content .platform-guide p {
+  margin: 0 0 18px !important;
+  color: #CBD5E1 !important;
+  line-height: 1.85 !important;
+}
+
+.single-content .platform-guide ul,
+.single-content .platform-guide ol {
+  margin: 0 0 22px !important;
+  padding-left: 24px !important;
+  color: #CBD5E1 !important;
+}
+
+.single-content .platform-guide li {
+  margin-bottom: 9px !important;
+  line-height: 1.75 !important;
+}
+
+/* 封面與內容圖片 */
+.single-content .platform-guide .plat-cover,
+.single-content .platform-guide .plat-content-image {
+  margin: 26px 0 30px !important;
+  text-align: center !important;
+}
+
+.single-content .platform-guide .plat-cover img,
+.single-content .platform-guide .plat-content-image img {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  margin: 0 auto !important;
+}
+
+.single-content .platform-guide figcaption {
+  margin-top: 10px !important;
+  color: #94A3B8 !important;
+  font-size: 14px !important;
+  font-style: italic !important;
+}
+
+/* 海報網格 Poster Grid */
+.single-content .platform-guide .plat-poster-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 20px !important;
+  margin: 26px 0 !important;
+}
+
+.single-content .platform-guide .plat-poster-card {
+  background: rgba(21, 31, 50, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+.single-content .platform-guide .plat-poster-card img {
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+}
+
+.single-content .platform-guide .plat-poster-caption {
+  padding: 12px 14px !important;
+  font-size: 13.5px !important;
+  color: #94A3B8 !important;
+  line-height: 1.6 !important;
+  background: rgba(15, 23, 42, 0.8) !important;
+}
+
+/* 導言條 */
+.single-content .platform-guide .plat-intro-box {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  margin: 0 0 26px !important;
+  padding: 16px 20px !important;
+  background: rgba(30, 41, 59, 0.7) !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  color: #CBD5E1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 4px solid #10B981 !important;
+  backdrop-filter: blur(8px) !important;
+  line-height: 1.7 !important;
+}
+
+/* 30秒速讀 Hero Card */
+.single-content .platform-guide .plat-hero-box {
+  margin: 32px 0 !important;
+  padding: 26px 28px !important;
+  color: #F8FAFC !important;
+  background: linear-gradient(145deg, #0B1120 0%, #151F32 100%) !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.single-content .platform-guide .plat-hero-box::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 4px !important;
+  background: linear-gradient(90deg, #10B981, #3B82F6, #EC4899, #F59E0B) !important;
+}
+
+.single-content .platform-guide .plat-hero-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 0 20px !important;
+  color: #FFFFFF !important;
+  font-size: 21px !important;
+  font-weight: 800 !important;
+}
+
+.single-content .platform-guide .plat-hero-badge {
+  display: inline-block !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #0F172A !important;
+  background: #FBBF24 !important;
+  border-radius: 20px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.single-content .platform-guide .plat-hero-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+.single-content .platform-guide .plat-hero-item {
+  background: rgba(255, 255, 255, 0.04) !important;
+  padding: 14px 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.single-content .platform-guide .plat-hero-type {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  margin-bottom: 6px !important;
+}
+
+.single-content .platform-guide .plat-hero-desc {
+  font-size: 14px !important;
+  color: #94A3B8 !important;
+  line-height: 1.6 !important;
+  margin: 0 !important;
+}
+
+/* 雙欄毛玻璃目錄 TOC Card */
+.single-content .platform-guide .plat-toc-box {
+  margin: 34px 0 !important;
+  padding: 24px 26px !important;
+  background: rgba(21, 31, 50, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.single-content .platform-guide .plat-toc-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 18px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12) !important;
+}
+
+.single-content .platform-guide .plat-toc-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  font-size: 18.5px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .platform-guide .plat-toc-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 10px 18px !important;
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.single-content .platform-guide .plat-toc-item {
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+.single-content .platform-guide .plat-toc-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+  color: #CBD5E1 !important;
+  text-decoration: none !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.single-content .platform-guide .plat-toc-link:hover {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  color: #FFFFFF !important;
+  transform: translateX(4px) !important;
+}
+
+.single-content .platform-guide .plat-toc-num {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  height: 26px !important;
+  background: linear-gradient(135deg, #059669, #10B981) !important;
+  color: #FFFFFF !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4) !important;
+}
+
+/* 現代深色表格 Table Matrix (全螢幕自適應不遮擋) */
+.single-content .platform-guide .plat-table-wrap {
+  width: 100% !important;
+  margin: 28px 0 !important;
+  overflow-x: auto !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
+  background: #111827 !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.single-content .platform-guide .plat-table-wrap::-webkit-scrollbar {
+  height: 6px !important;
+}
+
+.single-content .platform-guide .plat-table-wrap::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border-radius: 3px !important;
+}
+
+.single-content .platform-guide .plat-table-wrap::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #10B981, #3B82F6) !important;
+  border-radius: 3px !important;
+}
+
+.single-content .platform-guide table {
+  width: 100% !important;
+  min-width: 680px !important;
+  margin: 0 !important;
+  border-collapse: collapse !important;
+  display: table !important;
+  background: transparent !important;
+  color: #CBD5E1 !important;
+  font-size: 14.5px !important;
+  table-layout: auto !important;
+}
+
+.single-content .platform-guide th,
+.single-content .platform-guide td {
+  padding: 14px 16px !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  word-break: normal !important;
+}
+
+.single-content .platform-guide th {
+  background: linear-gradient(180deg, #1F2937 0%, #111827 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  font-size: 14.5px !important;
+  white-space: nowrap !important;
+  letter-spacing: 0.5px !important;
+}
+
+.single-content .platform-guide tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.single-content .platform-guide tr:hover td {
+  background: rgba(16, 185, 129, 0.08) !important;
+}
+
+/* 4 欄完美比例 */
+.single-content .platform-guide th:nth-child(1),
+.single-content .platform-guide td:nth-child(1) {
+  width: 22% !important;
+  min-width: 130px !important;
+  white-space: nowrap !important;
+}
+
+.single-content .platform-guide th:nth-child(2),
+.single-content .platform-guide td:nth-child(2) {
+  width: 28% !important;
+  min-width: 160px !important;
+}
+
+.single-content .platform-guide th:nth-child(3),
+.single-content .platform-guide td:nth-child(3) {
+  width: 36% !important;
+  min-width: 220px !important;
+  line-height: 1.6 !important;
+}
+
+.single-content .platform-guide th:nth-child(4),
+.single-content .platform-guide td:nth-child(4) {
+  width: 14% !important;
+  min-width: 90px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+/* 標籤徽章 Badges */
+.single-content .platform-guide .plat-badge {
+  display: inline-block !important;
+  padding: 5px 12px !important;
+  border-radius: 20px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  white-space: nowrap !important;
+  letter-spacing: 0.3px !important;
+}
+
+.single-content .platform-guide .badge-free {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #6EE7B7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+.single-content .platform-guide .badge-sub {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: #93C5FD !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+}
+
+.single-content .platform-guide .badge-paid {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #FCA5A5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+}
+
+.single-content .platform-guide .badge-partial {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FDE68A !important;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+/* 官方按鈕 CTA */
+.single-content .platform-guide .plat-btn-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: #FFFFFF !important;
+  background: linear-gradient(135deg, #059669, #10B981) !important;
+  border-radius: 20px !important;
+  text-decoration: none !important;
+  transition: all 0.25s ease !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35) !important;
+  white-space: nowrap !important;
+}
+
+.single-content .platform-guide .plat-btn-link:hover {
+  background: linear-gradient(135deg, #10B981, #3B82F6) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.5) !important;
+}
+
+/* 平台特色卡片 Type Card */
+.single-content .platform-guide .plat-type-card {
+  margin: 30px 0 !important;
+  padding: 24px 26px !important;
+  background: rgba(21, 31, 50, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+  position: relative !important;
+}
+
+.single-content .platform-guide .type-card-gamer {
+  border-left: 5px solid #3B82F6 !important;
+}
+
+.single-content .platform-guide .type-card-yt {
+  border-left: 5px solid #EF4444 !important;
+}
+
+.single-content .platform-guide .type-card-netflix {
+  border-left: 5px solid #F43F5E !important;
+}
+
+.single-content .platform-guide .type-card-disney {
+  border-left: 5px solid #0284C7 !important;
+}
+
+.single-content .platform-guide .type-card-other {
+  border-left: 5px solid #10B981 !important;
+}
+
+/* FAQ 精緻卡片 */
+.single-content .platform-guide .plat-faq-wrap {
+  display: grid !important;
+  gap: 16px !important;
+  margin: 26px 0 !important;
+}
+
+.single-content .platform-guide .plat-faq-card {
+  padding: 22px 24px !important;
+  background: rgba(22, 32, 48, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
+  transition: all 0.2s ease !important;
+}
+
+.single-content .platform-guide .plat-faq-card:hover {
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+.single-content .platform-guide .plat-faq-q {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 0 12px !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .platform-guide .plat-faq-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  background: linear-gradient(135deg, #059669, #10B981) !important;
+  color: #FFFFFF !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+}
+
+.single-content .platform-guide .plat-faq-a {
+  margin: 0 !important;
+  color: #94A3B8 !important;
+  font-size: 15.5px !important;
+  line-height: 1.75 !important;
+}
+
+/* 延伸閱讀卡片 */
+.single-content .platform-guide .plat-related-box {
+  margin: 38px 0 !important;
+  padding: 26px 28px !important;
+  background: linear-gradient(145deg, #064E3B 0%, #0F766E 100%) !important;
+  color: #FFFFFF !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px rgba(6, 78, 59, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.single-content .platform-guide .plat-related-title {
+  margin: 0 0 16px !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #FFFFFF !important;
+}
+
+.single-content .platform-guide .plat-related-box ul {
+  margin: 0 !important;
+  padding-left: 22px !important;
+}
+
+.single-content .platform-guide .plat-related-box li {
+  margin-bottom: 10px !important;
+}
+
+.single-content .platform-guide .plat-related-box a {
+  color: #A7F3D0 !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  transition: color 0.2s ease !important;
+}
+
+.single-content .platform-guide .plat-related-box a:hover {
+  color: #FFFFFF !important;
+  text-decoration: underline !important;
+}
+
+@media (max-width: 768px) {
+  .single-content .platform-guide {
+    font-size: 15px !important;
+    line-height: 1.75 !important;
+  }
+
+  .single-content .platform-guide h2 {
+    font-size: 19px !important;
+    margin-top: 36px !important;
+    margin-bottom: 16px !important;
+    gap: 8px !important;
+  }
+
+  .single-content .platform-guide h2::before {
+    height: 20px !important;
+    width: 4px !important;
+  }
+
+  .single-content .platform-guide h3 {
+    font-size: 17px !important;
+    margin-top: 24px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .single-content .platform-guide h4 {
+    font-size: 15.5px !important;
+    margin-top: 18px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .single-content .platform-guide .plat-intro-box {
+    padding: 14px 16px !important;
+    font-size: 14px !important;
+  }
+  
+  .single-content .platform-guide .plat-hero-box,
+  .single-content .platform-guide .plat-toc-box,
+  .single-content .platform-guide .plat-type-card,
+  .single-content .platform-guide .plat-related-box {
+    padding: 18px 16px !important;
+    border-radius: 14px !important;
+  }
+
+  .single-content .platform-guide .plat-hero-title {
+    font-size: 17.5px !important;
+    gap: 8px !important;
+  }
+
+  .single-content .platform-guide .plat-hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .single-content .platform-guide .plat-toc-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .single-content .platform-guide .plat-toc-link {
+    font-size: 14px !important;
+    padding: 8px 10px !important;
+    gap: 10px !important;
+  }
+
+  .single-content .platform-guide .plat-toc-num {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 11px !important;
+  }
+
+  /* 手機版表格滑動與排版優化 */
+  .single-content .platform-guide .plat-table-wrap {
+    margin: 20px 0 !important;
+    border-radius: 12px !important;
+    position: relative !important;
+  }
+
+  .single-content .platform-guide table {
+    min-width: 620px !important;
+    font-size: 13.5px !important;
+  }
+
+  .single-content .platform-guide th,
+  .single-content .platform-guide td {
+    padding: 10px 12px !important;
+  }
+
+  .single-content .platform-guide th {
+    font-size: 13.5px !important;
+  }
+
+  .single-content .platform-guide .plat-badge {
+    padding: 3px 8px !important;
+    font-size: 11.5px !important;
+  }
+
+  .single-content .platform-guide .plat-btn-link {
+    padding: 5px 12px !important;
+    font-size: 12px !important;
+  }
+
+  /* 手機版海報卡片置中與適配 */
+  .single-content .platform-guide .plat-poster-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    margin: 20px 0 !important;
+  }
+
+  .single-content .platform-guide .plat-poster-card {
+    max-width: 280px !important;
+    margin: 0 auto !important;
+    border-radius: 12px !important;
+  }
+
+  .single-content .platform-guide .plat-poster-caption {
+    padding: 8px 10px !important;
+    font-size: 12.5px !important;
+  }
+
+  /* 手機版 FAQ 卡片 */
+  .single-content .platform-guide .plat-faq-card {
+    padding: 16px 16px !important;
+  }
+
+  .single-content .platform-guide .plat-faq-q {
+    font-size: 16px !important;
+    gap: 8px !important;
+  }
+
+  .single-content .platform-guide .plat-faq-badge {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 12px !important;
+  }
+
+  .single-content .platform-guide .plat-faq-a {
+    font-size: 14px !important;
+  }
+}
+
+/* ── 封面圖與燈箱放大效果 (Lightbox & Zoom) ── */
+.single-cover {
+  position: relative !important;
+  overflow: hidden !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4) !important;
+  margin-bottom: 32px !important;
+}
+
+.single-cover-zoom {
+  display: block !important;
+  position: relative !important;
+  cursor: zoom-in !important;
+  text-decoration: none !important;
+}
+
+.single-cover-zoom img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  border-radius: 16px !important;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), filter 0.35s ease !important;
+}
+
+.single-cover-zoom:hover img {
+  transform: scale(1.02) !important;
+  filter: brightness(1.06) !important;
+}
+
+.cover-zoom-badge {
+  position: absolute !important;
+  right: 18px !important;
+  bottom: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 16px !important;
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: #F8FAFC !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(8px) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  transition: all 0.25s ease !important;
+  pointer-events: none !important;
+}
+
+.single-cover-zoom:hover .cover-zoom-badge {
+  background: linear-gradient(135deg, #10B981, #3B82F6) !important;
+  color: #FFFFFF !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5) !important;
+}
+
+/* Lightbox Modal */
+.smacg-lightbox {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: opacity 0.25s ease, visibility 0.25s ease !important;
+}
+
+.smacg-lightbox.is-active {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.smacg-lightbox-overlay {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(5, 10, 20, 0.92) !important;
+  backdrop-filter: blur(12px) !important;
+  cursor: zoom-out !important;
+}
+
+.smacg-lightbox-box {
+  position: relative !important;
+  z-index: 2 !important;
+  max-width: 95vw !important;
+  max-height: 92vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  animation: smacgZoomIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes smacgZoomIn {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.smacg-lightbox-box img {
+  max-width: 95vw !important;
+  max-height: 85vh !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.smacg-lightbox-close {
+  position: absolute !important;
+  top: -46px !important;
+  right: 0 !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #FFFFFF !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+}
+
+.smacg-lightbox-close:hover {
+  background: #EF4444 !important;
+  border-color: #EF4444 !important;
+  transform: scale(1.1) !important;
+}
+
+.smacg-lightbox-caption {
+  margin-top: 12px !important;
+  font-size: 14px !important;
+  color: #94A3B8 !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  max-width: 800px !important;
+}
+
+@media (max-width: 768px) {
+  .cover-zoom-badge {
+    right: 12px !important;
+    bottom: 12px !important;
+    padding: 5px 12px !important;
+    font-size: 11.5px !important;
+  }
+}
+
+/* =========================================================
+   《進擊的巨人》深度影評專屬排版樣式 (.titan-cover)
+   配色哲學：調查軍團墨綠 + 自由之翼深藍 + 艾爾迪亞緋紅 + 古典羊皮紙米色
+========================================================= */
+.titan-cover {
+	--tt-text: #2c332e;
+	--tt-dark: #14241b;
+	--tt-corps-green: #1f3d2b;
+	--tt-corps-dark: #13271c;
+	--tt-wings-blue: #1e3a8a;
+	--tt-crimson: #881337;
+	--tt-crimson-dark: #4c0519;
+	--tt-brass: #92400e;
+	--tt-soft: #f8f6f0;
+	--tt-parchment: #f1ede2;
+	--tt-line: #ddd7c9;
+	--tt-muted: #6b7569;
+	--tt-gold: #b45309;
+
+	display: block !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	margin: 0 !important;
+	padding: clamp(24px, 4vw, 44px) !important;
+	overflow: hidden !important;
+	color: var(--tt-text) !important;
+	background: #ffffff !important;
+	border: 1px solid var(--tt-line) !important;
+	border-radius: 8px !important;
+	box-shadow: 0 12px 38px rgba(27, 43, 33, .09) !important;
+	color-scheme: light !important;
+	isolation: isolate !important;
+	font-family: "Noto Serif TC", "PingFang TC", "Microsoft JhengHei", serif !important;
+	font-size: 18px !important;
+	line-height: 2 !important;
+	letter-spacing: .02em !important;
+	counter-reset: tt-section;
+}
+
+.titan-cover *,
+.titan-cover *::before,
+.titan-cover *::after {
+	box-sizing: border-box !important;
+}
+
+/* 防止 WordPress wpautop 的 p 標籤破壞 grid / flex 結構 */
+.titan-cover .tt-score-row > p,
+.titan-cover .tt-season-grid > p,
+.titan-cover .tt-char-grid > p,
+.titan-cover .tt-char-card > p,
+.titan-cover .tt-studio-grid > p {
+	display: contents !important;
+	margin: 0 !important;
+	padding: 0 !important;
+}
+
+.titan-cover p {
+	margin: 0 0 1.5em !important;
+	padding: 0 !important;
+	color: var(--tt-text) !important;
+	background: transparent !important;
+	font-size: 18px !important;
+	line-height: 2 !important;
+}
+
+.titan-cover strong {
+	color: var(--tt-dark) !important;
+	font-weight: 900 !important;
+}
+
+.titan-cover a {
+	color: var(--tt-corps-green) !important;
+	text-decoration-color: rgba(31, 61, 43, .55) !important;
+	text-decoration-thickness: 1px !important;
+	text-underline-offset: 4px !important;
+}
+
+.titan-cover img {
+	display: block !important;
+	max-width: 100% !important;
+	height: auto !important;
+	margin: 0 !important;
+}
+
+/* 首圖 Hero 與內文劇照 Figure */
+.titan-cover .tt-hero,
+.titan-cover .tt-figure {
+	display: block !important;
+	width: 100% !important;
+	margin: 34px 0 !important;
+	padding: 0 !important;
+}
+
+.titan-cover .tt-figure img {
+	display: block !important;
+	width: 100% !important;
+	height: auto !important;
+	max-height: 480px !important;
+	object-fit: cover !important;
+	object-position: center !important;
+	border-radius: 8px !important;
+	border: 1px solid var(--tt-line) !important;
+	box-shadow: 0 6px 20px rgba(0, 0, 0, .07) !important;
+}
+
+.titan-cover .tt-hero-image {
+	display: block !important;
+	width: 100% !important;
+	overflow: hidden !important;
+	background: var(--tt-parchment) !important;
+	border-radius: 6px !important;
+	border: 1px solid var(--tt-line) !important;
+}
+
+.titan-cover .tt-hero-image img {
+	display: block !important;
+	width: 100% !important;
+	height: auto !important;
+	max-height: 520px !important;
+	aspect-ratio: 16 / 9 !important;
+	object-fit: cover !important;
+	object-position: center !important;
+	border-radius: 6px !important;
+}
+
+.titan-cover .tt-hero figcaption,
+.titan-cover .tt-figure figcaption {
+	display: block !important;
+	margin: 11px 0 0 !important;
+	padding: 0 !important;
+	color: var(--tt-muted) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 13.5px !important;
+	line-height: 1.7 !important;
+	text-align: center !important;
+}
+
+.titan-cover .tt-lead {
+	margin: 0 0 20px !important;
+	color: var(--tt-dark) !important;
+	font-size: clamp(20px, 2.6vw, 24px) !important;
+	font-weight: 900 !important;
+	line-height: 1.8 !important;
+}
+
+.titan-cover .tt-update {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 7px 20px !important;
+	width: 100% !important;
+	margin: 0 0 36px !important;
+	padding: 0 0 20px !important;
+	color: var(--tt-muted) !important;
+	border-bottom: 1px solid var(--tt-line) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 13px !important;
+	line-height: 1.6 !important;
+}
+
+/* 快速結論 Answer Box */
+.titan-cover .tt-answer {
+	display: block !important;
+	width: 100% !important;
+	margin: 0 0 38px !important;
+	padding: 24px 28px !important;
+	color: var(--tt-text) !important;
+	background: var(--tt-soft) !important;
+	border: 1px solid var(--tt-line) !important;
+	border-left: 7px solid var(--tt-corps-green) !important;
+	border-radius: 6px !important;
+}
+
+.titan-cover .tt-answer-label {
+	display: block !important;
+	margin: 0 0 8px !important;
+	color: var(--tt-corps-green) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 13px !important;
+	font-weight: 900 !important;
+	letter-spacing: .12em !important;
+}
+
+.titan-cover .tt-answer p {
+	margin: 0 !important;
+}
+
+/* 頂部數據 Score Row */
+.titan-cover .tt-score-row {
+	display: grid !important;
+	grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+	width: 100% !important;
+	margin: 0 0 44px !important;
+	padding: 0 !important;
+	background: #fff !important;
+	border-top: 1px solid var(--tt-line) !important;
+	border-bottom: 1px solid var(--tt-line) !important;
+}
+
+.titan-cover .tt-score-item {
+	display: block !important;
+	padding: 18px 8px !important;
+	text-align: center !important;
+	border-right: 1px solid var(--tt-line) !important;
+}
+
+.titan-cover .tt-score-item:last-child {
+	border-right: 0 !important;
+}
+
+.titan-cover .tt-score-number {
+	display: block !important;
+	margin: 0 0 4px !important;
+	color: var(--tt-crimson) !important;
+	font-family: Georgia, serif !important;
+	font-size: 26px !important;
+	font-weight: 700 !important;
+	line-height: 1.1 !important;
+}
+
+.titan-cover .tt-score-label {
+	display: block !important;
+	color: var(--tt-muted) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 12px !important;
+}
+
+/* 文章目錄 TOC */
+.titan-cover .tt-toc {
+	display: block !important;
+	width: 100% !important;
+	margin: 0 0 48px !important;
+	padding: 24px 28px !important;
+	background: var(--tt-soft) !important;
+	border: 1px solid var(--tt-line) !important;
+	border-radius: 6px !important;
+}
+
+.titan-cover .tt-toc summary {
+	position: relative !important;
+	display: block !important;
+	cursor: pointer !important;
+	list-style: none !important;
+	color: var(--tt-dark) !important;
+	font-size: 20px !important;
+	font-weight: 900 !important;
+}
+
+.titan-cover .tt-toc summary::-webkit-details-marker { display: none !important; }
+
+.titan-cover .tt-toc summary::after {
+	content: "－" !important;
+	position: absolute !important;
+	right: 0 !important;
+	top: 0 !important;
+	color: var(--tt-corps-green) !important;
+	font-size: 20px !important;
+}
+
+.titan-cover .tt-toc:not([open]) summary::after { content: "＋" !important; }
+
+.titan-cover .tt-toc ol {
+	margin: 18px 0 0 !important;
+	padding: 0 !important;
+	list-style: none !important;
+	counter-reset: tt-toc;
+}
+
+.titan-cover .tt-toc li {
+	counter-increment: tt-toc;
+	border-top: 1px solid rgba(31, 61, 43, .12) !important;
+}
+
+.titan-cover .tt-toc a {
+	display: grid !important;
+	grid-template-columns: 34px minmax(0, 1fr) !important;
+	gap: 6px !important;
+	align-items: start !important;
+	padding: 10px 0 !important;
+	color: var(--tt-corps-green) !important;
+	font-size: 15.5px !important;
+	font-weight: 800 !important;
+	text-decoration: none !important;
+}
+
+.titan-cover .tt-toc a::before {
+	content: counter(tt-toc, decimal-leading-zero) !important;
+	color: #94a3b8 !important;
+	font-family: Georgia, serif !important;
+	font-size: 13px !important;
+}
+
+/* 四季海報網格 Season Grid */
+.titan-cover .tt-season-grid {
+	display: grid !important;
+	grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+	gap: 16px !important;
+	width: 100% !important;
+	margin: 28px 0 44px !important;
+}
+
+.titan-cover .tt-season-card {
+	display: flex !important;
+	flex-direction: column !important;
+	overflow: hidden !important;
+	background: #fff !important;
+	border: 1px solid var(--tt-line) !important;
+	border-radius: 6px !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, .06) !important;
+	text-decoration: none !important;
+	cursor: pointer !important;
+	transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease !important;
+}
+
+.titan-cover .tt-season-card:hover {
+	transform: translateY(-4px) !important;
+	border-color: var(--tt-primary) !important;
+	box-shadow: 0 10px 22px rgba(140, 45, 45, .15) !important;
+}
+
+.titan-cover .tt-season-card:hover .tt-season-title {
+	color: var(--tt-primary) !important;
+}
+
+.titan-cover .tt-season-card img {
+	width: 100% !important;
+	height: 220px !important;
+	object-fit: cover !important;
+	object-position: center top !important;
+}
+
+.titan-cover .tt-season-body {
+	padding: 12px 10px 14px !important;
+}
+
+.titan-cover .tt-season-kicker {
+	font-size: 10.5px !important;
+	font-weight: 900 !important;
+	color: var(--tt-corps-green) !important;
+	letter-spacing: .1em !important;
+	margin-bottom: 4px !important;
+}
+
+.titan-cover .tt-season-title {
+	font-size: 14.5px !important;
+	font-weight: 900 !important;
+	color: var(--tt-dark) !important;
+	line-height: 1.4 !important;
+	margin-bottom: 4px !important;
+}
+
+.titan-cover .tt-season-info {
+	font-size: 11.5px !important;
+	color: var(--tt-muted) !important;
+	line-height: 1.5 !important;
+}
+
+/* H2 大標題 */
+.titan-cover h2 {
+	counter-increment: tt-section;
+	position: relative !important;
+	display: block !important;
+	width: 100% !important;
+	margin: 60px 0 28px !important;
+	padding: 14px 0 16px 56px !important;
+	color: var(--tt-dark) !important;
+	border-bottom: 3px dotted var(--tt-corps-green) !important;
+	font-family: "Noto Serif TC", "PingFang TC", serif !important;
+	font-size: clamp(21px, 2.9vw, 26px) !important;
+	font-weight: 900 !important;
+	line-height: 1.4 !important;
+}
+
+.titan-cover h2::before {
+	content: counter(tt-section, decimal-leading-zero) !important;
+	position: absolute !important;
+	left: 0 !important;
+	top: 14px !important;
+	color: var(--tt-corps-green) !important;
+	font-family: Georgia, serif !important;
+	font-size: 32px !important;
+	font-weight: 700 !important;
+	line-height: 1 !important;
+}
+
+.titan-cover h3 {
+	margin: 32px 0 16px !important;
+	color: var(--tt-dark) !important;
+	font-size: 20px !important;
+	font-weight: 800 !important;
+	line-height: 1.5 !important;
+}
+
+/* 金句卡片 Quote Box */
+.titan-cover .tt-quote-box {
+	margin: 28px 0 !important;
+	padding: 22px 26px !important;
+	background: #14241b !important;
+	color: #f8f6f0 !important;
+	border-left: 6px solid var(--tt-crimson) !important;
+	border-radius: 6px !important;
+	font-style: italic !important;
+}
+
+.titan-cover .tt-quote-text {
+	font-size: 19px !important;
+	line-height: 1.8 !important;
+	margin-bottom: 8px !important;
+	font-weight: 700 !important;
+	color: #ffffff !important;
+}
+
+.titan-cover .tt-quote-author {
+	font-size: 13.5px !important;
+	color: #a7b3a8 !important;
+	text-align: right !important;
+	font-style: normal !important;
+}
+
+/* 製作公司對比網格 Studio Grid (Section 06 專用) */
+.titan-cover .tt-studio-grid {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	gap: 20px !important;
+	margin: 28px 0 !important;
+}
+
+.titan-cover .tt-studio-card {
+	display: block !important;
+	padding: 22px !important;
+	background: var(--tt-soft) !important;
+	border: 1px solid var(--tt-line) !important;
+	border-top: 5px solid var(--tt-corps-green) !important;
+	border-radius: 8px !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, .04) !important;
+}
+
+.titan-cover .tt-studio-title {
+	font-size: 18px !important;
+	font-weight: 900 !important;
+	color: var(--tt-dark) !important;
+	margin: 0 0 10px !important;
+	display: block !important;
+}
+
+.titan-cover .tt-studio-desc {
+	font-size: 15px !important;
+	line-height: 1.8 !important;
+	color: var(--tt-text) !important;
+	margin: 0 !important;
+}
+
+/* 角色剖析網格 Character Grid (Section 07 專用 - 使用 Grid 絕對不擠壓) */
+.titan-cover .tt-char-grid {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	gap: 20px !important;
+	margin: 32px 0 !important;
+}
+
+.titan-cover .tt-char-card {
+	display: grid !important;
+	grid-template-columns: 90px 1fr !important;
+	gap: 16px !important;
+	align-items: start !important;
+	padding: 20px !important;
+	background: var(--tt-soft) !important;
+	border: 1px solid var(--tt-line) !important;
+	border-left: 5px solid var(--tt-corps-green) !important;
+	border-radius: 8px !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, .04) !important;
+	transition: transform .2s ease, box-shadow .2s ease !important;
+}
+
+.titan-cover .tt-char-card:hover {
+	transform: translateY(-3px) !important;
+	box-shadow: 0 8px 20px rgba(0, 0, 0, .08) !important;
+}
+
+.titan-cover .tt-char-avatar {
+	width: 90px !important;
+	height: 90px !important;
+	border-radius: 50% !important;
+	object-fit: cover !important;
+	object-position: center top !important;
+	border: 2px solid var(--tt-brass) !important;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, .15) !important;
+	background: #eee !important;
+	margin: 0 !important;
+}
+
+.titan-cover .tt-char-content {
+	display: block !important;
+	min-width: 0 !important;
+}
+
+.titan-cover .tt-char-header {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: center !important;
+	gap: 8px !important;
+	margin-bottom: 6px !important;
+}
+
+.titan-cover .tt-char-name {
+	font-size: 18px !important;
+	font-weight: 900 !important;
+	color: var(--tt-dark) !important;
+	margin: 0 !important;
+	line-height: 1.3 !important;
+}
+
+.titan-cover .tt-char-badge {
+	display: inline-block !important;
+	padding: 2px 8px !important;
+	border-radius: 4px !important;
+	font-size: 11.5px !important;
+	font-weight: 800 !important;
+	background: rgba(31, 61, 43, 0.12) !important;
+	color: var(--tt-corps-green) !important;
+	border: 1px solid rgba(31, 61, 43, 0.25) !important;
+}
+
+.titan-cover .tt-char-cv {
+	font-size: 12.5px !important;
+	color: var(--tt-muted) !important;
+	margin-bottom: 8px !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+}
+
+.titan-cover .tt-char-desc {
+	font-size: 14.5px !important;
+	line-height: 1.75 !important;
+	color: var(--tt-text) !important;
+	margin: 0 !important;
+}
+
+/* FAQ 摺疊問答 */
+.titan-cover .tt-faq-item {
+	margin-bottom: 14px !important;
+	border: 1px solid var(--tt-line) !important;
+	border-radius: 6px !important;
+	background: var(--tt-soft) !important;
+	overflow: hidden !important;
+}
+
+.titan-cover .tt-faq-q {
+	padding: 16px 20px !important;
+	font-weight: 800 !important;
+	color: var(--tt-dark) !important;
+	cursor: pointer !important;
+	font-size: 16.5px !important;
+	display: flex !important;
+	align-items: center;
+	gap: 10px !important;
+}
+
+.titan-cover .tt-faq-a {
+	padding: 0 20px 18px !important;
+	font-size: 15px !important;
+	line-height: 1.8 !important;
+	color: var(--tt-text) !important;
+}
+
+/* 手機版適配 */
+@media (max-width: 768px) {
+	.titan-cover {
+		padding: 18px 16px !important;
+		font-size: 16px !important;
+		line-height: 1.8 !important;
+	}
+
+	.titan-cover p {
+		font-size: 16px !important;
+		line-height: 1.8 !important;
+	}
+
+	.titan-cover .tt-score-row {
+		grid-template-columns: repeat(2, 1fr) !important;
+	}
+
+	.titan-cover .tt-score-item:nth-child(2) {
+		border-right: 0 !important;
+	}
+
+	.titan-cover .tt-score-item:nth-child(-n+2) {
+		border-bottom: 1px solid var(--tt-line) !important;
+	}
+
+	.titan-cover .tt-season-grid {
+		grid-template-columns: repeat(2, 1fr) !important;
+		gap: 10px !important;
+	}
+
+	.titan-cover .tt-season-card img {
+		height: 160px !important;
+	}
+
+	.titan-cover .tt-studio-grid,
+	.titan-cover .tt-char-grid {
+		grid-template-columns: 1fr !important;
+	}
+
+	.titan-cover .tt-char-card {
+		grid-template-columns: 76px 1fr !important;
+		gap: 12px !important;
+		padding: 16px !important;
+	}
+
+	.titan-cover .tt-char-avatar {
+		width: 76px !important;
+		height: 76px !important;
+	}
+
+	.titan-cover h2 {
+		padding-left: 44px !important;
+		font-size: 20px !important;
+	}
+
+	.titan-cover h2::before {
+		font-size: 26px !important;
+	}
+}
+
+/* ═══════════════════════════════════════════════
+   WXACG Master News Post System
+   ═══════════════════════════════════════════════ */
+.wxacg-news-post {
+  color: #e2e8f0 !important;
+  font-size: 16px !important;
+  line-height: 1.8 !important;
+}
+
+.wxacg-news-post p {
+  margin-bottom: 18px !important;
+  line-height: 1.8 !important;
+  color: #cbd5e1 !important;
+}
+
+/* 頂部焦點引言 */
+.wxacg-news-post .news-lead-box {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  border-left: 5px solid #ef4444 !important;
+  border-radius: 12px !important;
+  padding: 20px 24px !important;
+  margin: 10px 0 24px !important;
+}
+
+.wxacg-news-post .news-lead-box p {
+  color: #f8fafc !important;
+  font-size: 16px !important;
+  margin: 0 !important;
+  line-height: 1.75 !important;
+}
+
+/* 30秒重點卡片 */
+.wxacg-news-post .news-summary-card {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  padding: 20px 24px !important;
+  margin: 16px 0 28px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+}
+
+.wxacg-news-post .summary-item {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  padding: 10px 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.wxacg-news-post .summary-item:last-child {
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+}
+
+.wxacg-news-post .summary-item:first-child {
+  padding-top: 0 !important;
+}
+
+.wxacg-news-post .summary-icon {
+  font-size: 18px !important;
+  line-height: 1.3 !important;
+  flex-shrink: 0 !important;
+}
+
+.wxacg-news-post .summary-text {
+  font-size: 15px !important;
+  line-height: 1.6 !important;
+  color: #e2e8f0 !important;
+}
+
+.wxacg-news-post .summary-text strong {
+  color: #ffffff !important;
+}
+
+/* 內文劇照展示 */
+.wxacg-news-post .news-media-frame {
+  margin: 28px 0 !important;
+  background: rgba(15, 23, 42, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+.wxacg-news-post .news-media-frame img {
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+}
+
+.wxacg-news-post .news-media-caption {
+  padding: 10px 16px !important;
+  font-size: 13px !important;
+  color: #94a3b8 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+
+/* 觀點引用卡片 */
+.wxacg-news-post .news-quote-card {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  padding: 18px 22px !important;
+  margin: 16px 0 !important;
+}
+
+.wxacg-news-post .news-quote-card.blue {
+  border-left: 4px solid #3b82f6 !important;
+}
+
+.wxacg-news-post .news-quote-card.gold {
+  border-left: 4px solid #f59e0b !important;
+}
+
+.wxacg-news-post .news-quote-card.red {
+  border-left: 4px solid #ef4444 !important;
+}
+
+.wxacg-news-post .quote-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 8px !important;
+}
+
+.wxacg-news-post .quote-title {
+  font-size: 15.5px !important;
+  font-weight: 800 !important;
+}
+
+.wxacg-news-post .quote-tag {
+  font-size: 12px !important;
+  color: #94a3b8 !important;
+}
+
+.wxacg-news-post .quote-body {
+  font-size: 14.5px !important;
+  line-height: 1.7 !important;
+  color: #f1f5f9 !important;
+  margin: 0 !important;
+}
+
+/* 表格樣式 */
+.wxacg-news-post .news-table-wrap {
+  width: 100% !important;
+  overflow-x: auto !important;
+  margin: 20px 0 28px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.wxacg-news-post .news-custom-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 14.5px !important;
+  color: #e2e8f0 !important;
+  background: rgba(15, 23, 42, 0.85) !important;
+  margin: 0 !important;
+}
+
+.wxacg-news-post .news-custom-table th {
+  background: rgba(30, 41, 59, 0.95) !important;
+  color: #f8fafc !important;
+  font-weight: 800 !important;
+  padding: 12px 16px !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+.wxacg-news-post .news-custom-table td {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  vertical-align: middle !important;
+  line-height: 1.6 !important;
+}
+
+.wxacg-news-post .news-custom-table tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* 狀態徽章 */
+.wxacg-news-post .badge-ok {
+  display: inline-block !important;
+  padding: 3px 10px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #34d399 !important;
+  background: rgba(16, 185, 129, 0.2) !important;
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+  white-space: nowrap !important;
+}
+
+.wxacg-news-post .badge-ban {
+  display: inline-block !important;
+  padding: 3px 10px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #f87171 !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  white-space: nowrap !important;
+}
+
+.wxacg-news-post .badge-warn {
+  display: inline-block !important;
+  padding: 3px 10px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #fbbf24 !important;
+  background: rgba(245, 158, 11, 0.2) !important;
+  border: 1px solid rgba(245, 158, 11, 0.5) !important;
+  white-space: nowrap !important;
+}
+
+/* 平台清單 */
+.wxacg-news-post .news-platform-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 18px 0 24px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+.wxacg-news-post .news-platform-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 18px !important;
+  background: rgba(15, 23, 42, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px !important;
+  font-size: 14.5px !important;
+  color: #e2e8f0 !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.wxacg-news-post .news-platform-item.active {
+  border-left: 4px solid #10b981 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+}
+
+.wxacg-news-post .news-platform-item.disabled {
+  border-left: 4px solid #ef4444 !important;
+}
+
+/* FAQ 結構 */
+.wxacg-news-post .news-faq-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  margin: 20px 0 28px !important;
+}
+
+.wxacg-news-post .news-faq-card {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  padding: 18px 20px !important;
+}
+
+.wxacg-news-post .faq-q-title {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  font-size: 15.5px !important;
+  font-weight: 800 !important;
+  color: #f8fafc !important;
+  margin-bottom: 10px !important;
+  line-height: 1.4 !important;
+}
+
+.wxacg-news-post .faq-badge-q {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  background: #38bdf8 !important;
+  color: #0f172a !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  border-radius: 6px !important;
+  flex-shrink: 0 !important;
+  margin-top: 1px !important;
+}
+
+.wxacg-news-post .faq-a-body {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  font-size: 14px !important;
+  color: #cbd5e1 !important;
+  line-height: 1.7 !important;
+}
+
+.wxacg-news-post .faq-badge-a {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  border-radius: 6px !important;
+  flex-shrink: 0 !important;
+  margin-top: 2px !important;
+}
+
+/* ── 網友熱門反應留言牆 (PTT / 巴哈姆特) ── */
+.wxacg-news-post .netizen-reaction-box {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  padding: 20px 22px !important;
+  margin: 20px 0 28px !important;
+}
+
+.wxacg-news-post .ptt-comment-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  margin-top: 14px !important;
+}
+
+.wxacg-news-post .ptt-comment-item {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  padding: 8px 12px !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.wxacg-news-post .ptt-tag-push {
+  color: #ef4444 !important;
+  font-weight: 900 !important;
+  font-family: monospace !important;
+  flex-shrink: 0 !important;
+}
+
+.wxacg-news-post .ptt-tag-arrow {
+  color: #38bdf8 !important;
+  font-weight: 900 !important;
+  font-family: monospace !important;
+  flex-shrink: 0 !important;
+}
+
+.wxacg-news-post .ptt-user {
+  color: #f59e0b !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  flex-shrink: 0 !important;
+}
+
+.wxacg-news-post .ptt-text {
+  color: #e2e8f0 !important;
+}
+
+.wxacg-news-post .ptt-text strong {
+  color: #38bdf8 !important;
+}
+
+
+
+
+
+
+
+
+
+
+

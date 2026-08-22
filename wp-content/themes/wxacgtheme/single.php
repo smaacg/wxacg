@@ -122,12 +122,16 @@ $word_count   = mb_strlen( $content_text, 'UTF-8' );
 $read_minutes = max( 1, (int) ceil( $word_count / 400 ) );
 
 /* ── 作者資料（E-E-A-T：頭像 / 簡介 / 發文數 / 作者頁連結） ─── */
-$author_id       = (int) get_the_author_meta( 'ID' );
-$author_name     = get_the_author();
-$author_bio      = trim( (string) get_the_author_meta( 'description' ) );
+$post_obj        = get_post( $post_id );
+$author_id       = (int) ( ! empty( $post_obj->post_author ) ? $post_obj->post_author : 1 );
+$author_name     = get_the_author_meta( 'display_name', $author_id );
+if ( empty( $author_name ) ) {
+    $author_name = '斯麥又';
+}
+$author_bio      = trim( (string) get_the_author_meta( 'description', $author_id ) );
 $author_archive  = get_author_posts_url( $author_id );
 $author_avatar   = get_avatar_url( $author_id, [ 'size' => 96 ] );
-$author_website  = get_the_author_meta( 'user_url' );
+$author_website  = get_the_author_meta( 'user_url', $author_id );
 $author_post_cnt = (int) count_user_posts( $author_id, 'post', true );
 
 /* ── 發布 / 最後更新時間（兩者不同才顯示「更新」） ───────── */
@@ -281,6 +285,245 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
   <script type="application/ld+json"><?php echo wp_json_encode( $article_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
   <?php endif; ?>
 
+  <?php if ( (int) $post_id === 846 ) :
+      $faq_schema = [
+          '@context'   => 'https://schema.org',
+          '@type'      => 'FAQPage',
+          'mainEntity' => [
+              [
+                  '@type'          => 'Question',
+                  'name'           => 'Anime1 是合法正版網站嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '不是。Anime1.me 未持有台灣各動畫代理商的合法授權，在法律與產業定義上屬於非官方未授權串流網站。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '在 Anime1 線上看動畫安全嗎？會中毒嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '單純瀏覽網頁不一定直接中毒，但未授權網站常充斥惡意彈窗廣告、假下載按鈕、釣魚詐騙及不明 APK 下載，存在極高的個資洩漏與資安風險。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '單純線上看 Anime1 會犯法被警察抓嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '依經濟部智慧財產局解釋，單純透過網路瀏覽影音且無下載保存或公開傳播，一般觀眾通常不涉及刑事責任；但若下載檔案、使用 P2P 傳播或公開轉傳連結則可能觸法。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => 'Anime1 不能看或進不去怎麼辦？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '切勿在網路上隨意尋找未知鏡像站或安裝第三方外掛。建議直接前往巴哈姆特動畫瘋、Muse 木棉花 YouTube 或 Ani-One 尋找正版授權片單。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '台灣有哪些免費又合法的 Anime1 替代平台？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '首推「巴哈姆特動畫瘋」（免費含廣告）、「Muse 木棉花 YouTube 頻道」與「Ani-One 中文官方頻道」，皆為合法授權且免費觀看。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '使用廣告攔截器（AdBlock）看盜版就安全了嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '不一定。廣告攔截器僅能過濾部分視覺廣告，無法防範假網域釣魚、後端個資蒐集或惡意腳本，亦無法改變觀看未授權內容的本質。',
+                  ],
+              ],
+          ],
+      ];
+  ?>
+  <script type="application/ld+json"><?php echo wp_json_encode( $faq_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
+  <?php endif; ?>
+
+  <?php if ( (int) $post_id === 648 ) :
+      $faq_schema_648 = [
+          '@context'   => 'https://schema.org',
+          '@type'      => 'FAQPage',
+          'mainEntity' => [
+              [
+                  '@type'          => 'Question',
+                  'name'           => '漫改動畫一定比原創動畫好看嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '不一定。漫改動畫具備穩定的分鏡與既有粉絲基礎，但若製作預算與工期不足仍會崩壞；原創動畫雖無原作背書、風險較高，但一旦成功往往能成為名留青史的現象級神作。關鍵在於製作組的改編誠意與統籌實力。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '如何快速查詢一部動畫的原作是什麼？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '最便捷的方式是前往「巴哈姆特動畫瘋」的作品簡介頁，或查閱「維基百科」、「Bangumi 番組計畫」與「MyAnimeList」，作品資訊欄皆會明確標註為原創、漫畫改編、輕小說改編或遊戲改編。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '輕小說改編動畫為什麼常被說「資訊量爆炸」？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '輕小說依賴大量角色內心獨白、數值設定與世界觀描述。改編為 20 分鐘動畫時，若直譯旁白會使節奏沉悶，若大幅刪減又易造成動機交代不清，極度考驗編劇的資訊重組與視覺化演出功力。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '為什麼有些遊戲改編動畫能封神，有些卻變成黑歷史？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '成功的遊戲改編（如《賽博龐克：邊緣行者》）通常採用同世界觀新創劇本，或精準重構主線情感（如《命運石之門》、《CLANNAD》）；失敗案例往往因強行塞入多路線劇情、刪減關鍵支線或將主角扁平化而引發原作玩家不滿。',
+                  ],
+              ],
+          ],
+      ];
+  ?>
+  <script type="application/ld+json"><?php echo wp_json_encode( $faq_schema_648, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
+  <?php endif; ?>
+
+  <?php if ( (int) $post_id === 31402 ) :
+      $faq_schema_31402 = [
+          '@context'   => 'https://schema.org',
+          '@type'      => 'FAQPage',
+          'mainEntity' => [
+              [
+                  '@type'          => 'Question',
+                  'name'           => '木棉花與 Ani-One 在 YouTube 免費放動畫，他們靠什麼賺錢？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '代理商主要透過三個管道獲利：(1) YouTube 官方廣告分潤；(2) 帶動作品熱度後，銷售周邊商品、模型公仔、授權快閃店與電影版票房；(3) 將二輪播映權分銷給電視台與其他 OTT 平台。因此在 YouTube 觀看正版，能切實為代理商帶來合法收益！',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '為什麼有些熱門動畫在巴哈姆特動畫瘋找不到？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '因為該動畫被國際大型串流平台（如 Netflix 或 Disney+）以高價買斷了「全球或台灣獨家播放權」（如《迷宮飯》、《死神千年血戰》）。獨家合約期間內，其他任何平台皆無法上架。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '出國旅遊或留學時，可以用巴哈姆特動畫瘋看動畫嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '不行。動畫瘋的授權範圍嚴格限定於「台灣、澎湖、金門、馬祖地區」，系統會透過 IP 進行地理限制（Geo-blocking）。在海外可轉往當地合法平台（如 Crunchyroll、當地 Netflix）或使用木棉花/Ani-One 支援海外部分地區授權的 YouTube 片單。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '日本動畫本身有 4K 畫質嗎？為什麼大部分平台只提供 1080p？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '日本電視動畫在製作端（數位繪圖與合成）的原生解析度多為 720p 至 1080p，廣播規格亦為 1080i/p。因此 1080p 是最還原原作細節的標準解析度。Netflix 等平台的 4K 規格多採用高階硬體升頻或針對劇場版特別母帶進行壓制。',
+                  ],
+              ],
+          ],
+      ];
+  ?>
+  <script type="application/ld+json"><?php echo wp_json_encode( $faq_schema_31402, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
+  <?php endif; ?>
+
+  <?php if ( (int) $post_id === 1210 ) :
+      $faq_schema_1210 = [
+          '@context'   => 'https://schema.org',
+          '@type'      => 'FAQPage',
+          'mainEntity' => [
+              [
+                  '@type'          => 'Question',
+                  'name'           => '台灣用戶使用這些 AI 助理需要掛 VPN 翻牆嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '目前 ChatGPT、Claude、Gemini、DeepSeek、Grok 等主流平台在台灣均有開放直接連線註冊與使用，大部分無需使用 VPN。唯少數中國大陸服務（如豆包部分進階功能）可能需要中國大陸手機號碼驗證，國際版則可自由存取。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '免費版 AI 夠用嗎？什麼情況下值得每個月花 $20 美元訂閱付費版？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '如果只是日常查資料、寫短郵件、聊天閒聊，免費版（如 ChatGPT GPT-4o mini、Gemini 1.5 Flash、DeepSeek）已完全足夠。但如果你是靠寫作或寫程式賺錢的專業工作者，付費版的更長上下文、深度推理（o1/Sonnet 3.5）、無次數限制與專屬功能（Canvas/Artifacts）每天能為你省下數小時，投資報酬率極高。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '繁體中文（台灣用語習慣）目前哪一款 AI 表現最自然道地？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '經過多輪盲測，Claude 3.5 Sonnet 在台灣繁體中文的表現最受好評，語氣自然、用詞精準且符合台灣文化習慣；ChatGPT 表現居次；中國陣營模型（如 Kimi、豆包）雖然理解繁中無礙，但偶爾會夾雜對岸慣用語。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '寫程式、除錯（Coding）與重構目前業界最推薦哪一款？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '目前軟體工程界首推 Claude 3.5 Sonnet（配合 Cursor、Windsurf 等 AI 編輯器體驗封神），其次為 DeepSeek R1 / V3（開源高性價比推理）與 ChatGPT o1 系列（演算法難題深度思考）。',
+                  ],
+              ],
+          ],
+      ];
+  ?>
+  <script type="application/ld+json"><?php echo wp_json_encode( $faq_schema_1210, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
+  <?php endif; ?>
+
+  <?php if ( (int) $post_id === 31439 ) :
+      $faq_schema_31439 = [
+          '@context'   => 'https://schema.org',
+          '@type'      => 'FAQPage',
+          'mainEntity' => [
+              [
+                  '@type'          => 'Question',
+                  'name'           => '艾連為什麼非得發動「地鳴」踩踏 80% 人類？艾連真的有其他選擇嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '在作品世界觀中，帕拉迪島面臨全球軍事科技躍進與各國對艾爾迪亞人根深蒂固的仇恨。島內科技落後數十年，吉克的「安樂死計劃」等同於讓島民慢性滅絕，而常規和平談判在宣戰大會後徹底破滅。艾連發動地鳴是為了摧毀全球軍事工業、替帕拉迪島爭取至少數十年的生存和平時間，並藉由讓同伴親手阻止自己，將拯救世界的英雄地位留給阿爾敏與米卡莎，徹底消滅巨人之力。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '始祖尤彌爾為何等待了兩千年？為什麼解開巨人之力詛咒的關鍵是米卡莎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '始祖尤彌爾兩千年來在「道路」中受困於對弗里茲王扭曲的依戀與奴性。米卡莎雖然深愛艾連，但在世界存亡關頭，她依然選擇親手斬殺艾連以拯救全人類。米卡莎的舉動向尤彌爾證明了「深愛一個人，不代表必須順從他的毀滅行為，愛與自由可以並存」，尤彌爾從中獲得救贖與釋懷，巨人之力才隨之徹底消失。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '動畫片尾字幕最後「少年與巨人之樹」的畫面是什麼意思？帕拉迪島最後毀滅了嗎？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '片尾展示了艾連長眠的山丘在數百年乃至數千年後的演變，帕拉迪島歷經現代繁榮與未來的再次戰火，最後一名少年帶著獵犬走向了酷似巨人之力源頭的大樹。這並非代表巨人之力一定會復活，而是諫山創對人類歷史最深刻的冷靜觀察：只要人類存在，爭鬥就不會徹底消失；但只要有愛與對話的意志，歷史也永遠有重生的希望。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '動畫《The Final Season 完結篇》相較於漫畫原作結局，做了哪些重大優化？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '動畫版在諫山創親自參與下大幅優化了艾連與阿爾敏在道路中的最終對話。刪除了漫畫原作中易引發誤解的「謝謝你為了我們成為殺人魔」爭議台詞，改為更深刻真摯的對白，阿爾敏承認自己也享受過牆外的探索紅利，並承諾「我們一起在地獄相見」，使整段情感更具說服力與層次感。',
+                  ],
+              ],
+              [
+                  '@type'          => 'Question',
+                  'name'           => '《進擊的巨人》全劇正確觀看順序為何？台灣有哪些合法線上看平台？',
+                  'acceptedAnswer' => [
+                      '@type' => 'Answer',
+                      'text'  => '全劇完整順序為：第一季（25話）➔ 第二季（12話）➔ 第三季 Part 1 & 2（22話）➔ 最終季 Part 1 & 2（28話）➔ 完結篇前篇（電視特別篇1）➔ 完結篇後篇（電視特別篇2）。目前在台灣可透過巴哈姆特動畫瘋、Netflix 台灣、Muse 木棉花官方 YouTube 頻道、friDay 影音、Hami Video 等合法平台完整觀賞全劇高畫質繁中字幕。',
+                  ],
+              ],
+          ],
+      ];
+  ?>
+  <script type="application/ld+json"><?php echo wp_json_encode( $faq_schema_31439, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
+  <?php endif; ?>
+
   <article id="post-<?php the_ID(); ?>" <?php post_class( 'single-article' ); ?>>
 
     <!-- ── 標題區 ── -->
@@ -322,9 +565,16 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
     </header>
 
     <!-- ── 主圖 ── -->
-    <?php if ( has_post_thumbnail() ) : ?>
+    <?php if ( has_post_thumbnail() ) : 
+        $thumb_full_url = get_the_post_thumbnail_url( null, 'full' );
+    ?>
     <figure class="single-cover">
-      <?php the_post_thumbnail( 'full', [ 'alt' => get_the_title(), 'loading' => 'eager', 'fetchpriority' => 'high' ] ); ?>
+      <a href="<?php echo esc_url( $thumb_full_url ); ?>" class="single-cover-zoom" title="<?php echo esc_attr( get_the_title() ); ?>">
+        <?php the_post_thumbnail( 'full', [ 'alt' => get_the_title(), 'loading' => 'eager', 'fetchpriority' => 'high' ] ); ?>
+        <span class="cover-zoom-badge">
+          <i class="fa-solid fa-magnifying-glass-plus"></i> 點擊放大完整圖表
+        </span>
+      </a>
     </figure>
     <?php endif; ?>
 
@@ -616,6 +866,66 @@ $smacg_output_article_schema     = ! $smacg_rankmath_active;
       ta.value = url; document.body.appendChild(ta); ta.select();
       try { document.execCommand('copy'); done(); } catch (err) { prompt('請手動複製以下連結：', url); }
       document.body.removeChild(ta);
+    }
+  });
+})();
+</script>
+
+<!-- ── 圖片燈箱放大 Lightbox ── -->
+<div id="smacg-lightbox" class="smacg-lightbox" aria-hidden="true" role="dialog">
+  <div class="smacg-lightbox-overlay"></div>
+  <div class="smacg-lightbox-box">
+    <button class="smacg-lightbox-close" aria-label="關閉放大視窗">&times;</button>
+    <img id="smacg-lightbox-img" src="" alt="放大圖" />
+    <div id="smacg-lightbox-caption" class="smacg-lightbox-caption"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var lb = document.getElementById('smacg-lightbox');
+  var lbImg = document.getElementById('smacg-lightbox-img');
+  var lbCap = document.getElementById('smacg-lightbox-caption');
+  if (!lb || !lbImg) return;
+
+  function openLb(src, title) {
+    if (!src) return;
+    lbImg.src = src;
+    lbCap.textContent = title || '';
+    lb.classList.add('is-active');
+    lb.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLb() {
+    lb.classList.remove('is-active');
+    lb.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  // Cover zoom click
+  var coverZoom = document.querySelector('.single-cover-zoom');
+  if (coverZoom) {
+    coverZoom.addEventListener('click', function(e) {
+      e.preventDefault();
+      openLb(this.href, this.getAttribute('title') || '完整評比圖表');
+    });
+  }
+
+  // Content images click
+  document.querySelectorAll('.single-content img, .plat-poster-card img').forEach(function(img) {
+    img.style.cursor = 'zoom-in';
+    img.addEventListener('click', function() {
+      var fullSrc = this.getAttribute('data-full-url') || this.currentSrc || this.src;
+      openLb(fullSrc, this.alt || '');
+    });
+  });
+
+  lb.querySelector('.smacg-lightbox-close').addEventListener('click', closeLb);
+  lb.querySelector('.smacg-lightbox-overlay').addEventListener('click', closeLb);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && lb.classList.contains('is-active')) {
+      closeLb();
     }
   });
 })();
