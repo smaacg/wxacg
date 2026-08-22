@@ -104,6 +104,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         if (pointToast) {
+            // 一般訊息用追蹤列右上角的小標籤，不套積分卡片樣式
+            pointToast.classList.remove('is-points');
             pointToast.textContent = msg;
             pointToast.classList.remove('is-show');
             void pointToast.offsetWidth;
@@ -114,10 +116,15 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    /* ── 積分 Toast ── */
+    /* ── 積分 Toast ──
+       置中大卡片（.is-points），份量比照評分成功的彈窗，但自動消失。 */
     function showPointToast(points) {
         if (!points || points <= 0 || !pointToast) return;
-        pointToast.textContent = '+' + points + ' ✨';
+        pointToast.innerHTML =
+            '<span class="smacg-point-emoji">✨</span>' +
+            '<span class="smacg-point-num">+' + points + '</span>' +
+            '<span class="smacg-point-label">經驗值</span>';
+        pointToast.classList.add('is-points');
         pointToast.classList.remove('is-show');
         void pointToast.offsetWidth;
         pointToast.classList.add('is-show');
