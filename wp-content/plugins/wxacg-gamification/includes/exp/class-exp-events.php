@@ -68,6 +68,19 @@ class Exp_Events {
         add_action( 'comment_post', [ __CLASS__, 'on_comment_post' ], 20, 3 );
         add_action( 'transition_comment_status', [ __CLASS__, 'on_comment_approved' ], 20, 3 );
 
+        /*
+         * 自建評論系統（anime-sync-pro 的 wxacg_review CPT）。
+         *
+         * 留言區 2026-08-18 由 wpDiscuz 換成自建系統後，送出評論走的是
+         * wxacg_review_submitted，不再經過 WordPress 原生的 comment_post，
+         * 因此上面那條掛不到，評論一直拿不到 EXP（徽章有給，是因為
+         * First_Badge 有監聽這個 action）。
+         *
+         * 共用 comment_post 規則與每日上限：兩者是「發表留言」的兩種實作，
+         * 不該因為換了系統就能各拿一次。
+         */
+        add_action( 'wxacg_review_submitted', [ __CLASS__, 'on_review_submitted' ], 20, 4 );
+
         add_action( 'smacg_user_followed', [ __CLASS__, 'on_follow' ], 20, 2 );
 
         add_action( 'smacg_watchlist_added',     [ __CLASS__, 'on_watchlist_added' ],     20, 2 );
@@ -129,6 +142,7 @@ class Exp_Events {
             'watchlist_complete' => '完成觀看',
             'rating_add'         => '評分動畫',
             'badge_unlock'       => '解鎖徽章',
+            'review_long'        => '發表長評',
             'read_post'          => '閱讀文章',
             'share_post'         => '分享文章',
             'favorite_add'       => '收藏動畫',
@@ -664,6 +678,38 @@ class Exp_Events {
         update_user_meta( $uid, $meta, 1 );
 
         self::award_with_cap( $uid, 'comment_post' );
+    }
+
+    /**
+     * 自建評論系統送出評論（wxacg_review_submitted）。
+     *
+     * 只在新建時觸發，編輯自己的評論不會再發（見 class-review-manager.php
+     * 的 $is_new 判定）。但「回覆」不套用 upsert，每則回覆都算新的，
+     * 因此以 review_id 做永久去重，再由每日上限把關。
+     *
+     * ★ 長評走 review_long（50 EXP），但必須排除回覆：
+     *   class-review-manager.php 的字數檢查是
+     *     $min_len = ( $track === TRACK_LONG && ! $is_reply ) ? 80 : 1;
+     *   回覆即使帶 track=long 也只要 1 字就能送出，若只看 track 就給高分，
+     *   在長評串下回一個字即可拿走 50 EXP。action 簽章沒有傳 reply 資訊，
+     *   因此這裡自行讀 meta 判斷。
+     *
+     * @param int    $uid       發表者。
+     * @param int    $review_id 評論 CPT 的 post ID。
+     * @param int    $anime_id  作品 ID（本函式未用，保留與 action 簽章一致）。
+     * @param string $track     short（吐槽）或 long（長評）。
+     */
+    public static function on_review_submitted( $uid, $review_id, $anime_id = 0, $track = '' ) {
+        $uid       = (int) $uid;
+        $review_id = (int) $review_id;
+        if ( $uid <= 0 || $review_id <= 0 ) return;
+
+        $is_reply   = (int) get_post_meta( $review_id, '_wxacg_review_reply_to', true ) > 0;
+        $action_key = ( $track === 'long' && ! $is_reply ) ? 'review_long' : 'comment_post';
+
+        self::award_with_cap( $uid, $action_key, [
+            'dedupe_key' => 'smacg_exp_review_' . $review_id,
+        ] );
     }
 
     public static function on_follow( $follower_id, $followee_id ) {

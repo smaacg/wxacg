@@ -266,6 +266,7 @@ if ( ! function_exists( 'smacg_get_all_exp_rules' ) ) {
             'read_post'          => [ '📖', '閱讀文章',       '單篇文章閱讀完成' ],
             'share_post'         => [ '📤', '分享文章',       '透過分享按鈕分享' ],
             'comment_post'       => [ '💬', '發表評論',       '評論通過審核後' ],
+            'review_long'        => [ '📝', '發表長評',       '長評至少 80 字' ],
 
             /* 社交 */
             'follow_action'      => [ '👥', '追蹤他人',       '追蹤其他會員' ],

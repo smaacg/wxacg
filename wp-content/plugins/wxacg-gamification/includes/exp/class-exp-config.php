@@ -70,6 +70,17 @@ class Exp_Config {
             'share_post'      => [ 'exp' => 5,   'season_score' => 5,   'cap_type' => 'daily', 'cap_key' => 'share_post', 'daily_max' => 3 ],
             // 5倍：5 → 25
             'comment_post'    => [ 'exp' => 25,  'season_score' => 25,  'cap_type' => 'daily', 'cap_key' => 'comment' ],
+            /*
+             * 長評（自建評論系統的 long 軌，後端門檻 80 字起）。
+             * 短評一句話吐槽即可送出，長評要寫滿 80 字，投入差距明顯，
+             * 因此獨立給分。刻意不調降 comment_post——只加不減，避免既有
+             * 使用者感覺獎勵被縮水。
+             *
+             * 與 forum_topic 同為 100：長評要看完作品才寫得出來，投入不比
+             * 開一篇論壇主題少，且是站上的原創內容。
+             * cap_key 獨立，短評與長評各有一次每日額度（兩種都寫 = 125 EXP）。
+             */
+            'review_long'     => [ 'exp' => 100, 'season_score' => 100, 'cap_type' => 'daily', 'cap_key' => 'review_long' ],
 
             /* ───── 社交 ───── */
             'follow_action'   => [ 'exp' => 2,   'season_score' => 2,   'cap_type' => 'daily', 'cap_key' => 'follow' ],
