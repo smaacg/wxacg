@@ -9,6 +9,22 @@
  */
 
 /* ─────────── Logo ─────────── */
+/*
+ * footer 的 logo 與 header 共用 .site-logo class，因此會吃到
+ * style.css 裡 @media (min-width:901px) 的 header 專用偏移：
+ *   margin-left: var(--logo-offset-x, 48px)
+ *   transform: translateY( var(--logo-offset-y, 8px) )
+ *
+ * 那組偏移是為了讓 header 的 logo 避開漢堡選單、與搜尋列對齊，
+ * 對 footer 沒有意義——結果是 footer logo 被往右推 48px、往下 8px，
+ * 與下方的標語、社群圖示對不齊，看起來整塊是歪的。
+ * 這裡特異性較高（.site-footer .footer-logo），可蓋掉該規則。
+ */
+.site-footer .footer-logo{
+  margin-left:0;
+  transform:none;
+}
+
 .footer-logo-img{
   height:38px;
   width:auto;
