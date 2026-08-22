@@ -157,11 +157,46 @@ class Milestone_Badge {
 		}, 30, 1 );
 
 		// 連續登入：streak 在 on_login 更新完才檢查，優先序排在其後
+		// 同時順便補發該使用者其他類別的既有進度（每人只會實際跑一次）
 		add_action( 'wp_login', function ( $login, $user ) {
 			if ( $user instanceof \WP_User ) {
 				self::check( 'streak', $user->ID );
+				self::backfill_user( $user->ID );
 			}
 		}, 30, 2 );
+	}
+
+	/**
+	 * 補發：一次檢查該使用者的所有類別。
+	 *
+	 * ★ 為什麼需要
+	 *   徽章是後來才加的，而發放邏輯是「動作發生時才檢查」——既有使用者
+	 *   的看完／評論都是過去發生的，當時徽章還不存在，沒有任何時機補發。
+	 *   上線後成就頁因此出現「看完 3 部作品 10 / 3」卻仍鎖著的畫面。
+	 *
+	 * ★ 為什麼不在升級時掃描全站
+	 *   站上 89 人有互動資料，89 × 5 類 = 445 次 COUNT 查詢，全部塞進
+	 *   一次 web 請求會拖垮那個倒楣的訪客。改為每人第一次登入或打開
+	 *   成就頁時只補自己的（5 次查詢），負載自然分散，而且使用者當下
+	 *   就看到徽章解鎖。
+	 *
+	 * 以 user_meta 記錄已補發的版本，確保每人只跑一次；日後若新增類別，
+	 * 提高 WXACG_MILESTONE_BADGE_VERSION 即可讓所有人再補一輪。
+	 */
+	public static function backfill_user( $uid ) {
+		$uid = (int) $uid;
+		if ( $uid <= 0 ) return;
+
+		$done = get_user_meta( $uid, 'smacg_milestone_backfilled', true );
+		if ( $done === WXACG_MILESTONE_BADGE_VERSION ) return;
+
+		// 先寫標記再補發：即使中途出錯也不會每次載入都重跑整輪查詢，
+		// 漏掉的階層仍會在使用者下次實際觸發該動作時補上。
+		update_user_meta( $uid, 'smacg_milestone_backfilled', WXACG_MILESTONE_BADGE_VERSION );
+
+		foreach ( array_keys( self::$types ) as $type ) {
+			self::check( $type, $uid );
+		}
 	}
 
 	/**

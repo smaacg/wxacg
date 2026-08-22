@@ -719,6 +719,24 @@ function smacg_render_badges( $uid ) {
         return;
     }
 
+    /*
+     * 補發累積型徽章的既有進度。
+     *
+     * 徽章是後來才加的，而發放邏輯是「動作發生時才檢查」——既有使用者
+     * 過去的看完／評論沒有任何時機補發，上線後這裡出現過
+     * 「看完 3 部作品 10 / 3」卻仍鎖著的畫面。
+     *
+     * 必須在取 $earned_ids 之前執行，否則剛補發的徽章不會反映在下面的
+     * 已解鎖清單與統計列上，使用者要重新整理才看得到。
+     *
+     * 只補當前檢視者自己的：$uid 在公開檔案頁是「被看的人」，不該因為
+     * 別人來看就在非預期時機幫他寫入資料。內部以 user_meta 記錄版本，
+     * 每人實際只會跑一次。
+     */
+    if ( class_exists( '\WXACG\Gamification\Milestone_Badge' ) && $uid === get_current_user_id() ) {
+        \WXACG\Gamification\Milestone_Badge::backfill_user( $uid );
+    }
+
     $earned_ids = function_exists( 'smacg_get_user_badge_ids' ) ? smacg_get_user_badge_ids( $uid ) : [];
     $earned_map = array_flip( $earned_ids );
     $total      = count( $all_badges );
@@ -766,7 +784,8 @@ function smacg_render_badges( $uid ) {
                             $milestone_count_cache[ $ms_type ] =
                                 \WXACG\Gamification\Milestone_Badge::count_for( $ms_type, $uid );
                         }
-                        $ms_now = (int) $milestone_count_cache[ $ms_type ];
+                        // 顯示值夾在目標內：補發失敗等情況下不該出現「10 / 3」
+                        $ms_now = min( (int) $milestone_count_cache[ $ms_type ], $ms_target );
                         $ms_pct = min( 100, (int) round( $ms_now / $ms_target * 100 ) );
                     } else {
                         $ms_type = null;
