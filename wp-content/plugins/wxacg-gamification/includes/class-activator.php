@@ -154,7 +154,27 @@ class Activator {
             return;
         }
 
+        /*
+         * 原子鎖：防止並發請求重複建立。
+         *
+         * 「get_page_by_path 檢查 → wp_insert_post」中間有空檔，兩個同時
+         * 進來的請求會雙雙通過檢查然後各建一份。2026-08-22 首次上線就踩到：
+         * 同一秒內產生了 badge-streak-100 與 badge-streak-100-2
+         * （WordPress 自動改 slug）、以及兩筆同 slug 的 badge-streak-365。
+         *
+         * add_option() 是單一 INSERT，option 已存在時回傳 false，
+         * 與本外掛他處用 add_user_meta( ..., true ) 搶鎖的精神一致。
+         * 鎖帶版號，日後改版會自然換一把新鎖。
+         */
+        $lock_key = 'smacg_milestone_badge_lock_' . WXACG_MILESTONE_BADGE_VERSION;
+        if ( ! add_option( $lock_key, current_time( 'mysql' ), '', false ) ) {
+            return;
+        }
+
         require_once WXACG_GAMIFY_DIR . 'includes/milestone/class-milestone-badge.php';
+
+        // 先清掉先前並發產生的重複（僅限沒有人領取過的，避免動到已發出的徽章）
+        self::cleanup_duplicate_milestone_badges();
 
         $created = 0;
         foreach ( Milestone_Badge::get_types() as $type => $conf ) {
@@ -211,5 +231,51 @@ class Activator {
         update_option( 'smacg_milestone_badge_version', WXACG_MILESTONE_BADGE_VERSION );
 
         return $created;
+    }
+
+    /**
+     * 清除重複的里程碑徽章。
+     *
+     * 同一組 (type, target) 只該有一個徽章。並發競態曾經造成重複
+     * （見 install_milestone_badges() 的鎖說明）。保留 ID 最小的那筆
+     * ——最早建立、也是使用者可能已經看到的那個。
+     *
+     * ★ 只刪除「沒有任何人領取過」的重複項。已經發給使用者的徽章一律
+     *   保留：刪掉會讓對方的成就頁憑空少一項，資料修得漂亮不值得拿
+     *   使用者已得到的東西去換。
+     */
+    private static function cleanup_duplicate_milestone_badges() {
+        global $wpdb;
+
+        $badges = get_posts( [
+            'post_type'      => WXACG_BADGE_SLUG,
+            'post_status'    => 'any',
+            'posts_per_page' => 200,
+            'meta_key'       => '_wxacg_milestone_type',
+            'orderby'        => 'ID',
+            'order'          => 'ASC',
+        ] );
+
+        $seen = [];
+        foreach ( $badges as $badge ) {
+            $type   = get_post_meta( $badge->ID, '_wxacg_milestone_type', true );
+            $target = (int) get_post_meta( $badge->ID, '_wxacg_milestone_target', true );
+            if ( ! $type || $target <= 0 ) continue;
+
+            $sig = $type . ':' . $target;
+
+            if ( ! isset( $seen[ $sig ] ) ) {
+                $seen[ $sig ] = $badge->ID;   // 第一個（ID 最小）保留
+                continue;
+            }
+
+            $earned = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}gamipress_user_earnings WHERE post_id = %d",
+                $badge->ID
+            ) );
+            if ( $earned > 0 ) continue;   // 有人領過就不動
+
+            wp_delete_post( $badge->ID, true );
+        }
     }
 }

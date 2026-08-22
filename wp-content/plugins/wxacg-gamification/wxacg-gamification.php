@@ -51,8 +51,12 @@ if ( ! defined( 'WXACG_RANKING_META_KEY' ) )   define( 'WXACG_RANKING_META_KEY',
 
 if ( ! defined( 'WXACG_RANK_SEASON_DB_VERSION' ) ) define( 'WXACG_RANK_SEASON_DB_VERSION', '1.0.0' );
 
-/* 累積型里程碑徽章：版號變動時 maybe_upgrade_db() 會自動補建徽章貼文 */
-if ( ! defined( 'WXACG_MILESTONE_BADGE_VERSION' ) ) define( 'WXACG_MILESTONE_BADGE_VERSION', '1.0.0' );
+/*
+ * 累積型里程碑徽章：版號變動時 Plugin::maybe_install_milestone_badges()
+ * 會自動補建徽章貼文（掛在 init 20，晚於 GamiPress 註冊 CPT）。
+ * 1.0.1 — 加上原子鎖並清理 1.0.0 並發競態產生的重複徽章
+ */
+if ( ! defined( 'WXACG_MILESTONE_BADGE_VERSION' ) ) define( 'WXACG_MILESTONE_BADGE_VERSION', '1.0.1' );
 
 add_filter( 'cron_schedules', function ( $schedules ) {
     if ( ! isset( $schedules['wxacg_10min'] ) ) {
