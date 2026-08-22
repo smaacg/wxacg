@@ -133,6 +133,33 @@ function wxacg_header_banner_url(): string {
 }
 
 /**
+ * 站台品牌 logo 圖片網址（header 與 footer 共用）。
+ *
+ * ★ 為什麼要抽成函式
+ *   原本 header.php 與 footer.php 各自寫死一份網址，換 logo 時只改了
+ *   header，footer 就停在舊圖（2026/06/112.png）——而 footer 的註解還
+ *   寫著「與 header.php 一致」，程式與註解不符，實際頁面兩處長得不一樣。
+ *   集中在這裡之後，換圖只要改這一處。
+ *
+ * ★ 為什麼用 300×288 縮圖而非原圖（沿用 header.php 原本的說明）
+ *   原圖是 1860×1784、122 KB，但實際只顯示 62px 高（見 --logo-img-h）；
+ *   header 每一頁都會載入，掛原圖等於每個請求多背 117 KB。
+ *   300×288 為 15 KB，相對顯示尺寸仍有 4.6 倍解析度，高解析螢幕不會糊。
+ *
+ * @return string
+ */
+function wxacg_brand_logo_url(): string {
+	$url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/wxacglogo-300x288.webp';
+
+	/**
+	 * 允許以外掛或子主題覆寫品牌 logo（例如節慶版本）。
+	 *
+	 * @param string $url 目前的 logo 網址。
+	 */
+	return (string) apply_filters( 'wxacg/brand_logo_url', $url );
+}
+
+/**
  * Header 橫幅的「前景層」圖片網址。
  *
  * 這一層會以比背景更大的幅度隨滑鼠位移，藉此產生景深 —— 移動幅度越大，

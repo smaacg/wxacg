@@ -39,8 +39,13 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-/* ── Logo URL（與 header.php 一致；請統一使用正式網域）── */
-$brand_logo_url = 'https://weixiaoacg.com/wp-content/uploads/2026/06/112.png';
+/* ── Logo URL：與 header 共用同一份，見 functions.php 的 wxacg_brand_logo_url() ──
+ * 原本這裡寫死 2026/06/112.png，而 header 早已換成 wxacglogo-300x288.webp，
+ * 兩處長得不一樣（註解卻寫著「與 header.php 一致」）。改為共用來源。
+ */
+$brand_logo_url = function_exists( 'wxacg_brand_logo_url' )
+	? wxacg_brand_logo_url()
+	: 'https://weixiaoacg.com/wp-content/uploads/2026/08/wxacglogo-300x288.webp';
 
 /* ── 品牌名稱與描述 ── */
 $site_name = get_bloginfo( 'name' ) ?: '微笑動漫';

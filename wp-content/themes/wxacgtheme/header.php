@@ -18,12 +18,13 @@ defined( 'ABSPATH' ) || exit;
 
 /* 共用品牌資源 */
 /*
- * 用 WordPress 產生的 300×288 縮圖，不要用原圖。
- * 原圖是 1860×1784、122 KB，但實際只顯示 62px 高（見 --logo-img-h）；
- * header 每一頁都會載入，直接掛原圖等於每個請求多背 117 KB。
- * 300×288 為 15 KB，相對顯示尺寸仍有 4.6 倍解析度，高解析螢幕不會糊。
+ * Logo 網址與尺寸選擇的理由見 functions.php 的 wxacg_brand_logo_url()。
+ * 集中在那裡是為了讓 header 與 footer 共用同一份，不會再出現一邊換圖、
+ * 另一邊停在舊圖的情況。
  */
-$brand_logo_url = 'https://weixiaoacg.com/wp-content/uploads/2026/08/wxacglogo-300x288.webp';
+$brand_logo_url = function_exists( 'wxacg_brand_logo_url' )
+	? wxacg_brand_logo_url()
+	: 'https://weixiaoacg.com/wp-content/uploads/2026/08/wxacglogo-300x288.webp';
 
 // Header 裝飾橫幅：網址與說明見 functions.php 的 wxacg_header_banner_url()。
 $header_banner_url    = function_exists( 'wxacg_header_banner_url' ) ? wxacg_header_banner_url() : '';
