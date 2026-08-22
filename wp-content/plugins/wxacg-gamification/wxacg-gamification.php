@@ -51,6 +51,9 @@ if ( ! defined( 'WXACG_RANKING_META_KEY' ) )   define( 'WXACG_RANKING_META_KEY',
 
 if ( ! defined( 'WXACG_RANK_SEASON_DB_VERSION' ) ) define( 'WXACG_RANK_SEASON_DB_VERSION', '1.0.0' );
 
+/* 累積型里程碑徽章：版號變動時 maybe_upgrade_db() 會自動補建徽章貼文 */
+if ( ! defined( 'WXACG_MILESTONE_BADGE_VERSION' ) ) define( 'WXACG_MILESTONE_BADGE_VERSION', '1.0.0' );
+
 add_filter( 'cron_schedules', function ( $schedules ) {
     if ( ! isset( $schedules['wxacg_10min'] ) ) {
         $schedules['wxacg_10min'] = [ 'interval' => 600, 'display' => __( 'Every 10 Minutes', 'wxacg-gamification' ) ];

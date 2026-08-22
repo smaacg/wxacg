@@ -321,7 +321,34 @@
     border-color:rgba(251,191,36,.35);
     box-shadow:0 4px 16px rgba(251,191,36,.12);
 }
-.mc-badge-card.is-locked{opacity:.45;filter:grayscale(.8)}
+/*
+ * 未解鎖：原本整張卡片 opacity:.45 + grayscale(.8)。
+ * 加上進度條之後改為只暗化「圖示與文字」——CSS 的 filter/opacity 會
+ * 連同所有子元素一起處理且無法在子層取消，整張卡片變灰會讓進度條
+ * （9/10 這種資訊）跟著糊掉，而它正是要讓使用者看見下一個目標的。
+ * 視覺上仍然一眼分得出鎖著：圖示照舊灰階＋鎖頭。
+ */
+.mc-badge-card.is-locked .mc-badge-icon{opacity:.45;filter:grayscale(.8)}
+.mc-badge-card.is-locked .mc-badge-title{opacity:.75}
+.mc-badge-card.is-locked .mc-badge-desc{opacity:.6}
+
+/* 累積型徽章的進度（僅未解鎖時顯示） */
+.mc-badge-progress{
+    width:100%;margin-top:10px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.mc-badge-progress-bar{
+    width:100%;height:6px;
+    background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden;
+}
+.mc-badge-progress-fill{
+    height:100%;background:linear-gradient(90deg,#63a8ff,#8f6bff);
+    border-radius:999px;transition:width .4s ease;
+}
+.mc-badge-progress-text{
+    font-size:12px;font-weight:700;color:rgba(255,255,255,.72);
+    font-variant-numeric:tabular-nums;
+}
 .mc-badge-card:hover{transform:translateY(-2px)}
 .mc-badge-icon{
     position:relative;width:80px;height:80px;

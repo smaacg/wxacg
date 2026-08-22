@@ -77,6 +77,11 @@ class Plugin {
         require_once $base . 'first-action/class-first-badge.php';
         First_Badge::instance();
 
+        // 3d. 累積型里程碑徽章（看完 N 部 / 評論 N 則 …）
+        //     同樣依賴 Exp_Events / Gamipress_Bridge，載入時機比照上面
+        require_once $base . 'milestone/class-milestone-badge.php';
+        Milestone_Badge::instance();
+
         // 4. Career Jobs（8 職業 × 4 階稱號）+ AJAX endpoint
         require_once $base . 'level/class-career-jobs.php';
         Career_Jobs::instance();
@@ -251,6 +256,9 @@ class Plugin {
         }
         if ( get_option( 'smacg_rank_season_db_version', '0' ) !== WXACG_RANK_SEASON_DB_VERSION ) {
             Activator::install_rank_season_tables();
+        }
+        if ( get_option( 'smacg_milestone_badge_version', '0' ) !== WXACG_MILESTONE_BADGE_VERSION ) {
+            Activator::install_milestone_badges();
         }
     }
 

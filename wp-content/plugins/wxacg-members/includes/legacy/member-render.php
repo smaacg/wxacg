@@ -735,10 +735,43 @@ function smacg_render_badges( $uid ) {
         </div>
 
         <div class="mc-badges-grid">
+            <?php
+            /*
+             * 累積型徽章（看完 N 部 / 評論 N 則 …）在未解鎖時顯示進度，
+             * 例如「9 / 10」＋進度條。徽章清單本來就會把未解鎖的一併列出，
+             * 那些鎖著的項目就是使用者的下一個目標——但只顯示一把鎖時，
+             * 看不出自己離目標多遠。差 1 部和差 90 部的感受完全不同。
+             *
+             * type / target 由 Activator::install_milestone_badges() 寫進
+             * post meta，不靠解析 slug 字串。抓不到 Milestone_Badge 類別
+             * （例如 gamification 外掛停用）時整段略過，維持原本的顯示。
+             */
+            $milestone_ready = class_exists( '\WXACG\Gamification\Milestone_Badge' );
+            $milestone_count_cache = [];
+            ?>
             <?php foreach ( $all_badges as $badge ):
                 $is_unlocked = isset( $earned_map[ $badge->ID ] );
                 $thumb       = get_the_post_thumbnail_url( $badge->ID, 'thumbnail' );
                 $excerpt     = mb_strimwidth( wp_strip_all_tags( $badge->post_excerpt ?: $badge->post_content ), 0, 60, '…' );
+
+                // 未解鎖的累積型徽章才需要算進度
+                $ms_type = $ms_target = null;
+                $ms_now  = $ms_pct = 0;
+                if ( ! $is_unlocked && $milestone_ready ) {
+                    $ms_type   = get_post_meta( $badge->ID, '_wxacg_milestone_type', true );
+                    $ms_target = (int) get_post_meta( $badge->ID, '_wxacg_milestone_target', true );
+                    if ( $ms_type && $ms_target > 0 ) {
+                        // 同類別的多個階層共用一次查詢，不必每張卡片各查一次
+                        if ( ! isset( $milestone_count_cache[ $ms_type ] ) ) {
+                            $milestone_count_cache[ $ms_type ] =
+                                \WXACG\Gamification\Milestone_Badge::count_for( $ms_type, $uid );
+                        }
+                        $ms_now = (int) $milestone_count_cache[ $ms_type ];
+                        $ms_pct = min( 100, (int) round( $ms_now / $ms_target * 100 ) );
+                    } else {
+                        $ms_type = null;
+                    }
+                }
             ?>
                 <div class="mc-badge-card <?php echo $is_unlocked ? 'is-unlocked' : 'is-locked'; ?>">
                     <div class="mc-badge-icon">
@@ -758,6 +791,16 @@ function smacg_render_badges( $uid ) {
                     <div class="mc-badge-info">
                         <h4 class="mc-badge-title"><?php echo esc_html( $badge->post_title ); ?></h4>
                         <?php if ( $excerpt ): ?><p class="mc-badge-desc"><?php echo esc_html( $excerpt ); ?></p><?php endif; ?>
+                        <?php if ( $ms_type ): ?>
+                            <div class="mc-badge-progress">
+                                <div class="mc-badge-progress-bar">
+                                    <div class="mc-badge-progress-fill" style="width:<?php echo (int) $ms_pct; ?>%"></div>
+                                </div>
+                                <span class="mc-badge-progress-text">
+                                    <?php echo (int) $ms_now; ?> / <?php echo (int) $ms_target; ?>
+                                </span>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
