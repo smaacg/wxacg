@@ -924,6 +924,38 @@ function wxacg_rank_math_robots_filter( array $robots ): array {
 		return $robots;
 	}
 
+	/*
+	 * Ultimate Member 的功能頁（登入／註冊／密碼重設／帳號設定／登出）。
+	 *
+	 * 這些頁面的內容就是一組表單，沒有任何可供搜尋的價值；使用者從
+	 * Google 搜到「登入頁」對他毫無意義，他要的是動漫內容。收錄它們
+	 * 只會稀釋站台在 Google 眼中的主題——一個動漫資訊站，索引裡卻混著
+	 * 登入、註冊、密碼重設。
+	 *
+	 * 用 follow 而非 nofollow：不收錄這一頁，但讓爬蟲繼續沿著頁面上的
+	 * 連結（頁首／頁尾）爬下去，不阻斷路徑。
+	 *
+	 * account／logout 目前是 302 導向、本來就進不了索引，一併列入是
+	 * 保險：日後若導向行為改變，不必再回來補。
+	 * 會員目錄 members 已由 wxacg_redirect_um_members_page() 301 導向。
+	 */
+	if ( is_page() ) {
+		$page_id = get_queried_object_id();
+		$um_core = $page_id ? get_post_meta( $page_id, '_um_core', true ) : '';
+
+		if ( in_array( $um_core, [ 'login', 'register', 'password-reset', 'account', 'logout' ], true ) ) {
+			$robots['index']  = 'noindex';
+			$robots['follow'] = 'follow';
+
+			unset(
+				$robots['noarchive'],
+				$robots['nosnippet']
+			);
+
+			return $robots;
+		}
+	}
+
 	if ( is_singular( 'anime' ) ) {
 		$post_id = get_queried_object_id();
 
