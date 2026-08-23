@@ -122,12 +122,23 @@ if ( ! is_user_logged_in() ) {
               ? wxacg_get_member_center_url()
               : home_url( '/' );
       ?>
-        <!-- 贊助愛心 -->
+        <!-- 我的收藏
+             愛心配收藏比配贊助直覺，所以愛心給收藏，贊助改用咖啡杯。
+             #favorites 會被 member.js 讀走切到對應分頁（見 member.js 讀
+             location.hash 的那段），不是單純的頁內錨點。 -->
+        <a href="<?php echo esc_url( home_url('/mc/#favorites') ); ?>"
+           class="header-fav-btn"
+           aria-label="我的收藏"
+           title="我的收藏">
+          <i class="fa-solid fa-heart" aria-hidden="true"></i>
+        </a>
+
+        <!-- 贊助 -->
         <a href="<?php echo esc_url( home_url('/sponsor/') ); ?>"
            class="header-sponsor-btn"
            aria-label="贊助我們"
            title="贊助我們">
-          <i class="fa-solid fa-heart" aria-hidden="true"></i>
+          <i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
         </a>
 
 

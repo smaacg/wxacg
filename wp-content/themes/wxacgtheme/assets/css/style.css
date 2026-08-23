@@ -2375,7 +2375,13 @@ body p:not([class*="btn"]):not([class*="badge"]):not([class*="tag"]) {
     }
 }
 
-/* ── Header 贊助愛心按鈕 ── */
+/* ── Header 圓形圖示按鈕（收藏 / 贊助）──
+ *
+ * 兩顆共用同一組尺寸與動態，只有顏色不同，所以幾何部分寫在一起，
+ * 不各自複製一份 —— 以後要調大小只要改這裡。
+ *
+ * 愛心給收藏、咖啡杯給贊助：愛心配收藏比配贊助直覺。 */
+.header-fav-btn,
 .header-sponsor-btn {
   display: inline-flex;
   align-items: center;
@@ -2383,28 +2389,73 @@ body p:not([class*="btn"]):not([class*="badge"]):not([class*="tag"]) {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(255, 107, 174, .12);
-  border: 1px solid rgba(255, 107, 174, .28);
-  color: #ff6bae;
   font-size: 17px;
   cursor: pointer;
   text-decoration: none;
-  transition: background .18s, transform .18s, box-shadow .18s;
+  transition: background .18s, transform .18s, box-shadow .18s, border-color .18s;
   flex-shrink: 0;
 }
+
+.header-fav-btn:hover,
 .header-sponsor-btn:hover {
+  transform: translateY(-1px) scale(1.05);
+}
+
+/* 收藏：粉紅（沿用原本贊助按鈕的配色，位置也沒變，
+ * 對使用者來說右上角那顆粉紅愛心還是同一顆，只是點下去變成收藏） */
+.header-fav-btn {
+  background: rgba(255, 107, 174, .12);
+  border: 1px solid rgba(255, 107, 174, .28);
+  color: #ff6bae;
+}
+.header-fav-btn:hover {
   background: rgba(255, 107, 174, .22);
   color: #ff8ac2;
-  transform: translateY(-1px) scale(1.05);
   box-shadow: 0 4px 14px rgba(255, 107, 174, .35);
+}
+
+/* 贊助：琥珀色。跟收藏的粉紅拉開距離，一眼看得出是兩件事 */
+.header-sponsor-btn {
+  background: rgba(255, 176, 74, .12);
+  border: 1px solid rgba(255, 176, 74, .28);
+  color: #ffb04a;
+}
+.header-sponsor-btn:hover {
+  background: rgba(255, 176, 74, .22);
+  color: #ffc46f;
+  box-shadow: 0 4px 14px rgba(255, 176, 74, .35);
 }
 
 /* 手機版稍微縮小,跟其他 icon 對齊 */
 @media (max-width: 768px) {
+  .header-fav-btn,
   .header-sponsor-btn {
     width: 36px;
     height: 36px;
     font-size: 15px;
+  }
+}
+
+/* 窄螢幕隱藏贊助按鈕
+ *
+ * ★ 為什麼
+ *   header 右側是 flex-wrap:nowrap 且子元素全部 flex-shrink:0。
+ *   在 375px 實測：收藏＋贊助＋鈴鐺＋頭像四顆並排時，贊助會跟搜尋
+ *   圖示和 logo 文字疊在一起（.site-logo 在手機版吃掉 max-width:50%，
+ *   右側剩下的空間放不下四顆）。隱藏贊助之後三顆排得下，且有留白。
+ *
+ *   選擇犧牲贊助而不是收藏，因為贊助另外還有三個入口：
+ *   導覽列的「❤️贊助」、頁尾的「贊助我們」、手機底部導航列；
+ *   而收藏在手機上沒有其他快捷入口。
+ *
+ * ★ 量測方式的坑（給之後要改這段的人）
+ *   headless Chrome 的視窗最小寬度是 500px，--window-size=375 量到的
+ *   其實是 500px，媒體查詢不會觸發，看到的版面也不是手機的樣子。
+ *   要驗這段請把頁面放進固定寬度的 <iframe>（媒體查詢會依 iframe
+ *   寬度計算），或用 CDP 的裝置模擬。 */
+@media (max-width: 480px) {
+  .header-sponsor-btn {
+    display: none;
   }
 }
 
