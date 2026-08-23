@@ -1517,6 +1517,58 @@ function wxacg_wpforo_profile_url_to_public( $url, $user, $template = 'profile' 
 add_filter( 'wpforo_member_profile_url', 'wxacg_wpforo_profile_url_to_public', 10, 3 );
 
 /* ============================================================
+ * wpForo 改用內建的深色配色（wpf-dark）
+ *
+ * ★ 為什麼要這樣做
+ *   wpForo 的配色由「設定 → Styles → Color Style」決定，站上目前是
+ *   default（淺色）。wpForo 會把它輸出成 #wpforo-wrap 的 class：
+ *       functions-template.php:352  'wpf-' . wpforo_setting('styles','color_style')
+ *   所以現在掛的是 wpf-default。
+ *
+ *   問題是我們的網站是深色的，於是 wpforo-override.css 一路用
+ *   !important 去蓋淺色佈景。實測線上仍有 149 條 wpForo 規則帶著
+ *   亮色底沒被蓋到 —— 蓋不完的，因為那是在跟整套淺色配色打架。
+ *   典型漏網的例子：
+ *       .wpf-tools      linear-gradient(90deg, #eee, #fff)  ← 點開「工具」就是一塊白
+ *       .wpf-acp-*      #F5F5F5                              ← 發文面板
+ *       .wpf-popover    #f5f5f5
+ *
+ *   而 wpForo 其實內建了深色配色，共 229 條 .wpf-dark 規則，我們完全
+ *   沒用到。切過去之後那 149 個破口由 wpForo 自己補，我們的 override
+ *   只要負責品牌色與毛玻璃。
+ *
+ * ★ 為什麼用 filter 而不是去後台改設定
+ *   後台改設定是寫進資料庫，不會進版控，之後也看不出是誰改的、為什麼改。
+ *   用 filter 改成程式碼，走一般的 git push 部署，要還原就是移除這段。
+ *
+ * ★ 注意
+ *   wpforo_get_body_classes 同時餵給 #wpforo-wrap 的 class 與 <body> 的
+ *   body_class（functions-template.php:368 與 372）。這是預期行為 ——
+ *   wpForo 有 `body.wpf-dark #wpforo-dialog ...` 這類規則要靠 body 上的
+ *   class 才會生效。
+ * ============================================================ */
+function wxacg_wpforo_force_dark_color_style( $classes ) {
+	if ( ! is_array( $classes ) ) {
+		return $classes;
+	}
+
+	// 移除 wpForo 依設定產生的配色 class（wpf-default／wpf-grey／wpf-red …），
+	// 只清掉配色那一種，其餘 wpf-* 前綴的 class（wpf-auth、wpf-guest、
+	// wpf-theme-2026、wpf-boardid-0 …）都必須留著。
+	$color_styles = array( 'default', 'red', 'green', 'orange', 'grey', 'dark' );
+	foreach ( $classes as $i => $class ) {
+		if ( in_array( $class, array_map( function ( $c ) { return 'wpf-' . $c; }, $color_styles ), true ) ) {
+			unset( $classes[ $i ] );
+		}
+	}
+
+	$classes[] = 'wpf-dark';
+
+	return array_values( $classes );
+}
+add_filter( 'wpforo_get_body_classes', 'wxacg_wpforo_force_dark_color_style' );
+
+/* ============================================================
  * Ultimate Member 的 /members/ 目錄頁 → 導向會員排行榜
  * ============================================================
  * 該頁內容是 [ultimatemember form_id="21"]，實際輸出是一段英文的

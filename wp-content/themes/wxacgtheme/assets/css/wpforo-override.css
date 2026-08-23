@@ -115,6 +115,43 @@
     border-left-color: var(--wpf-border) !important;
 }
 
+/* ── 分隔符號：修掉白色菱形 ──────────────────────────────
+ *
+ * wpForo 的箭頭是「旋轉 45° 的方塊」做的：方塊填成跟麵包屑同一個
+ * 底色，疊在項目右緣，只有露出來的那個角看起來像箭頭。
+ * 淺色佈景下方塊跟底色一樣所以看不出來。
+ *
+ * 但 wpForo 把那個底色寫死了：
+ *     .wpf-breadcrumb div:after { background: #fff }
+ * 我們上面把 div 底色改成 transparent，方塊卻還是白的 ——
+ * 於是整塊白方塊露出來，變成一顆一顆的白菱形。
+ *
+ * 這裡不再用「填色方塊」那套，直接把它畫成細箭頭：
+ * 只留上、右兩條邊，旋轉 45° 就是一個 › 。
+ * ------------------------------------------------------- */
+#wpforo #wpforo-wrap .wpf-breadcrumb div:after,
+#wpforo #wpforo-wrap .wpf-breadcrumb div.active:after {
+    background: transparent !important;
+    box-shadow: none !important;
+    width: 6px !important;
+    height: 6px !important;
+    top: 50% !important;
+    right: -3px !important;
+    margin-top: -3px !important;
+    border-top: 1.5px solid var(--wpf-text-dim) !important;
+    border-right: 1.5px solid var(--wpf-text-dim) !important;
+    transform: rotate(45deg) !important;
+    -webkit-transform: rotate(45deg) !important;
+}
+
+/* 尾端那顆為什麼消不掉：
+ * 麵包屑的最後一個元素是 <span class="wpf-end">，不是 div，
+ * 所以 wpForo 自己那條 div:last-child:after{content:none} 永遠不成立。
+ * 改用 last-of-type —— 它只在 div 兄弟之間比較，不受尾端的 span 影響。 */
+#wpforo #wpforo-wrap .wpf-breadcrumb div:last-of-type:after {
+    content: none !important;
+}
+
 
 /* ==========================================================
  * 2. 標題列 / 工具列
@@ -1027,4 +1064,44 @@
 #wpforo #wpforo-wrap .wpforo-post:hover,
 #wpforo #wpforo-wrap .post-wrap:hover {
     border-color: var(--glass-border-h, rgba(245, 247, 246, 0.26)) !important;
+}
+
+
+/* ==========================================================
+ * 🌙 深色模式的補漏（2026-08-23）
+ *
+ * functions.php 已把 wpForo 切成內建的 wpf-dark 配色，原本 138 條
+ * 帶亮色底的規則有 89 條由 wpForo 自己的深色規則接手了。
+ *
+ * 剩下 49 條裡，實測線上真的會出現的只有下面這幾個，其餘都是 AI
+ * 助手相關元件（.wpf-ai-*），站上沒開啟、頁面上出現 0 次，
+ * 所以不預先寫樣式 —— 等真的要開再處理，免得留下一堆沒人驗證過的
+ * 死規則。
+ * ========================================================== */
+
+/* 會員頭像下方的評價條：wpForo 給它 #f5f5f5 底 + #e6e6e6 邊框，
+ * 深色配色沒有對應規則，會變成一條亮灰色橫槓。 */
+#wpforo #wpforo-wrap .author-rating,
+#wpforo #wpforo-wrap .wpfl-1 .wpforo-post .wpf-left .author-rating,
+#wpforo #wpforo-wrap .wpfl-4 .wpforo-post .wpf-left .author-rating {
+    background: rgba(245, 247, 246, 0.06) !important;
+    border: 1px solid var(--wpf-border) !important;
+}
+
+/* 搜尋框聚焦時 wpForo 會把底色換成 #fff（展開動畫的一部分），
+ * 一點下去整個框變白。維持深色並用主色描邊表示聚焦。 */
+#wpforo #wpforo-wrap .wpf-search input[type="text"].wpf-search-field:focus {
+    background-color: rgba(15, 19, 24, 0.85) !important;
+    border-color: var(--wpf-blue) !important;
+    color: var(--wpf-text) !important;
+}
+
+/* 話題頁頂部的資訊列（顯示所屬論壇、最後發帖者、帖子／用戶／反應／查看）：
+ *     .wpforo-post-head .wpf-post-head-top { background-color:#f5f5f5; border-left:3px solid #43a6df }
+ * 這條 wpForo 沒有對應的深色版本（.wpf-dark 命中 0 條），所以切成深色配色
+ * 之後它還是一整條白的，在深色頁面上非常刺眼。 */
+#wpforo #wpforo-wrap .wpforo-post-head .wpf-post-head-top {
+    background-color: var(--wpf-card) !important;
+    border-left: 3px solid var(--wpf-blue) !important;
+    border-radius: 0 12px 12px 0 !important;
 }
