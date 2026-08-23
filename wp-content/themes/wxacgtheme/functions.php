@@ -1480,6 +1480,43 @@ add_action(
 );
 
 /* ============================================================
+ * wpForo 的會員連結 → 導向站上的公開檔案頁 /u/{nicename}/
+ * ============================================================
+ * 論壇裡點使用者名稱會連到 /participant/{nicename}/（wpForo 自己的
+ * 會員資料頁），但站上另有 /u/{nicename}/ 的公開檔案，內容豐富得多
+ * （追番清單、評分、成就、追蹤關係）。同一個人有兩個檔案頁，使用者
+ * 會困惑，SEO 上也是兩份高度相似的頁面在互相稀釋。
+ *
+ * 用 wpForo 自己的 wpforo_member_profile_url filter 從源頭改寫，而不是
+ * 用 JS 事後替換 DOM 上的連結——後者對爬蟲無效，使用者按右鍵複製連結
+ * 拿到的也還是舊網址。
+ *
+ * 只改 profile 主頁：wpForo 的其他分頁（activity、subscriptions 等）
+ * 是論壇專屬功能，站上的公開檔案沒有對應內容，一併改過去會變成死連結。
+ */
+function wxacg_wpforo_profile_url_to_public( $url, $user, $template = 'profile' ) {
+	if ( $template !== 'profile' ) {
+		return $url;
+	}
+
+	$nicename = '';
+	if ( is_array( $user ) && ! empty( $user['user_nicename'] ) ) {
+		$nicename = (string) $user['user_nicename'];
+	} elseif ( is_object( $user ) && ! empty( $user->user_nicename ) ) {
+		$nicename = (string) $user->user_nicename;
+	}
+
+	if ( $nicename === '' ) {
+		return $url;
+	}
+
+	$slug = defined( 'SMACG_PUBLIC_PROFILE_SLUG' ) ? SMACG_PUBLIC_PROFILE_SLUG : 'u';
+
+	return home_url( '/' . $slug . '/' . rawurlencode( $nicename ) . '/' );
+}
+add_filter( 'wpforo_member_profile_url', 'wxacg_wpforo_profile_url_to_public', 10, 3 );
+
+/* ============================================================
  * Ultimate Member 的 /members/ 目錄頁 → 導向會員排行榜
  * ============================================================
  * 該頁內容是 [ultimatemember form_id="21"]，實際輸出是一段英文的
