@@ -215,6 +215,73 @@ $backfill_pending_persons = (int) $wpdb->get_var(
      WHERE bgm_id > 0 AND ( infobox_json IS NULL OR infobox_json = '' )"
 );
 
+/* ────────────────────────────────────────────────────────────
+   回補預估剩餘時間
+
+   上面那兩個數字是「原始待補量」，看了不知道還要跑多久，每次都得
+   自己換算。這裡把它算成時間直接顯示。
+
+   三個地方刻意不寫死：
+
+   1. 每批筆數取 $backfill_batch，不是常數 60 ——
+      使用者可以在這一頁把它改成 10~200，寫死會讓估算失準。
+
+   2. 排程間隔讀 wp_get_schedules() 的實際註冊值，不是寫死 300 秒 ——
+      間隔定義在 Cron Manager 的 cron_schedules filter 裡
+      （anime_sync_five_min => 5 * MINUTE_IN_SECONDS），日後若調整，
+      這裡會自動跟著變。
+
+   3. 估算前先扣掉跳過名單。跳過名單裡的條目是 BGM 整筆查無資料、
+      永遠補不起來的，但它們的欄位仍是空的，所以「原始待補量」把它們
+      也算了進去。不扣掉會一直高估，而且永遠等不到歸零。
+   ──────────────────────────────────────────────────────────── */
+$backfill_schedules = wp_get_schedules();
+$backfill_interval  = isset( $backfill_schedules['anime_sync_five_min']['interval'] )
+    ? (int) $backfill_schedules['anime_sync_five_min']['interval']
+    : 5 * MINUTE_IN_SECONDS;
+if ( $backfill_interval <= 0 ) {
+    $backfill_interval = 5 * MINUTE_IN_SECONDS;
+}
+
+// 扣除跳過名單後、真正還會被處理的量
+$backfill_todo_chars   = max( 0, $backfill_pending_chars   - $skip_chars_count );
+$backfill_todo_persons = max( 0, $backfill_pending_persons - $skip_persons_count );
+
+// 每小時處理量 = 每批筆數 × 每小時執行次數
+$backfill_per_hour = (int) round( $backfill_batch * ( HOUR_IN_SECONDS / $backfill_interval ) );
+
+/**
+ * 把小時數格式化成好讀的字串。
+ *
+ * @param float $hours 預估小時數
+ * @return string
+ */
+$backfill_format_eta = static function ( $hours ) {
+    $hours = (float) $hours;
+    if ( $hours <= 0 ) {
+        return __( '即將完成', 'anime-sync-pro' );
+    }
+    if ( $hours < 1 ) {
+        return sprintf(
+            /* translators: %d: 分鐘數 */
+            __( '約 %d 分鐘', 'anime-sync-pro' ),
+            max( 1, (int) round( $hours * 60 ) )
+        );
+    }
+    if ( $hours < 48 ) {
+        return sprintf(
+            /* translators: %s: 小時數 */
+            __( '約 %s 小時', 'anime-sync-pro' ),
+            number_format_i18n( $hours, 1 )
+        );
+    }
+    return sprintf(
+        /* translators: %s: 天數 */
+        __( '約 %s 天', 'anime-sync-pro' ),
+        number_format_i18n( $hours / 24, 1 )
+    );
+};
+
 $plugin_version = defined( 'ANIME_SYNC_PRO_VERSION' )
     ? ANIME_SYNC_PRO_VERSION
     : ( defined( 'ANIME_SYNC_VERSION' ) ? ANIME_SYNC_VERSION : '1.0.0' );
@@ -457,6 +524,82 @@ $cron_rows = array(
                                 '<strong>' . esc_html( number_format_i18n( $backfill_pending_chars ) ) . '</strong>',
                                 '<strong>' . esc_html( number_format_i18n( $backfill_pending_persons ) ) . '</strong>'
                             ); ?>
+                            <br>
+                            <?php printf(
+                                esc_html__( '扣除跳過名單後實際待補：角色 %1$s 筆 / 聲優 %2$s 筆', 'anime-sync-pro' ),
+                                '<strong>' . esc_html( number_format_i18n( $backfill_todo_chars ) ) . '</strong>',
+                                '<strong>' . esc_html( number_format_i18n( $backfill_todo_persons ) ) . '</strong>'
+                            ); ?>
+
+                            <?php
+                            /*
+                             * 預估剩餘時間。
+                             *
+                             * 「目前階段」只算現在跑的那一種；「全部補完」要把之後
+                             * 會接力的階段一起算進去 —— 系統一次只跑一種模式，
+                             * persons 補完才會切到 characters，所以在 persons 模式下
+                             * 角色那批的等待時間包含了聲優還要跑的時間。
+                             */
+                            if ( $backfill_mode !== 'off' && $backfill_per_hour > 0 ) :
+                                $stage_label = ( $backfill_mode === 'persons' )
+                                    ? __( '聲優', 'anime-sync-pro' )
+                                    : __( '角色', 'anime-sync-pro' );
+
+                                $stage_todo = ( $backfill_mode === 'persons' )
+                                    ? $backfill_todo_persons
+                                    : $backfill_todo_chars;
+
+                                // persons 模式下，全部補完 = 聲優 + 之後接力的角色
+                                $all_todo = ( $backfill_mode === 'persons' )
+                                    ? $backfill_todo_persons + $backfill_todo_chars
+                                    : $backfill_todo_chars;
+
+                                // 目前階段的「原始」待補量，用來判斷是不是「假空」
+                                $stage_pending = ( $backfill_mode === 'persons' )
+                                    ? $backfill_pending_persons
+                                    : $backfill_pending_chars;
+                                ?>
+                                <br>
+                                <?php if ( $stage_todo === 0 && $stage_pending > 0 ) : ?>
+                                    <?php
+                                    /*
+                                     * 「假空」狀態：這個階段還有缺漏，但全部落在跳過名單內
+                                     * （BGM 整筆查無資料）。Cron 遇到這種情況會刻意維持原模式
+                                     * 不切換（見 class-cron-manager.php 的 $true_remaining 判斷），
+                                     * 也就是說它不會完成、也不會前進。
+                                     *
+                                     * 這裡必須跟「即將完成」區分開 —— 兩者的待補量都是 0，
+                                     * 但意義完全相反：一個是快好了，一個是永遠不會好。
+                                     */
+                                    ?>
+                                    <span style="color:#d63638;">⚠️
+                                    <?php printf(
+                                        esc_html__( '目前階段（%1$s）剩餘 %2$s 筆全部在跳過名單內（BGM 無資料），不會再處理，也不會自動切換到下一階段。', 'anime-sync-pro' ),
+                                        esc_html( $stage_label ),
+                                        '<strong>' . esc_html( number_format_i18n( $stage_pending ) ) . '</strong>'
+                                    ); ?>
+                                    </span>
+                                <?php else : ?>
+                                    <span class="asc-text-ok">⏳
+                                    <?php printf(
+                                        esc_html__( '目前階段（%1$s）預估 %2$s，全部補完預估 %3$s', 'anime-sync-pro' ),
+                                        esc_html( $stage_label ),
+                                        '<strong>' . esc_html( $backfill_format_eta( $stage_todo / $backfill_per_hour ) ) . '</strong>',
+                                        '<strong>' . esc_html( $backfill_format_eta( $all_todo / $backfill_per_hour ) ) . '</strong>'
+                                    ); ?>
+                                    </span>
+                                <?php endif; ?>
+                                <br>
+                                <span style="color:#888;">
+                                <?php printf(
+                                    esc_html__( '（依目前設定推算：每批 %1$s 筆 × 每 %2$s 分鐘一次 = %3$s 筆/小時）', 'anime-sync-pro' ),
+                                    esc_html( number_format_i18n( $backfill_batch ) ),
+                                    esc_html( number_format_i18n( $backfill_interval / MINUTE_IN_SECONDS ) ),
+                                    esc_html( number_format_i18n( $backfill_per_hour ) )
+                                ); ?>
+                                </span>
+                            <?php endif; ?>
+
                             <br>
                             <span style="color:#0073aa;">💡 <?php esc_html_e( '此模式會自動接力：補完會自己切到下一階段，最終自動關閉，通常不需手動更改。', 'anime-sync-pro' ); ?></span>
                         </p>
