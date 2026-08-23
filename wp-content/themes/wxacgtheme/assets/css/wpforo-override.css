@@ -1105,3 +1105,26 @@
     border-left: 3px solid var(--wpf-blue) !important;
     border-radius: 0 12px 12px 0 !important;
 }
+
+/* 話題列表裡展開的「最新帖子」預覽清單：
+ *     .wpfl-1 .wpforo-last-posts-list { color:#555; border-left:#e6e6e6 2px solid; background-color:#fafafa }
+ * 深色模式沒有對應規則（.wpf-dark 命中 0 條）。這塊只有在話題列被展開時
+ * 才會出現，所以第一輪本機掃描沒抓到 —— 線上那個論壇剛好有展開中的話題
+ * 才顯形。文字色 #555 在深色底上會看不見，一併換掉。 */
+#wpforo #wpforo-wrap .wpfl-1 .wpforo-last-posts-list,
+#wpforo #wpforo-wrap .wpforo-last-posts-list {
+    background-color: var(--wpf-card) !important;
+    border-left: 2px solid var(--wpf-border) !important;
+    color: var(--wpf-text-muted) !important;
+}
+
+/* 發文／編輯表單的欄位標籤（自訂欄位那一區）：
+ *     .wpf-topic-field .wpf-topic-field-label { background:#eee; border-top:1px solid #ddd }
+ * 同樣沒有深色版本。這塊只有在發文或編輯時才出現，訪客看不到，
+ * 所以截圖與掃描都不會顯形 —— 是靠比對「wpForo 亮色規則 vs .wpf-dark
+ * 有無對應」查出來的。 */
+#wpforo #wpforo-wrap .wpf-topic-field .wpf-topic-field-label {
+    background: var(--wpf-card) !important;
+    border-top: 1px solid var(--wpf-border) !important;
+    color: var(--wpf-text) !important;
+}
