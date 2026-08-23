@@ -13,6 +13,28 @@ if (!defined('ABSPATH')) {
 
 class WXACG_AI_News_Engine_Plugin {
 
+    # =====================================================================
+    # 全站共用 Gemini API Key 池
+    # =====================================================================
+    # 原本 API Key 是每位主編各自存在 user_meta，且明文會被渲染進 <input value="...">，
+    # 改為全站共用池後若沿用該寫法，任何具 use_wxacg_ai_news 權限者（含編輯角色）
+    # 都能從網頁原始碼看到全部金鑰，故改採「管理員限定 + 明文永不回填 + 管理密碼」三重保護。
+
+    # 換行分隔的 Key 池
+    const KEY_POOL_OPTION = 'wxacg_ai_news_shared_keys';
+    # 輪替游標：跨任務接續前進，讓每次派工從不同一把開始，平均分攤各把 Key 的用量與速率限制
+    const KEY_CURSOR_OPTION = 'wxacg_ai_news_key_cursor';
+    # 管理密碼雜湊（以 wp_hash_password 產生，永不存明文）
+    const KEY_PASSWORD_OPTION = 'wxacg_ai_news_key_password_hash';
+
+    # 可選用的 Gemini 模型清單（雲端引擎 cloud_engine.py 僅支援 Gemini，故不提供其他供應商）
+    const GEMINI_MODELS = [
+        'gemini-3.7-flash' => 'Gemini 3.7 Flash',
+        'gemini-3.6-flash' => 'Gemini 3.6 Flash',
+        'gemini-3.5-flash' => 'Gemini 3.5 Flash',
+    ];
+    const DEFAULT_MODEL = 'gemini-3.7-flash';
+
     public function __construct() {
         add_action('admin_menu', [$this, 'register_admin_menu']);
         add_action('admin_init', [$this, 'register_settings']);
@@ -76,6 +98,83 @@ class WXACG_AI_News_Engine_Plugin {
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_token', ['default' => 'wxacg-super-secret-master-key-2026']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_unlock_password', ['default' => '123456789']);
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_enable_autolink', ['default' => '0']);
+    }
+
+    # =====================================================================
+    # 全站共用 Gemini Key 池：讀取、輪替與密碼保護
+    # =====================================================================
+
+    /**
+     * 取得 Key 池中所有金鑰（已去除空白行）。
+     *
+     * @return array<int,string>
+     */
+    private function get_pool_keys() {
+        $raw = (string) get_option(self::KEY_POOL_OPTION, '');
+        return array_values(array_filter(array_map('trim', explode("\n", $raw))));
+    }
+
+    /**
+     * 取得整池金鑰，並以目前輪替游標為起點重新排序，同時把游標往前推一格。
+     *
+     * 之所以整池一次送給雲端而非只送一把：cloud_engine.py 會在自己的重試迴圈裡
+     * 於額度不足時就地換下一把，只需重跑 AI 那一步；若改由 WordPress 端換 Key 重送，
+     * 每換一把都得把爬原文、建詞典整條流水線重跑一遍，既慢又會對來源站重複發爬蟲請求。
+     *
+     * 游標每次派工 +1，使得各把 Key 平均分攤用量，避免集中消耗單一把而撞上每分鐘速率上限。
+     *
+     * @return array<int,string> 空池時回傳空陣列（由呼叫端負責回報錯誤）
+     */
+    private function get_rotated_keys() {
+        $keys  = $this->get_pool_keys();
+        $count = count($keys);
+        if ($count === 0) {
+            return [];
+        }
+
+        # 游標可能因舊資料或併發而異常，先夾回合法範圍再取餘數，避免取到不存在的索引
+        $cursor = max(0, (int) get_option(self::KEY_CURSOR_OPTION, 0));
+        $start  = $cursor % $count;
+
+        # 以 $start 為起點重排：例如 [A,B,C] 游標 1 → [B,C,A]
+        $rotated = array_merge(array_slice($keys, $start), array_slice($keys, 0, $start));
+
+        update_option(self::KEY_CURSOR_OPTION, ($start + 1) % $count, false);
+
+        return $rotated;
+    }
+
+    /**
+     * 是否已設定 Key 池管理密碼。
+     *
+     * 回傳 false 代表「首次設定模式」：管理員可免密碼直接設定 Key 與密碼，讓第一次能順利完成。
+     */
+    private function is_key_password_set() {
+        return '' !== (string) get_option(self::KEY_PASSWORD_OPTION, '');
+    }
+
+    /**
+     * 驗證 Key 池管理密碼。尚未設定密碼時一律放行（首次設定模式）。
+     */
+    private function verify_key_password($password) {
+        if (!$this->is_key_password_set()) {
+            return true;
+        }
+        if ('' === (string) $password) {
+            return false;
+        }
+        return wp_check_password($password, (string) get_option(self::KEY_PASSWORD_OPTION, ''));
+    }
+
+    /**
+     * 取得目前生效的模型名稱。
+     *
+     * 舊版本此欄位是自由文字輸入，使用者可能存過清單以外的型號，
+     * 這裡原樣沿用不強制重設，避免既有設定被靜默改掉。
+     */
+    private function get_current_model($user_id) {
+        $model = get_user_meta($user_id, 'wxacg_ai_news_model', true);
+        return empty($model) ? self::DEFAULT_MODEL : $model;
     }
 
     /**
@@ -539,12 +638,17 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         # 【個人隔離區】由「User Meta」撈出，若是從沒填打或初度造訪的新主編皆為空白無字或取預設值！
+        # 註：AI 授權金鑰已改為全站共用 Key 池（見下方 $pool_count），不再逐人保存。
         $app_pass = get_user_meta($user_id, 'wxacg_ai_news_app_password', true);
-        $api_key = get_user_meta($user_id, 'wxacg_ai_news_api_key', true);
-        $model_name = get_user_meta($user_id, 'wxacg_ai_news_model', true);
-        if (empty($model_name)) { $model_name = 'gemini-3.6-flash'; }
+        $model_name = $this->get_current_model($user_id);
         $post_status = get_user_meta($user_id, 'wxacg_ai_news_post_status', true);
         if (empty($post_status)) { $post_status = 'draft'; }
+
+        # 【全站共用 Key 池】只有管理員能檢視編輯框與修改；一般主編僅看得到目前把數。
+        # 已儲存的金鑰明文一律不回填進 HTML，避免任何人從網頁原始碼直接讀走整池金鑰。
+        $can_manage_keys = current_user_can('manage_options');
+        $pool_count      = count($this->get_pool_keys());
+        $key_password_set = $this->is_key_password_set();
 
         # 【全網公務區】獲取選項表中所儲藏的常規總局配置 (雲端伺服連接點與鎖)
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
@@ -559,6 +663,30 @@ class WXACG_AI_News_Engine_Plugin {
             <?php if (isset($_GET['updated']) && $_GET['updated'] === 'true') : ?>
                 <div class="notice notice-success is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid #46b450; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <p style="margin:0; font-size:14px; font-weight:600; color:#1b4a24;">✔ 儲存順暢：您本帳戶專注綁定的授權金鑰與總體設定皆已安穩記錄成妥！</p>
+                </div>
+            <?php endif; ?>
+
+            <?php
+            # Key 池與管理密碼的個別處理結果。這幾項與其他設定分開回報，
+            # 是因為密碼驗證失敗時只會擋下 Key 池的變更，其餘設定仍照常儲存，
+            # 若共用同一則「已儲存」訊息，使用者會誤以為金鑰也一併更新了。
+            $key_notices = [
+                'saved'     => ['success', '🔑 共用 Key 池已整批更新完成。'],
+                'badpass'   => ['error',   '⛔ 管理密碼錯誤，共用 Key 池未變更（其餘設定已正常儲存）。'],
+                'nopass'    => ['error',   '⛔ 未輸入管理密碼，共用 Key 池未變更（其餘設定已正常儲存）。'],
+                'pwsaved'   => ['success', '🔐 Key 池管理密碼已更新完成。'],
+                'pwbad'     => ['error',   '⛔ 舊密碼錯誤，管理密碼未變更。'],
+                'pwshort'   => ['error',   '⛔ 新密碼長度至少需 6 個字元，管理密碼未變更。'],
+                'pwmismatch' => ['error',  '⛔ 兩次輸入的新密碼不一致，管理密碼未變更。'],
+            ];
+            $key_msg = isset($_GET['key_msg']) ? sanitize_key($_GET['key_msg']) : '';
+            if (isset($key_notices[$key_msg])) :
+                list($notice_type, $notice_text) = $key_notices[$key_msg];
+                $border = ($notice_type === 'success') ? '#46b450' : '#d63638';
+                $color  = ($notice_type === 'success') ? '#1b4a24' : '#8a1f21';
+            ?>
+                <div class="notice notice-<?php echo esc_attr($notice_type); ?> is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid <?php echo esc_attr($border); ?>; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <p style="margin:0; font-size:14px; font-weight:600; color:<?php echo esc_attr($color); ?>;"><?php echo esc_html($notice_text); ?></p>
                 </div>
             <?php endif; ?>
 
@@ -671,17 +799,86 @@ class WXACG_AI_News_Engine_Plugin {
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><label for="wxacg_ai_news_api_key">AI 授權金鑰 (API Key)<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
+                            <th scope="row"><label>AI 供應商<br><small style="color:#0073aa;">[全站固定]</small></label></th>
                             <td>
-                                <input type="password" id="wxacg_ai_news_api_key" name="wxacg_ai_news_api_key" class="regular-text code" value="<?php echo esc_attr($api_key); ?>" placeholder="在此填寫專屬於您本人動用的 AI API Key...">
-                                <p class="description">採個人獨立紀錄【金鑰僅供本人獨立運算調用，保障專屬於您的權限與付費額度】</p>
+                                <input type="text" class="regular-text" value="Google Gemini" readonly style="background:#e9ecf0; color:#50575e; font-weight:600;">
+                                <p class="description">雲端 AI 引擎（<code>cloud_engine.py</code>）目前僅實作 Gemini，故此處固定不可切換。</p>
                             </td>
                         </tr>
                         <tr>
+                            <th scope="row"><label for="wxacg_ai_news_api_key_pool">AI 授權金鑰 (API Key)<br><small style="color:#0073aa;">[全站共用金鑰池]</small></label></th>
+                            <td>
+                                <p style="margin:0 0 8px 0; font-size:14px;">
+                                    🔑 目前共用池已存放
+                                    <strong style="color:<?php echo $pool_count > 0 ? '#186229' : '#d63638'; ?>;"><?php echo (int) $pool_count; ?></strong> 把 Key
+                                    <?php if ($pool_count === 0) : ?>
+                                        <span style="color:#d63638; font-weight:600;">— 尚未設定，無法生成報導！</span>
+                                    <?php endif; ?>
+                                </p>
+
+                                <?php if ($can_manage_keys) : ?>
+                                    <textarea id="wxacg_ai_news_api_key_pool" name="wxacg_ai_news_api_key_pool" class="large-text code" rows="4"
+                                              placeholder="一行一把 Key，貼上後將【整批覆蓋】原有內容；留空則維持原池不變更..."
+                                              style="font-family:monospace;"></textarea>
+                                    <p class="description" style="margin-bottom:10px;">
+                                        為保障安全，此處<strong>不會顯示</strong>已儲存的金鑰明文。留空儲存＝維持原池不動；<br>
+                                        有填內容＝整批覆蓋整個 Key 池。額度不足時雲端會自動輪替到下一把。
+                                    </p>
+
+                                    <div style="border:1px dashed #c3c4c7; padding:10px; background:#f6f7f7; border-radius:4px;">
+                                        <?php if ($key_password_set) : ?>
+                                            <label for="wxacg_ai_news_key_password"><strong>🔐 管理密碼（修改上方 Key 池時必填）：</strong></label><br>
+                                            <input type="password" id="wxacg_ai_news_key_password" name="wxacg_ai_news_key_password"
+                                                   class="regular-text" autocomplete="new-password" placeholder="請輸入 Key 池管理密碼">
+                                            <p class="description" style="margin-top:2px;">只有要變更 Key 池時才需要填寫，單純修改其他設定可留空。</p>
+                                        <?php else : ?>
+                                            <p style="margin:0 0 6px 0; color:#b32d2e; font-weight:600;">⚠️ 尚未設定管理密碼（首次設定模式，目前任何管理員都能直接修改 Key 池）</p>
+                                            <p class="description" style="margin:0;">請於下方「設定管理密碼」欄位設定，設定後日後修改 Key 池就必須輸入密碼。</p>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php else : ?>
+                                    <p class="description">
+                                        共用金鑰由網站管理員統一維護，您無需（也無法）自行填寫。<br>
+                                        若上方顯示 0 把或生成持續失敗，請聯繫管理員補充金鑰。
+                                    </p>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+
+                        <?php if ($can_manage_keys) : ?>
+                        <tr>
+                            <th scope="row"><label for="wxacg_ai_news_key_new_password">🔐 <?php echo $key_password_set ? '修改' : '設定'; ?>管理密碼<br><small style="color:#0073aa;">[全站共用設定]</small></label></th>
+                            <td>
+                                <?php if ($key_password_set) : ?>
+                                    <input type="password" name="wxacg_ai_news_key_old_password" class="regular-text" autocomplete="new-password" placeholder="目前的舊密碼"><br style="margin-bottom:6px;">
+                                <?php endif; ?>
+                                <input type="password" id="wxacg_ai_news_key_new_password" name="wxacg_ai_news_key_new_password" class="regular-text" autocomplete="new-password" placeholder="新密碼（至少 6 個字元）"><br style="margin-bottom:6px;">
+                                <input type="password" name="wxacg_ai_news_key_new_password2" class="regular-text" autocomplete="new-password" placeholder="再次輸入新密碼">
+                                <p class="description">全部留空即代表不變更密碼。此密碼用於保護上方的全站共用 Key 池。</p>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+
+                        <tr>
                             <th scope="row"><label for="wxacg_ai_news_model">使用模型名稱<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
-                                <input type="text" id="wxacg_ai_news_model" name="wxacg_ai_news_model" class="regular-text code" value="<?php echo esc_attr($model_name); ?>" placeholder="gemini-3.6-flash">
-                                <p class="description">開放填入形式【AI的模型名稱。若為 Google AI，推薦 <code>gemini-3.6-flash</code>】</p>
+                                <select id="wxacg_ai_news_model" name="wxacg_ai_news_model" class="wxacg-select" style="min-width:220px;">
+                                    <?php foreach (self::GEMINI_MODELS as $model_value => $model_label) : ?>
+                                        <option value="<?php echo esc_attr($model_value); ?>" <?php selected($model_name, $model_value); ?>>
+                                            <?php echo esc_html($model_label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                    <?php
+                                    # 舊版此欄位為自由文字輸入，使用者可能存過清單以外的型號。
+                                    # 這裡把該值額外列為一個選項保留下來，避免改版後被靜默重設而不自知。
+                                    if (!isset(self::GEMINI_MODELS[$model_name])) :
+                                    ?>
+                                        <option value="<?php echo esc_attr($model_name); ?>" selected>
+                                            <?php echo esc_html($model_name); ?>（自訂）
+                                        </option>
+                                    <?php endif; ?>
+                                </select>
+                                <p class="description">預設推薦 <code>gemini-3.7-flash</code>。此設定為每位主編各自獨立保存。</p>
                             </td>
                         </tr>
                         <tr>
@@ -767,9 +964,8 @@ class WXACG_AI_News_Engine_Plugin {
         if (isset($_POST['wxacg_ai_news_app_password'])) {
             update_user_meta($user_id, 'wxacg_ai_news_app_password', sanitize_text_field(trim($_POST['wxacg_ai_news_app_password'])));
         }
-        if (isset($_POST['wxacg_ai_news_api_key'])) {
-            update_user_meta($user_id, 'wxacg_ai_news_api_key', sanitize_text_field(trim($_POST['wxacg_ai_news_api_key'])));
-        }
+        # 註：AI 授權金鑰已改為全站共用 Key 池（見下方第 3 段），不再逐人保存。
+        #     舊的 wxacg_ai_news_api_key 保留在資料庫中不刪除，只是不再讀取或寫入。
         if (isset($_POST['wxacg_ai_news_model'])) {
             update_user_meta($user_id, 'wxacg_ai_news_model', sanitize_text_field(trim($_POST['wxacg_ai_news_model'])));
         }
@@ -793,9 +989,89 @@ class WXACG_AI_News_Engine_Plugin {
         # 開關切換後清一次對照表快取，確保狀態立即反映
         $this->flush_anime_link_map();
 
+        # 3. 全站共用 Gemini Key 池與其管理密碼（僅限管理員）
+        #    刻意獨立回報處理結果：密碼驗證失敗時只擋下 Key 池的變更，
+        #    上面那些設定仍照常儲存，避免使用者辛苦改的其他欄位一起白做。
+        $key_msg = '';
+        if (current_user_can('manage_options')) {
+            $key_msg = $this->handle_key_pool_save();
+        }
+
         # 保存完畢，攜帶反饋狀態順暢轉送返回原操作面壁
-        wp_redirect(add_query_arg(['page' => 'wxacg-ai-news-engine', 'updated' => 'true'], admin_url('admin.php')));
+        $redirect_args = ['page' => 'wxacg-ai-news-engine', 'updated' => 'true'];
+        if ($key_msg !== '') {
+            $redirect_args['key_msg'] = $key_msg;
+        }
+        wp_redirect(add_query_arg($redirect_args, admin_url('admin.php')));
         exit;
+    }
+
+    /**
+     * 處理全站共用 Key 池與管理密碼的儲存。
+     *
+     * 設計重點：
+     * - Key 池採「盲寫」：欄位留空代表沒有要變更，有內容才整批覆蓋。
+     *   若不這樣設計，使用者只是想改個模型名稱按下儲存，就會被空欄位把整池洗掉。
+     * - 密碼驗證一律在伺服器端以 wp_check_password() 比對雜湊，前端不參與判斷。
+     * - 尚未設定密碼時為「首次設定模式」，管理員可免密碼直接寫入，讓第一次能順利完成。
+     *
+     * @return string 回報給頁面的訊息代碼，空字串代表本次沒有涉及 Key 池／密碼操作。
+     */
+    private function handle_key_pool_save() {
+        $msg = '';
+
+        # --- 3a. 先處理密碼的設定／變更 ---
+        $new_pass  = isset($_POST['wxacg_ai_news_key_new_password']) ? (string) $_POST['wxacg_ai_news_key_new_password'] : '';
+        $new_pass2 = isset($_POST['wxacg_ai_news_key_new_password2']) ? (string) $_POST['wxacg_ai_news_key_new_password2'] : '';
+        $old_pass  = isset($_POST['wxacg_ai_news_key_old_password']) ? (string) $_POST['wxacg_ai_news_key_old_password'] : '';
+
+        if ('' !== $new_pass || '' !== $new_pass2) {
+            if (!$this->verify_key_password($old_pass)) {
+                $msg = 'pwbad';
+            } elseif (strlen($new_pass) < 6) {
+                $msg = 'pwshort';
+            } elseif ($new_pass !== $new_pass2) {
+                $msg = 'pwmismatch';
+            } else {
+                update_option(self::KEY_PASSWORD_OPTION, wp_hash_password($new_pass), false);
+                $msg = 'pwsaved';
+            }
+        }
+
+        # --- 3b. 再處理 Key 池本身 ---
+        $pool_input = isset($_POST['wxacg_ai_news_api_key_pool']) ? (string) wp_unslash($_POST['wxacg_ai_news_api_key_pool']) : '';
+
+        if ('' === trim($pool_input)) {
+            # 留空＝沒有要變更 Key 池，維持原池不動
+            return $msg;
+        }
+
+        /*
+         * 驗證用的密碼來源：
+         * 若本次同時設定了新密碼（3a 已成功寫入），沿用新密碼驗證會造成循環，
+         * 故此時直接視為已授權——因為要能改密碼，本來就已經通過舊密碼驗證了。
+         */
+        if ('pwsaved' === $msg) {
+            $authorized = true;
+        } else {
+            $key_pass   = isset($_POST['wxacg_ai_news_key_password']) ? (string) $_POST['wxacg_ai_news_key_password'] : '';
+            $authorized = $this->verify_key_password($key_pass);
+            if (!$authorized && $this->is_key_password_set() && '' === $key_pass) {
+                return 'nopass';
+            }
+        }
+
+        if (!$authorized) {
+            return 'badpass';
+        }
+
+        $lines = array_values(array_filter(array_map('trim', explode("\n", $pool_input))));
+        update_option(self::KEY_POOL_OPTION, implode("\n", $lines), false);
+        # 整池換掉後游標歸零，避免沿用舊游標指到不存在或非預期的位置
+        update_option(self::KEY_CURSOR_OPTION, 0, false);
+
+        # 密碼與 Key 同時更新時，以 Key 的結果為主要回報（密碼成功屬於附帶結果）
+        return 'saved';
     }
 
     /**
@@ -825,9 +1101,7 @@ class WXACG_AI_News_Engine_Plugin {
         # 自發令者帳單下方調取專有之私房金鑰與編輯慣性設定 (User Meta 獨立保存領域)
         $user_id = get_current_user_id();
         $app_pass = get_user_meta($user_id, 'wxacg_ai_news_app_password', true);
-        $api_key = get_user_meta($user_id, 'wxacg_ai_news_api_key', true);
-        $model_name = get_user_meta($user_id, 'wxacg_ai_news_model', true);
-        if (empty($model_name)) { $model_name = 'gemini-3.6-flash'; }
+        $model_name = $this->get_current_model($user_id);
         $post_status = get_user_meta($user_id, 'wxacg_ai_news_post_status', true);
         if (empty($post_status)) { $post_status = 'draft'; }
 
@@ -835,9 +1109,20 @@ class WXACG_AI_News_Engine_Plugin {
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
         $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
 
-        if (empty($cloud_url) || empty($api_key) || empty($app_pass)) {
-            wp_send_json_error(['message' => '錯誤：您個人的【WordPress 應用程式密碼】與【AI 授權金鑰 (API Key)】，或是主機 URL 不可是空白狀態！請至上方列表確認存妥沒？']);
+        # 先做不具副作用的檢查，全部通過後才去取 Key。
+        # get_rotated_keys() 會推進輪替游標，若放在這些檢查之前，
+        # 光是設定沒填好的失敗請求也會空推游標，白白跳過一把 Key。
+        if (empty($cloud_url) || empty($app_pass)) {
+            wp_send_json_error(['message' => '錯誤：您個人的【WordPress 應用程式密碼】或是主機 URL 不可是空白狀態！請至上方列表確認存妥沒？']);
         }
+
+        # 【全站共用 Key 池】整池依輪替游標重排後一次送出，讓雲端在額度不足時就地換下一把，
+        # 只需重跑 AI 那一步，不必把爬原文、建詞典整條流水線重來。
+        $rotated_keys = $this->get_rotated_keys();
+        if (empty($rotated_keys)) {
+            wp_send_json_error(['message' => '錯誤：全站共用 Gemini Key 池目前是空的，無法生成報導！請由網站管理員至下方【核心授權與連線設定】填入 API Key。']);
+        }
+        $api_key = implode("\n", $rotated_keys);
 
         $current_user = wp_get_current_user();
         $username = $current_user->user_email ? $current_user->user_email : $current_user->user_login;
