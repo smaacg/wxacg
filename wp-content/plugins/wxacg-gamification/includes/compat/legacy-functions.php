@@ -89,7 +89,33 @@ if ( ! function_exists( 'wxacg_get_achievement_icon' ) ) {
             'badge-first-career-change'       => 'fa-briefcase',
             'badge-first-review'              => 'fa-pen-to-square',
         ];
-        return 'fa-solid ' . ( $map[ $slug ] ?? 'fa-trophy' );
+
+        if ( isset( $map[ $slug ] ) ) {
+            return 'fa-solid ' . $map[ $slug ];
+        }
+
+        /*
+         * 累積型里程碑徽章（badge-watch-3、badge-review-100…）共 20 個。
+         * 用前綴比對而非逐一列舉——每類四階，列舉會變成 20 行重複設定，
+         * 日後調整階梯數字還得同步修改。
+         *
+         * 前綴不會與上面的「初次」徽章相撞：badge-favorite- 不匹配
+         * badge-first-favorite，badge-rating- 也不匹配 badge-first-rating。
+         */
+        $milestone_icons = [
+            'badge-watch-'    => 'fa-flag-checkered',
+            'badge-review-'   => 'fa-pen-to-square',
+            'badge-rating-'   => 'fa-star',
+            'badge-favorite-' => 'fa-heart',
+            'badge-streak-'   => 'fa-fire',
+        ];
+        foreach ( $milestone_icons as $prefix => $icon ) {
+            if ( strpos( $slug, $prefix ) === 0 ) {
+                return 'fa-solid ' . $icon;
+            }
+        }
+
+        return 'fa-solid fa-trophy';
     }
 }
 

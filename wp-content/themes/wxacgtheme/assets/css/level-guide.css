@@ -949,3 +949,94 @@
   #career .guide-job-title-row.is-current { margin: 2px -6px; padding: 10px 8px; }
 }
 
+
+/* ─────────── 成就分組：入門 / 累積 ───────────
+ * 累積成就用「階梯」而非徽章格子：重點是讓人看懂每類有四個階段，
+ * 20 個格子只會把頁面拉長又看不出彼此的關聯。
+ */
+.guide-badge-subtitle {
+  margin: 22px 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--lg-text);
+}
+.guide-badge-subtitle:first-of-type { margin-top: 14px; }
+
+.guide-milestone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.guide-milestone-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 12px 16px;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-radius: var(--lg-radius-sm);
+  transition: border-color .15s ease;
+}
+.guide-milestone-row:hover { border-color: var(--lg-primary); }
+
+.guide-milestone-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 140px;
+}
+.guide-milestone-head i {
+  font-size: 17px;
+  color: var(--lg-primary);
+  width: 20px;
+  text-align: center;
+}
+.guide-milestone-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lg-text);
+}
+/* 已解鎖數：只在登入且有進度時輸出（見 page-level-guide.php） */
+.guide-milestone-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lg-success);
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-milestone-tiers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.guide-milestone-tier {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--lg-primary-soft);
+  border: 1px solid var(--lg-card-border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lg-text-soft);
+  font-variant-numeric: tabular-nums;
+}
+.guide-milestone-arrow {
+  font-size: 11px;
+  color: var(--lg-text-muted);
+}
+
+.guide-milestone-note {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--lg-text-muted);
+}
+.guide-milestone-note b { color: var(--lg-text-soft); }
+
+@media (max-width: 600px) {
+  /* 窄螢幕讓階梯換到下一行，避免標題被擠成兩行 */
+  .guide-milestone-row { flex-direction: column; align-items: flex-start; }
+  .guide-milestone-tier { font-size: 11.5px; padding: 3px 8px; }
+}

@@ -457,26 +457,102 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
     <section id="achievements" class="guide-section">
       <h2 class="guide-section-title">🎖️ 成就收集 — 解鎖你的成就</h2>
       <p class="guide-section-intro">
-        在站上完成各種挑戰可解鎖成就。完整成就列表請至會員中心查看。
+        成就分兩種：<b>入門成就</b>是第一次做某件事就解鎖，<b>累積成就</b>則是長期挑戰、
+        每類分四個階段。完整清單與你目前的進度請至會員中心查看。
       </p>
 
       <?php
+      /*
+       * 分成兩組顯示。
+       *
+       * 原本是「撈 12 個、依 menu_order 排序」，而累積型徽章的 menu_order
+       * 刻意設在 100 之後（見 Activator::install_milestone_badges()），
+       * 結果前 12 名全是「初次」系列，20 個累積成就一個都沒露出——而它們
+       * 存在的意義正是「讓使用者看見下一個目標」，在專門介紹成長系統的
+       * 頁面上看不到，等於白做。
+       *
+       * 累積成就用「階梯」而非徽章格子呈現：重點是讓人看懂「每類有四個
+       * 階段」這個結構，20 個格子只會把頁面拉長又看不出關聯。
+       */
       $badge_slug = defined( 'WXACG_BADGE_SLUG' ) ? WXACG_BADGE_SLUG : 'badge';
-      $badges = get_posts( [
+
+      // 入門成就：沒有 milestone meta 的即是
+      $first_badges = get_posts( [
           'post_type'      => $badge_slug,
           'post_status'    => 'publish',
-          'posts_per_page' => 12,
+          'posts_per_page' => 8,
           'orderby'        => 'menu_order title',
           'order'          => 'ASC',
+          'meta_query'     => [
+              [ 'key' => '_wxacg_milestone_type', 'compare' => 'NOT EXISTS' ],
+          ],
       ] );
 
       $earned_ids = ( $me_uid && function_exists( 'smacg_get_user_badge_ids' ) ) ? smacg_get_user_badge_ids( $me_uid ) : [];
       $earned_map = array_flip( $earned_ids );
+
+      // 累積成就：依類別彙整出階梯
+      $milestone_posts = get_posts( [
+          'post_type'      => $badge_slug,
+          'post_status'    => 'publish',
+          'posts_per_page' => 100,
+          'orderby'        => 'menu_order',
+          'order'          => 'ASC',
+          'meta_query'     => [
+              [ 'key' => '_wxacg_milestone_type', 'compare' => 'EXISTS' ],
+          ],
+      ] );
+
+      $milestone_groups = [];
+      foreach ( $milestone_posts as $mp ) {
+          $type   = get_post_meta( $mp->ID, '_wxacg_milestone_type', true );
+          $target = (int) get_post_meta( $mp->ID, '_wxacg_milestone_target', true );
+          if ( ! $type || $target <= 0 ) {
+              continue;
+          }
+          if ( ! isset( $milestone_groups[ $type ] ) ) {
+              $milestone_groups[ $type ] = [
+                  'icon'    => function_exists( 'wxacg_get_achievement_icon' )
+                      ? wxacg_get_achievement_icon( $mp->post_name )
+                      : 'fa-solid fa-trophy',
+                  'targets' => [],
+                  'earned'  => 0,
+              ];
+          }
+          $milestone_groups[ $type ]['targets'][] = $target;
+          if ( isset( $earned_map[ $mp->ID ] ) ) {
+              $milestone_groups[ $type ]['earned']++;
+          }
+      }
+
+      /*
+       * 階梯數字去重並由小到大排序。
+       *
+       * 不倚賴 menu_order 的排列：徽章貼文是程式建立的，若曾因並發競態
+       * 產生重複（2026-08-22 上線時就發生過，見 Activator 的鎖說明），
+       * 這裡會排出「100 → 3 → 10 → 30 → 100」這種讀不懂的階梯。
+       * 顯示層自己保證順序，比假設資料乾淨可靠。
+       */
+      foreach ( $milestone_groups as $type => $g ) {
+          $targets = array_values( array_unique( $g['targets'] ) );
+          sort( $targets, SORT_NUMERIC );
+          $milestone_groups[ $type ]['targets'] = $targets;
+      }
+
+      // 標題與單位；unit 讓「3 / 10 / 30 / 100 部」讀起來完整
+      $milestone_labels = [
+          'watch'    => [ '看完作品', '部' ],
+          'review'   => [ '發表評論', '則' ],
+          'rating'   => [ '評分作品', '部' ],
+          'favorite' => [ '收藏作品', '部' ],
+          'streak'   => [ '連續登入', '天' ],
+      ];
       ?>
 
-      <?php if ( ! empty( $badges ) ): ?>
+      <?php if ( ! empty( $first_badges ) ): ?>
+        <h3 class="guide-badge-subtitle">🌱 入門成就</h3>
         <div class="guide-badge-grid">
-          <?php foreach ( $badges as $b ):
+          <?php foreach ( $first_badges as $b ):
             $unlocked = isset( $earned_map[ $b->ID ] );
             $thumb    = get_the_post_thumbnail_url( $b->ID, 'thumbnail' );
           ?>
@@ -496,8 +572,41 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
             </div>
           <?php endforeach; ?>
         </div>
+      <?php endif; ?>
+
+      <?php if ( ! empty( $milestone_groups ) ): ?>
+        <h3 class="guide-badge-subtitle">🏆 累積成就</h3>
+        <div class="guide-milestone-list">
+          <?php foreach ( $milestone_groups as $type => $g ):
+            [ $label, $unit ] = $milestone_labels[ $type ] ?? [ $type, '' ];
+            $total = count( $g['targets'] );
+          ?>
+            <div class="guide-milestone-row">
+              <div class="guide-milestone-head">
+                <i class="<?php echo esc_attr( $g['icon'] ); ?>" aria-hidden="true"></i>
+                <span class="guide-milestone-label"><?php echo esc_html( $label ); ?></span>
+                <?php if ( $me_uid && $g['earned'] > 0 ): ?>
+                  <span class="guide-milestone-count"><?php echo (int) $g['earned']; ?> / <?php echo (int) $total; ?></span>
+                <?php endif; ?>
+              </div>
+              <div class="guide-milestone-tiers">
+                <?php foreach ( $g['targets'] as $i => $t ): ?>
+                  <?php if ( $i > 0 ): ?><span class="guide-milestone-arrow" aria-hidden="true">→</span><?php endif; ?>
+                  <span class="guide-milestone-tier"><?php echo (int) $t; ?><?php echo esc_html( $unit ); ?></span>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <p class="guide-milestone-note">
+          四個階段依序給予 <b>+30 / +80 / +200 / +500 EXP</b>，解鎖徽章另計 +20 EXP。
+          已達標的舊紀錄會在你打開成就頁時自動補發。
+        </p>
+      <?php endif; ?>
+
+      <?php if ( ! empty( $first_badges ) || ! empty( $milestone_groups ) ): ?>
         <p class="guide-badge-more">
-          <a href="<?php echo esc_url( home_url( '/mc/#achievements' ) ); ?>">查看完整成就列表 →</a>
+          <a href="<?php echo esc_url( home_url( '/mc/#achievements' ) ); ?>">查看完整成就列表與我的進度 →</a>
         </p>
       <?php else: ?>
         <p class="guide-empty">成就系統正在建置中，敬請期待。</p>
