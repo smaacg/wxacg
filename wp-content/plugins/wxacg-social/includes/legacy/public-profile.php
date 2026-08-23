@@ -260,6 +260,41 @@ function smacg_pp_dispatch() {
     add_filter( 'wpseo_opengraph_title',                 'smacg_pp_filter_seo_title', 10, 1 );
     add_filter( 'rank_math/opengraph/facebook/og_title', 'smacg_pp_filter_seo_title', 10, 1 );
 
+    /*
+     * ★ <title> 與 robots
+     *
+     * 上面那幾條只處理 canonical 與「社群分享用的 og:title」，瀏覽器分頁
+     * 與搜尋結果顯示的 <title> 從來沒被設定過——公開檔案頁因此一律顯示
+     * 首頁的標題「微笑動漫 | 動漫新聞、新番情報與動漫評論」，每個人的
+     * 頁面看起來都一樣。
+     *
+     * robots 同樣：/u/ 是用 rewrite rule + fake post 生出來的虛擬頁面，
+     * Rank Math 認不得這種頁面就套用預設值，實測輸出 "follow, noindex"
+     * ——注意那是 Rank Math 的格式（逗號後有空格），與本檔隱私判斷輸出的
+     * "noindex,nofollow" 不同，可見並非隱私設定造成，而是所有公開檔案
+     * 都被擋在搜尋結果之外。
+     *
+     * 這裡明確接管兩者：標題用「{暱稱} 的個人頁」，robots 則依使用者
+     * 自己的隱私設定決定（預設公開 → index）。
+     */
+    add_filter( 'pre_get_document_title', 'smacg_pp_filter_document_title', 99 );
+    add_filter( 'rank_math/frontend/robots', 'smacg_pp_filter_robots', 99 );
+
+    /*
+     * canonical 另外用高優先序再掛一次。
+     *
+     * 上面第 258 行已經掛過 rank_math/frontend/canonical（優先序 10），
+     * 但實測輸出的仍是首頁網址。Rank Math 的 generate_canonical() 會先
+     * 判斷 is_front_page()——而 /u/xxx/ 經 rewrite 後只帶 smacg_pp_user
+     * 一個參數，WordPress 原生解析會認為那是首頁；本檔雖然在
+     * $wp_query 上把 is_front_page 改成 false，時序上仍可能晚於
+     * Rank Math 取值。優先序 99 確保最後一手是我們的值。
+     *
+     * 同樣的道理套用在 description：首頁的描述會被套到每個人的個人頁。
+     */
+    add_filter( 'rank_math/frontend/canonical', 'smacg_pp_filter_seo_canonical', 99, 1 );
+    add_filter( 'rank_math/frontend/description', 'smacg_pp_filter_description', 99, 1 );
+
     /* ★ 核心：用 template_include filter 切模板，讓 Blocksy 正常走完版面流程 */
     add_filter( 'template_include', function( $template ) {
         $custom = locate_template( 'page-public-profile.php' );
@@ -354,9 +389,33 @@ function wxacg_pp_has_seo_plugin() {
  * v1.1.0 filter：覆寫 SEO 外掛的 canonical URL
  */
 function smacg_pp_filter_seo_canonical( $canonical ) {
-    if ( ! smacg_is_public_profile_page() ) return $canonical;
-    $user = wxacg_get_public_profile_user();
+    /*
+     * 不能只靠 smacg_is_public_profile_page()——它讀的
+     * $GLOBALS['smacg_pp_user_obj'] 要等 smacg_pp_dispatch()
+     * （template_redirect）才會設定。
+     *
+     * 但 Rank Math 的 Paper::get_canonical() 只計算一次就快取結果，
+     * 可能早於 template_redirect 就取值；那時這個 filter 雖然已經掛上，
+     * 卻會因為全域變數還沒設而直接原樣回傳，canonical 就永遠停在
+     * generate_canonical() 給的首頁網址。
+     *
+     * 因此改為：全域變數優先，取不到就退回 query var 自行解析。
+     * description / robots 兩條 filter 掛在 dispatch 之後執行，沒有這個
+     * 時序問題，維持原樣不動。
+     */
+    $user = smacg_is_public_profile_page() ? wxacg_get_public_profile_user() : null;
+
+    if ( ! $user ) {
+        $username = (string) get_query_var( 'smacg_pp_user' );
+        if ( $username === '' ) {
+            return $canonical;
+        }
+        $username = urldecode( $username );
+        $user     = get_user_by( 'login', $username ) ?: get_user_by( 'slug', $username );
+    }
+
     if ( ! $user ) return $canonical;
+
     return wxacg_get_public_profile_url( $user );
 }
 
@@ -369,6 +428,87 @@ function smacg_pp_filter_seo_title( $title ) {
     if ( ! $user ) return $title;
     $display = $user->display_name ?: $user->user_login;
     return sprintf( '%s 的個人頁 - %s', $display, get_bloginfo( 'name' ) );
+}
+
+/**
+ * 瀏覽器分頁與搜尋結果顯示的 <title>。
+ *
+ * 與上面的 og:title 分開：那條只影響社群分享卡片。<title> 從未被設定，
+ * 導致每個人的公開檔案都顯示首頁標題。文案刻意與 og:title 一致，
+ * 分享出去與搜尋到的是同一個名字。
+ *
+ * 子頁（followers / following / watchlist…）附上區段名，避免同一個人的
+ * 多個分頁在搜尋結果裡標題完全相同、分不出差別。
+ */
+function smacg_pp_filter_document_title( $title ) {
+    if ( ! smacg_is_public_profile_page() ) return $title;
+    $user = wxacg_get_public_profile_user();
+    if ( ! $user ) return $title;
+
+    $display = $user->display_name ?: $user->user_login;
+
+    $section_labels = [
+        'followers' => '的粉絲',
+        'following' => '追蹤中',
+        'watchlist' => '的追番清單',
+        'ratings'   => '的評分',
+        'badges'    => '的成就',
+        'activity'  => '的動態',
+    ];
+
+    $section = (string) get_query_var( 'smacg_pp_section' );
+    $tab     = (string) get_query_var( 'smacg_pp_tab' );
+    $key     = $section !== '' ? $section : $tab;
+    $suffix  = $section_labels[ $key ] ?? '的個人頁';
+
+    return sprintf( '%s%s - %s', $display, $suffix, get_bloginfo( 'name' ) );
+}
+
+/**
+ * meta description：沿用個人頁自己的簡介，而非套用首頁描述。
+ *
+ * 與 canonical 同一個成因（Rank Math 把 /u/ 當首頁處理），若不接管，
+ * 每個人的個人頁在搜尋結果裡的描述都會是「微笑動漫是…動漫資訊站」。
+ */
+function smacg_pp_filter_description( $desc ) {
+    if ( ! smacg_is_public_profile_page() ) return $desc;
+    $user = wxacg_get_public_profile_user();
+    if ( ! $user ) return $desc;
+
+    $display = $user->display_name ?: $user->user_login;
+    $bio     = trim( (string) get_user_meta( $user->ID, 'description', true ) );
+
+    return $bio !== ''
+        ? $bio
+        : sprintf( '%s 在 %s 的追番清單與評分', $display, get_bloginfo( 'name' ) );
+}
+
+/**
+ * robots：依使用者自己的隱私設定決定，而非交給 Rank Math 猜。
+ *
+ * /u/ 是 rewrite rule + fake post 生出來的虛擬頁面，Rank Math 認不得
+ * 就套用預設，實測所有公開檔案都被輸出成 noindex——包括那些明確把
+ * 檔案設為公開的使用者。個人頁其實是不錯的長尾內容（追番清單、評分），
+ * 全部擋在搜尋之外沒有道理。
+ *
+ * 隱私優先：使用者關掉 public_profile 就 noindex，這條不能被覆蓋。
+ */
+function smacg_pp_filter_robots( $robots ) {
+    if ( ! smacg_is_public_profile_page() ) return $robots;
+    $user = wxacg_get_public_profile_user();
+    if ( ! $user ) return $robots;
+
+    $privacy = function_exists( 'smacg_get_user_privacy' )
+        ? smacg_get_user_privacy( $user->ID )
+        : [];
+
+    // 預設公開（見 smacg_get_user_privacy 的 $defaults）
+    $is_public = ! empty( $privacy['public_profile'] );
+
+    $robots['index']  = $is_public ? 'index' : 'noindex';
+    $robots['follow'] = 'follow';
+
+    return $robots;
 }
 
 /* ============================================================
@@ -540,3 +680,28 @@ add_action( 'wp_footer', function () {
     </script>
     <?php
 }, 99 );
+
+/* ============================================================
+   canonical：在檔案載入時就掛，不等 template_redirect
+   ============================================================
+   Rank Math 的 Paper::get_canonical() 只計算一次就把結果快取在
+   $this->canonical，之後再掛 filter 都來不及：
+
+       if ( is_null( $this->canonical ) ) { $this->generate_canonical(); }
+
+   而 smacg_pp_dispatch() 是掛在 template_redirect 才執行的，若 Rank Math
+   在那之前已經為了 og:url 之類取過值，個人頁的 canonical 就會停在
+   generate_canonical() 裡 is_front_page() 分支給的首頁網址
+   （/u/xxx/ 經 rewrite 後只帶 smacg_pp_user 一個參數，WordPress 原生
+     解析會判定為首頁）。
+
+   這裡在檔案載入階段就掛上，確保早於任何取值。filter 本身開頭就用
+   smacg_is_public_profile_page() 判斷，非個人頁一律原樣回傳，
+   全域掛載不會影響其他頁面。
+
+   註：description 與 robots 用 template_redirect 掛（優先序 99）即可
+   生效，實測確認過；只有 canonical 因為上述的一次性快取需要提早。
+   ============================================================ */
+add_filter( 'rank_math/frontend/canonical', 'smacg_pp_filter_seo_canonical', 99, 1 );
+add_filter( 'wpseo_canonical',              'smacg_pp_filter_seo_canonical', 99, 1 );
+add_filter( 'aioseo_canonical_url',         'smacg_pp_filter_seo_canonical', 99, 1 );
