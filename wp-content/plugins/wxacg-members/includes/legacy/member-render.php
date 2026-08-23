@@ -1418,18 +1418,61 @@ function smacg_render_continue_watching( $watchlist ) {
 /**
  * 會員中心的「❤️ 我的收藏」分頁。
  *
- * 與「我的清單」分開：那是作品的追番狀態（anime_user_status），
- * 這是角色／聲優的實體收藏（wxacg_entity_favorites），
- * 兩者的資料來源與語意都不同。
+ * ★ 2026-08-23：加入「作品」分組
+ *   原本這裡只放角色／聲優，作品收藏則在「我的清單」的收藏篩選裡。
+ *   那是照資料表切的（anime_user_status vs wxacg_entity_favorites），
+ *   但使用者的心智模型不是這樣——他在動畫頁按了 ⭐ 收藏，就會來
+ *   「我的收藏」找，結果只看到角色和聲優，於是回報「收藏的動漫不見了」。
+ *
+ *   從使用者角度，「收藏動漫」與「收藏角色」是同一件事，反而「收藏」
+ *   與「追番狀態」才是兩件事。因此把作品收藏一併放進來，三組並列。
+ *
+ *   「我的清單」的收藏篩選保留不動：那是在清單裡快速過濾的維度，
+ *   與這裡的「集中檢視所有收藏」是不同的用途，不算重複。
  *
  * 角色與聲優不是 WordPress 文章，無法沿用 wxacg_render_anime_card()，
  * 但共用 .mc-card-grid / .mc-anime-card 的樣式，視覺上與其他分頁一致。
+ *
+ * @param int   $uid
+ * @param array $watchlist 由 smacg_build_watchlist() 產生，含 post_id /
+ *                         status / favorited。直接沿用呼叫端已載入的資料，
+ *                         不重複查一次資料庫。
  */
-function wxacg_render_entity_favorites( $uid ) {
+function wxacg_render_entity_favorites( $uid, $watchlist = [] ) {
     $uid = (int) $uid;
 
+    /* ── 作品收藏（來自追番清單的 favorited 旗標）── */
+    $fav_anime = [];
+    if ( is_array( $watchlist ) ) {
+        foreach ( $watchlist as $it ) {
+            if ( ! empty( $it['favorited'] ) && ! empty( $it['post_id'] ) ) {
+                $fav_anime[] = $it;
+            }
+        }
+    }
+
+    if ( ! empty( $fav_anime ) ) {
+        ?>
+        <div class="mc-list-toolbar">
+            <h3 class="mc-fav-group-title">🎬 作品（<?php echo count( $fav_anime ); ?>）</h3>
+        </div>
+        <div class="mc-card-grid">
+            <?php foreach ( $fav_anime as $it ) {
+                wxacg_render_anime_card( (int) $it['post_id'], $it );
+            } ?>
+        </div>
+        <?php
+    }
+
+    /*
+     * 實體收藏模組不可用時：作品那組若已經印出來，就安靜跳過，
+     * 不要在下面補一句「收藏模組尚未載入」——那會讓已經看到作品的
+     * 使用者以為頁面壞了。只有整頁空白時才需要說明。
+     */
     if ( $uid <= 0 || ! class_exists( 'Anime_Sync_Entity_Favorites' ) ) {
-        echo '<p class="mc-empty">收藏模組尚未載入</p>';
+        if ( empty( $fav_anime ) ) {
+            echo '<p class="mc-empty">收藏模組尚未載入</p>';
+        }
         return;
     }
 
@@ -1442,12 +1485,19 @@ function wxacg_render_entity_favorites( $uid ) {
     $total  = array_sum( $counts );
 
     if ( $total === 0 ) {
-        ?>
-        <p class="mc-empty">
-            還沒有收藏任何角色或聲優。<br>
-            到角色頁或聲優頁點右上的 🤍 就能加入收藏。
-        </p>
-        <?php
+        /*
+         * 只有在「三種收藏都沒有」時才顯示空狀態。若已經收藏了作品、
+         * 只是還沒收藏角色／聲優，跳出「還沒有收藏任何角色或聲優」
+         * 會與上方剛列出的作品自相矛盾。
+         */
+        if ( empty( $fav_anime ) ) {
+            ?>
+            <p class="mc-empty">
+                還沒有收藏任何內容。<br>
+                在動畫頁點 ⭐ 收藏作品，或到角色頁／聲優頁點右上的 🤍 收藏角色與聲優。
+            </p>
+            <?php
+        }
         return;
     }
 

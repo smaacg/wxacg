@@ -418,12 +418,17 @@ get_header(); ?>
         <section class="mc-panel" data-panel="favorites">
             <?php
             /*
-             * 角色／聲優收藏。與「我的清單」分開：那是作品的追番狀態，
-             * 這是實體收藏，兩者的資料來源與語意都不同
-             * （wxacg_entity_favorites vs anime_user_status）。
+             * 作品 + 角色 + 聲優，三組收藏集中在這裡。
+             *
+             * 原本只放角色／聲優，作品收藏留在「我的清單」的收藏篩選，
+             * 那是照資料表切的（wxacg_entity_favorites vs
+             * anime_user_status）。但使用者在動畫頁按了 ⭐ 就會來這裡找，
+             * 結果找不到——已有會員回報「收藏的動漫不見了」。
+             *
+             * $watchlist 已於本檔上方載入，直接傳入重用，不重複查資料庫。
              */
             if ( function_exists( 'wxacg_render_entity_favorites' ) ) {
-                wxacg_render_entity_favorites( $uid );
+                wxacg_render_entity_favorites( $uid, $watchlist );
             } else { echo '<p class="mc-empty">收藏模組尚未載入</p>'; } ?>
         </section>
         <section class="mc-panel" data-panel="stats">
