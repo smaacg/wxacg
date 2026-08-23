@@ -27,6 +27,14 @@ class WXACG_AI_News_Engine_Plugin {
     # 管理密碼雜湊（以 wp_hash_password 產生，永不存明文）
     const KEY_PASSWORD_OPTION = 'wxacg_ai_news_key_password_hash';
 
+    # 雲端伺服端點的解鎖密碼雜湊。
+    # 舊版是把明文密碼存在 wxacg_ai_news_unlock_password 並直接渲染成
+    # <input type="text" value="...">，等於畫面上與網頁原始碼都看得到，
+    # 前端 JS 再拿它跟使用者輸入比對——形同虛設。改為與金鑰池相同的
+    # 伺服器端雜湊驗證。舊的明文設定會在首次載入時自動轉換並刪除。
+    const CLOUD_PASSWORD_OPTION = 'wxacg_ai_news_cloud_password_hash';
+    const LEGACY_CLOUD_PASSWORD_OPTION = 'wxacg_ai_news_unlock_password';
+
     # 可選用的 Gemini 模型清單（雲端引擎 cloud_engine.py 僅支援 Gemini，故不提供其他供應商）
     const GEMINI_MODELS = [
         'gemini-3.7-flash' => 'Gemini 3.7 Flash',
@@ -52,6 +60,7 @@ class WXACG_AI_News_Engine_Plugin {
         # 密碼以雜湊存於資料庫，前端拿不到明文，無法比照雲端端點那組在瀏覽器直接比對，
         # 故改由此端點在伺服器端驗證後才回覆前端可否展開面板。
         add_action('wp_ajax_wxacg_verify_key_password', [$this, 'handle_verify_key_password']);
+        add_action('wp_ajax_wxacg_verify_cloud_password', [$this, 'handle_verify_cloud_password']);
 
         # 註冊雙軌獨立保存自定處理端點 (區分全域與使用者獨立金鑰)
         add_action('admin_post_wxacg_save_settings', [$this, 'handle_save_settings']);
@@ -102,8 +111,16 @@ class WXACG_AI_News_Engine_Plugin {
     public function register_settings() {
         # 將原全域模組移離至各私人帳號的 user_meta 區間自帶維和；留其餘共用站址維持全域選項
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_url', ['default' => '']);
-        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_token', ['default' => 'wxacg-super-secret-master-key-2026']);
-        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_unlock_password', ['default' => '123456789']);
+        /*
+         * 通訊 Token 不再提供預設值。
+         *
+         * 舊版把 'wxacg-super-secret-master-key-2026' 寫死成預設值，
+         * 而這串字同時存在於本外掛與 cloud_engine.py 的原始碼中（且已進版控），
+         * 任何看得到原始碼的人都能直接冒用雲端運算資源。
+         * 改為預設空字串並在派工前檢查，強制必須自行設定一組真正的密語。
+         */
+        register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_cloud_token', ['default' => '']);
+        # 解鎖密碼改存雜湊（見 CLOUD_PASSWORD_OPTION），不再以明文註冊為設定項
         register_setting('wxacg_ai_news_settings_group', 'wxacg_ai_news_enable_autolink', ['default' => '0']);
     }
 
@@ -171,6 +188,72 @@ class WXACG_AI_News_Engine_Plugin {
             return false;
         }
         return wp_check_password($password, (string) get_option(self::KEY_PASSWORD_OPTION, ''));
+    }
+
+    # =====================================================================
+    # 雲端伺服端點的解鎖密碼（與金鑰池採同一套伺服器端雜湊驗證）
+    # =====================================================================
+
+    /**
+     * 將舊版的明文解鎖密碼轉為雜湊後刪除明文。
+     *
+     * 舊版把密碼明文存在 option 並渲染進 HTML，升級後必須主動清掉，
+     * 否則明文會一直留在資料庫裡。轉換只做一次，之後兩者都不存在明文。
+     */
+    private function migrate_legacy_cloud_password() {
+        if ('' !== (string) get_option(self::CLOUD_PASSWORD_OPTION, '')) {
+            return; // 已是新版，無須處理
+        }
+
+        $legacy = (string) get_option(self::LEGACY_CLOUD_PASSWORD_OPTION, '');
+        if ('' === $legacy) {
+            return; // 從未設定過，維持「首次設定模式」
+        }
+
+        update_option(self::CLOUD_PASSWORD_OPTION, wp_hash_password($legacy), false);
+        delete_option(self::LEGACY_CLOUD_PASSWORD_OPTION);
+        error_log('wxacg-ai-news: 已將舊版明文解鎖密碼轉為雜湊並刪除明文設定。');
+    }
+
+    /**
+     * 是否已設定雲端端點解鎖密碼。
+     */
+    private function is_cloud_password_set() {
+        return '' !== (string) get_option(self::CLOUD_PASSWORD_OPTION, '');
+    }
+
+    /**
+     * 驗證雲端端點解鎖密碼。尚未設定時一律放行（首次設定模式）。
+     */
+    private function verify_cloud_password($password) {
+        if (!$this->is_cloud_password_set()) {
+            return true;
+        }
+        if ('' === (string) $password) {
+            return false;
+        }
+        return wp_check_password($password, (string) get_option(self::CLOUD_PASSWORD_OPTION, ''));
+    }
+
+    /**
+     * AJAX：驗證雲端端點解鎖密碼，決定前端能否展開設定面板。
+     *
+     * 與金鑰池同理：這只是畫面上的鎖，真正的防線在儲存時的伺服器端檢查。
+     */
+    public function handle_verify_cloud_password() {
+        check_ajax_referer('wxacg_ai_news_action_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => '權限不足：只有網站管理員可以檢視或修改雲端伺服端點。']);
+        }
+
+        $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+
+        if (!$this->verify_cloud_password($password)) {
+            wp_send_json_error(['message' => '解鎖密碼錯誤。']);
+        }
+
+        wp_send_json_success(['message' => '驗證通過']);
     }
 
     /**
@@ -682,8 +765,18 @@ class WXACG_AI_News_Engine_Plugin {
 
         # 【全網公務區】獲取選項表中所儲藏的常規總局配置 (雲端伺服連接點與鎖)
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
-        $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
-        $unlock_pass = get_option('wxacg_ai_news_unlock_password', '123456789');
+        # 舊版明文密碼在此轉為雜湊並刪除明文（只會執行一次）
+        $this->migrate_legacy_cloud_password();
+        $cloud_password_set = $this->is_cloud_password_set();
+
+        /*
+         * Token 一律不回填進 HTML。
+         *
+         * 舊版直接渲染成 <input type="text" value="...">，即使外層面板以 CSS 隱藏，
+         * 內容仍完整存在於網頁原始碼中，任何能開啟本頁的人檢視原始碼即可取得。
+         * 改為只顯示「是否已設定」，欄位留空代表不變更（與金鑰池的盲寫一致）。
+         */
+        $cloud_token_set = '' !== (string) get_option('wxacg_ai_news_cloud_token', '');
         $enable_autolink = get_option('wxacg_ai_news_enable_autolink', '0');
 
         ?>
@@ -729,6 +822,29 @@ class WXACG_AI_News_Engine_Plugin {
                             診斷：<?php echo esc_html($key_diag); ?>
                         </p>
                     <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php
+            # 雲端端點的處理結果。與金鑰池分開回報，理由相同：
+            # 密碼驗證失敗時只擋下端點設定，其餘設定仍照常儲存。
+            $cloud_notices = [
+                'saved'      => ['success', '⚙️ 雲端伺服端點設定已更新完成。'],
+                'badpass'    => ['error',   '⛔ 解鎖密碼錯誤，雲端端點設定未變更（其餘設定已正常儲存）。'],
+                'nopass'     => ['error',   '⛔ 未通過解鎖驗證，雲端端點設定未變更。請先按「解除隔離鎖」再修改。'],
+                'pwsaved'    => ['success', '🔑 雲端端點解鎖密碼已更新完成。'],
+                'pwbad'      => ['error',   '⛔ 舊的解鎖密碼錯誤，密碼未變更。'],
+                'pwshort'    => ['error',   '⛔ 新密碼長度至少需 6 個字元，密碼未變更。'],
+                'pwmismatch' => ['error',   '⛔ 兩次輸入的新密碼不一致，密碼未變更。'],
+            ];
+            $cloud_msg_code = isset($_GET['cloud_msg']) ? sanitize_key($_GET['cloud_msg']) : '';
+            if (isset($cloud_notices[$cloud_msg_code])) :
+                list($c_type, $c_text) = $cloud_notices[$cloud_msg_code];
+                $c_border = ($c_type === 'success') ? '#46b450' : '#d63638';
+                $c_color  = ($c_type === 'success') ? '#1b4a24' : '#8a1f21';
+            ?>
+                <div class="notice notice-<?php echo esc_attr($c_type); ?> is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid <?php echo esc_attr($c_border); ?>; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <p style="margin:0; font-size:14px; font-weight:600; color:<?php echo esc_attr($c_color); ?>;"><?php echo esc_html($c_text); ?></p>
                 </div>
             <?php endif; ?>
 
@@ -899,30 +1015,64 @@ class WXACG_AI_News_Engine_Plugin {
                                 <label style="color:#c92a2a; font-weight:bold;">雲端 AI 伺服端點</label>
                             </th>
                             <td>
+                                <?php if ($cloud_password_set) : ?>
                                 <div id="wxacg_lock_guard_area" class="lock-panel">
                                     <p style="margin-top:0;"><strong>已啟用資安鎖，禁止隨意竄改雲端 AI 伺服端點位置</strong></p>
                                     <div>輸入解鎖密碼才能閱覽或修改：</div>
                                     <div style="margin-top:6px;">
-                                        <input type="password" id="wxacg_unlock_input" class="regular-text" placeholder="解鎖通行口令">
+                                        <input type="password" id="wxacg_unlock_input" class="regular-text" autocomplete="new-password" placeholder="解鎖通行口令">
                                         <button type="button" id="wxacg_btn_unlock" class="button button-secondary">🔓 解除隔離鎖</button>
                                     </div>
                                 </div>
+                                <?php endif; ?>
 
-                                <div id="wxacg_cloud_secret_fields" class="unlock-panel" style="display:none;">
-                                    <div class="unlock-title">✅ 自我把守驗證順利！已展現深藏變數可親修修改：</div>
-                                    
+                                <div id="wxacg_cloud_secret_fields" class="unlock-panel" style="<?php echo $cloud_password_set ? 'display:none;' : ''; ?>">
+                                    <?php if ($cloud_password_set) : ?>
+                                        <div class="unlock-title">✅ 自我把守驗證順利！已展現深藏變數可親修修改：</div>
+                                        <?php
+                                        # 解鎖時由 JS 把剛才輸入的密碼填入此隱藏欄位隨表單送出，
+                                        # 免去同一組密碼輸入兩次；儲存時伺服器端仍會再驗一次。
+                                        ?>
+                                        <input type="hidden" id="wxacg_ai_news_cloud_password" name="wxacg_ai_news_cloud_password" value="">
+                                    <?php else : ?>
+                                        <div class="unlock-title">⚙️ 雲端伺服端點設定（僅網站管理員可見）</div>
+                                        <p style="margin:0 0 15px 0; color:#b32d2e; font-weight:600;">
+                                            ⚠️ 尚未設定解鎖密碼（首次設定模式：目前任何管理員都能直接修改）<br>
+                                            請於下方設定密碼，設定後本區塊就會自動上鎖。
+                                        </p>
+                                    <?php endif; ?>
+
                                     <label><strong>1. Cloud Run 主機專用連線網址 URL：</strong></label><br>
                                     <input type="text" id="wxacg_ai_news_cloud_url" name="wxacg_ai_news_cloud_url" class="large-text code" value="<?php echo esc_attr($cloud_url); ?>"><br>
                                     <p class="description" style="margin-top:2px; margin-bottom:12px;">將從 Google 帶歸來的 <code>https://xxxxx.a.run.app</code> 存放於這。</p>
 
-                                    <label><strong>2. 伺服中心授權暗號Token：</strong></label><br>
-                                    <input type="text" id="wxacg_ai_news_cloud_token" name="wxacg_ai_news_cloud_token" class="regular-text code" value="<?php echo esc_attr($cloud_token); ?>"><br>
-                                    <p class="description" style="margin-top:2px; margin-bottom:15px;">要與您放到 Cloud Run 的 <code>cloud_secret_token</code> 兩處一致相通！</p>
+                                    <label><strong>2. 伺服中心授權暗號 Token：</strong></label>
+                                    <span style="margin-left:8px; font-weight:600; color:<?php echo $cloud_token_set ? '#186229' : '#d63638'; ?>;">
+                                        <?php echo $cloud_token_set ? '🔒 已設定' : '⚠️ 尚未設定，無法生成報導'; ?>
+                                    </span><br>
+                                    <input type="password" id="wxacg_ai_news_cloud_token" name="wxacg_ai_news_cloud_token" class="regular-text code"
+                                           autocomplete="new-password" placeholder="留空＝維持原本 Token 不變更">
+                                    <button type="button" id="wxacg_btn_gen_token" class="button" style="margin-left:6px;">🎲 產生新 Token</button>
+                                    <div id="wxacg_gen_token_result" style="display:none; margin-top:8px; padding:10px; background:#fff8e5; border:1px solid #f0c36d; border-radius:4px;">
+                                        <strong style="color:#8a6d3b;">⚠️ 請立刻複製這串，並到 Cloud Run 把環境變數 <code>CLOUD_SECRET_TOKEN</code> 改成同一組，兩邊一致才能運作。</strong>
+                                        <div style="margin-top:6px;">
+                                            <input type="text" id="wxacg_gen_token_text" class="large-text code" readonly onclick="this.select();" style="font-family:monospace; background:#fff;">
+                                        </div>
+                                        <div style="margin-top:4px; color:#8a6d3b; font-size:12px;">按下最底部的「儲存所有設定」後才會正式生效。此處關閉後就不會再顯示。</div>
+                                    </div>
+                                    <p class="description" style="margin-top:2px; margin-bottom:15px;">
+                                        為保障安全，此處<strong>不會顯示</strong>已儲存的 Token。要與您放到 Cloud Run 的
+                                        <code>CLOUD_SECRET_TOKEN</code> 兩處一致相通！
+                                    </p>
 
                                     <div style="border-top:1px dashed #40c057; padding-top:10px; margin-top:10px;">
-                                        <label style="color:#186229;"><strong>🔑 設定與修改解鎖密碼 (即日後解此防衛門用的口令)：</strong></label><br>
-                                        <input type="text" id="wxacg_ai_news_unlock_password" name="wxacg_ai_news_unlock_password" class="regular-text" value="<?php echo esc_attr($unlock_pass); ?>"><br>
-                                        <p class="description">直接改寫這裡的新單字並按最底部存檔，未來此鎖就以這組自定義新口令來驗證。</p>
+                                        <label style="color:#186229;"><strong>🔑 <?php echo $cloud_password_set ? '修改' : '設定'; ?>解鎖密碼（即日後解此防衛門用的口令）：</strong></label><br>
+                                        <?php if ($cloud_password_set) : ?>
+                                            <input type="password" name="wxacg_ai_news_cloud_old_password" class="regular-text" autocomplete="new-password" placeholder="目前的舊密碼" style="margin-bottom:6px;"><br>
+                                        <?php endif; ?>
+                                        <input type="password" name="wxacg_ai_news_cloud_new_password" class="regular-text" autocomplete="new-password" placeholder="新密碼（至少 6 個字元）" style="margin-bottom:6px;"><br>
+                                        <input type="password" name="wxacg_ai_news_cloud_new_password2" class="regular-text" autocomplete="new-password" placeholder="再次輸入新密碼"><br>
+                                        <p class="description" style="margin-top:2px;">全部留空即代表不變更密碼。密碼以雜湊保存，不會顯示也無法還原。</p>
                                     </div>
                                 </div>
                             </td>
@@ -1041,15 +1191,10 @@ class WXACG_AI_News_Engine_Plugin {
             update_user_meta($user_id, 'wxacg_ai_news_post_status', sanitize_text_field($_POST['wxacg_ai_news_post_status']));
         }
 
-        # 2. 寫入總局共用式系統選項 (WordPress Options - 唯伺服端點網址跟主控鎖是全體合一)
-        if (isset($_POST['wxacg_ai_news_cloud_url'])) {
-            update_option('wxacg_ai_news_cloud_url', esc_url_raw(trim($_POST['wxacg_ai_news_cloud_url'])));
-        }
-        if (isset($_POST['wxacg_ai_news_cloud_token'])) {
-            update_option('wxacg_ai_news_cloud_token', sanitize_text_field(trim($_POST['wxacg_ai_news_cloud_token'])));
-        }
-        if (isset($_POST['wxacg_ai_news_unlock_password'])) {
-            update_option('wxacg_ai_news_unlock_password', sanitize_text_field($_POST['wxacg_ai_news_unlock_password']));
+        # 2. 雲端伺服端點與其解鎖密碼（僅限管理員，且需通過解鎖密碼驗證）
+        $cloud_msg = '';
+        if (current_user_can('manage_options')) {
+            $cloud_msg = $this->handle_cloud_endpoint_save();
         }
 
         # 作品名稱自動內部連結開關（未勾選時瀏覽器不會送出該欄位，故以 isset 判斷存 1 或 0）
@@ -1070,8 +1215,82 @@ class WXACG_AI_News_Engine_Plugin {
         if ($key_msg !== '') {
             $redirect_args['key_msg'] = $key_msg;
         }
+        if ($cloud_msg !== '') {
+            $redirect_args['cloud_msg'] = $cloud_msg;
+        }
         wp_redirect(add_query_arg($redirect_args, admin_url('admin.php')));
         exit;
+    }
+
+    /**
+     * 處理雲端伺服端點與其解鎖密碼的儲存。
+     *
+     * 設計與金鑰池一致：
+     * - Token 採盲寫：欄位留空代表沒有要變更，有內容才覆寫，
+     *   如此才能在「不回填明文」的前提下允許只改其他欄位。
+     * - 密碼一律在伺服器端以 wp_check_password() 比對雜湊，前端不參與判斷。
+     * - 尚未設定密碼時為「首次設定模式」，管理員可免密碼直接寫入。
+     *
+     * @return string 回報給頁面的訊息代碼，空字串代表本次沒有涉及相關操作。
+     */
+    private function handle_cloud_endpoint_save() {
+        $msg = '';
+
+        # --- 2a. 先處理解鎖密碼的設定／變更 ---
+        $new_pass  = isset($_POST['wxacg_ai_news_cloud_new_password']) ? (string) $_POST['wxacg_ai_news_cloud_new_password'] : '';
+        $new_pass2 = isset($_POST['wxacg_ai_news_cloud_new_password2']) ? (string) $_POST['wxacg_ai_news_cloud_new_password2'] : '';
+        $old_pass  = isset($_POST['wxacg_ai_news_cloud_old_password']) ? (string) $_POST['wxacg_ai_news_cloud_old_password'] : '';
+
+        if ('' !== $new_pass || '' !== $new_pass2) {
+            if (!$this->verify_cloud_password($old_pass)) {
+                $msg = 'pwbad';
+            } elseif (strlen($new_pass) < 6) {
+                $msg = 'pwshort';
+            } elseif ($new_pass !== $new_pass2) {
+                $msg = 'pwmismatch';
+            } else {
+                update_option(self::CLOUD_PASSWORD_OPTION, wp_hash_password($new_pass), false);
+                $msg = 'pwsaved';
+            }
+        }
+
+        # --- 2b. 判斷本次是否真的要變更端點設定 ---
+        $url_input   = isset($_POST['wxacg_ai_news_cloud_url']) ? trim((string) wp_unslash($_POST['wxacg_ai_news_cloud_url'])) : null;
+        $token_input = isset($_POST['wxacg_ai_news_cloud_token']) ? trim((string) wp_unslash($_POST['wxacg_ai_news_cloud_token'])) : '';
+
+        $current_url = (string) get_option('wxacg_ai_news_cloud_url', '');
+        # 網址未送出（未解鎖時整個面板不在表單內）或與現值相同，就不算變更
+        $url_changed   = (null !== $url_input && $url_input !== $current_url);
+        $token_changed = ('' !== $token_input);
+
+        if (!$url_changed && !$token_changed) {
+            return $msg;
+        }
+
+        # --- 2c. 變更前先驗證解鎖密碼 ---
+        if ('pwsaved' === $msg) {
+            # 本次剛改過密碼，代表已通過舊密碼驗證，不再重複要求
+            $authorized = true;
+        } else {
+            $pass       = isset($_POST['wxacg_ai_news_cloud_password']) ? (string) $_POST['wxacg_ai_news_cloud_password'] : '';
+            $authorized = $this->verify_cloud_password($pass);
+            if (!$authorized && $this->is_cloud_password_set() && '' === $pass) {
+                return 'nopass';
+            }
+        }
+
+        if (!$authorized) {
+            return 'badpass';
+        }
+
+        if ($url_changed) {
+            update_option('wxacg_ai_news_cloud_url', esc_url_raw($url_input));
+        }
+        if ($token_changed) {
+            update_option('wxacg_ai_news_cloud_token', sanitize_text_field($token_input));
+        }
+
+        return 'saved';
     }
 
     /**
@@ -1237,13 +1456,17 @@ class WXACG_AI_News_Engine_Plugin {
 
         # 自總體選項庫存引出伺服聯網端 (此為不被破壞的全域共向處)
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
-        $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
+        # 不再提供硬編碼預設值：該字串已隨原始碼進版控，等同公開，必須自行設定
+        $cloud_token = (string) get_option('wxacg_ai_news_cloud_token', '');
 
         # 先做不具副作用的檢查，全部通過後才去取 Key。
         # get_rotated_keys() 會推進輪替游標，若放在這些檢查之前，
         # 光是設定沒填好的失敗請求也會空推游標，白白跳過一把 Key。
         if (empty($cloud_url) || empty($app_pass)) {
             wp_send_json_error(['message' => '錯誤：您個人的【WordPress 應用程式密碼】或是主機 URL 不可是空白狀態！請至上方列表確認存妥沒？']);
+        }
+        if (empty($cloud_token)) {
+            wp_send_json_error(['message' => '錯誤：尚未設定【伺服中心授權暗號 Token】。請至下方「雲端 AI 伺服端點」設定一組，並確保與 Cloud Run 的 CLOUD_SECRET_TOKEN 環境變數一致。']);
         }
 
         # 【全站共用 Key 池】整池依輪替游標重排後一次送出，讓雲端在額度不足時就地換下一把，
@@ -1321,7 +1544,8 @@ class WXACG_AI_News_Engine_Plugin {
         if (empty($cloud_url)) {
             wp_send_json_error(['message' => '尚未設定雲端伺服端點，無法送出中止指令。']);
         }
-        $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
+        # 不再提供硬編碼預設值：該字串已隨原始碼進版控，等同公開，必須自行設定
+        $cloud_token = (string) get_option('wxacg_ai_news_cloud_token', '');
 
         $response = wp_remote_post(
             rtrim($cloud_url, '/') . '/api/cancel/' . rawurlencode($task_id),

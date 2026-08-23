@@ -34,19 +34,76 @@ jQuery(document).ready(function($) {
         terminalScreen.scrollTop(terminalScreen[0].scrollHeight);
     }
 
-    // 1. 解開上鎖的端點設定及改取新防護密碼
+    // 1. 解開上鎖的端點設定
+    // 舊版是把正確密碼渲染進 DOM 再由此比對，看原始碼即可取得，形同虛設；
+    // 現改送 AJAX 交由伺服器端比對雜湊。這道鎖只管畫面開合，
+    // 真正的防線在儲存時的伺服器端檢查——直接送表單一樣過不了。
     $("#wxacg_btn_unlock").on("click", function() {
-        var inputVal = $("#wxacg_unlock_input").val();
-        var correctVal = $("#wxacg_ai_news_unlock_password").val() || "123456789";
+        var btn = $(this);
+        var password = $("#wxacg_unlock_input").val();
 
-        if (inputVal === correctVal) {
-            $("#wxacg_lock_guard_area").slideUp();
-            $("#wxacg_cloud_secret_fields").slideDown();
-            logToTerminal("資安解鎖檢驗通過！您現在可修改端點 URL 並得自訂專門的解鎖新口令。", "success");
-        } else {
-            alert("口令驗證有誤！權限不予通行。");
-            $("#wxacg_unlock_input").val("").focus();
+        if (!password) {
+            alert("請先輸入解鎖密碼。");
+            $("#wxacg_unlock_input").focus();
+            return;
         }
+
+        btn.prop("disabled", true).text("驗證中...");
+
+        $.post(wxacgAIParams.ajaxurl, {
+            action: "wxacg_verify_cloud_password",
+            nonce: wxacgAIParams.nonce,
+            password: password
+        }, function(res) {
+            btn.prop("disabled", false).text("🔓 解除隔離鎖");
+
+            if (res.success) {
+                // 帶入隱藏欄位隨表單送出，免得同一組密碼要打兩次
+                $("#wxacg_ai_news_cloud_password").val(password);
+                $("#wxacg_unlock_input").val("");
+                $("#wxacg_lock_guard_area").slideUp();
+                $("#wxacg_cloud_secret_fields").slideDown();
+                logToTerminal("資安解鎖檢驗通過！您現在可修改端點 URL 與授權 Token。", "success");
+            } else {
+                alert("解鎖失敗：" + ((res.data && res.data.message) ? res.data.message : "口令驗證有誤"));
+                $("#wxacg_unlock_input").val("").focus();
+            }
+        }).fail(function() {
+            btn.prop("disabled", false).text("🔓 解除隔離鎖");
+            alert("發生網路錯誤，請重試！");
+        });
+    });
+
+    // 密碼欄位按 Enter 等同按下解鎖，避免誤送整張表單
+    $("#wxacg_unlock_input").on("keydown", function(e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            $("#wxacg_btn_unlock").click();
+        }
+    });
+
+    // 1-A. 產生新的授權 Token
+    // 刻意在瀏覽器端用 crypto 亂數產生：Token 不會經過伺服器日誌、不會寫進原始碼，
+    // 也不會出現在任何對話或版控紀錄中，只有操作者本人看得到這一次。
+    $("#wxacg_btn_gen_token").on("click", function() {
+        var bytes = new Uint8Array(32);
+        if (window.crypto && window.crypto.getRandomValues) {
+            window.crypto.getRandomValues(bytes);
+        } else {
+            alert("此瀏覽器不支援安全亂數產生器，請改用較新的瀏覽器，或自行設定一組足夠複雜的 Token。");
+            return;
+        }
+
+        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var token = "";
+        for (var i = 0; i < bytes.length; i++) {
+            token += chars.charAt(bytes[i] % chars.length);
+        }
+
+        $("#wxacg_ai_news_cloud_token").val(token);
+        $("#wxacg_gen_token_text").val(token);
+        $("#wxacg_gen_token_result").slideDown();
+        logToTerminal("已產生新的授權 Token，請務必同步更新 Cloud Run 的 CLOUD_SECRET_TOKEN 環境變數。", "warn");
     });
 
     // 1-B. 解除【全站共用金鑰池】的資安鎖
