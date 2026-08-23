@@ -1010,8 +1010,12 @@
 #wpforo #wpforo-wrap .topic-wrap,
 #wpforo #wpforo-wrap .wpforo-post,
 #wpforo #wpforo-wrap .post-wrap,
+/* 註：統計方塊只列 .wpf-footer-box。上方第 884 行那組
+ *     #wpforo-stat-body .wpf-stat-item 是舊版佈景的結構，
+ *     目前站上用的 2026 佈景已改成 .wpf-footer-box > ul > li，
+ *     實測線上 .wpf-stat-item 出現 0 次（該組是既有的死選擇器，
+ *     不屬本次範圍所以留著不動）。 */
 #wpforo #wpforo-wrap .wpf-footer-box,
-#wpforo #wpforo-wrap #wpforo-stat-body .wpf-stat-item,
 #wpforo #wpforo-wrap .wpforo-tags {
     backdrop-filter: blur(var(--wpf-blur));
     -webkit-backdrop-filter: blur(var(--wpf-blur));
