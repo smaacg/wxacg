@@ -460,6 +460,68 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 					'note' => $notes[ $ri ] ?? '',
 				];
 			}
+
+			/*
+			 * ── 依 ISBN 國別前綴校正歸屬 ──
+			 *
+			 * 上面是「按位置」配對：ISBN 收進一個扁平陣列，再用索引對到
+			 * region_order。問題是空白欄會被前面的迴圈 continue 跳過，
+			 * 只要某地區缺 ISBN，後面全部往左移一格。
+			 *
+			 * 實測 14 部漫畫共 610 個 ISBN，有 10 個因此錯位，例如
+			 * 咒術回戰卷 0 的台版欄放的是 978-7（中國）的 ISBN，
+			 * 而真正的台版 978-957 被擠到港版欄。
+			 *
+			 * ISBN 的國別前綴是國際標準（ISBN Agency 分配），比位置可靠，
+			 * 所以這裡用前綴重新歸位：
+			 *   · 能判斷國別的 → 放進它真正所屬的地區
+			 *   · 判斷不出來的 → 保留原本的位置配對（可能是特殊出版品）
+			 *   · 原欄位的 ISBN 若國別不符且沒有正確的可遞補 → 清空
+			 *     （寧可空白，也不要顯示錯的 ISBN —— 之後要靠台版 ISBN
+			 *       生成書店連結，錯的會導到完全不同的書）
+			 *
+			 * 只動 isbn 與 note，date 維持原本的位置配對：日期無法從內容
+			 * 判斷國別，沒有依據可以校正。
+			 */
+			$isbn_by_region = [];
+			$unclassified   = [];
+
+			foreach ( $isbns as $ii => $one ) {
+				$reg = self::isbn_region( $one );
+
+				if ( $reg === '' ) {
+					$unclassified[ $ii ] = $one;
+					continue;
+				}
+
+				// 同一地區出現多個時保留第一個（維基偶爾把再版一併列出）
+				if ( ! isset( $isbn_by_region[ $reg ] ) ) {
+					$isbn_by_region[ $reg ] = [ 'isbn' => $one, 'note' => $notes[ $ii ] ?? '' ];
+				}
+			}
+
+			if ( $isbn_by_region || $unclassified ) {
+				foreach ( $region_order as $ri => $reg ) {
+					if ( isset( $isbn_by_region[ $reg ] ) ) {
+						$item[ $reg ]['isbn'] = $isbn_by_region[ $reg ]['isbn'];
+						$item[ $reg ]['note'] = $isbn_by_region[ $reg ]['note'];
+						continue;
+					}
+
+					$current = $item[ $reg ]['isbn'] ?? '';
+
+					if ( $current === '' ) {
+						continue;
+					}
+
+					// 判斷不出國別的保留；判斷得出來但不屬於本區的清掉
+					if ( self::isbn_region( $current ) !== '' ) {
+						$item[ $reg ]['isbn'] = '';
+						$item[ $reg ]['note'] = '';
+					}
+				}
+			}
+
 			$results[] = $item;
 		}
 		return $results;
@@ -663,6 +725,61 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		if ( preg_match( '/ISBN\s*([\d\-Xx]{10,20})/', $raw, $m ) ) {
 			return trim( $m[1], '-' );
 		}
+		return '';
+	}
+
+	/**
+	 * 依 ISBN 的國別前綴判斷所屬地區。
+	 *
+	 * 前綴由國際 ISBN 總部分配給各國/地區的註冊機構，是國際標準，
+	 * 因此比「維基表格裡的欄位位置」可靠 —— 空白欄會讓位置錯開，
+	 * 前綴不會。
+	 *
+	 * 對照（只列本專案用得到的地區）：
+	 *   978-4              日本
+	 *   978-957 / 986 / 626  台灣
+	 *   978-988 / 962      香港
+	 *   978-7              中國
+	 *   978-89 / 979-11    韓國
+	 *
+	 * 979-11 是韓國在 978 號段用罄後啟用的新號段；台灣的 626 同理，
+	 * 都是近年才出現的，舊資料不會有，但新書會。
+	 *
+	 * @param string $isbn 原始 ISBN 字串（可含連字號）。
+	 * @return string 地區 key（jp/tw/hk/cn/kr），判斷不出來時回傳空字串。
+	 */
+	private static function isbn_region( string $isbn ): string {
+		$n = preg_replace( '/[^0-9Xx]/', '', $isbn );
+
+		if ( strlen( $n ) < 10 ) {
+			return '';
+		}
+
+		// ISBN-10 沒有國別前綴可用（首碼即出版國群組），一律不判斷，
+		// 交由呼叫端保留原本的位置配對。
+		if ( strpos( $n, '978' ) !== 0 && strpos( $n, '979' ) !== 0 ) {
+			return '';
+		}
+
+		$prefix = substr( $n, 0, 3 );
+		$body   = substr( $n, 3 );
+
+		if ( $prefix === '978' ) {
+			if ( strpos( $body, '4' ) === 0 )   return 'jp';
+			if ( strpos( $body, '7' ) === 0 )   return 'cn';
+			if ( strpos( $body, '957' ) === 0 ) return 'tw';
+			if ( strpos( $body, '986' ) === 0 ) return 'tw';
+			if ( strpos( $body, '626' ) === 0 ) return 'tw';
+			if ( strpos( $body, '988' ) === 0 ) return 'hk';
+			if ( strpos( $body, '962' ) === 0 ) return 'hk';
+			if ( strpos( $body, '89' ) === 0 )  return 'kr';
+		}
+
+		if ( $prefix === '979' ) {
+			if ( strpos( $body, '11' ) === 0 )  return 'kr';
+			if ( strpos( $body, '8' ) === 0 )   return 'jp';
+		}
+
 		return '';
 	}
 
