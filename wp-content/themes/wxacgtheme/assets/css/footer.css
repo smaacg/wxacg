@@ -71,7 +71,7 @@
   display:grid;
   grid-template-columns:1.6fr repeat(4, 1fr);
   gap:36px 28px;
-  padding:48px 0 28px;
+  padding:32px 0 24px;
 }
 @media (max-width:1024px){
   .site-footer .footer-top{
@@ -160,7 +160,7 @@
   .site-footer .footer-top{
     grid-template-columns:repeat(2, 1fr); /* 2欄：4 個 nav group 整齊排成 2×2 */
     gap:20px 14px;
-    padding:12px 0 18px; /* 縮小 top padding，減少空白感 */
+    padding:10px 0 18px; /* 適度頂部留白，維持呼吸感 */
   }
 
   /* 品牌區橫跨整排、flex column 置中
@@ -279,17 +279,25 @@
  * 12px(p margin) + 16px(gap) + 6px(自訂 margin) ≈ 34px，法務列因此
  * 離版權文字過遠、孤零零掉在右下角。間距統一交給 flex gap 控制。
  */
+.site-footer .footer-bottom{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
 .site-footer .footer-copy{
   margin:0;
+  flex: 1 1 auto;
 }
 .site-footer .footer-legal{
-  flex-basis:100%;
-  display:flex;
+  display:inline-flex;
   flex-wrap:wrap;
   align-items:center;
   justify-content:flex-end;
   gap:8px;
   font-size:12px;
+  flex-shrink: 0;
 }
 /* 用 --text-secondary 而非 --text-muted：法務連結原本太淡幾乎看不清，
    而 muted 在深色底上只有 #7B8594／65% 白，對比不足 */
@@ -305,8 +313,14 @@
   color:rgba(255,255,255,.25);
 }
 
-@media (max-width:600px){
-  /* 版權區在小螢幕已置中，法務列跟著置中才不會突兀 */
+@media (max-width:768px){
+  /* 小螢幕上下置中堆疊 */
+  .site-footer .footer-bottom{
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+  }
   .site-footer .footer-legal{
     justify-content:center;
     font-size:11px;

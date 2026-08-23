@@ -362,8 +362,7 @@ $random_anime_url = add_query_arg(
             </h1>
 
             <p class="hero-subtitle hero-site-description">
-                整理本季新番、動畫作品、播出進度、角色聲優、
-                動漫新聞、評論與專題內容。
+                <span class="hero-sub-part">整理本季新番、動畫作品、播出進度、</span><span class="hero-sub-part">角色聲優、動漫新聞、評論與專題。</span>
             </p>
 
             <blockquote class="hero-quote">
@@ -1759,12 +1758,11 @@ $member_percent = min(
                 </span>
 
                 <h2 class="member-cta-title">
-                    建立你的動漫收藏與追番紀錄
+                    <span class="cta-title-part">建立你的動漫收藏</span><span class="cta-title-part">與追番紀錄</span>
                 </h2>
 
                 <p class="member-cta-desc">
-                    收藏作品・記錄追番進度・建立個人清單・
-                    參與討論・解鎖會員成就
+                    <span class="cta-desc-item">收藏作品</span><span class="cta-desc-sep">・</span><span class="cta-desc-item">記錄追番進度</span><span class="cta-desc-sep">・</span><span class="cta-desc-item">建立個人清單</span><br class="cta-desc-break" /><span class="cta-desc-item">參與討論</span><span class="cta-desc-sep">・</span><span class="cta-desc-item">解鎖會員成就</span>
                 </p>
 
                 <div class="member-cta-btns">
