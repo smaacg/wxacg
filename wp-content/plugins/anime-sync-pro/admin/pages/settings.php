@@ -243,9 +243,48 @@ if ( $backfill_interval <= 0 ) {
     $backfill_interval = 5 * MINUTE_IN_SECONDS;
 }
 
-// 扣除跳過名單後、真正還會被處理的量
-$backfill_todo_chars   = max( 0, $backfill_pending_chars   - $skip_chars_count );
-$backfill_todo_persons = max( 0, $backfill_pending_persons - $skip_persons_count );
+/*
+ * 扣除跳過名單後、真正還會被處理的量。
+ *
+ * 這裡刻意用 NOT IN 重查，而不是拿「待補數 − 跳過名單筆數」相減 ——
+ * 那兩個是不同的集合，相減只是近似值：
+ *
+ *   跳過名單裡的 bgm_id，有可能已經被別的途徑補好了
+ *   （wp anime backfill-persons 這個 CLI 指令會直接呼叫 migrator，
+ *     不看跳過名單），此時它已不在「待補」集合內，卻仍留在名單上。
+ *   相減就會少算，進而誤判成「剩下全在跳過名單內」。
+ *
+ * 用 NOT IN 跟 Cron Manager 完全一致（見 _run_entity_backfill_inner()
+ * 組 $not_in 的那段），顯示的數字才會等於 Cron 實際會撈到的量。
+ */
+$backfill_build_not_in = static function ( $skip_list ) {
+    if ( ! is_array( $skip_list ) || empty( $skip_list ) ) {
+        return '';
+    }
+    $ints = array_filter( array_map( 'intval', $skip_list ) );
+    if ( empty( $ints ) ) {
+        return '';
+    }
+
+    return ' AND bgm_id NOT IN (' . implode( ',', $ints ) . ')';
+};
+
+// $not_in 由 intval 組成，無外部輸入（與 Cron Manager 同一種作法）。
+$backfill_not_in_chars   = $backfill_build_not_in( $backfill_skip_chars );
+$backfill_not_in_persons = $backfill_build_not_in( $backfill_skip_persons );
+
+$backfill_todo_chars = (int) $wpdb->get_var(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}anime_characters
+     WHERE bgm_id > 0 AND ( summary IS NULL OR summary = ''
+        OR name_cn IS NULL OR name_cn = ''
+        OR infobox_json IS NULL OR infobox_json = '' )
+     {$backfill_not_in_chars}"
+);
+$backfill_todo_persons = (int) $wpdb->get_var(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}anime_persons
+     WHERE bgm_id > 0 AND ( infobox_json IS NULL OR infobox_json = '' )
+     {$backfill_not_in_persons}"
+);
 
 // 每小時處理量 = 每批筆數 × 每小時執行次數
 $backfill_per_hour = (int) round( $backfill_batch * ( HOUR_IN_SECONDS / $backfill_interval ) );
