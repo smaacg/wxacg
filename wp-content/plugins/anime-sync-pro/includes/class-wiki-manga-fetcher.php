@@ -624,8 +624,19 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		foreach ( $gnl_bodies as $body ) {
 			$fields = $this->split_template_params( $body );
 
-			$vol = (int) ( $fields['VolumeNumber'] ?? $fields['集數'] ?? $fields['卷數'] ?? 0 );
-			if ( $vol <= 0 ) continue;
+			/*
+			 * 第 0 卷是真實存在的（前傳／番外，例如《呪術廻戦 0》），要保留。
+			 *
+			 * 原本寫 (int)( ... ?? 0 ) 再判斷 <= 0，等於把 0 同時當成
+			 * 「第 0 卷」與「欄位不存在」兩種意思，第 0 卷因此被丟掉。
+			 * 改成先確認欄位真的有值且是數字，再判斷負數。
+			 */
+			$vol_raw = $fields['VolumeNumber'] ?? $fields['集數'] ?? $fields['卷數'] ?? null;
+
+			if ( $vol_raw === null || ! is_numeric( trim( (string) $vol_raw ) ) ) continue;
+
+			$vol = (int) trim( (string) $vol_raw );
+			if ( $vol < 0 ) continue;
 
 			$item = [ 'vol' => $vol ];
 

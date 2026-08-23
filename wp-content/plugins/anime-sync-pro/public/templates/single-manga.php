@@ -1679,9 +1679,23 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                         <?php if ( ! empty( $volume_covers ) ) : ?>
                             <div class="asd-vol-cover-grid">
                                 <?php foreach ( $volume_covers as $vc ) :
-                                    $vc_vol   = (int) ( $vc['vol'] ?? 0 );
+                                    /*
+                                     * 第 0 卷是真實存在的（前傳／番外，例如《呪術廻戦 0
+                                     * 東京都立呪術高等專門學校》），要顯示。
+                                     *
+                                     * 原本寫 (int)( $vc['vol'] ?? 0 ) 再判斷 <= 0，等於把
+                                     * 0 同時當成「第 0 卷」與「沒有卷號」兩種意思，第 0 卷
+                                     * 因此永遠不出現在封面牆上 —— 但它的 ISBN 卻出現在下方
+                                     * 的明細表裡，兩邊對不起來。
+                                     * 改成先確認 vol 真的有值且是數字，再判斷負數。
+                                     */
+                                    $vc_vol_raw = $vc['vol'] ?? null;
+
+                                    if ( $vc_vol_raw === null || ! is_numeric( $vc_vol_raw ) ) continue;
+
+                                    $vc_vol   = (int) $vc_vol_raw;
                                     $vc_cover = (string) ( $vc['cover'] ?? '' );
-                                    if ( $vc_vol <= 0 ) continue;
+                                    if ( $vc_vol < 0 ) continue;
                                     if ( $vc_cover === '' ) continue;   // ★ 沒封面就不顯示,擋掉雜卷空卡
 
                                     /*

@@ -53,7 +53,10 @@ class Anime_Sync_BGM_Volume_Covers {
 			// 從 "ダンダダン (12)" 取卷號
 			if ( ! preg_match( '/\((\d+)\)\s*$/u', $name, $m ) ) continue;
 			$vol = (int) $m[1];
-			if ( $vol <= 0 ) continue;
+			// 第 0 卷是真實存在的（前傳／番外，例如《呪術廻戦 0》），要保留。
+			// 這裡不必擔心「卷號缺失」被誤當成 0：上面的 preg_match 已經確保
+			// 括號裡有數字，抓不到的在那一行就 continue 了。
+			if ( $vol < 0 ) continue;
 
 			$bgm_sub_id  = (int) ( $rel['id'] ?? 0 );
 			$remote_cover = $rel['images']['common']    // 400px
@@ -121,7 +124,9 @@ class Anime_Sync_BGM_Volume_Covers {
 
 			$vol    = (int) $m[1];
 			$sub_id = (int) ( $rel['id'] ?? 0 );
-			if ( $vol <= 0 || $sub_id <= 0 ) continue;
+			// $vol 用 < 0：第 0 卷要保留（理由同上，regex 已保證卷號存在）。
+			// $sub_id 維持 <= 0：那是 Bangumi 的條目 ID，0 代表沒有，確實無效。
+			if ( $vol < 0 || $sub_id <= 0 ) continue;
 
 			// 已經抓過而且抓到東西 → 沿用，不再發請求
 			$cached = $known[ $sub_id ] ?? null;
