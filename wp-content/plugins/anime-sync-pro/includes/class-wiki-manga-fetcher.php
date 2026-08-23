@@ -283,9 +283,51 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 	 * ★v2.2.0 修:region_order 改用「表頭 colspan 標題的實際出現順序」判定,
 	 *   不再寫死 [jp,tw,hk,cn],避免日港台/日台港欄序不同造成 tw/hk 對調。
 	 */
+	/**
+	 * 評估一份解析結果的資訊量。
+	 *
+	 * 先比「涵蓋幾個地區」，再比「幾卷」。地區優先是因為對繁中站來說，
+	 * 一份有台版 ISBN 的 20 卷資料，比只有日版的 40 卷有用得多 ——
+	 * 台版 ISBN 是生成書店連結的唯一依據。
+	 *
+	 * @param array $rows parse_* 的回傳值
+	 * @return array{regions:int,vols:int}
+	 */
+	private function score_publish_rows( array $rows ): array {
+		$regions = [];
+
+		foreach ( $rows as $r ) {
+			foreach ( [ 'jp', 'tw', 'hk', 'cn', 'kr' ] as $reg ) {
+				if ( isset( $regions[ $reg ] ) ) continue;
+
+				$has = trim( (string) ( $r[ $reg ]['isbn'] ?? '' ) ) !== ''
+				    || trim( (string) ( $r[ $reg ]['date'] ?? '' ) ) !== '';
+
+				if ( $has ) $regions[ $reg ] = true;
+			}
+		}
+
+		return [ 'regions' => count( $regions ), 'vols' => count( $rows ) ];
+	}
+
 	private function parse_publish_table( string $wt ): array {
+		/*
+		 * ★ 不再無條件偏好 Graphic novel list。
+		 *
+		 *   原本是「$gnl 非空就直接回傳」，wikitable 那段永遠跑不到。
+		 *   問題是同一個條目可能兩種格式都有，而且各自帶的資訊不同 ——
+		 *   《一拳超人》就有 39 個 GNL 樣板（只有日版：集數／發售日期／
+		 *   OriginalISBN），台港陸的資料另外放在一個 wikitable 裡：
+		 *
+		 *       !colspan="2"|{{flagicon|TWN}} [[東立出版社]]
+		 *       ...| 2015年8月5日||ISBN 978-986-431-930-5
+		 *
+		 *   GNL 先回傳的結果是台版永遠讀不到，站上因此 37 卷全部沒有
+		 *   台版 ISBN，封面也就生不出書店連結。維基其實有 36 個台灣 ISBN。
+		 *
+		 *   改成兩邊都解析，取資訊量高的那一份（先比地區數再比卷數）。
+		 */
 		$gnl = $this->parse_graphic_novel_list( $wt );
-		if ( ! empty( $gnl ) ) return $gnl;
 
 		/*
 		 * ★ 必須掃「所有」wikitable，不能只取第一個。
@@ -305,19 +347,43 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		 *   不同版本（初版／文庫版／新裝版）的第 1 卷是不同的書，合併會產生
 		 *   重複卷號與互相矛盾的發售日與 ISBN。取最完整的那一版才是讀者要看的。
 		 */
-		if ( ! preg_match_all( '/\{\|\s*class="?[^"\n]*wikitable[^"\n]*"?(.*?)\|\}/s', $wt, $ms ) ) {
-			return [];
-		}
-
 		$best = [];
-		foreach ( $ms[1] as $table_wt ) {
-			$parsed = $this->parse_one_wikitable( $table_wt );
-			if ( count( $parsed ) > count( $best ) ) {
-				$best = $parsed;
+
+		if ( preg_match_all( '/\{\|\s*class="?[^"\n]*wikitable[^"\n]*"?(.*?)\|\}/s', $wt, $ms ) ) {
+			$best_score = [ 'regions' => 0, 'vols' => 0 ];
+
+			foreach ( $ms[1] as $table_wt ) {
+				$parsed = $this->parse_one_wikitable( $table_wt );
+
+				if ( empty( $parsed ) ) continue;
+
+				$score = $this->score_publish_rows( $parsed );
+
+				// 表格之間同樣先比地區、再比卷數（原本只比卷數）
+				if ( $score['regions'] > $best_score['regions']
+				  || ( $score['regions'] === $best_score['regions'] && $score['vols'] > $best_score['vols'] ) ) {
+					$best       = $parsed;
+					$best_score = $score;
+				}
 			}
 		}
 
-		return $best;
+		if ( empty( $gnl ) )  return $best;
+		if ( empty( $best ) ) return $gnl;
+
+		$gnl_score  = $this->score_publish_rows( $gnl );
+		$best_score = $this->score_publish_rows( $best );
+
+		/*
+		 * 兩種格式都解析出東西時，取資訊量高的：
+		 *   先比涵蓋地區數 —— 對繁中站來說，有台版 ISBN 比卷數多重要
+		 *   地區數相同才比卷數
+		 *   完全打平時保留 GNL（原本的行為，樣板欄位比表格語意明確）
+		 */
+		if ( $best_score['regions'] > $gnl_score['regions'] ) return $best;
+		if ( $best_score['regions'] < $gnl_score['regions'] ) return $gnl;
+
+		return $best_score['vols'] > $gnl_score['vols'] ? $best : $gnl;
 	}
 
 	/**
