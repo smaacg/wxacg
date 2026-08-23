@@ -1542,88 +1542,125 @@ if ( ! empty( $news_tabs['all']['query']->posts ) ) {
 </script>
 
 <!-- ============================================================
-     內容與資料原則
+     熱門話題（討論區最新動態）
+     ============================================================
+     原本這裡是「內容與資料原則」的四張靜態說明卡。那些內容在
+     /about/ 與各作品頁的免責說明已有交代，放在首頁佔一整段版位卻
+     不會有人回訪。
+
+     改放討論區動態的理由：站上論壇有 8 個版、卻只有 3 個話題、
+     7 位會員發過文——不是工具不好，是沒有人知道那裡有人在講話。
+     首頁是流量最高的一頁，把討論拉到這裡曝光，比在論壇裡等人自己
+     走進去有效。
+
+     ★ 資料直接查 wpForo 的資料表，不呼叫它的模板函式
+       wpforo_topic() 這類函式依賴 wpForo 自己的初始化流程，在首頁
+       這個時機呼叫會 fatal（實測 CLI 環境即報
+       "Call to a member function get_topic() on null"）。查表最穩，
+       而且只有一次查詢。
+
+     ★ 網址用 get_permalink(pageid) 組，不寫死 /community/
+       論壇頁的 slug 若日後改動，寫死會全部變成死連結。
      ============================================================ -->
+<?php
+$wxacg_forum_topics = [];
+$wxacg_forum_url    = '';
+
+if ( class_exists( 'wpForo' ) || function_exists( 'wpforo_setting' ) ) {
+    global $wpdb;
+
+    $wxacg_board   = $wpdb->get_row( "SELECT boardid, pageid FROM {$wpdb->prefix}wpforo_boards ORDER BY boardid ASC LIMIT 1", ARRAY_A );
+    $wxacg_page_id = (int) ( $wxacg_board['pageid'] ?? 0 );
+
+    if ( $wxacg_page_id > 0 ) {
+        $wxacg_forum_url = (string) get_permalink( $wxacg_page_id );
+    }
+
+    if ( $wxacg_forum_url !== '' ) {
+        /*
+         * 依「最後活動時間」排序而非回覆數：使用者要看的是「現在有人在
+         * 講什麼」，久遠的熱門話題擺首頁反而像沒人管。private / status
+         * 過濾掉未公開與待審的話題。
+         */
+        $wxacg_forum_topics = $wpdb->get_results(
+            "SELECT t.topicid, t.title, t.slug, t.posts, t.views, t.modified, t.userid,
+                    f.slug AS forum_slug, f.title AS forum_title
+               FROM {$wpdb->prefix}wpforo_topics t
+               INNER JOIN {$wpdb->prefix}wpforo_forums f ON f.forumid = t.forumid
+              WHERE t.private = 0 AND t.status = 0
+              ORDER BY t.modified DESC
+              LIMIT 4",
+            ARRAY_A
+        );
+    }
+}
+?>
+
+<?php if ( ! empty( $wxacg_forum_topics ) ) : ?>
 <section
     class="section coming-soon-section"
-    id="content-principles"
+    id="forum-hot-topics"
 >
     <div class="container">
         <div class="section-header">
             <div>
                 <h2 class="section-title">
-                    內容與資料原則
+                    🔥 熱門話題
                 </h2>
 
                 <p class="section-description">
-                    說明本站如何整理、更新及修正動漫資料。
+                    討論區最近有人在聊這些，點進去一起說說看。
                 </p>
             </div>
+
+            <a href="<?php echo esc_url( $wxacg_forum_url ); ?>" class="section-link">
+                前往討論區 →
+            </a>
         </div>
 
         <div class="coming-cards-grid">
-            <article class="coming-card glass">
-                <div class="coming-card-icon" aria-hidden="true">
-                    🗂️
-                </div>
+            <?php foreach ( $wxacg_forum_topics as $wxacg_t ) :
+                $wxacg_topic_url = $wxacg_forum_url
+                    . $wxacg_t['forum_slug'] . '/'
+                    . $wxacg_t['slug'] . '/';
 
-                <h3 class="coming-card-title">
-                    動漫資料整理
-                </h3>
+                // slug 在資料表裡已是 urlencode 過的形態，標題才是給人看的
+                $wxacg_title = (string) $wxacg_t['title'];
 
-                <p class="coming-card-desc">
-                    整理作品名稱、季度、播出狀態、集數、
-                    角色及聲優資訊，並持續更新與修正。
-                </p>
-            </article>
+                $wxacg_author = get_userdata( (int) $wxacg_t['userid'] );
+                $wxacg_author_name = $wxacg_author
+                    ? ( $wxacg_author->display_name ?: $wxacg_author->user_login )
+                    : '訪客';
 
-            <article class="coming-card glass">
-                <div class="coming-card-icon" aria-hidden="true">
-                    📰
-                </div>
+                // 「3 天前」比絕對日期更能傳達「這是不是最近的事」
+                $wxacg_ago = human_time_diff(
+                    strtotime( $wxacg_t['modified'] ),
+                    current_time( 'timestamp' )
+                );
+                ?>
+                <a href="<?php echo esc_url( $wxacg_topic_url ); ?>" class="coming-card glass forum-topic-card">
+                    <div class="coming-card-icon" aria-hidden="true">💬</div>
 
-                <h3 class="coming-card-title">
-                    新聞來源
-                </h3>
+                    <h3 class="coming-card-title">
+                        <?php echo esc_html( $wxacg_title ); ?>
+                    </h3>
 
-                <p class="coming-card-desc">
-                    新聞以動畫官方網站、官方社群、
-                    製作委員會及合法發布來源為主要依據。
-                </p>
-            </article>
+                    <p class="coming-card-desc">
+                        <?php echo esc_html( $wxacg_t['forum_title'] ); ?>
+                        ・<?php echo esc_html( $wxacg_author_name ); ?>
+                    </p>
 
-            <article class="coming-card glass">
-                <div class="coming-card-icon" aria-hidden="true">
-                    ✍️
-                </div>
-
-                <h3 class="coming-card-title">
-                    評論與專題
-                </h3>
-
-                <p class="coming-card-desc">
-                    評論及專題加入本站整理、分析與觀點，
-                    並與單純新聞消息清楚區分。
-                </p>
-            </article>
-
-            <article class="coming-card glass">
-                <div class="coming-card-icon" aria-hidden="true">
-                    🛠️
-                </div>
-
-                <h3 class="coming-card-title">
-                    錯誤修正
-                </h3>
-
-                <p class="coming-card-desc">
-                    若發現作品名稱、播出日期或人物資料有誤，
-                    歡迎透過網站聯絡方式提出修正。
-                </p>
-            </article>
+                    <div class="forum-topic-meta">
+                        <span>💬 <?php echo (int) $wxacg_t['posts']; ?></span>
+                        <span>👁 <?php echo (int) $wxacg_t['views']; ?></span>
+                        <span><?php echo esc_html( $wxacg_ago ); ?>前</span>
+                    </div>
+                </a>
+            <?php endforeach; ?>
         </div>
     </div>
 </section>
+<?php endif; ?>
 
 <?php
 /* ============================================================

@@ -1092,3 +1092,35 @@ body {
         transition: none !important;
     }
 }
+/* ─────────── 熱門話題（討論區動態）───────────
+ * 沿用 .coming-card 的玻璃卡片樣式，只補上「整張卡可點」需要的
+ * 連結重置，以及底部的統計列。
+ */
+.forum-topic-card {
+  text-decoration: none;
+  color: inherit;
+}
+.forum-topic-card .coming-card-title {
+  /* 話題標題長度不一，限制兩行避免卡片高度參差 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.forum-topic-card:hover .coming-card-title {
+  color: var(--accent-blue, #63a8ff);
+}
+
+.forum-topic-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  /* margin-top:auto 讓統計列固定貼在卡片底部，
+     標題長短不同的卡片下緣才會對齊 */
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted, #7B8594);
+  font-variant-numeric: tabular-nums;
+}
