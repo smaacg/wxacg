@@ -702,6 +702,8 @@ class WXACG_AI_News_Engine_Plugin {
                 'saved'     => ['success', '🔑 共用 Key 池已整批更新完成。'],
                 'badpass'   => ['error',   '⛔ 管理密碼錯誤，共用 Key 池未變更（其餘設定已正常儲存）。'],
                 'nopass'    => ['error',   '⛔ 未輸入管理密碼，共用 Key 池未變更（其餘設定已正常儲存）。'],
+                'nofield'   => ['error',   '⚠️ 伺服器沒有收到金鑰欄位，Key 池未變更。此欄位在送達 PHP 前就被移除了，通常是安全性外掛或主機防火牆(WAF)攔截了含金鑰的內容，請檢查相關規則或洽主機商。'],
+                'writefail' => ['error',   '⛔ 金鑰已送達並通過驗證，但寫入資料庫後讀回的內容不符，Key 池可能未實際保存。常見於持久化物件快取或資料庫寫入受限，詳情請查看伺服器錯誤日誌。'],
                 'pwsaved'   => ['success', '🔐 Key 池管理密碼已更新完成。'],
                 'pwbad'     => ['error',   '⛔ 舊密碼錯誤，管理密碼未變更。'],
                 'pwshort'   => ['error',   '⛔ 新密碼長度至少需 6 個字元，管理密碼未變更。'],
@@ -1093,7 +1095,22 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         # --- 3b. 再處理 Key 池本身 ---
-        $pool_input = isset($_POST['wxacg_ai_news_api_key_pool']) ? (string) wp_unslash($_POST['wxacg_ai_news_api_key_pool']) : '';
+        /*
+         * 欄位「完全沒送達」與「送達但留空」必須分開處理。
+         *
+         * 金鑰欄位即使在上鎖狀態也只是 display:none，仍會隨表單送出空字串，
+         * 因此正常情況下 isset() 一定為 true。若連 isset() 都不成立，
+         * 代表這個欄位在送達 PHP 之前就被攔掉了（常見於安全性外掛或主機層 WAF
+         * 偵測到內容像金鑰而過濾整個欄位），這種情況必須明確告知，
+         * 不能跟「使用者沒打算改」一起靜默略過，否則會像金鑰存了卻消失一樣難以追查。
+         */
+        if (!isset($_POST['wxacg_ai_news_api_key_pool'])) {
+            # 若本次同時有密碼操作，優先回報使用者實際動作的結果，
+            # 不讓這則環境警告蓋掉「密碼已更新／舊密碼錯誤」等更需要知道的訊息。
+            return ('' !== $msg) ? $msg : 'nofield';
+        }
+
+        $pool_input = (string) wp_unslash($_POST['wxacg_ai_news_api_key_pool']);
 
         if ('' === trim($pool_input)) {
             # 留空＝沒有要變更 Key 池，維持原池不動
@@ -1119,10 +1136,28 @@ class WXACG_AI_News_Engine_Plugin {
             return 'badpass';
         }
 
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $pool_input))));
+        # 換行以外也接受 \r\n（各家瀏覽器 textarea 送出的換行字元不一致）
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $pool_input))));
         update_option(self::KEY_POOL_OPTION, implode("\n", $lines), false);
         # 整池換掉後游標歸零，避免沿用舊游標指到不存在或非預期的位置
         update_option(self::KEY_CURSOR_OPTION, 0, false);
+
+        /*
+         * 寫入後立刻讀回驗證。
+         *
+         * update_option() 回傳 false 時無法區分「寫入失敗」與「值沒變動」，
+         * 不足以判斷成敗；而持久化物件快取或資料庫權限問題會讓寫入看似成功卻讀不到。
+         * 少了這道檢查，使用者只會看到「已儲存」卻依然是 0 把，完全無從追查。
+         */
+        $verified = count($this->get_pool_keys());
+        if ($verified !== count($lines)) {
+            error_log(sprintf(
+                'wxacg-ai-news: Key 池寫入後驗證失敗，預期 %d 把、實際讀回 %d 把。',
+                count($lines),
+                $verified
+            ));
+            return 'writefail';
+        }
 
         # 密碼與 Key 同時更新時，以 Key 的結果為主要回報（密碼成功屬於附帶結果）
         return 'saved';
