@@ -45,6 +45,8 @@ class WXACG_AI_News_Engine_Plugin {
         # 註冊 AJAX 下單與輪詢處理
         add_action('wp_ajax_wxacg_trigger_ai_news', [$this, 'handle_trigger_ai_news']);
         add_action('wp_ajax_wxacg_poll_task_status', [$this, 'handle_poll_task_status']);
+        # 中止進行中的雲端任務：Key 數量多時 503 連續發生可能跑很久，需讓操作者隨時喊停
+        add_action('wp_ajax_wxacg_cancel_ai_news', [$this, 'handle_cancel_ai_news']);
 
         # 金鑰池資安鎖的解鎖驗證。
         # 密碼以雜湊存於資料庫，前端拿不到明文，無法比照雲端端點那組在瀏覽器直接比對，
@@ -717,6 +719,16 @@ class WXACG_AI_News_Engine_Plugin {
             ?>
                 <div class="notice notice-<?php echo esc_attr($notice_type); ?> is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid <?php echo esc_attr($border); ?>; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <p style="margin:0; font-size:14px; font-weight:600; color:<?php echo esc_attr($color); ?>;"><?php echo esc_html($notice_text); ?></p>
+                    <?php
+                    # 寫入驗證失敗時附上實際數字，讓管理員不必翻伺服器日誌就能判斷是哪一種問題
+                    $key_diag = get_transient('wxacg_ai_news_key_diag_' . $user_id);
+                    if ($key_diag && in_array($key_msg, ['writefail', 'saved'], true)) :
+                        delete_transient('wxacg_ai_news_key_diag_' . $user_id);
+                    ?>
+                        <p style="margin:8px 0 0 0; font-size:12.5px; color:#50575e; font-family:monospace; background:#f6f7f7; padding:8px 10px; border-radius:4px;">
+                            診斷：<?php echo esc_html($key_diag); ?>
+                        </p>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
 
@@ -1137,8 +1149,11 @@ class WXACG_AI_News_Engine_Plugin {
         }
 
         # 換行以外也接受 \r\n（各家瀏覽器 textarea 送出的換行字元不一致）
-        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $pool_input))));
-        update_option(self::KEY_POOL_OPTION, implode("\n", $lines), false);
+        $lines    = array_values(array_filter(array_map('trim', preg_split('/\R/', $pool_input))));
+        $expected = count($lines);
+        $to_write = implode("\n", $lines);
+
+        update_option(self::KEY_POOL_OPTION, $to_write, false);
         # 整池換掉後游標歸零，避免沿用舊游標指到不存在或非預期的位置
         update_option(self::KEY_CURSOR_OPTION, 0, false);
 
@@ -1150,17 +1165,43 @@ class WXACG_AI_News_Engine_Plugin {
          * 少了這道檢查，使用者只會看到「已儲存」卻依然是 0 把，完全無從追查。
          */
         $verified = count($this->get_pool_keys());
-        if ($verified !== count($lines)) {
-            error_log(sprintf(
-                'wxacg-ai-news: Key 池寫入後驗證失敗，預期 %d 把、實際讀回 %d 把。',
-                count($lines),
-                $verified
-            ));
-            return 'writefail';
+
+        if ($verified === $expected) {
+            # 密碼與 Key 同時更新時，以 Key 的結果為主要回報（密碼成功屬於附帶結果）
+            return 'saved';
         }
 
-        # 密碼與 Key 同時更新時，以 Key 的結果為主要回報（密碼成功屬於附帶結果）
-        return 'saved';
+        /*
+         * 讀回不符時，先清掉該筆的物件快取再重讀一次。
+         *
+         * 若資料其實已正確寫進資料庫、只是持久化物件快取（Redis/Memcached）沒同步，
+         * 清快取後就會讀到正確值——這種情況資料是好的，不該誤報成儲存失敗。
+         * 重讀仍不符才是真的沒寫進去。
+         */
+        wp_cache_delete(self::KEY_POOL_OPTION, 'options');
+        $fresh_keys = $this->get_pool_keys();
+        $fresh      = count($fresh_keys);
+
+        $detail = sprintf(
+            '預期 %d 把；直接讀回 %d 把；清快取後重讀 %d 把。寫入 %d 字元、讀回 %d 字元。外部物件快取：%s。',
+            $expected,
+            $verified,
+            $fresh,
+            strlen($to_write),
+            strlen((string) get_option(self::KEY_POOL_OPTION, '')),
+            (function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()) ? '啟用中' : '未使用'
+        );
+        error_log('wxacg-ai-news: Key 池寫入後驗證失敗。' . $detail);
+
+        # 診斷細節暫存 5 分鐘，讓設定頁能直接顯示給管理員看，不必去翻伺服器日誌
+        set_transient('wxacg_ai_news_key_diag_' . get_current_user_id(), $detail, 300);
+
+        if ($fresh === $expected) {
+            # 資料庫其實是正確的，純粹是快取沒同步，已於上方清除，視為儲存成功
+            return 'saved';
+        }
+
+        return 'writefail';
     }
 
     /**
@@ -1253,6 +1294,58 @@ class WXACG_AI_News_Engine_Plugin {
         wp_send_json_success([
             'task_id' => $data['task_id'],
             'message' => $data['message']
+        ]);
+    }
+
+    /**
+     * AJAX：中止進行中的雲端任務。
+     *
+     * 金鑰池變大後（例如 50～100 把），遇到模型端持續壅塞時整池輪完可能耗時數十分鐘，
+     * 必須讓操作者能隨時喊停，不必空等或關掉分頁放生。
+     *
+     * 雲端採合作式中止（立旗標、各階段自行檢查），故此處送出後不會瞬間結束，
+     * 而是在目前那一小步結束後停下，因此不會留下寫到一半的文章。
+     */
+    public function handle_cancel_ai_news() {
+        check_ajax_referer('wxacg_ai_news_action_nonce', 'nonce');
+        if (!current_user_can('use_wxacg_ai_news')) {
+            wp_send_json_error(['message' => '毫無足夠管理與主編級操作權益！']);
+        }
+
+        $task_id = isset($_POST['task_id']) ? sanitize_text_field($_POST['task_id']) : '';
+        if (empty($task_id)) {
+            wp_send_json_error(['message' => '缺少任務編碼，無法中止。']);
+        }
+
+        $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
+        if (empty($cloud_url)) {
+            wp_send_json_error(['message' => '尚未設定雲端伺服端點，無法送出中止指令。']);
+        }
+        $cloud_token = get_option('wxacg_ai_news_cloud_token', 'wxacg-super-secret-master-key-2026');
+
+        $response = wp_remote_post(
+            rtrim($cloud_url, '/') . '/api/cancel/' . rawurlencode($task_id),
+            [
+                'headers' => ['Content-Type' => 'application/json; charset=utf-8'],
+                'body'    => wp_json_encode(['cloud_secret_token' => $cloud_token]),
+                'timeout' => 10,
+            ]
+        );
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => '無法連上雲端中心送出中止指令：' . $response->get_error_message()]);
+        }
+
+        $code = (int) wp_remote_retrieve_response_code($response);
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code !== 200) {
+            wp_send_json_error(['message' => '雲端拒絕中止指令：' . ($data['detail'] ?? "HTTP {$code}")]);
+        }
+
+        wp_send_json_success([
+            'status'  => $data['status'] ?? 'cancelling',
+            'message' => $data['message'] ?? '已送出中止指令。',
         ]);
     }
 

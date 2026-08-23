@@ -202,6 +202,17 @@
     transform: translateY(-1px);
 }
 
+/* 任務進行中時，同一顆按鈕轉為中止鍵：改用紅色與藍色的生成狀態明確區隔，
+   避免操作者在急著喊停時誤判目前按下去會發生什麼事。 */
+.wxacg-btn-simple.wxacg-btn-stop {
+    background-color: #d63638 !important;
+    box-shadow: 0 2px 5px rgba(214, 54, 56, 0.3) !important;
+}
+
+.wxacg-btn-simple.wxacg-btn-stop:hover {
+    background-color: #b32d2e !important;
+}
+
 .wxacg-btn-simple:active {
     transform: translateY(0px);
 }

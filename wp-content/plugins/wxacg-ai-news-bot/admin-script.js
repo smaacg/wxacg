@@ -24,7 +24,8 @@ jQuery(document).ready(function($) {
             cls = "term-line-err";
         } else if (type === "success" || msg.indexOf("🟢") !== -1 || msg.indexOf("成功") !== -1 || msg.indexOf("完成") !== -1) {
             cls = "term-line-ok";
-        } else if (msg.indexOf("⚠️") !== -1) {
+        } else if (type === "warn" || msg.indexOf("⚠️") !== -1 || msg.indexOf("🛑") !== -1) {
+            // 中止相關訊息不帶 ⚠️ 也需標為警示色，故一併認 type 與 🛑
             cls = "term-line-warn";
         }
 
@@ -102,10 +103,81 @@ jQuery(document).ready(function($) {
         terminalScreen.empty().append("<div class=\"term-line\"><span class=\"term-time\">" + getTerminalTime() + "</span> &gt; 日誌紀錄被刷清。等待獲取新消息。</div>");
     });
 
-    // 3. 點選【開始生成報導】發出指令
+    // 3. 生成／中止（同一顆按鈕依狀態切換）
+    // 金鑰池變大後，遇到模型端持續壅塞時整池輪完可能耗時數十分鐘，
+    // 故任務進行中時按鈕轉為中止鍵，讓操作者能隨時喊停。
+    var isGenerating = false;      // 目前是否有任務進行中
+    var cancelRequested = false;   // 是否已按下中止（含 task_id 尚未回來就先按的情況）
+
+    var BTN_START = "開始生成報導";
+    var BTN_STOP  = "⏹️ 中止生成";
+
+    function setGeneratingState(on) {
+        isGenerating = on;
+        var btn = $("#wxacg_btn_generate");
+        if (on) {
+            btn.prop("disabled", false)
+               .text(BTN_STOP)
+               .addClass("wxacg-btn-stop")
+               .removeClass("button-primary");
+        } else {
+            btn.prop("disabled", false)
+               .text(BTN_START)
+               .removeClass("wxacg-btn-stop")
+               .addClass("button-primary");
+        }
+    }
+
+    function stopPolling() {
+        if (pollingTimer) {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+        }
+    }
+
+    // 送出中止指令。task_id 尚未回來時先記旗標，等領到號碼再補送。
+    function cancelGeneration() {
+        var btn = $("#wxacg_btn_generate");
+        cancelRequested = true;
+
+        if (!currentTaskID) {
+            logToTerminal("已標記中止，正等待雲端回傳任務編碼後立即送出……", "warn");
+            btn.prop("disabled", true).text("中止中...");
+            return;
+        }
+
+        btn.prop("disabled", true).text("中止中...");
+        logToTerminal("正在送出中止指令……");
+
+        $.post(wxacgAIParams.ajaxurl, {
+            action: "wxacg_cancel_ai_news",
+            nonce: wxacgAIParams.nonce,
+            task_id: currentTaskID
+        }, function(res) {
+            if (res.success) {
+                logToTerminal("🛑 " + (res.data.message || "已送出中止指令。") +
+                              " 雲端會在目前這一步結束後停止，稍候片刻。");
+            } else {
+                logToTerminal("❌ 中止失敗：" + ((res.data && res.data.message) ? res.data.message : "未知原因"), "error");
+                // 中止沒送成功就恢復成中止鍵，讓使用者可以再試一次
+                setGeneratingState(true);
+                cancelRequested = false;
+            }
+        }).fail(function() {
+            logToTerminal("❌ 送出中止指令時發生網路錯誤，請重試。", "error");
+            setGeneratingState(true);
+            cancelRequested = false;
+        });
+    }
+
     $("#wxacg_btn_generate").on("click", function(e) {
         e.preventDefault();
-        
+
+        if (isGenerating) {
+            cancelGeneration();
+            return;
+        }
+
         var targetUrl = $("#wxacg_target_url").val().trim();
         var customGlossary = $("#wxacg_custom_glossary").val().trim();
         var targetCategory = $("#wxacg_target_category").val();
@@ -123,11 +195,12 @@ jQuery(document).ready(function($) {
         logToTerminal("指定去向 -> 分類號: " + targetCategory + " | 頻道: " + targetChannel + " | 模板: [" + styleText + "]");
         
         var btn = $("#wxacg_btn_generate");
-        btn.prop("disabled", true).text("生成處理中...");
-
-        if (pollingTimer) {
-            clearInterval(pollingTimer);
-        }
+        // 派工請求送出期間先鎖住按鈕，避免連點造成重複下單；
+        // 領到 task_id 後才切換成可按的中止鍵。
+        btn.prop("disabled", true).text("派工中...");
+        currentTaskID = "";
+        cancelRequested = false;
+        stopPolling();
 
         $.ajax({
             url: wxacgAIParams.ajaxurl,
@@ -145,18 +218,29 @@ jQuery(document).ready(function($) {
                 if (res.success) {
                     currentTaskID = res.data.task_id;
                     logToTerminal("遠端機房成功領件！ task_id : " + currentTaskID, "success");
+
+                    // 在領到號碼前就按過中止：現在補送指令，不讓任務繼續跑下去
+                    if (cancelRequested) {
+                        logToTerminal("偵測到先前已按下中止，立即補送中止指令……", "warn");
+                        cancelRequested = false;
+                        setGeneratingState(true);
+                        cancelGeneration();
+                        return;
+                    }
+
                     logToTerminal("正展開 Live 監測，每 2 秒一次接收雲端實景運營工務日誌...");
-                    
+                    setGeneratingState(true);
+
                     pollCount = 0;  // 啟動新輪詢前重置計數器
                     pollingTimer = setInterval(pollTaskStatus, 2000);
                 } else {
                     logToTerminal("❌ 無法通報任務： " + res.data.message, "error");
-                    btn.prop("disabled", false).text("開始生成報導");
+                    setGeneratingState(false);
                 }
             },
             error: function(xhr, status, error) {
                 logToTerminal("❌ 本地通訊斷裂受難： " + error, "error");
-                btn.prop("disabled", false).text("開始生成報導");
+                setGeneratingState(false);
             }
         });
     });
@@ -168,10 +252,10 @@ jQuery(document).ready(function($) {
         // 超過最大輪詢次數，自動放棄，防止 Cloud Run 掛掉或任務卡死時無限佔用資源
         pollCount++;
         if (pollCount >= MAX_POLL_COUNT) {
-            clearInterval(pollingTimer);
-            pollingTimer = null;
-            logToTerminal("⚠️ 輪詢已達上限（" + MAX_POLL_COUNT + " 次 / 約 4 分鐘），雲端任務可能仍在執行，請稍後至 WordPress 後台確認是否已發佈。", "error");
-            $("#wxacg_btn_generate").prop("disabled", false).text("開始生成報導");
+            stopPolling();
+            logToTerminal("⚠️ 輪詢已達上限（" + MAX_POLL_COUNT + " 次 / 約 " +
+                          Math.round(MAX_POLL_COUNT * 2 / 60) + " 分鐘），雲端任務可能仍在執行，請稍後至 WordPress 後台確認是否已發佈。", "error");
+            setGeneratingState(false);
             return;
         }
 
@@ -206,15 +290,18 @@ jQuery(document).ready(function($) {
                     }
 
                     if (data.status === "success") {
-                        clearInterval(pollingTimer);
-                        pollingTimer = null;
+                        stopPolling();
                         logToTerminal("✔ 全盤任務打入最後慶典成功完畢！已安居進您的 WordPress 中了！", "success");
-                        $("#wxacg_btn_generate").prop("disabled", false).text("開始生成報導");
+                        setGeneratingState(false);
+                    } else if (data.status === "cancelled") {
+                        // 使用者主動中止：與執行失敗分開呈現，避免誤以為是系統出錯
+                        stopPolling();
+                        logToTerminal("🛑 任務已依您的指示中止，未產出文章。", "warn");
+                        setGeneratingState(false);
                     } else if (data.status === "failed") {
-                        clearInterval(pollingTimer);
-                        pollingTimer = null;
+                        stopPolling();
                         logToTerminal("❌ 這次在雲端伺服器遭致非正常異常中止，請檢閱上述對位錯因報訊。", "error");
-                        $("#wxacg_btn_generate").prop("disabled", false).text("開始生成報導");
+                        setGeneratingState(false);
                     }
                 } else {
                     logToTerminal("本輪未接收到正確狀態更新...");
