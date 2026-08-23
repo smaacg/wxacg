@@ -2233,8 +2233,26 @@ add_filter(
  * Rank Math Anime Description
  * ============================================================ */
 
+/**
+ * 動畫／漫畫單頁沒有 meta description 時，用劇情簡介自動補上。
+ *
+ * ★ 為什麼把漫畫也納進來（2026-08-24）
+ *   實測站上 14 部漫畫「全部」沒有 meta description，Google 只能自己
+ *   從頁面亂抓一段當摘要。動畫早就有這支 filter，漫畫因為當初只判斷
+ *   is_singular('anime') 而漏掉。
+ *
+ *   即將大量匯入原作漫畫（掃描出 776 部未匯入），若不先修，那 776 部
+ *   會全部帶著空的 description 上線 —— 手動補 776 次不現實，所以在
+ *   模板層一次解決。
+ *
+ * ★ 兩種型別的簡介來源不同，依各自模板的取法對齊
+ *   動畫：anime_synopsis_chinese → anime_synopsis
+ *   漫畫：anime_synopsis_chinese → post_content
+ *         （見 single-manga.php 的 $synopsis_raw，漫畫共用 anime_ 前綴
+ *           的 meta key，沒有 anime_synopsis 這個 fallback，改吃內文）
+ */
 function wxacg_anime_meta_description( $description ) {
-	if ( ! is_singular( 'anime' ) ) {
+	if ( ! is_singular( [ 'anime', 'manga' ] ) ) {
 		return $description;
 	}
 
@@ -2258,11 +2276,17 @@ function wxacg_anime_meta_description( $description ) {
 	);
 
 	if ( '' === trim( $synopsis ) ) {
-		$synopsis = (string) get_post_meta(
-			$post_id,
-			'anime_synopsis',
-			true
-		);
+		if ( 'manga' === get_post_type( $post_id ) ) {
+			// 用 get_post_field 而非 get_the_content()：filter 執行時不一定
+			// 在迴圈內，明確指定 post_id 比依賴全域 $post 可靠。
+			$synopsis = (string) get_post_field( 'post_content', $post_id );
+		} else {
+			$synopsis = (string) get_post_meta(
+				$post_id,
+				'anime_synopsis',
+				true
+			);
+		}
 	}
 
 	$synopsis = wxacg_plain_text( $synopsis );
