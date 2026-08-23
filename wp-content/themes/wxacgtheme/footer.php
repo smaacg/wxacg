@@ -200,7 +200,7 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
                  decoding="async" />
           </span>
           <span class="logo-text">
-            <?php echo esc_html( $site_name ); ?><span class="logo-plus" aria-hidden="true">+</span>
+            <?php echo esc_html( $site_name ); ?>
           </span>
         </a>
 
@@ -249,14 +249,8 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
 
     <div class="footer-divider" role="separator"></div>
 
-    <!-- ── Footer Bottom：版權 + 資料來源 + 電腦版切換 ── -->
+    <!-- ── Footer Bottom：版權 + 資料來源 ── -->
     <div class="footer-bottom">
-      <div class="footer-view-mode-wrap">
-        <button type="button" id="wxacg-view-mode-toggle" class="footer-view-toggle" aria-label="<?php echo esc_attr__( '切換檢視模式', 'blocksy-child' ); ?>" title="<?php echo esc_attr__( '切換至電腦版檢視', 'blocksy-child' ); ?>">
-          <i class="fa-solid fa-desktop" aria-hidden="true"></i>
-          <span class="view-toggle-text">電腦版</span>
-        </button>
-      </div>
       <p class="footer-copy">
         © <?php echo esc_html( wp_date( 'Y' ) ); ?> <?php echo esc_html( $site_name ); ?> WeixiaoACG．
         <?php echo esc_html__( 'All rights reserved．', 'blocksy-child' ); ?>
@@ -274,7 +268,7 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
         ?>。
       </p>
 
-      <?php /* 法務連結：從「關於」欄移來，這是它們的慣例位置 */ ?>
+      <?php /* 法務連結 + 桌面版切換（統一在同一列） */ ?>
       <?php if ( ! empty( $footer_legal ) ) : ?>
         <nav class="footer-legal" aria-label="<?php echo esc_attr__( '法務資訊', 'blocksy-child' ); ?>">
           <?php
@@ -291,6 +285,11 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
           }
           echo implode( '<span class="footer-legal-sep" aria-hidden="true">·</span>', $legal_html ); // phpcs:ignore WordPress.Security.EscapeOutput
           ?>
+          <span class="footer-legal-sep" aria-hidden="true">·</span>
+          <button type="button" id="wxacg-view-mode-toggle" class="footer-legal-desktop-btn" aria-label="<?php echo esc_attr__( '切換至桌面版檢視', 'blocksy-child' ); ?>" title="<?php echo esc_attr__( '切換至桌面版', 'blocksy-child' ); ?>">
+            <i class="fa-solid fa-desktop" aria-hidden="true"></i>
+            <span><?php echo esc_html__( '桌面版', 'blocksy-child' ); ?></span>
+          </button>
         </nav>
       <?php endif; ?>
     </div>

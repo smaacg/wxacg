@@ -1995,11 +1995,10 @@
 
 /* ───── ≤ 768px ───── */
 @media (max-width: 768px) {
-  .site-footer .footer-top {
-    display: grid !important; grid-template-columns: 1fr !important; gap: 16px !important;
-    width: 100% !important; max-width: 100% !important;
-  }
-  .site-footer .footer-top > * { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  /* footer-top 的欄位佈局交由 footer.css 處理（三欄/兩欄），這裡不再強制單欄 */
+
+  /* footer margin-top + padding-top：--space-xl(64px) 在手機版太空，縮小 */
+  .site-footer { margin-top: 24px !important; padding-top: 20px !important; }
 
   body.home .member-cta-grid {
     display: grid !important; grid-template-columns: 1fr !important; gap: 16px !important;
@@ -2017,12 +2016,13 @@
   .site-tagline,
   .site-logo small,
   .site-logo .tagline { display: none !important; }
-  .site-logo,
+  /* 只限定 header 內的 logo 縮排，避免污染 footer logo */
+  #site-header .site-logo,
   .header-logo { flex-shrink: 1 !important; min-width: 0 !important; max-width: 60% !important; }
-  .site-logo .logo-text,
-  .logo-text { font-size: 17px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
-  .site-logo img,
-  [class*="logo"] img:not(.avatar):not(.user-avatar) { max-height: 32px !important; flex-shrink: 0; }
+  #site-header .site-logo .logo-text,
+  #site-header .logo-text { font-size: 17px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  #site-header .site-logo img,
+  #site-header [class*="logo"] img:not(.avatar):not(.user-avatar) { max-height: 32px !important; flex-shrink: 0; }
 
   /* 頭像放大（原 v9.1.14，推翻過度縮小）*/
   .header-user-dropdown {
@@ -2057,10 +2057,11 @@
 @media (max-width: 480px) {
   .footer-container { grid-template-columns: 1fr; }
   .hero-posters     { display: none; }
-  .site-logo { max-width: 50% !important; font-size: 14px; }
-  .site-logo .logo-text,
-  .logo-text { font-size: 15px !important; }
-  .site-logo img { max-height: 28px !important; }
+  /* 限定在 header 內，避免污染 footer logo */
+  #site-header .site-logo { max-width: 50% !important; font-size: 14px; }
+  #site-header .site-logo .logo-text,
+  #site-header .logo-text { font-size: 15px !important; }
+  #site-header .site-logo img { max-height: 28px !important; }
   .username-display { display: none; }
   #search-toggle    { display: none; }
   .login-btn        { padding: 5px 10px; }

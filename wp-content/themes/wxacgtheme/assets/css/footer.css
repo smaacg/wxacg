@@ -21,15 +21,49 @@
  * 這裡特異性較高（.site-footer .footer-logo），可蓋掉該規則。
  */
 .site-footer .footer-logo{
-  margin-left:0;
-  transform:none;
+  margin-left:0 !important;
+  transform:none !important;
+  /* 強制覆蓋 .site-logo 全域的 height:64px，讓容器跟著內容自適應 */
+  height: auto !important;
+  align-items: center !important;
+  display: flex !important;
 }
 
-.footer-logo-img{
-  height:38px;
-  width:auto;
-  vertical-align:middle;
-  display:inline-block;
+.site-footer .footer-logo-img{
+  /* 手機版縮小 logo 圖示，與文字高度匹配 */
+  height: 28px !important;
+  width: auto;
+  vertical-align: middle;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* 確保 logo-icon-box 垂直置中，不被 flex stretch；
+   改 display:flex（非 inline-flex）避免行內 baseline 對齊問題 */
+.site-footer .footer-logo .logo-icon-box {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center;
+  flex-shrink: 0;
+  line-height: 0; /* 消除 inline 行高殘影 */
+}
+
+/* footer 內的 logo-text：確保 background-clip:text 正常運作，
+   若瀏覽器 render 失效時以白色字體作為降級保護，不顯示漸層色塊 */
+.site-footer .logo-text {
+  background: linear-gradient(135deg, #ffffff 0%, #D8E8FF 45%, #A5C2F5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: #ffffff; /* 降級：若 background-clip:text 失效則顯示白色 */
+  font-size: 18px !important; /* 配合 28px 圖示的合適大小 */
+  line-height: 1 !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  white-space: nowrap !important;
+  align-self: center; /* 確保文字在 flex 容器中垂直置中 */
 }
 
 /* ─────────── 5 欄佈局 ─────────── */
@@ -124,21 +158,27 @@
 
   /* 整體上下留白收窄 */
   .site-footer .footer-top{
-    grid-template-columns:repeat(3, 1fr); /* 欄目改三欄並排，大幅縮短高度 */
-    gap:22px 12px;
-    padding:28px 0 18px;
+    grid-template-columns:repeat(2, 1fr); /* 2欄：4 個 nav group 整齊排成 2×2 */
+    gap:20px 14px;
+    padding:12px 0 18px; /* 縮小 top padding，減少空白感 */
   }
 
-  /* 品牌區橫跨整排、間距縮小 */
+  /* 品牌區橫跨整排、flex column 置中
+     注意：.footer-logo 是 display:flex（block-level），
+     text-align:center 對它無效；必須用 align-items:center 才能真正水平置中 */
   .site-footer .footer-brand{
     grid-column:1 / -1;
-    text-align:center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
-  .site-footer .footer-logo-img{ height:32px; }
+  .site-footer .footer-logo-img{ height:28px !important; }
   .site-footer .footer-tagline{
     font-size:12px;
     line-height:1.5;
     margin:8px 0 0;
+    text-align: center;
   }
 
   /* 社群圖示置中、縮小、縮排
@@ -187,44 +227,42 @@
   }
 }
 
-/* ── 手機版/電腦版檢視切換按鈕 ── */
+/* ── 桌面版切換（內嵌於法務連結列） ── */
+/* 舊版的獨立按鈕區塊已移除，保留這組表示隱藏 */
 .footer-view-mode-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 14px;
+  display: none;
 }
 
-.footer-view-toggle {
+/* 内嵌在 footer-legal 內的桌面版按鈕，樣式跟旁邊連結完全相同 */
+.site-footer .footer-legal-desktop-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  color: #e2e8f0;
-  font-size: 13px;
-  font-weight: 700;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  color: var(--text-secondary, #C3C6CE);
+  font-size: 12px;
+  font-family: inherit;
+  text-decoration: none;
+  transition: color .2s ease;
+  line-height: inherit;
+}
+.site-footer .footer-legal-desktop-btn:hover {
+  color: var(--accent-blue, #63a8ff);
+}
+.site-footer .footer-legal-desktop-btn i {
+  font-size: 11px;
+  opacity: 0.75;
 }
 
-.footer-view-toggle:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: #3b82f6;
-  color: #ffffff;
-  transform: translateY(-2px);
-}
-
-.footer-view-toggle i {
-  font-size: 14px;
-  color: #38bdf8;
-}
-
-/* 在一般電腦大螢幕（且非手動強制切換狀態下）自動隱藏此切換按鈕 */
+/* 在一般電腦大螢幕自動隱藏此按鈕（除非手動強制切換至桌面版狀態） */
 @media (min-width: 1025px) {
-  html:not(.view-as-desktop) .footer-view-mode-wrap {
+  html:not(.view-as-desktop) .footer-legal-desktop-btn,
+  html:not(.view-as-desktop) .footer-legal-desktop-btn + .footer-legal-sep,
+  html:not(.view-as-desktop) .footer-legal-sep:has(+ .footer-legal-desktop-btn) {
     display: none;
   }
 }
