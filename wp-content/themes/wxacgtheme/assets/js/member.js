@@ -73,11 +73,15 @@
   }
   if ($('.mc-panel[data-panel="stats"].active').length) animateBars();
 
-  /* ===== Filter ===== */
+  /* ===== Filter（我的清單）=====
+     選擇器限定 [data-filter]：收藏頁的分類切換沿用同一組 .mc-filter-btn
+     樣式但帶的是 data-fav-filter，若不限定會一起觸發這裡，
+     String(undefined) 讓每張卡片都比對失敗而全部消失。
+     移除 active 也限縮在自己那一列，不去清掉另一組的狀態。 */
   let currentFilter = 'all';
-  $wrap.on('click', '.mc-filter-btn', function () {
+  $wrap.on('click', '.mc-filter-btn[data-filter]', function () {
     currentFilter = String($(this).data('filter'));
-    $('.mc-filter-btn').removeClass('active');
+    $(this).closest('.mc-filter-bar').find('.mc-filter-btn').removeClass('active');
     $(this).addClass('active');
 
     $('#mc-watchlist-grid .mc-anime-card').each(function () {
@@ -89,6 +93,21 @@
       else if (currentFilter === 'favorited') show = fav;
       else show = (status === currentFilter);
       $c.toggle(show);
+    });
+  });
+
+  /* ===== Filter（我的收藏：作品 / 角色 / 聲優）=====
+     三組的數量常常差很多（實測 26 部作品 vs 各 2 個角色與聲優），
+     垂直堆疊時要看角色得先滑過整片作品。這裡切換整個 .mc-fav-group
+     的顯示，而不是逐張卡片比對——分組本來就已經在 DOM 上分好了。 */
+  $wrap.on('click', '.mc-filter-btn[data-fav-filter]', function () {
+    const type = String($(this).data('favFilter'));
+    $(this).closest('.mc-filter-bar').find('.mc-filter-btn').removeClass('active');
+    $(this).addClass('active');
+
+    $('.mc-fav-group').each(function () {
+      const $g = $(this);
+      $g.toggle(type === 'all' || String($g.data('favType')) === type);
     });
   });
 

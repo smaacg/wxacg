@@ -1451,15 +1451,51 @@ function wxacg_render_entity_favorites( $uid, $watchlist = [] ) {
         }
     }
 
-    if ( ! empty( $fav_anime ) ) {
+    /* 角色／聲優的數量先取出來，篩選列要一次列出三類的數字 */
+    $entity_ready  = ( $uid > 0 && class_exists( 'Anime_Sync_Entity_Favorites' ) );
+    $entity_counts = $entity_ready
+        ? Anime_Sync_Entity_Favorites::count_by_type( $uid )
+        : [];
+
+    $group_counts = [
+        'anime'     => count( $fav_anime ),
+        'character' => (int) ( $entity_counts['character'] ?? 0 ),
+        'person'    => (int) ( $entity_counts['person'] ?? 0 ),
+    ];
+    $grand_total = array_sum( $group_counts );
+
+    /*
+     * 分類切換列。
+     *
+     * 三組的數量常常差很多（實測有會員收藏 26 部作品、角色與聲優各 2 個），
+     * 垂直堆疊時要看角色得先滑過 26 張卡片。沿用「我的清單」既有的
+     * .mc-filter-bar 樣式，視覺一致也不必新增 CSS。
+     *
+     * 數量為 0 的分類仍然列出：那是在告訴使用者「還可以收藏角色」，
+     * 隱藏反而讓人不知道有這個功能。
+     */
+    if ( $grand_total > 0 ) :
         ?>
         <div class="mc-list-toolbar">
-            <h3 class="mc-fav-group-title">🎬 作品（<?php echo count( $fav_anime ); ?>）</h3>
+            <div class="mc-filter-bar mc-fav-filter-bar" role="tablist">
+                <button class="mc-filter-btn active" data-fav-filter="all">全部 (<?php echo (int) $grand_total; ?>)</button>
+                <button class="mc-filter-btn" data-fav-filter="anime">🎬 作品 (<?php echo (int) $group_counts['anime']; ?>)</button>
+                <button class="mc-filter-btn" data-fav-filter="character">🎭 角色 (<?php echo (int) $group_counts['character']; ?>)</button>
+                <button class="mc-filter-btn" data-fav-filter="person">🎤 聲優 (<?php echo (int) $group_counts['person']; ?>)</button>
+            </div>
         </div>
-        <div class="mc-card-grid">
-            <?php foreach ( $fav_anime as $it ) {
-                wxacg_render_anime_card( (int) $it['post_id'], $it );
-            } ?>
+        <?php
+    endif;
+
+    if ( ! empty( $fav_anime ) ) {
+        ?>
+        <div class="mc-fav-group" data-fav-type="anime">
+            <h3 class="mc-fav-group-title">🎬 作品（<?php echo count( $fav_anime ); ?>）</h3>
+            <div class="mc-card-grid">
+                <?php foreach ( $fav_anime as $it ) {
+                    wxacg_render_anime_card( (int) $it['post_id'], $it );
+                } ?>
+            </div>
         </div>
         <?php
     }
@@ -1508,9 +1544,8 @@ function wxacg_render_entity_favorites( $uid, $watchlist = [] ) {
             continue;
         }
         ?>
-        <div class="mc-list-toolbar">
-            <h3 class="mc-fav-group-title"><?php echo $icon; ?> <?php echo esc_html( $label ); ?>（<?php echo count( $items ); ?>）</h3>
-        </div>
+        <div class="mc-fav-group" data-fav-type="<?php echo esc_attr( $type ); ?>">
+        <h3 class="mc-fav-group-title"><?php echo $icon; ?> <?php echo esc_html( $label ); ?>（<?php echo count( $items ); ?>）</h3>
 
         <div class="mc-card-grid">
             <?php foreach ( $items as $it ) :
@@ -1550,6 +1585,7 @@ function wxacg_render_entity_favorites( $uid, $watchlist = [] ) {
                 </article>
             <?php endforeach; ?>
         </div>
+        </div><!-- /.mc-fav-group -->
         <?php
     }
 }
