@@ -193,6 +193,7 @@ body.single-anime .entry-content>.asd-wrap {
   left: 50%;
   width: 100vw;
   height: clamp(220px, 27vw, 340px);
+  margin-top: -16px;
   margin-right: -50vw;
   margin-bottom: var(--asd-gap);
   margin-left: -50vw;
@@ -201,6 +202,11 @@ body.single-anime .entry-content>.asd-wrap {
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;
+}
+@media (max-width: 900px) {
+  .asd-banner {
+    margin-top: 0;
+  }
 }
 
 .asd-banner--fallback {
