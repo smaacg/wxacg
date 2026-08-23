@@ -46,6 +46,11 @@ class WXACG_AI_News_Engine_Plugin {
         add_action('wp_ajax_wxacg_trigger_ai_news', [$this, 'handle_trigger_ai_news']);
         add_action('wp_ajax_wxacg_poll_task_status', [$this, 'handle_poll_task_status']);
 
+        # 金鑰池資安鎖的解鎖驗證。
+        # 密碼以雜湊存於資料庫，前端拿不到明文，無法比照雲端端點那組在瀏覽器直接比對，
+        # 故改由此端點在伺服器端驗證後才回覆前端可否展開面板。
+        add_action('wp_ajax_wxacg_verify_key_password', [$this, 'handle_verify_key_password']);
+
         # 註冊雙軌獨立保存自定處理端點 (區分全域與使用者獨立金鑰)
         add_action('admin_post_wxacg_save_settings', [$this, 'handle_save_settings']);
 
@@ -164,6 +169,29 @@ class WXACG_AI_News_Engine_Plugin {
             return false;
         }
         return wp_check_password($password, (string) get_option(self::KEY_PASSWORD_OPTION, ''));
+    }
+
+    /**
+     * AJAX：驗證金鑰池管理密碼，決定前端能否展開編輯面板。
+     *
+     * 注意：這裡只是「畫面上的鎖」，真正的防線仍在 handle_key_pool_save()——
+     * 即使有人略過前端直接送出表單，沒有正確密碼一樣寫不進 Key 池。
+     * 因此本端點不需要發放通行證或維護解鎖狀態，單純回答密碼對不對即可。
+     */
+    public function handle_verify_key_password() {
+        check_ajax_referer('wxacg_ai_news_action_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => '權限不足：只有網站管理員可以檢視或修改全站共用金鑰池。']);
+        }
+
+        $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+
+        if (!$this->verify_key_password($password)) {
+            wp_send_json_error(['message' => '管理密碼錯誤，無法解鎖。']);
+        }
+
+        wp_send_json_success(['message' => '驗證通過']);
     }
 
     /**
@@ -806,60 +834,6 @@ class WXACG_AI_News_Engine_Plugin {
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><label for="wxacg_ai_news_api_key_pool">AI 授權金鑰 (API Key)<br><small style="color:#0073aa;">[全站共用金鑰池]</small></label></th>
-                            <td>
-                                <p style="margin:0 0 8px 0; font-size:14px;">
-                                    🔑 目前共用池已存放
-                                    <strong style="color:<?php echo $pool_count > 0 ? '#186229' : '#d63638'; ?>;"><?php echo (int) $pool_count; ?></strong> 把 Key
-                                    <?php if ($pool_count === 0) : ?>
-                                        <span style="color:#d63638; font-weight:600;">— 尚未設定，無法生成報導！</span>
-                                    <?php endif; ?>
-                                </p>
-
-                                <?php if ($can_manage_keys) : ?>
-                                    <textarea id="wxacg_ai_news_api_key_pool" name="wxacg_ai_news_api_key_pool" class="large-text code" rows="4"
-                                              placeholder="一行一把 Key，貼上後將【整批覆蓋】原有內容；留空則維持原池不變更..."
-                                              style="font-family:monospace;"></textarea>
-                                    <p class="description" style="margin-bottom:10px;">
-                                        為保障安全，此處<strong>不會顯示</strong>已儲存的金鑰明文。留空儲存＝維持原池不動；<br>
-                                        有填內容＝整批覆蓋整個 Key 池。額度不足時雲端會自動輪替到下一把。
-                                    </p>
-
-                                    <div style="border:1px dashed #c3c4c7; padding:10px; background:#f6f7f7; border-radius:4px;">
-                                        <?php if ($key_password_set) : ?>
-                                            <label for="wxacg_ai_news_key_password"><strong>🔐 管理密碼（修改上方 Key 池時必填）：</strong></label><br>
-                                            <input type="password" id="wxacg_ai_news_key_password" name="wxacg_ai_news_key_password"
-                                                   class="regular-text" autocomplete="new-password" placeholder="請輸入 Key 池管理密碼">
-                                            <p class="description" style="margin-top:2px;">只有要變更 Key 池時才需要填寫，單純修改其他設定可留空。</p>
-                                        <?php else : ?>
-                                            <p style="margin:0 0 6px 0; color:#b32d2e; font-weight:600;">⚠️ 尚未設定管理密碼（首次設定模式，目前任何管理員都能直接修改 Key 池）</p>
-                                            <p class="description" style="margin:0;">請於下方「設定管理密碼」欄位設定，設定後日後修改 Key 池就必須輸入密碼。</p>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php else : ?>
-                                    <p class="description">
-                                        共用金鑰由網站管理員統一維護，您無需（也無法）自行填寫。<br>
-                                        若上方顯示 0 把或生成持續失敗，請聯繫管理員補充金鑰。
-                                    </p>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-
-                        <?php if ($can_manage_keys) : ?>
-                        <tr>
-                            <th scope="row"><label for="wxacg_ai_news_key_new_password">🔐 <?php echo $key_password_set ? '修改' : '設定'; ?>管理密碼<br><small style="color:#0073aa;">[全站共用設定]</small></label></th>
-                            <td>
-                                <?php if ($key_password_set) : ?>
-                                    <input type="password" name="wxacg_ai_news_key_old_password" class="regular-text" autocomplete="new-password" placeholder="目前的舊密碼"><br style="margin-bottom:6px;">
-                                <?php endif; ?>
-                                <input type="password" id="wxacg_ai_news_key_new_password" name="wxacg_ai_news_key_new_password" class="regular-text" autocomplete="new-password" placeholder="新密碼（至少 6 個字元）"><br style="margin-bottom:6px;">
-                                <input type="password" name="wxacg_ai_news_key_new_password2" class="regular-text" autocomplete="new-password" placeholder="再次輸入新密碼">
-                                <p class="description">全部留空即代表不變更密碼。此密碼用於保護上方的全站共用 Key 池。</p>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-
-                        <tr>
                             <th scope="row"><label for="wxacg_ai_news_model">使用模型名稱<br><small style="color:#0073aa;">[帳戶個體獨立保存]</small></label></th>
                             <td>
                                 <select id="wxacg_ai_news_model" name="wxacg_ai_news_model" class="wxacg-select" style="min-width:220px;">
@@ -937,6 +911,86 @@ class WXACG_AI_News_Engine_Plugin {
                                         <p class="description">直接改寫這裡的新單字並按最底部存檔，未來此鎖就以這組自定義新口令來驗證。</p>
                                     </div>
                                 </div>
+                            </td>
+                        </tr>
+
+                        <!--
+                            金鑰池與其管理密碼合併為同一列，版面比照上方「雲端 AI 伺服端點」：
+                            綠色面板內依序編號列出各欄位，最後以虛線分隔出密碼設定區。
+
+                            差異說明：雲端端點那組是把正確密碼直接輸出到 DOM 再由 JS 比對，
+                            本區的密碼以雜湊存於資料庫、送出後才在伺服器端驗證，
+                            無法（也不應）在前端先行比對，故不做解鎖按鈕，改為直接顯示欄位。
+                        -->
+                        <tr class="wxacg-lock-section">
+                            <th scope="row">
+                                <label for="wxacg_ai_news_api_key_pool" style="color:#c92a2a; font-weight:bold;">AI 授權金鑰 (API Key)</label>
+                                <br><small style="color:#0073aa;">[全站共用金鑰池]</small>
+                            </th>
+                            <td>
+                                <p style="margin:0 0 10px 0; font-size:14px;">
+                                    🔑 目前共用池已存放
+                                    <strong style="color:<?php echo $pool_count > 0 ? '#186229' : '#d63638'; ?>;"><?php echo (int) $pool_count; ?></strong> 把 Key
+                                    <?php if ($pool_count === 0) : ?>
+                                        <span style="color:#d63638; font-weight:600;">— 尚未設定，無法生成報導！</span>
+                                    <?php endif; ?>
+                                </p>
+
+                                <?php if ($can_manage_keys) : ?>
+
+                                    <?php if ($key_password_set) : ?>
+                                    <div id="wxacg_key_lock_guard" class="lock-panel">
+                                        <p style="margin-top:0;"><strong>已啟用資安鎖，禁止隨意竄改全站共用金鑰池</strong></p>
+                                        <div>輸入管理密碼才能檢視或修改：</div>
+                                        <div style="margin-top:6px;">
+                                            <input type="password" id="wxacg_key_unlock_input" class="regular-text" autocomplete="new-password" placeholder="Key 池管理密碼">
+                                            <button type="button" id="wxacg_btn_key_unlock" class="button button-secondary">🔓 解除金鑰鎖</button>
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
+
+                                    <div id="wxacg_key_pool_fields" class="unlock-panel" style="<?php echo $key_password_set ? 'display:none;' : ''; ?>">
+                                        <?php if ($key_password_set) : ?>
+                                            <div class="unlock-title">✅ 金鑰鎖已解除！以下欄位現在可以修改：</div>
+                                            <?php
+                                            # 解鎖時由 JS 把剛才輸入的密碼填入此隱藏欄位，隨表單一併送出，
+                                            # 讓使用者不必為了同一組密碼輸入兩次。實際仍由伺服器端再驗一次。
+                                            ?>
+                                            <input type="hidden" id="wxacg_ai_news_key_password" name="wxacg_ai_news_key_password" value="">
+                                        <?php else : ?>
+                                            <div class="unlock-title">🔐 全站共用金鑰池管理（僅網站管理員可見）</div>
+                                            <p style="margin:0 0 15px 0; color:#b32d2e; font-weight:600;">
+                                                ⚠️ 尚未設定管理密碼（首次設定模式：目前任何管理員都能直接修改 Key 池）<br>
+                                                請於下方設定密碼，設定後本區塊就會像上方雲端端點一樣自動上鎖。
+                                            </p>
+                                        <?php endif; ?>
+
+                                        <label><strong>1. Gemini API Key 清單（一行一把）：</strong></label><br>
+                                        <textarea id="wxacg_ai_news_api_key_pool" name="wxacg_ai_news_api_key_pool" class="large-text code" rows="5"
+                                                  placeholder="一行一把 Key，貼上後將【整批覆蓋】原有內容；留空則維持原池不變更..."
+                                                  style="font-family:monospace;"></textarea>
+                                        <p class="description" style="margin-top:2px; margin-bottom:15px;">
+                                            為保障安全，此處<strong>不會顯示</strong>已儲存的金鑰明文。留空儲存＝維持原池不動；<br>
+                                            有填內容＝整批覆蓋整個 Key 池。額度不足時雲端會自動輪替到下一把。
+                                        </p>
+
+                                        <div style="border-top:1px dashed #40c057; padding-top:10px; margin-top:10px;">
+                                            <label style="color:#186229;"><strong>2. <?php echo $key_password_set ? '修改' : '設定'; ?>管理密碼（保護上方金鑰池用）：</strong></label><br>
+                                            <?php if ($key_password_set) : ?>
+                                                <input type="password" name="wxacg_ai_news_key_old_password" class="regular-text" autocomplete="new-password" placeholder="目前的舊密碼" style="margin-bottom:6px;"><br>
+                                            <?php endif; ?>
+                                            <input type="password" id="wxacg_ai_news_key_new_password" name="wxacg_ai_news_key_new_password" class="regular-text" autocomplete="new-password" placeholder="新密碼（至少 6 個字元）" style="margin-bottom:6px;"><br>
+                                            <input type="password" name="wxacg_ai_news_key_new_password2" class="regular-text" autocomplete="new-password" placeholder="再次輸入新密碼"><br>
+                                            <p class="description" style="margin-top:2px;">全部留空即代表不變更密碼。設定後，日後修改上方 Key 池都必須先解鎖。</p>
+                                        </div>
+                                    </div>
+
+                                <?php else : ?>
+                                    <p class="description">
+                                        共用金鑰由網站管理員統一維護，您無需（也無法）自行填寫。<br>
+                                        若上方顯示 0 把或生成持續失敗，請聯繫管理員補充金鑰。
+                                    </p>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     </table>

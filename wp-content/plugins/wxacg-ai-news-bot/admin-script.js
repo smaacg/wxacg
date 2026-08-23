@@ -48,6 +48,54 @@ jQuery(document).ready(function($) {
         }
     });
 
+    // 1-B. 解除【全站共用金鑰池】的資安鎖
+    // 與上方雲端端點的解鎖不同：金鑰池密碼以雜湊存在資料庫，前端拿不到明文，
+    // 因此改送 AJAX 交由伺服器端驗證。這道鎖只負責畫面上的開合，
+    // 真正的防線在儲存時的伺服器端檢查——直接送表單一樣過不了。
+    $("#wxacg_btn_key_unlock").on("click", function() {
+        var btn = $(this);
+        var password = $("#wxacg_key_unlock_input").val();
+
+        if (!password) {
+            alert("請先輸入 Key 池管理密碼。");
+            $("#wxacg_key_unlock_input").focus();
+            return;
+        }
+
+        btn.prop("disabled", true).text("驗證中...");
+
+        $.post(wxacgAIParams.ajaxurl, {
+            action: "wxacg_verify_key_password",
+            nonce: wxacgAIParams.nonce,
+            password: password
+        }, function(res) {
+            btn.prop("disabled", false).text("🔓 解除金鑰鎖");
+
+            if (res.success) {
+                // 把剛才輸入的密碼帶進隱藏欄位，隨表單一起送出，免得同一組密碼要打兩次
+                $("#wxacg_ai_news_key_password").val(password);
+                $("#wxacg_key_unlock_input").val("");
+                $("#wxacg_key_lock_guard").slideUp();
+                $("#wxacg_key_pool_fields").slideDown();
+                logToTerminal("金鑰池資安鎖已解除，現在可以修改全站共用 API Key。", "success");
+            } else {
+                alert("解鎖失敗：" + ((res.data && res.data.message) ? res.data.message : "管理密碼錯誤"));
+                $("#wxacg_key_unlock_input").val("").focus();
+            }
+        }).fail(function() {
+            btn.prop("disabled", false).text("🔓 解除金鑰鎖");
+            alert("發生網路錯誤，請重試！");
+        });
+    });
+
+    // 密碼欄位按 Enter 等同按下解鎖，避免誤觸整張表單的送出
+    $("#wxacg_key_unlock_input").on("keydown", function(e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            $("#wxacg_btn_key_unlock").click();
+        }
+    });
+
     // 2. 清除終端日誌畫面
     $("#wxacg_btn_clear_log").on("click", function(e) {
         e.preventDefault();
