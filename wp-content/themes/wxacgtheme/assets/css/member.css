@@ -567,6 +567,24 @@
 .mc-tab:hover  { color: var(--mc-text); background: var(--mc-surface); }
 .mc-tab.active { color: var(--mc-accent); border-bottom-color: var(--mc-accent); background: var(--mc-surface); }
 
+/*
+ * 分頁分群的分隔線（我的內容 / 我的成長 / 帳號）。
+ *
+ * 用細線而非文字標題：手機版的 .mc-tabs 是橫向捲動（見檔尾 media query），
+ * 插入標題會吃掉本來就不夠的寬度。細線在兩種版型都只佔 1px。
+ *
+ * align-self:center + 固定高度，讓線只跨越按鈕的中間段，不會頂到
+ * .mc-tabs 的底部框線而看起來像表格。
+ */
+.mc-tab-sep {
+  align-self: center;
+  width: 1px;
+  height: 20px;
+  margin: 0 8px;
+  background: var(--mc-border);
+  flex-shrink: 0;
+}
+
 .mc-tab--link {
   text-decoration: none;
   display: inline-flex;

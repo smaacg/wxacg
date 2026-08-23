@@ -365,23 +365,63 @@ get_header(); ?>
 
     <nav class="mc-tabs" role="tablist">
         <?php
-        $tabs = [
-            'dashboard'     => '📊 總覽',
-            'watchlist'     => '🎬 我的清單',
-            'favorites'     => '❤️ 我的收藏',
-            'stats'         => '📈 統計',
-            'ratings'       => '⭐ 我的評分',
-            'achievements'  => '🏆 成就',
-            'career'        => '🎯 職業',
-            'notifications' => '🔔 通知',
-            'comments'      => '💬 留言',
-            'points'        => '🎮 EXP',
-            'settings'      => '⚙️ 設定',
+        /*
+         * 分頁改為三群，並依實際使用率重排（2026-08-23）。
+         *
+         * ★ 為什麼要分群
+         *   11 個分頁平鋪成一排，每一個的視覺權重都相同，但實際覆蓋率
+         *   差距極大（193 位會員中）：
+         *       成就 100%、我的清單 24%、職業 4%、評分 3%、收藏 3%、留言 2%
+         *   也就是有五個分頁對 95% 的人打開是空的，卻與最常用的並列。
+         *
+         *   不刪除它們——新會員會逐漸用到，藏起來反而讓人不知道有這功能。
+         *   改以「我的內容 / 我的成長 / 帳號」分群，讓相關的靠在一起，
+         *   掃視時容易得多。
+         *
+         * ★ 為什麼用分隔線而不是文字標題
+         *   手機版的 .mc-tabs 是橫向捲動（見 member.css 的 1616 行），
+         *   插入文字標題會吃掉本來就不夠的寬度。用一條細分隔線同時
+         *   適用兩種版型。
+         *
+         * ★ 順序調整的依據
+         *   統計原本排在第 4 位，但它是衍生資料，語意上屬於「成長」；
+         *   留言原本排第 9，但它是使用者產出的內容。依語意歸位後，
+         *   順手把覆蓋率 100% 的成就放在成長群的第一個。
+         *
+         * data-tab 的值完全沒動——member.js 依賴它切換面板。
+         */
+        $tab_groups = [
+            /* 我的內容：使用者自己累積的東西 */
+            [
+                'dashboard'     => '📊 總覽',
+                'watchlist'     => '🎬 我的清單',
+                'favorites'     => '❤️ 我的收藏',
+                'ratings'       => '⭐ 我的評分',
+                'comments'      => '💬 留言',
+            ],
+            /* 我的成長：等級、成就與統計 */
+            [
+                'achievements'  => '🏆 成就',
+                'points'        => '🎮 EXP',
+                'stats'         => '📈 統計',
+                'career'        => '🎯 職業',
+            ],
+            /* 帳號：通知與設定 */
+            [
+                'notifications' => '🔔 通知',
+                'settings'      => '⚙️ 設定',
+            ],
         ];
-        foreach ( $tabs as $k => $label ) :
-            $active = $k === 'dashboard' ? ' active' : '';
-            ?>
-            <button class="mc-tab<?php echo $active; ?>" data-tab="<?php echo esc_attr( $k ); ?>" role="tab"><?php echo $label; ?></button>
+
+        foreach ( $tab_groups as $gi => $group ) :
+            if ( $gi > 0 ) : ?>
+                <span class="mc-tab-sep" aria-hidden="true"></span>
+            <?php endif; ?>
+            <?php foreach ( $group as $k => $label ) :
+                $active = $k === 'dashboard' ? ' active' : '';
+                ?>
+                <button class="mc-tab<?php echo $active; ?>" data-tab="<?php echo esc_attr( $k ); ?>" role="tab"><?php echo $label; ?></button>
+            <?php endforeach; ?>
         <?php endforeach; ?>
 
         <?php /* === 新增：訊息入口（外連 Better Messages 全寬頁，不走 panel 切換） === */ ?>
