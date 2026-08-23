@@ -1128,3 +1128,66 @@
     border-top: 1px solid var(--wpf-border) !important;
     color: var(--wpf-text) !important;
 }
+
+
+/* ==========================================================
+ * 18. 論壇資訊（footer 統計區）—— 疏開間距
+ *
+ * ★ 問題
+ *   回報「看起來很擠」。實際量測底部那三個 .wpf-footer-box：
+ *       方塊之間的間隙  5~8px
+ *       方塊自身 padding  8px 28px 0   ← 下方是 0，文字直接貼底
+ *       圖示說明的文字    font-size 11px / line-height 16px
+ *       圖示說明的項目間距 margin-right 5px（共 11 個項目擠成兩行）
+ *
+ *   而先前補毛玻璃時又給 .wpf-footer-box 加了 box-shadow，
+ *   三張帶陰影的卡片幾乎貼在一起，看起來就是一團。
+ *
+ * ★ 只調間距與字級，不動排版結構
+ *   這幾個項目本來就是 inline-block 依序排開，改成 flex 會影響
+ *   「論壇圖標:」那個前綴標籤的對齊，風險大於效益。
+ * ========================================================== */
+
+/* 方塊之間拉開，並補回下方內距 */
+#wpforo #wpforo-wrap #wpforo-footer .wpf-footer-box {
+    padding: 14px 22px !important;
+    margin-bottom: 10px !important;
+}
+
+#wpforo #wpforo-wrap #wpforo-footer .wpf-footer-box:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* wpForo 給第一個方塊 padding-bottom:0 / padding-top:15px，
+ * 會讓第一格跟其他兩格不等高，一併統一。 */
+#wpforo #wpforo-wrap #wpforo-footer .wpf-footer-box:first-child {
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+}
+
+/* 統計數字那一列（6 論壇／3 話題／9 帖子…）給多一點行高 */
+#wpforo #wpforo-wrap #wpforo-stat-body .wpf-footer-box > ul > li {
+    line-height: 26px !important;
+}
+
+/* 圖示說明：字太小、項目擠在一起。放大一級並拉開間距，
+ * 兩行之間也給足行高，讓它自然斷行而不是黏成一片。 */
+#wpforo #wpforo-wrap #wpforo-stat-body .wpf-last-info div {
+    font-size: 12px !important;
+    line-height: 24px !important;
+    padding-bottom: 4px !important;
+}
+
+#wpforo #wpforo-wrap #wpforo-stat-body .wpf-last-info div.wpf-forum-icons span,
+#wpforo #wpforo-wrap #wpforo-stat-body .wpf-last-info div.wpf-topic-icons span {
+    margin-right: 14px !important;
+}
+
+/* 圖示說明上方那條分隔線是 #e6e6e6（亮灰），深色模式沒有對應規則
+ * （.wpf-dark 命中 0 條），實測像素為 rgb(230,230,230)，在深色底上
+ * 是一條明顯的白線。 */
+#wpforo #wpforo-wrap #wpforo-stat-body .wpf-last-info div.wpf-forum-icons {
+    border-top: 1px solid var(--wpf-border) !important;
+    padding-top: 12px !important;
+    margin-top: 10px !important;
+}
