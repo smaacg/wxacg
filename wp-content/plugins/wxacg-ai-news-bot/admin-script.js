@@ -86,18 +86,32 @@ jQuery(document).ready(function($) {
     // 刻意在瀏覽器端用 crypto 亂數產生：Token 不會經過伺服器日誌、不會寫進原始碼，
     // 也不會出現在任何對話或版控紀錄中，只有操作者本人看得到這一次。
     $("#wxacg_btn_gen_token").on("click", function() {
-        var bytes = new Uint8Array(32);
-        if (window.crypto && window.crypto.getRandomValues) {
-            window.crypto.getRandomValues(bytes);
-        } else {
+        if (!window.crypto || !window.crypto.getRandomValues) {
             alert("此瀏覽器不支援安全亂數產生器，請改用較新的瀏覽器，或自行設定一組足夠複雜的 Token。");
             return;
         }
 
         var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var TOKEN_LENGTH = 32;
+
+        /*
+         * 採拒絕取樣（rejection sampling）而非直接取餘數。
+         *
+         * 位元組範圍 0～255 無法被 62 整除（256 = 62×4 + 8），
+         * 直接用 % 62 會讓前 8 個字元的出現機率比其他高約 25%。
+         * 這裡捨棄落在尾端不完整區間的位元組，使每個字元機率完全均等。
+         */
+        var limit = Math.floor(256 / chars.length) * chars.length; // 248
         var token = "";
-        for (var i = 0; i < bytes.length; i++) {
-            token += chars.charAt(bytes[i] % chars.length);
+        var buf = new Uint8Array(TOKEN_LENGTH);
+
+        while (token.length < TOKEN_LENGTH) {
+            window.crypto.getRandomValues(buf);
+            for (var i = 0; i < buf.length && token.length < TOKEN_LENGTH; i++) {
+                if (buf[i] < limit) {
+                    token += chars.charAt(buf[i] % chars.length);
+                }
+            }
         }
 
         $("#wxacg_ai_news_cloud_token").val(token);
@@ -214,6 +228,14 @@ jQuery(document).ready(function($) {
             if (res.success) {
                 logToTerminal("🛑 " + (res.data.message || "已送出中止指令。") +
                               " 雲端會在目前這一步結束後停止，稍候片刻。");
+                /*
+                 * 正常情況下由輪詢收到 cancelled 狀態後負責還原按鈕；
+                 * 但監看已停止時（例如逾時後才按中止）不會有輪詢來收尾，
+                 * 按鈕會永遠卡在「中止中...」，故在此直接還原。
+                 */
+                if (!pollingTimer) {
+                    setGeneratingState(false);
+                }
             } else {
                 logToTerminal("❌ 中止失敗：" + ((res.data && res.data.message) ? res.data.message : "未知原因"), "error");
                 // 中止沒送成功就恢復成中止鍵，讓使用者可以再試一次
@@ -310,9 +332,18 @@ jQuery(document).ready(function($) {
         pollCount++;
         if (pollCount >= MAX_POLL_COUNT) {
             stopPolling();
-            logToTerminal("⚠️ 輪詢已達上限（" + MAX_POLL_COUNT + " 次 / 約 " +
-                          Math.round(MAX_POLL_COUNT * 2 / 60) + " 分鐘），雲端任務可能仍在執行，請稍後至 WordPress 後台確認是否已發佈。", "error");
-            setGeneratingState(false);
+            logToTerminal("⚠️ 已達監看時間上限（約 " + Math.round(MAX_POLL_COUNT * 2 / 60) +
+                          " 分鐘），停止即時監看。", "warn");
+            logToTerminal("雲端任務可能仍在執行中。要停止它請按【⏹️ 中止生成】；" +
+                          "若讓它自行跑完，稍後可至文章列表確認是否已發佈。", "warn");
+            /*
+             * 刻意「不」呼叫 setGeneratingState(false)。
+             *
+             * 此時任務仍在雲端執行，若把按鈕還原成「開始生成報導」，會同時失去兩件事：
+             * 一是再也無法中止那個還在跑的任務（中止鍵消失），
+             * 二是使用者以為已結束而再按一次，就會開出第二個任務並重複消耗金鑰。
+             * 因此保留中止鍵，讓操作者仍握有控制權。
+             */
             return;
         }
 

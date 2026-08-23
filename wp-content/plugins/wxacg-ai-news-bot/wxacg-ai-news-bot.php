@@ -836,6 +836,8 @@ class WXACG_AI_News_Engine_Plugin {
                 'pwbad'      => ['error',   '⛔ 舊的解鎖密碼錯誤，密碼未變更。'],
                 'pwshort'    => ['error',   '⛔ 新密碼長度至少需 6 個字元，密碼未變更。'],
                 'pwmismatch' => ['error',   '⛔ 兩次輸入的新密碼不一致，密碼未變更。'],
+                'tokenbad'   => ['error',   '⛔ Token 含有不可見的控制字元（可能是複製時夾帶了換行或跳格），未儲存。請重新複製一次乾淨的內容。'],
+                'tokenlong'  => ['error',   '⛔ Token 長度超過 255 字元，未儲存。請確認是否誤貼了多餘內容。'],
             ];
             $cloud_msg_code = isset($_GET['cloud_msg']) ? sanitize_key($_GET['cloud_msg']) : '';
             if (isset($cloud_notices[$cloud_msg_code])) :
@@ -1015,6 +1017,23 @@ class WXACG_AI_News_Engine_Plugin {
                                 <label style="color:#c92a2a; font-weight:bold;">雲端 AI 伺服端點</label>
                             </th>
                             <td>
+                                <?php if (!$can_manage_keys) : ?>
+                                    <?php
+                                    # 比照金鑰池：非管理員只顯示狀態，不給欄位。
+                                    # 否則會看到能填卻存不了的輸入框（儲存需 manage_options），徒增困惑。
+                                    ?>
+                                    <p style="margin:0; font-size:14px;">
+                                        雲端端點：
+                                        <strong style="color:<?php echo $cloud_token_set ? '#186229' : '#d63638'; ?>;">
+                                            <?php echo $cloud_token_set ? '🔒 已設定並上鎖' : '⚠️ 尚未設定'; ?>
+                                        </strong>
+                                    </p>
+                                    <p class="description">
+                                        此區由網站管理員統一維護，您無需（也無法）自行修改。<br>
+                                        若生成持續失敗，請聯繫管理員確認端點與授權設定。
+                                    </p>
+                                <?php else : ?>
+
                                 <?php if ($cloud_password_set) : ?>
                                 <div id="wxacg_lock_guard_area" class="lock-panel">
                                     <p style="margin-top:0;"><strong>已啟用資安鎖，禁止隨意竄改雲端 AI 伺服端點位置</strong></p>
@@ -1075,6 +1094,8 @@ class WXACG_AI_News_Engine_Plugin {
                                         <p class="description" style="margin-top:2px;">全部留空即代表不變更密碼。密碼以雜湊保存，不會顯示也無法還原。</p>
                                     </div>
                                 </div>
+
+                                <?php endif; // $can_manage_keys ?>
                             </td>
                         </tr>
 
@@ -1283,11 +1304,26 @@ class WXACG_AI_News_Engine_Plugin {
             return 'badpass';
         }
 
+        if ($token_changed) {
+            /*
+             * Token 刻意不經過 sanitize_text_field()。
+             *
+             * 該函式會把 < 轉成 HTML 實體、移除多餘空白與百分號編碼，
+             * 若使用者貼上含特殊符號的 Token 就會被靜默改動，
+             * 與 Cloud Run 端逐字比對時對不上，且畫面不顯示明文而極難追查。
+             * Token 只是要原樣比對的字串，故保留原值，僅擋掉控制字元與過長輸入。
+             */
+            if (preg_match('/[\x00-\x1F\x7F]/', $token_input)) {
+                return 'tokenbad';
+            }
+            if (strlen($token_input) > 255) {
+                return 'tokenlong';
+            }
+            update_option('wxacg_ai_news_cloud_token', $token_input);
+        }
+
         if ($url_changed) {
             update_option('wxacg_ai_news_cloud_url', esc_url_raw($url_input));
-        }
-        if ($token_changed) {
-            update_option('wxacg_ai_news_cloud_token', sanitize_text_field($token_input));
         }
 
         return 'saved';
