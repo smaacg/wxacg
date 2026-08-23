@@ -9,35 +9,54 @@
 
 
 /* ==========================================================
- * 🎨 全站色票（改這裡，下面全部跟著變）
+ * 🎨 全站色票
  *
- * 用法：直接修改右邊的顏色數值即可
+ * 📌 想改顏色請改 glass.css 的 :root，不要改這裡
+ *    這裡只負責「把站上的變數接過來」，不再自己定義數值。
+ *
+ * ★ 為什麼改成這樣（2026-08-23）
+ *   原本這裡寫死了一整套數值。文字色當初是照著站上抄的（三個都一樣），
+ *   但玻璃質感抄漏了：卡片底色 0.04 vs 站上 .07、邊框 0.10 vs 站上 .14，
+ *   論壇因此比其他頁面暗一階、邊框也淡一階，看起來就是「不太一樣」。
+ *
+ *   更根本的問題是「抄數值」本身——站上的設計後來調整了，論壇不會跟著
+ *   變，差距只會越拉越大。改成 var() 引用之後，以後調 glass.css 的
+ *   :root，論壇會自動同步。
+ *
+ *   每個 var() 都保留原本的數值當 fallback：glass.css 若因故沒載入
+ *   （例如日後改成條件式載入），論壇仍維持現在的樣子，不會變成裸樣式。
+ *
+ *   下方 900 多行完全不必動——它們本來就都是透過 var(--wpf-*) 取值。
  * ========================================================== */
 #wpforo {
     /* 主色（藍色，用在連結、按鈕、邊框高亮） */
-    --wpf-blue:        #63A8FF;
+    --wpf-blue:        var(--accent-blue,   #63A8FF);
     /* 副色（紫色，用在按鈕漸層第二色） */
-    --wpf-violet:      #8F6BFF;
+    --wpf-violet:      var(--accent-violet, #8F6BFF);
     /* 強調色（粉紅，用在按鈕 hover 漸層） */
-    --wpf-pink:        #FF6BAE;
+    --wpf-pink:        var(--accent-pink,   #FF6BAE);
 
     /* 主要文字（白色系） */
-    --wpf-text:        #F5F7F6;
+    --wpf-text:        var(--text-primary,   #F5F7F6);
     /* 次要文字（灰色系） */
-    --wpf-text-muted:  #C3C6CE;
+    --wpf-text-muted:  var(--text-secondary, #C3C6CE);
     /* 暗灰文字（時間、統計數字等） */
-    --wpf-text-dim:    #7B8594;
+    --wpf-text-dim:    var(--text-muted,     #7B8594);
 
     /* 容器底色 */
     --wpf-bg:          rgba(30, 36, 43, 0.65);
-    /* 卡片底色 */
-    --wpf-card:        rgba(245, 247, 246, 0.04);
-    /* 卡片邊框 */
-    --wpf-border:      rgba(245, 247, 246, 0.10);
+    /* 卡片底色（跟齊站上的 .glass） */
+    --wpf-card:        var(--glass-bg,     rgba(245, 247, 246, 0.07));
+    /* 卡片邊框（跟齊站上的 .glass） */
+    --wpf-border:      var(--glass-border, rgba(245, 247, 246, 0.14));
+
+    /* 毛玻璃：與站上 .glass 用同一組模糊強度與陰影 */
+    --wpf-blur:        var(--glass-blur,   24px);
+    --wpf-shadow:      var(--glass-shadow, 0 8px 40px rgba(0,0,0,.32));
 
     /* 📌 添加話題按鈕專屬顏色（想換色就改這兩行） */
     --wpf-cta-from:    #52D68A;   /* 漸層起始色（目前是綠色） */
-    --wpf-cta-to:      #63A8FF;   /* 漸層結束色（目前是藍色） */
+    --wpf-cta-to:      var(--accent-blue, #63A8FF);   /* 漸層結束色 */
 }
 
 
@@ -970,4 +989,38 @@
 
     #wpforo #wpforo-wrap .mce-tinymce iframe,
     #wpforo #wpforo-wrap .wp-editor-area { min-height: 220px !important; }
+}
+
+
+/* ==========================================================
+ * 🪟 毛玻璃質感補齊（2026-08-23）
+ *
+ * 站上其他頁面的卡片都是 .glass —— backdrop-filter 模糊 + 統一陰影。
+ * 論壇原本只有最外層 #wpforo-wrap 有做毛玻璃，內部的話題列、貼文、
+ * 統計方塊都是純色卡片，因此看起來「扁」一階，與首頁、會員中心
+ * 擺在一起就顯得不是同一套設計。
+ *
+ * 這裡只補模糊與陰影，底色與邊框沿用上方已經接到站上變數的
+ * --wpf-card / --wpf-border，不重複指定顏色。
+ *
+ * 不加 !important：這些選擇器的特異性已經足夠（三層 id + class），
+ * 而上方各節若真的需要覆蓋，順序在後者本來就會勝出。
+ * ========================================================== */
+#wpforo #wpforo-wrap .wpf-head-bar,
+#wpforo #wpforo-wrap .topic-wrap,
+#wpforo #wpforo-wrap .wpforo-post,
+#wpforo #wpforo-wrap .post-wrap,
+#wpforo #wpforo-wrap .wpf-footer-box,
+#wpforo #wpforo-wrap #wpforo-stat-body .wpf-stat-item,
+#wpforo #wpforo-wrap .wpforo-tags {
+    backdrop-filter: blur(var(--wpf-blur));
+    -webkit-backdrop-filter: blur(var(--wpf-blur));
+    box-shadow: var(--wpf-shadow);
+}
+
+/* hover 時稍微提亮，與站上 .glass:hover 的手感一致 */
+#wpforo #wpforo-wrap .topic-wrap:hover,
+#wpforo #wpforo-wrap .wpforo-post:hover,
+#wpforo #wpforo-wrap .post-wrap:hover {
+    border-color: var(--glass-border-h, rgba(245, 247, 246, 0.26)) !important;
 }
