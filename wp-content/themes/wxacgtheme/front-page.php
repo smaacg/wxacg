@@ -1559,8 +1559,11 @@ if ( ! empty( $news_tabs['all']['query']->posts ) ) {
        "Call to a member function get_topic() on null"）。查表最穩，
        而且只有一次查詢。
 
-     ★ 網址用 get_permalink(pageid) 組，不寫死 /community/
-       論壇頁的 slug 若日後改動，寫死會全部變成死連結。
+     ★ 網址的 base 取自 wpforo_boards.slug，不是 get_permalink(pageid)
+       兩者不一定相同：本站的 board slug 是 community，但它掛的頁面
+       （pageid=55）slug 卻是 forum。用頁面網址組出來的
+       /forum/{版}/{話題}/ 實測是 404，只有 /community/... 才通。
+       也不寫死 community——那是後台可改的設定。
      ============================================================ -->
 <?php
 $wxacg_forum_topics = [];
@@ -1569,11 +1572,11 @@ $wxacg_forum_url    = '';
 if ( class_exists( 'wpForo' ) || function_exists( 'wpforo_setting' ) ) {
     global $wpdb;
 
-    $wxacg_board   = $wpdb->get_row( "SELECT boardid, pageid FROM {$wpdb->prefix}wpforo_boards ORDER BY boardid ASC LIMIT 1", ARRAY_A );
-    $wxacg_page_id = (int) ( $wxacg_board['pageid'] ?? 0 );
+    $wxacg_board      = $wpdb->get_row( "SELECT boardid, slug FROM {$wpdb->prefix}wpforo_boards ORDER BY boardid ASC LIMIT 1", ARRAY_A );
+    $wxacg_board_slug = trim( (string) ( $wxacg_board['slug'] ?? '' ), '/' );
 
-    if ( $wxacg_page_id > 0 ) {
-        $wxacg_forum_url = (string) get_permalink( $wxacg_page_id );
+    if ( $wxacg_board_slug !== '' ) {
+        $wxacg_forum_url = home_url( '/' . $wxacg_board_slug . '/' );
     }
 
     if ( $wxacg_forum_url !== '' ) {
