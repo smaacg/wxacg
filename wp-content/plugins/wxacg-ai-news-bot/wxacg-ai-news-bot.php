@@ -168,26 +168,101 @@ class WXACG_AI_News_Engine_Plugin {
         return $rotated;
     }
 
+    # =====================================================================
+    # 密碼保護的共用底層
+    # =====================================================================
+    # 金鑰池與雲端端點各有一組獨立密碼，但「判斷是否已設定／驗證／變更」的
+    # 流程完全相同。先前兩邊各寫一份，已導致行為分歧（例如金鑰池補了寫入
+    # 驗證與 WAF 攔截偵測，Token 那邊卻沒有）。此處收斂為帶參數的共用實作，
+    # 兩組密碼仍各自獨立保存，只是共用同一套邏輯。
+
     /**
-     * 是否已設定 Key 池管理密碼。
+     * 是否已設定指定的密碼。
      *
-     * 回傳 false 代表「首次設定模式」：管理員可免密碼直接設定 Key 與密碼，讓第一次能順利完成。
+     * 回傳 false 代表該區塊處於「首次設定模式」：
+     * 管理員可免密碼直接設定，讓第一次能順利完成。
+     *
+     * @param string $option 存放密碼雜湊的 option 名稱。
      */
-    private function is_key_password_set() {
-        return '' !== (string) get_option(self::KEY_PASSWORD_OPTION, '');
+    private function is_password_set($option) {
+        return '' !== (string) get_option($option, '');
     }
 
     /**
-     * 驗證 Key 池管理密碼。尚未設定密碼時一律放行（首次設定模式）。
+     * 驗證指定的密碼。尚未設定時一律放行（首次設定模式）。
+     *
+     * @param string $option   存放密碼雜湊的 option 名稱。
+     * @param string $password 待驗證的明文密碼。
      */
-    private function verify_key_password($password) {
-        if (!$this->is_key_password_set()) {
+    private function verify_password($option, $password) {
+        if (!$this->is_password_set($option)) {
             return true;
         }
         if ('' === (string) $password) {
             return false;
         }
-        return wp_check_password($password, (string) get_option(self::KEY_PASSWORD_OPTION, ''));
+        return wp_check_password($password, (string) get_option($option, ''));
+    }
+
+    /**
+     * 處理密碼的設定與變更（兩區塊共用）。
+     *
+     * 欄位命名慣例為 {$prefix}_old_password / _new_password / _new_password2。
+     * 三者皆留空代表本次不變更密碼。
+     *
+     * @param string $option 存放密碼雜湊的 option 名稱。
+     * @param string $prefix 表單欄位名稱前綴。
+     * @return string 訊息代碼：'' 代表未涉及密碼操作。
+     */
+    private function handle_password_change($option, $prefix) {
+        $new_pass  = isset($_POST[$prefix . '_new_password']) ? (string) $_POST[$prefix . '_new_password'] : '';
+        $new_pass2 = isset($_POST[$prefix . '_new_password2']) ? (string) $_POST[$prefix . '_new_password2'] : '';
+        $old_pass  = isset($_POST[$prefix . '_old_password']) ? (string) $_POST[$prefix . '_old_password'] : '';
+
+        if ('' === $new_pass && '' === $new_pass2) {
+            return '';
+        }
+
+        if (!$this->verify_password($option, $old_pass)) {
+            return 'pwbad';
+        }
+        if (strlen($new_pass) < 6) {
+            return 'pwshort';
+        }
+        if ($new_pass !== $new_pass2) {
+            return 'pwmismatch';
+        }
+
+        update_option($option, wp_hash_password($new_pass), false);
+        return 'pwsaved';
+    }
+
+    /**
+     * AJAX 解鎖驗證的共用主體（兩區塊共用）。
+     *
+     * 保留兩個獨立的 AJAX action 作為入口，只共用這段驗證邏輯——
+     * 分開才能各自控管權限與錯誤訊息，日後也方便單獨調整其中一邊。
+     *
+     * 注意：這只是畫面上的鎖，真正的防線在儲存時的伺服器端檢查，
+     * 即使略過前端直接送出表單，沒有正確密碼一樣寫不進去。
+     *
+     * @param string $option 存放密碼雜湊的 option 名稱。
+     * @param string $label  區塊名稱，用於組出可辨識的錯誤訊息。
+     */
+    private function ajax_verify_password($option, $label) {
+        check_ajax_referer('wxacg_ai_news_action_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => "權限不足：只有網站管理員可以檢視或修改{$label}。"]);
+        }
+
+        $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+
+        if (!$this->verify_password($option, $password)) {
+            wp_send_json_error(['message' => '密碼錯誤，無法解鎖。']);
+        }
+
+        wp_send_json_success(['message' => '驗證通過']);
     }
 
     # =====================================================================
@@ -216,67 +291,17 @@ class WXACG_AI_News_Engine_Plugin {
     }
 
     /**
-     * 是否已設定雲端端點解鎖密碼。
-     */
-    private function is_cloud_password_set() {
-        return '' !== (string) get_option(self::CLOUD_PASSWORD_OPTION, '');
-    }
-
-    /**
-     * 驗證雲端端點解鎖密碼。尚未設定時一律放行（首次設定模式）。
-     */
-    private function verify_cloud_password($password) {
-        if (!$this->is_cloud_password_set()) {
-            return true;
-        }
-        if ('' === (string) $password) {
-            return false;
-        }
-        return wp_check_password($password, (string) get_option(self::CLOUD_PASSWORD_OPTION, ''));
-    }
-
-    /**
      * AJAX：驗證雲端端點解鎖密碼，決定前端能否展開設定面板。
-     *
-     * 與金鑰池同理：這只是畫面上的鎖，真正的防線在儲存時的伺服器端檢查。
      */
     public function handle_verify_cloud_password() {
-        check_ajax_referer('wxacg_ai_news_action_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => '權限不足：只有網站管理員可以檢視或修改雲端伺服端點。']);
-        }
-
-        $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
-
-        if (!$this->verify_cloud_password($password)) {
-            wp_send_json_error(['message' => '解鎖密碼錯誤。']);
-        }
-
-        wp_send_json_success(['message' => '驗證通過']);
+        $this->ajax_verify_password(self::CLOUD_PASSWORD_OPTION, '雲端伺服端點');
     }
 
     /**
      * AJAX：驗證金鑰池管理密碼，決定前端能否展開編輯面板。
-     *
-     * 注意：這裡只是「畫面上的鎖」，真正的防線仍在 handle_key_pool_save()——
-     * 即使有人略過前端直接送出表單，沒有正確密碼一樣寫不進 Key 池。
-     * 因此本端點不需要發放通行證或維護解鎖狀態，單純回答密碼對不對即可。
      */
     public function handle_verify_key_password() {
-        check_ajax_referer('wxacg_ai_news_action_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => '權限不足：只有網站管理員可以檢視或修改全站共用金鑰池。']);
-        }
-
-        $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
-
-        if (!$this->verify_key_password($password)) {
-            wp_send_json_error(['message' => '管理密碼錯誤，無法解鎖。']);
-        }
-
-        wp_send_json_success(['message' => '驗證通過']);
+        $this->ajax_verify_password(self::KEY_PASSWORD_OPTION, '全站共用金鑰池');
     }
 
     /**
@@ -735,6 +760,41 @@ class WXACG_AI_News_Engine_Plugin {
     }
 
     /**
+     * 渲染單一區塊的處理結果通知（金鑰池與雲端端點共用）。
+     *
+     * @param string      $query_arg    帶回結果代碼的 query 參數名稱。
+     * @param array       $notices      代碼 => [類型, 訊息文字]。
+     * @param string|null $diag_key     選用：附加診斷資訊的 transient 鍵名。
+     * @param array       $diag_on      選用：哪些代碼要一併顯示診斷資訊。
+     */
+    private function render_section_notice($query_arg, array $notices, $diag_key = null, array $diag_on = []) {
+        $code = isset($_GET[$query_arg]) ? sanitize_key($_GET[$query_arg]) : '';
+        if (!isset($notices[$code])) {
+            return;
+        }
+
+        list($type, $text) = $notices[$code];
+        $border = ($type === 'success') ? '#46b450' : '#d63638';
+        $color  = ($type === 'success') ? '#1b4a24' : '#8a1f21';
+
+        # 診斷資訊只在指定代碼下顯示，取用後即刪除，避免下次載入重複出現
+        $diag = ($diag_key && in_array($code, $diag_on, true)) ? get_transient($diag_key) : false;
+        if ($diag) {
+            delete_transient($diag_key);
+        }
+        ?>
+        <div class="notice notice-<?php echo esc_attr($type); ?> is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid <?php echo esc_attr($border); ?>; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <p style="margin:0; font-size:14px; font-weight:600; color:<?php echo esc_attr($color); ?>;"><?php echo esc_html($text); ?></p>
+            <?php if ($diag) : ?>
+                <p style="margin:8px 0 0 0; font-size:12.5px; color:#50575e; font-family:monospace; background:#f6f7f7; padding:8px 10px; border-radius:4px;">
+                    診斷：<?php echo esc_html($diag); ?>
+                </p>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    /**
      * 後台主主控板渲染
      */
     public function render_admin_dashboard() {
@@ -761,13 +821,13 @@ class WXACG_AI_News_Engine_Plugin {
         # 已儲存的金鑰明文一律不回填進 HTML，避免任何人從網頁原始碼直接讀走整池金鑰。
         $can_manage_keys = current_user_can('manage_options');
         $pool_count      = count($this->get_pool_keys());
-        $key_password_set = $this->is_key_password_set();
+        $key_password_set = $this->is_password_set(self::KEY_PASSWORD_OPTION);
 
         # 【全網公務區】獲取選項表中所儲藏的常規總局配置 (雲端伺服連接點與鎖)
         $cloud_url = get_option('wxacg_ai_news_cloud_url', '');
         # 舊版明文密碼在此轉為雜湊並刪除明文（只會執行一次）
         $this->migrate_legacy_cloud_password();
-        $cloud_password_set = $this->is_cloud_password_set();
+        $cloud_password_set = $this->is_password_set(self::CLOUD_PASSWORD_OPTION);
 
         /*
          * Token 一律不回填進 HTML。
@@ -790,45 +850,28 @@ class WXACG_AI_News_Engine_Plugin {
             <?php endif; ?>
 
             <?php
-            # Key 池與管理密碼的個別處理結果。這幾項與其他設定分開回報，
-            # 是因為密碼驗證失敗時只會擋下 Key 池的變更，其餘設定仍照常儲存，
-            # 若共用同一則「已儲存」訊息，使用者會誤以為金鑰也一併更新了。
-            $key_notices = [
-                'saved'     => ['success', '🔑 共用 Key 池已整批更新完成。'],
-                'badpass'   => ['error',   '⛔ 管理密碼錯誤，共用 Key 池未變更（其餘設定已正常儲存）。'],
-                'nopass'    => ['error',   '⛔ 未輸入管理密碼，共用 Key 池未變更（其餘設定已正常儲存）。'],
-                'nofield'   => ['error',   '⚠️ 伺服器沒有收到金鑰欄位，Key 池未變更。此欄位在送達 PHP 前就被移除了，通常是安全性外掛或主機防火牆(WAF)攔截了含金鑰的內容，請檢查相關規則或洽主機商。'],
-                'writefail' => ['error',   '⛔ 金鑰已送達並通過驗證，但寫入資料庫後讀回的內容不符，Key 池可能未實際保存。常見於持久化物件快取或資料庫寫入受限，詳情請查看伺服器錯誤日誌。'],
-                'pwsaved'   => ['success', '🔐 Key 池管理密碼已更新完成。'],
-                'pwbad'     => ['error',   '⛔ 舊密碼錯誤，管理密碼未變更。'],
-                'pwshort'   => ['error',   '⛔ 新密碼長度至少需 6 個字元，管理密碼未變更。'],
-                'pwmismatch' => ['error',  '⛔ 兩次輸入的新密碼不一致，管理密碼未變更。'],
-            ];
-            $key_msg = isset($_GET['key_msg']) ? sanitize_key($_GET['key_msg']) : '';
-            if (isset($key_notices[$key_msg])) :
-                list($notice_type, $notice_text) = $key_notices[$key_msg];
-                $border = ($notice_type === 'success') ? '#46b450' : '#d63638';
-                $color  = ($notice_type === 'success') ? '#1b4a24' : '#8a1f21';
-            ?>
-                <div class="notice notice-<?php echo esc_attr($notice_type); ?> is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid <?php echo esc_attr($border); ?>; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <p style="margin:0; font-size:14px; font-weight:600; color:<?php echo esc_attr($color); ?>;"><?php echo esc_html($notice_text); ?></p>
-                    <?php
-                    # 寫入驗證失敗時附上實際數字，讓管理員不必翻伺服器日誌就能判斷是哪一種問題
-                    $key_diag = get_transient('wxacg_ai_news_key_diag_' . $user_id);
-                    if ($key_diag && in_array($key_msg, ['writefail', 'saved'], true)) :
-                        delete_transient('wxacg_ai_news_key_diag_' . $user_id);
-                    ?>
-                        <p style="margin:8px 0 0 0; font-size:12.5px; color:#50575e; font-family:monospace; background:#f6f7f7; padding:8px 10px; border-radius:4px;">
-                            診斷：<?php echo esc_html($key_diag); ?>
-                        </p>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
+            /*
+             * Key 池與雲端端點的處理結果各自獨立回報。
+             *
+             * 兩者都與其他設定分開顯示，是因為密碼驗證失敗時只會擋下該區塊的變更，
+             * 其餘設定仍照常儲存；若共用同一則「已儲存」訊息，
+             * 使用者會誤以為金鑰或 Token 也一併更新了。
+             *
+             * 訊息「內容」本來就該不同，故各自定義；只有「渲染」那段共用。
+             */
+            $this->render_section_notice('key_msg', [
+                'saved'      => ['success', '🔑 共用 Key 池已整批更新完成。'],
+                'badpass'    => ['error',   '⛔ 管理密碼錯誤，共用 Key 池未變更（其餘設定已正常儲存）。'],
+                'nopass'     => ['error',   '⛔ 未輸入管理密碼，共用 Key 池未變更（其餘設定已正常儲存）。'],
+                'nofield'    => ['error',   '⚠️ 伺服器沒有收到金鑰欄位，Key 池未變更。此欄位在送達 PHP 前就被移除了，通常是安全性外掛或主機防火牆(WAF)攔截了含金鑰的內容，請檢查相關規則或洽主機商。'],
+                'writefail'  => ['error',   '⛔ 金鑰已送達並通過驗證，但寫入資料庫後讀回的內容不符，Key 池可能未實際保存。常見於持久化物件快取或資料庫寫入受限，詳情請查看伺服器錯誤日誌。'],
+                'pwsaved'    => ['success', '🔐 Key 池管理密碼已更新完成。'],
+                'pwbad'      => ['error',   '⛔ 舊密碼錯誤，管理密碼未變更。'],
+                'pwshort'    => ['error',   '⛔ 新密碼長度至少需 6 個字元，管理密碼未變更。'],
+                'pwmismatch' => ['error',   '⛔ 兩次輸入的新密碼不一致，管理密碼未變更。'],
+            ], 'wxacg_ai_news_key_diag_' . $user_id, ['writefail', 'saved']);
 
-            <?php
-            # 雲端端點的處理結果。與金鑰池分開回報，理由相同：
-            # 密碼驗證失敗時只擋下端點設定，其餘設定仍照常儲存。
-            $cloud_notices = [
+            $this->render_section_notice('cloud_msg', [
                 'saved'      => ['success', '⚙️ 雲端伺服端點設定已更新完成。'],
                 'badpass'    => ['error',   '⛔ 解鎖密碼錯誤，雲端端點設定未變更（其餘設定已正常儲存）。'],
                 'nopass'     => ['error',   '⛔ 未通過解鎖驗證，雲端端點設定未變更。請先按「解除隔離鎖」再修改。'],
@@ -838,17 +881,8 @@ class WXACG_AI_News_Engine_Plugin {
                 'pwmismatch' => ['error',   '⛔ 兩次輸入的新密碼不一致，密碼未變更。'],
                 'tokenbad'   => ['error',   '⛔ Token 含有不可見的控制字元（可能是複製時夾帶了換行或跳格），未儲存。請重新複製一次乾淨的內容。'],
                 'tokenlong'  => ['error',   '⛔ Token 長度超過 255 字元，未儲存。請確認是否誤貼了多餘內容。'],
-            ];
-            $cloud_msg_code = isset($_GET['cloud_msg']) ? sanitize_key($_GET['cloud_msg']) : '';
-            if (isset($cloud_notices[$cloud_msg_code])) :
-                list($c_type, $c_text) = $cloud_notices[$cloud_msg_code];
-                $c_border = ($c_type === 'success') ? '#46b450' : '#d63638';
-                $c_color  = ($c_type === 'success') ? '#1b4a24' : '#8a1f21';
+            ]);
             ?>
-                <div class="notice notice-<?php echo esc_attr($c_type); ?> is-dismissible" style="margin-bottom:20px; padding: 12px 16px; border-left: 4px solid <?php echo esc_attr($c_border); ?>; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <p style="margin:0; font-size:14px; font-weight:600; color:<?php echo esc_attr($c_color); ?>;"><?php echo esc_html($c_text); ?></p>
-                </div>
-            <?php endif; ?>
 
             <!-- ================= 第二大類：日常新聞產製區 ================= -->
             <div class="wxacg-box">
@@ -1258,22 +1292,7 @@ class WXACG_AI_News_Engine_Plugin {
         $msg = '';
 
         # --- 2a. 先處理解鎖密碼的設定／變更 ---
-        $new_pass  = isset($_POST['wxacg_ai_news_cloud_new_password']) ? (string) $_POST['wxacg_ai_news_cloud_new_password'] : '';
-        $new_pass2 = isset($_POST['wxacg_ai_news_cloud_new_password2']) ? (string) $_POST['wxacg_ai_news_cloud_new_password2'] : '';
-        $old_pass  = isset($_POST['wxacg_ai_news_cloud_old_password']) ? (string) $_POST['wxacg_ai_news_cloud_old_password'] : '';
-
-        if ('' !== $new_pass || '' !== $new_pass2) {
-            if (!$this->verify_cloud_password($old_pass)) {
-                $msg = 'pwbad';
-            } elseif (strlen($new_pass) < 6) {
-                $msg = 'pwshort';
-            } elseif ($new_pass !== $new_pass2) {
-                $msg = 'pwmismatch';
-            } else {
-                update_option(self::CLOUD_PASSWORD_OPTION, wp_hash_password($new_pass), false);
-                $msg = 'pwsaved';
-            }
-        }
+        $msg = $this->handle_password_change(self::CLOUD_PASSWORD_OPTION, 'wxacg_ai_news_cloud');
 
         # --- 2b. 判斷本次是否真的要變更端點設定 ---
         $url_input   = isset($_POST['wxacg_ai_news_cloud_url']) ? trim((string) wp_unslash($_POST['wxacg_ai_news_cloud_url'])) : null;
@@ -1294,8 +1313,8 @@ class WXACG_AI_News_Engine_Plugin {
             $authorized = true;
         } else {
             $pass       = isset($_POST['wxacg_ai_news_cloud_password']) ? (string) $_POST['wxacg_ai_news_cloud_password'] : '';
-            $authorized = $this->verify_cloud_password($pass);
-            if (!$authorized && $this->is_cloud_password_set() && '' === $pass) {
+            $authorized = $this->verify_password(self::CLOUD_PASSWORD_OPTION, $pass);
+            if (!$authorized && $this->is_password_set(self::CLOUD_PASSWORD_OPTION) && '' === $pass) {
                 return 'nopass';
             }
         }
@@ -1344,22 +1363,7 @@ class WXACG_AI_News_Engine_Plugin {
         $msg = '';
 
         # --- 3a. 先處理密碼的設定／變更 ---
-        $new_pass  = isset($_POST['wxacg_ai_news_key_new_password']) ? (string) $_POST['wxacg_ai_news_key_new_password'] : '';
-        $new_pass2 = isset($_POST['wxacg_ai_news_key_new_password2']) ? (string) $_POST['wxacg_ai_news_key_new_password2'] : '';
-        $old_pass  = isset($_POST['wxacg_ai_news_key_old_password']) ? (string) $_POST['wxacg_ai_news_key_old_password'] : '';
-
-        if ('' !== $new_pass || '' !== $new_pass2) {
-            if (!$this->verify_key_password($old_pass)) {
-                $msg = 'pwbad';
-            } elseif (strlen($new_pass) < 6) {
-                $msg = 'pwshort';
-            } elseif ($new_pass !== $new_pass2) {
-                $msg = 'pwmismatch';
-            } else {
-                update_option(self::KEY_PASSWORD_OPTION, wp_hash_password($new_pass), false);
-                $msg = 'pwsaved';
-            }
-        }
+        $msg = $this->handle_password_change(self::KEY_PASSWORD_OPTION, 'wxacg_ai_news_key');
 
         # --- 3b. 再處理 Key 池本身 ---
         /*
@@ -1393,8 +1397,8 @@ class WXACG_AI_News_Engine_Plugin {
             $authorized = true;
         } else {
             $key_pass   = isset($_POST['wxacg_ai_news_key_password']) ? (string) $_POST['wxacg_ai_news_key_password'] : '';
-            $authorized = $this->verify_key_password($key_pass);
-            if (!$authorized && $this->is_key_password_set() && '' === $key_pass) {
+            $authorized = $this->verify_password(self::KEY_PASSWORD_OPTION, $key_pass);
+            if (!$authorized && $this->is_password_set(self::KEY_PASSWORD_OPTION) && '' === $key_pass) {
                 return 'nopass';
             }
         }

@@ -34,52 +34,89 @@ jQuery(document).ready(function($) {
         terminalScreen.scrollTop(terminalScreen[0].scrollHeight);
     }
 
-    // 1. 解開上鎖的端點設定
-    // 舊版是把正確密碼渲染進 DOM 再由此比對，看原始碼即可取得，形同虛設；
-    // 現改送 AJAX 交由伺服器端比對雜湊。這道鎖只管畫面開合，
-    // 真正的防線在儲存時的伺服器端檢查——直接送表單一樣過不了。
-    $("#wxacg_btn_unlock").on("click", function() {
-        var btn = $(this);
-        var password = $("#wxacg_unlock_input").val();
-
-        if (!password) {
-            alert("請先輸入解鎖密碼。");
-            $("#wxacg_unlock_input").focus();
-            return;
+    /*
+     * 1. 資安鎖解鎖（雲端端點與金鑰池共用同一套流程）
+     *
+     * 舊版是把正確密碼渲染進 DOM 再由前端比對，看原始碼即可取得，形同虛設；
+     * 現改送 AJAX 交由伺服器端比對雜湊。這道鎖只管畫面開合，
+     * 真正的防線在儲存時的伺服器端檢查——直接送表單一樣過不了。
+     *
+     * 兩個區塊除了選擇器與 action 名稱之外行為完全相同，
+     * 故以設定驅動的方式共用，避免同一套驗證邏輯維護兩份而逐漸分歧。
+     */
+    function setupUnlockPanel(cfg) {
+        var $btn = $(cfg.btn);
+        if (!$btn.length) {
+            return; // 該區塊未上鎖或使用者無權限，不需綁定
         }
 
-        btn.prop("disabled", true).text("驗證中...");
+        $btn.on("click", function() {
+            var btn = $(this);
+            var password = $(cfg.input).val();
 
-        $.post(wxacgAIParams.ajaxurl, {
-            action: "wxacg_verify_cloud_password",
-            nonce: wxacgAIParams.nonce,
-            password: password
-        }, function(res) {
-            btn.prop("disabled", false).text("🔓 解除隔離鎖");
-
-            if (res.success) {
-                // 帶入隱藏欄位隨表單送出，免得同一組密碼要打兩次
-                $("#wxacg_ai_news_cloud_password").val(password);
-                $("#wxacg_unlock_input").val("");
-                $("#wxacg_lock_guard_area").slideUp();
-                $("#wxacg_cloud_secret_fields").slideDown();
-                logToTerminal("資安解鎖檢驗通過！您現在可修改端點 URL 與授權 Token。", "success");
-            } else {
-                alert("解鎖失敗：" + ((res.data && res.data.message) ? res.data.message : "口令驗證有誤"));
-                $("#wxacg_unlock_input").val("").focus();
+            if (!password) {
+                alert("請先輸入" + cfg.passwordLabel + "。");
+                $(cfg.input).focus();
+                return;
             }
-        }).fail(function() {
-            btn.prop("disabled", false).text("🔓 解除隔離鎖");
-            alert("發生網路錯誤，請重試！");
+
+            btn.prop("disabled", true).text("驗證中...");
+
+            $.post(wxacgAIParams.ajaxurl, {
+                action: cfg.action,
+                nonce: wxacgAIParams.nonce,
+                password: password
+            }, function(res) {
+                btn.prop("disabled", false).text(cfg.btnText);
+
+                if (res.success) {
+                    // 帶入隱藏欄位隨表單送出，免得同一組密碼要打兩次
+                    $(cfg.hidden).val(password);
+                    $(cfg.input).val("");
+                    $(cfg.guard).slideUp();
+                    $(cfg.panel).slideDown();
+                    logToTerminal(cfg.successMsg, "success");
+                } else {
+                    alert("解鎖失敗：" + ((res.data && res.data.message) ? res.data.message : "密碼驗證有誤"));
+                    $(cfg.input).val("").focus();
+                }
+            }).fail(function() {
+                btn.prop("disabled", false).text(cfg.btnText);
+                alert("發生網路錯誤，請重試！");
+            });
         });
+
+        // 密碼欄位按 Enter 等同按下解鎖，避免誤送整張表單
+        $(cfg.input).on("keydown", function(e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                $btn.click();
+            }
+        });
+    }
+
+    setupUnlockPanel({
+        btn: "#wxacg_btn_unlock",
+        btnText: "🔓 解除隔離鎖",
+        input: "#wxacg_unlock_input",
+        guard: "#wxacg_lock_guard_area",
+        panel: "#wxacg_cloud_secret_fields",
+        hidden: "#wxacg_ai_news_cloud_password",
+        action: "wxacg_verify_cloud_password",
+        passwordLabel: "解鎖密碼",
+        successMsg: "資安解鎖檢驗通過！您現在可修改端點 URL 與授權 Token。"
     });
 
-    // 密碼欄位按 Enter 等同按下解鎖，避免誤送整張表單
-    $("#wxacg_unlock_input").on("keydown", function(e) {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            $("#wxacg_btn_unlock").click();
-        }
+    setupUnlockPanel({
+        btn: "#wxacg_btn_key_unlock",
+        btnText: "🔓 解除金鑰鎖",
+        input: "#wxacg_key_unlock_input",
+        guard: "#wxacg_key_lock_guard",
+        panel: "#wxacg_key_pool_fields",
+        hidden: "#wxacg_ai_news_key_password",
+        action: "wxacg_verify_key_password",
+        passwordLabel: "Key 池管理密碼",
+        successMsg: "金鑰池資安鎖已解除，現在可以修改全站共用 API Key。"
     });
 
     // 1-A. 產生新的授權 Token
@@ -118,54 +155,6 @@ jQuery(document).ready(function($) {
         $("#wxacg_gen_token_text").val(token);
         $("#wxacg_gen_token_result").slideDown();
         logToTerminal("已產生新的授權 Token，請務必同步更新 Cloud Run 的 CLOUD_SECRET_TOKEN 環境變數。", "warn");
-    });
-
-    // 1-B. 解除【全站共用金鑰池】的資安鎖
-    // 與上方雲端端點的解鎖不同：金鑰池密碼以雜湊存在資料庫，前端拿不到明文，
-    // 因此改送 AJAX 交由伺服器端驗證。這道鎖只負責畫面上的開合，
-    // 真正的防線在儲存時的伺服器端檢查——直接送表單一樣過不了。
-    $("#wxacg_btn_key_unlock").on("click", function() {
-        var btn = $(this);
-        var password = $("#wxacg_key_unlock_input").val();
-
-        if (!password) {
-            alert("請先輸入 Key 池管理密碼。");
-            $("#wxacg_key_unlock_input").focus();
-            return;
-        }
-
-        btn.prop("disabled", true).text("驗證中...");
-
-        $.post(wxacgAIParams.ajaxurl, {
-            action: "wxacg_verify_key_password",
-            nonce: wxacgAIParams.nonce,
-            password: password
-        }, function(res) {
-            btn.prop("disabled", false).text("🔓 解除金鑰鎖");
-
-            if (res.success) {
-                // 把剛才輸入的密碼帶進隱藏欄位，隨表單一起送出，免得同一組密碼要打兩次
-                $("#wxacg_ai_news_key_password").val(password);
-                $("#wxacg_key_unlock_input").val("");
-                $("#wxacg_key_lock_guard").slideUp();
-                $("#wxacg_key_pool_fields").slideDown();
-                logToTerminal("金鑰池資安鎖已解除，現在可以修改全站共用 API Key。", "success");
-            } else {
-                alert("解鎖失敗：" + ((res.data && res.data.message) ? res.data.message : "管理密碼錯誤"));
-                $("#wxacg_key_unlock_input").val("").focus();
-            }
-        }).fail(function() {
-            btn.prop("disabled", false).text("🔓 解除金鑰鎖");
-            alert("發生網路錯誤，請重試！");
-        });
-    });
-
-    // 密碼欄位按 Enter 等同按下解鎖，避免誤觸整張表單的送出
-    $("#wxacg_key_unlock_input").on("keydown", function(e) {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            $("#wxacg_btn_key_unlock").click();
-        }
     });
 
     // 2. 清除終端日誌畫面
