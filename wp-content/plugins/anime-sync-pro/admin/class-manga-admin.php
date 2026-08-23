@@ -453,7 +453,29 @@ class Anime_Sync_Manga_Admin {
 					continue;
 				}
 
-				if ( ! in_array( $rel['relation_type'] ?? '', [ 'ADAPTATION', 'SOURCE' ], true ) ) {
+				/*
+				 * 只取 SOURCE，不取 ADAPTATION —— 這兩個是相反方向。
+				 *
+				 * AniList 的 relationType 是從「被查詢的那部作品」的角度標的，
+				 * 這裡查的是動畫，所以：
+				 *     SOURCE     = 這部漫畫是該動畫的原作      ← 我們要的
+				 *     ADAPTATION = 這部漫畫改編自該動畫        ← 相反方向
+				 *
+				 * 原本兩種都收，於是清單裡混進大量「動畫原創作品的漫畫版」：
+				 * Code Geass、新世紀福音戰士、星際牛仔、Angel Beats!、
+				 * DARLING in the FRANXX、Kill la Kill、天元突破，以及新海誠的
+				 * 每一部（你的名字、天氣之子、鈴芽之旅、秒速5公分、言葉之庭）。
+				 * 這些作品沒有原作漫畫，匯進來會變成錯誤的原作標示。
+				 *
+				 * ★ 尚未處理：輕小說
+				 *   AniList 把輕小說也歸在 type=MANGA 底下，靠 format=NOVEL 區分，
+				 *   但 parse_relations()（class-api-handler.php）建立
+				 *   anime_relations_json 時沒有保留 format，本地資料分不出來。
+				 *   因此刀劍神域、Re:Zero、為美好的世界、無職轉生、藥師少女、
+				 *   青春豬頭少年等輕小說目前仍會出現在清單中。
+				 *   要濾掉需要：parse_relations() 補存 format ＋ 重新同步動畫。
+				 */
+				if ( 'SOURCE' !== ( $rel['relation_type'] ?? '' ) ) {
 					continue;
 				}
 
