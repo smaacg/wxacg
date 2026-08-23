@@ -271,7 +271,11 @@ if ( ! function_exists( 'smacg_get_all_exp_rules' ) ) {
      *
      * label 結構：[ icon, 中文標題, 副標說明 ]
      */
-    function smacg_get_all_exp_rules() {
+    /**
+     * @param bool $include_badge_rules 是否納入徽章類規則（first_* / milestone_*）。
+     *                                  預設 false，理由見下方迴圈內的說明。
+     */
+    function smacg_get_all_exp_rules( $include_badge_rules = false ) {
         $rules  = \WXACG\Gamification\Exp_Config::rules();
         $labels = [
             /* 帳號類 */
@@ -314,14 +318,45 @@ if ( ! function_exists( 'smacg_get_all_exp_rules' ) ) {
 
         $out = [];
         foreach ( $rules as $key => $rule ) {
+            /*
+             * 徽章類規則不列入「EXP 來源」。
+             *
+             * first_*（13 條）與 milestone_*（20 條）是由 First_Badge /
+             * Milestone_Badge 透過 smacg_exp_rules filter 掛進來的，性質是
+             * 「解鎖徽章時的附帶獎勵」，不是使用者可以主動執行的行為——
+             * 沒有人會為了拿 first_login 而去「做 first_login」。
+             *
+             * 它們也沒有中文 label，會落到下面的 fallback 印出原始 key，
+             * 等級指南上就出現一整片「first_watchlist_add」「milestone_watch_3」。
+             * 補 label 不是好解法：33 條塞進來會讓清單從 24 條膨脹到 57 條，
+             * 而成就區塊本來就完整呈現了這些內容（且分入門／累積兩組）。
+             *
+             * 需要完整清單（例如後台除錯）時傳入 true。
+             */
+            if (
+                ! $include_badge_rules
+                && ( strpos( $key, 'first_' ) === 0 || strpos( $key, 'milestone_' ) === 0 )
+            ) {
+                continue;
+            }
+
+            /*
+             * 規則可自帶 icon / label / desc，優先採用。
+             *
+             * 由外掛透過 smacg_exp_rules filter 注入的規則（例如
+             * wxacg-social 的 correction_approved「資料回報被採納」）
+             * 會把描述放在規則自己身上——本檔的對照表不可能預先知道
+             * 其他外掛要加什麼。原本只查表，那些規則就落到 fallback
+             * 印出原始 key。
+             */
             $meta      = $labels[ $key ] ?? [ '📌', $key, '' ];
             $cap_type  = $rule['cap_type'] ?? null;
             $daily_max = isset( $rule['daily_max'] ) ? (int) $rule['daily_max'] : 1;
             $out[ $key ] = [
                 'key'          => $key,
-                'icon'         => $meta[0],
-                'label'        => $meta[1],
-                'desc'         => $meta[2],
+                'icon'         => $rule['icon']  ?? $meta[0],
+                'label'        => $rule['label'] ?? $meta[1],
+                'desc'         => $rule['desc']  ?? $meta[2],
                 'exp'          => (int) $rule['exp'],
                 'season_score' => isset( $rule['season_score'] ) ? (int) $rule['season_score'] : 0,
                 'cap_type'     => $cap_type,

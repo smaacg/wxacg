@@ -173,7 +173,23 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
         <div class="guide-exp-grid">
           <?php foreach ( $exp_rules as $rule ): ?>
             <div class="guide-exp-card" data-cap="<?php echo esc_attr( $rule['cap_type'] ?? 'none' ); ?>">
-              <div class="guide-exp-icon"><?php echo esc_html( $rule['icon'] ); ?></div>
+              <div class="guide-exp-icon">
+                <?php
+                /*
+                 * 圖示有兩種格式：本檔對照表用 emoji，外掛注入的規則可能
+                 * 給 Font Awesome class（例如 correction_approved 的
+                 * fa-flag-checkered）。直接輸出會讓後者顯示成一串文字。
+                 */
+                if ( strpos( (string) $rule['icon'], 'fa-' ) === 0 ) :
+                    $fa = strpos( $rule['icon'], 'fa-solid' ) === 0
+                        ? $rule['icon']
+                        : 'fa-solid ' . $rule['icon'];
+                    ?>
+                    <i class="<?php echo esc_attr( $fa ); ?>" aria-hidden="true"></i>
+                <?php else : ?>
+                    <?php echo esc_html( $rule['icon'] ); ?>
+                <?php endif; ?>
+              </div>
               <div class="guide-exp-body">
                 <div class="guide-exp-label"><?php echo esc_html( $rule['label'] ); ?></div>
                 <?php if ( ! empty( $rule['desc'] ) ): ?>
