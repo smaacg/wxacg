@@ -169,6 +169,35 @@ while ( have_posts() ) :
     $volume_covers     = $volume_covers_raw ? json_decode( $volume_covers_raw, true ) : [];
     $volume_covers     = is_array( $volume_covers ) ? $volume_covers : [];
 
+    /*
+     * ── 各卷台版 ISBN 對照（封面連結用）──
+     *
+     * 封面牆來自 Bangumi（manga_volume_covers：vol / cover / bgm_id），
+     * ISBN 來自維基（manga_volumes_json：vol / jp / tw / hk / cn），
+     * 兩份資料各自獨立，用卷號串起來。
+     *
+     * 這裡讀 manga_volumes_json 而不是去解析 manga_volumes_summary 那份
+     * Markdown —— 後者是給人看的產物，欄位對齊靠空白，反解析很脆弱；
+     * JSON 是同一份資料的結構化版本，由 class-wiki-manga-fetcher.php
+     * 產生後直接存下來的。
+     */
+    $volumes_json_raw = $get_meta( 'manga_volumes_json' );
+    $volumes_struct   = $volumes_json_raw ? json_decode( $volumes_json_raw, true ) : [];
+    $volumes_struct   = is_array( $volumes_struct ) ? $volumes_struct : [];
+
+    $vol_tw_isbn = [];
+
+    foreach ( $volumes_struct as $vs ) {
+        if ( ! is_array( $vs ) ) continue;
+
+        $vs_vol  = (int) ( $vs['vol'] ?? -1 );
+        $vs_isbn = trim( (string) ( $vs['tw']['isbn'] ?? '' ) );
+
+        if ( $vs_vol < 0 || $vs_isbn === '' ) continue;
+
+        $vol_tw_isbn[ $vs_vol ] = $vs_isbn;
+    }
+
     // ── 外部連結清單(v1.5.0,AniList externalLinks)──
     $external_links_raw = $get_meta( 'manga_external_links' );
     $external_links     = $external_links_raw ? json_decode( $external_links_raw, true ) : [];
@@ -1652,10 +1681,51 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                 <?php foreach ( $volume_covers as $vc ) :
                                     $vc_vol   = (int) ( $vc['vol'] ?? 0 );
                                     $vc_cover = (string) ( $vc['cover'] ?? '' );
-                                    $vc_bgm   = (int) ( $vc['bgm_id'] ?? 0 );
                                     if ( $vc_vol <= 0 ) continue;
                                     if ( $vc_cover === '' ) continue;   // ★ 沒封面就不顯示,擋掉雜卷空卡
-                                    $vc_link  = $vc_bgm > 0 ? 'https://bgm.tv/subject/' . $vc_bgm : '';
+
+                                    /*
+                                     * ★ 封面連結：改導台灣書店，不再導 bgm.tv
+                                     *
+                                     * 原本每一卷都連到 https://bgm.tv/subject/{bgm_id}，
+                                     * 使用者點封面就離站，而且落在簡體頁面 —— 對繁中站
+                                     * 來說既流失流量也不合讀者習慣。
+                                     *
+                                     * 改成用該卷的台版 ISBN 導到台灣書店搜尋。這正是
+                                     * 「從動畫原作」掃描的初衷（見 class-manga-admin.php
+                                     * 的註解：動畫化過的作品台灣代理率高，才有台版 ISBN，
+                                     * 聯盟行銷連結才生得出來）——資料早就有了，只是沒接上。
+                                     *
+                                     * 沒有台版 ISBN 的卷就不給連結（純展示），不要退回
+                                     * bgm.tv：導到競爭對手的資料庫沒有好處。
+                                     *
+                                     * 網址走 filter，聯盟參數請掛在 filter 裡，不寫死在
+                                     * 模板：聯盟 ID 屬於帳務設定，不該進版控。
+                                     */
+                                    $vc_isbn = $vol_tw_isbn[ $vc_vol ] ?? '';
+                                    $vc_link = '';
+
+                                    if ( $vc_isbn !== '' ) {
+                                        $vc_link = 'https://search.books.com.tw/search/query/key/'
+                                                 . rawurlencode( str_replace( '-', '', $vc_isbn ) )
+                                                 . '/cat/all';
+                                    }
+
+                                    /**
+                                     * 單行本封面的購買連結。
+                                     *
+                                     * @param string $vc_link 預設的博客來搜尋網址（無台版 ISBN 時為空字串）
+                                     * @param string $vc_isbn 該卷台版 ISBN（可能為空）
+                                     * @param int    $vc_vol  卷號
+                                     * @param int    $post_id 漫畫文章 ID
+                                     */
+                                    $vc_link = (string) apply_filters(
+                                        'wxacg_manga_volume_buy_url',
+                                        $vc_link,
+                                        $vc_isbn,
+                                        $vc_vol,
+                                        $post_id
+                                    );
                                 ?>
                                     <?php if ( $vc_link ) : ?>
                                         <a class="asd-vol-cover" href="<?php echo esc_url( $vc_link ); ?>" target="_blank" rel="noopener noreferrer" title="第 <?php echo $vc_vol; ?> 卷">
