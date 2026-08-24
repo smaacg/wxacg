@@ -311,6 +311,7 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
     <defs>
       <path id="raArcPath" d="M 44,44 m -37,0 a 37,37 0 1 1 74,0 a 37,37 0 1 1 -74,0" />
     </defs>
+    <circle class="ra-arc-track" cx="44" cy="44" r="37" fill="none" />
     <text>
       <textPath href="#raArcPath" xlink:href="#raArcPath" startOffset="50%" text-anchor="middle">
         · 抽 動 漫 ·
@@ -448,6 +449,9 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
   filter:drop-shadow(0 1px 3px rgba(20,50,90,.6));
 }
 #random-anime-btn:hover .ra-arc{animation-duration:4s;}
+#random-anime-btn .ra-arc-track{
+  stroke:rgba(2,4,10,.96); stroke-width:17px;
+}
 #random-anime-btn .ra-arc text{
   fill:#ffffff; font-size:12.5px; font-weight:800; letter-spacing:.5px;
   paint-order:stroke;
