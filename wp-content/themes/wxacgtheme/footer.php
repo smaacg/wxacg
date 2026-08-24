@@ -449,9 +449,9 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
 }
 #random-anime-btn:hover .ra-arc{animation-duration:4s;}
 #random-anime-btn .ra-arc text{
-  fill:#e6f4ff; font-size:12.5px; font-weight:800; letter-spacing:.5px;
+  fill:#ffffff; font-size:12.5px; font-weight:800; letter-spacing:.5px;
   paint-order:stroke;
-  stroke:rgba(30,70,120,.6); stroke-width:.8px;
+  stroke:rgba(10,18,32,.85); stroke-width:1.4px;
 }
 
 @keyframes raSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
