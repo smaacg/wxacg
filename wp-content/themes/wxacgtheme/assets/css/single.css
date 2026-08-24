@@ -3235,6 +3235,458 @@
   color: #38bdf8 !important;
 }
 
+/* =========================================================
+   《薰香花朵凜然綻放》深度專題專屬排版樣式 (.kaoruhana-cover)
+   配色哲學：粉櫻玫瑰色 + 蛋糕暖陽琥珀金 + 千鳥桔梗深靛藍
+========================================================= */
+.kaoruhana-cover {
+	--kh-text: #332d29;
+	--kh-dark: #28211d;
+	--kh-rose: #e11d48;
+	--kh-rose-dark: #be123c;
+	--kh-rose-soft: #fff1f2;
+	--kh-rose-border: #fecdd3;
+	--kh-amber: #d97706;
+	--kh-amber-dark: #b45309;
+	--kh-amber-soft: #fffbeb;
+	--kh-indigo: #1e1b4b;
+	--kh-soft: #fdfbf7;
+	--kh-beige: #f7f1ea;
+	--kh-line: #ecdcd0;
+	--kh-muted: #796f68;
+	--kh-green: #15803d;
+
+	display: block !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	margin: 0 !important;
+	padding: clamp(24px, 4vw, 48px) !important;
+	overflow: hidden !important;
+	color: var(--kh-text) !important;
+	background: #ffffff !important;
+	border: 1px solid #fed7aa !important;
+	border-radius: 8px !important;
+	box-shadow: 0 12px 38px rgba(225, 29, 72, .06), 0 4px 16px rgba(0, 0, 0, .03) !important;
+	color-scheme: light !important;
+	isolation: isolate !important;
+	font-family: "Noto Serif TC", "Songti TC", "PingFang TC", "Microsoft JhengHei", serif !important;
+	font-size: 18px !important;
+	line-height: 2.05 !important;
+	letter-spacing: .02em !important;
+	counter-reset: kh-section;
+}
+
+.kaoruhana-cover *,
+.kaoruhana-cover *::before,
+.kaoruhana-cover *::after {
+	box-sizing: border-box !important;
+}
+
+.kaoruhana-cover p {
+	margin: 0 0 1.5em !important;
+	padding: 0 !important;
+	color: var(--kh-text) !important;
+	background: transparent !important;
+	font-size: 18px !important;
+	line-height: 2.05 !important;
+}
+
+.kaoruhana-cover strong {
+	color: var(--kh-dark) !important;
+	font-weight: 800 !important;
+}
+
+.kaoruhana-cover a {
+	color: var(--kh-rose-dark) !important;
+	text-decoration-color: rgba(225, 29, 72, .45) !important;
+	text-decoration-thickness: 1px !important;
+	text-underline-offset: 4px !important;
+}
+.kaoruhana-cover a:hover {
+	color: var(--kh-rose) !important;
+	text-decoration-color: var(--kh-rose) !important;
+}
+
+.kaoruhana-cover img {
+	display: block !important;
+	max-width: 100% !important;
+	height: auto !important;
+	margin: 0 !important;
+}
+
+/* 頂部 Hero */
+.kaoruhana-cover .kh-hero {
+	display: block !important;
+	width: 100% !important;
+	margin: 0 0 40px !important;
+	padding: 0 !important;
+}
+.kaoruhana-cover .kh-hero-image {
+	display: block !important;
+	width: 100% !important;
+	overflow: hidden !important;
+	background: #eee !important;
+	border-radius: 6px !important;
+	border: 1px solid var(--kh-line) !important;
+}
+.kaoruhana-cover .kh-hero-image img {
+	width: 100% !important;
+	height: auto !important;
+	aspect-ratio: 16 / 9 !important;
+	object-fit: cover !important;
+}
+
+.kaoruhana-cover .kh-lead {
+	margin: 0 0 20px !important;
+	color: var(--kh-dark) !important;
+	font-size: clamp(20px, 2.7vw, 25px) !important;
+	font-weight: 900 !important;
+	line-height: 1.8 !important;
+}
+
+.kaoruhana-cover .kh-update {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 8px 20px !important;
+	width: 100% !important;
+	margin: 0 0 36px !important;
+	padding: 0 0 20px !important;
+	color: var(--kh-muted) !important;
+	border-bottom: 1px solid var(--kh-line) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 13.5px !important;
+	line-height: 1.6 !important;
+}
+.kaoruhana-cover .kh-tag-pill {
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 4px !important;
+	background: var(--kh-rose-soft) !important;
+	color: var(--kh-rose-dark) !important;
+	border: 1px solid var(--kh-rose-border) !important;
+	padding: 2px 10px !important;
+	border-radius: 999px !important;
+	font-weight: 700 !important;
+	font-size: 12px !important;
+}
+
+/* 目錄 Table of Contents */
+.kaoruhana-cover .kh-toc {
+	width: 100% !important;
+	margin: 0 0 44px !important;
+	padding: 26px 30px !important;
+	background: var(--kh-soft) !important;
+	border: 1px solid var(--kh-line) !important;
+	border-radius: 6px !important;
+}
+.kaoruhana-cover .kh-toc h2 {
+	margin: 0 0 16px !important;
+	padding: 0 !important;
+	color: var(--kh-dark) !important;
+	border: 0 !important;
+	font-size: 19px !important;
+	font-weight: 900 !important;
+	line-height: 1.4 !important;
+}
+.kaoruhana-cover .kh-toc ol {
+	margin: 0 !important;
+	padding: 0 0 0 22px !important;
+	font-size: 16px !important;
+	line-height: 2 !important;
+	color: var(--kh-muted) !important;
+}
+.kaoruhana-cover .kh-toc a {
+	color: var(--kh-text) !important;
+	text-decoration: none !important;
+	font-weight: 600 !important;
+}
+.kaoruhana-cover .kh-toc a:hover {
+	color: var(--kh-rose-dark) !important;
+	text-decoration: underline !important;
+}
+
+/* 快速結論卡片 */
+.kaoruhana-cover .kh-quick {
+	width: 100% !important;
+	margin: 0 0 44px !important;
+	padding: 26px 30px !important;
+	background: linear-gradient(135deg, var(--kh-rose-soft) 0%, #fff7ed 100%) !important;
+	border: 1px solid var(--kh-rose-border) !important;
+	border-left: 5px solid var(--kh-rose) !important;
+	border-radius: 6px !important;
+}
+.kaoruhana-cover .kh-quick-title {
+	margin: 0 0 14px !important;
+	color: var(--kh-rose-dark) !important;
+	font-size: 19px !important;
+	font-weight: 900 !important;
+	display: flex !important;
+	align-items: center !important;
+	gap: 8px !important;
+}
+.kaoruhana-cover .kh-quick ul {
+	margin: 0 !important;
+	padding: 0 0 0 20px !important;
+	font-size: 16.5px !important;
+	line-height: 1.9 !important;
+}
+
+/* 結構化標題 (H2 / H3) */
+.kaoruhana-cover h2 {
+	margin: 54px 0 24px !important;
+	padding: 0 0 14px !important;
+	color: var(--kh-dark) !important;
+	border-bottom: 2px solid var(--kh-rose-soft) !important;
+	font-size: clamp(23px, 3.2vw, 29px) !important;
+	font-weight: 900 !important;
+	line-height: 1.4 !important;
+	letter-spacing: -.01em !important;
+}
+.kaoruhana-cover h2::before {
+	counter-increment: kh-section;
+	content: "0" counter(kh-section) " ";
+	color: var(--kh-rose) !important;
+	font-family: "PingFang TC", sans-serif !important;
+	font-size: .88em !important;
+	font-weight: 900 !important;
+	margin-right: 6px !important;
+}
+
+.kaoruhana-cover h3 {
+	margin: 36px 0 16px !important;
+	padding: 0 !important;
+	color: var(--kh-indigo) !important;
+	font-size: 21px !important;
+	font-weight: 800 !important;
+	line-height: 1.45 !important;
+}
+
+/* 表格樣式 */
+.kaoruhana-cover .kh-table-wrap {
+	width: 100% !important;
+	margin: 30px 0 40px !important;
+	overflow-x: auto !important;
+	border: 1px solid var(--kh-line) !important;
+	border-radius: 6px !important;
+}
+.kaoruhana-cover .kh-table {
+	width: 100% !important;
+	border-collapse: collapse !important;
+	font-size: 16px !important;
+	line-height: 1.7 !important;
+	background: #ffffff !important;
+}
+.kaoruhana-cover .kh-table th {
+	padding: 14px 18px !important;
+	color: var(--kh-rose-dark) !important;
+	background: var(--kh-rose-soft) !important;
+	border-bottom: 2px solid var(--kh-rose-border) !important;
+	font-weight: 900 !important;
+	text-align: left !important;
+	white-space: nowrap !important;
+}
+.kaoruhana-cover .kh-table td {
+	padding: 14px 18px !important;
+	border-bottom: 1px solid var(--kh-line) !important;
+	color: var(--kh-text) !important;
+}
+.kaoruhana-cover .kh-table tr:last-child td {
+	border-bottom: 0 !important;
+}
+.kaoruhana-cover .kh-table tr:nth-child(even) td {
+	background: #faf8f5 !important;
+}
+
+/* 劇照圖片 Figure */
+.kaoruhana-cover .kh-figure {
+	display: block !important;
+	width: 100% !important;
+	margin: 36px 0 44px !important;
+	padding: 0 !important;
+}
+.kaoruhana-cover .kh-figure-image {
+	display: block !important;
+	width: 100% !important;
+	overflow: hidden !important;
+	border: 1px solid var(--kh-line) !important;
+	border-radius: 6px !important;
+	box-shadow: 0 6px 20px rgba(0,0,0,0.06) !important;
+}
+.kaoruhana-cover .kh-figure figcaption {
+	display: block !important;
+	margin: 10px 0 0 !important;
+	color: var(--kh-muted) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 13.5px !important;
+	text-align: center !important;
+	line-height: 1.6 !important;
+}
+
+/* 金句引用 */
+.kaoruhana-cover .kh-quote {
+	margin: 36px 0 !important;
+	padding: 24px 28px !important;
+	color: #78350f !important;
+	background: linear-gradient(135deg, var(--kh-amber-soft) 0%, #fff7ed 100%) !important;
+	border-left: 5px solid var(--kh-amber) !important;
+	border-radius: 0 8px 8px 0 !important;
+	font-size: 19px !important;
+	font-weight: 700 !important;
+	line-height: 1.85 !important;
+}
+
+/* 優缺點 Pro / Con */
+.kaoruhana-cover .kh-procon {
+	display: grid !important;
+	grid-template-columns: 1fr 1fr !important;
+	gap: 20px !important;
+	width: 100% !important;
+	margin: 36px 0 44px !important;
+}
+.kaoruhana-cover .kh-procon-box {
+	padding: 24px 26px !important;
+	border-radius: 6px !important;
+}
+.kaoruhana-cover .kh-procon-good {
+	background: #f0fdf4 !important;
+	border: 1px solid #bbf7d0 !important;
+}
+.kaoruhana-cover .kh-procon-bad {
+	background: #fff1f2 !important;
+	border: 1px solid #fecdd3 !important;
+}
+.kaoruhana-cover .kh-procon-box h3 {
+	margin: 0 0 14px !important;
+	font-size: 18px !important;
+	font-weight: 900 !important;
+}
+.kaoruhana-cover .kh-procon-good h3 { color: #166534 !important; }
+.kaoruhana-cover .kh-procon-bad h3 { color: #9f1239 !important; }
+.kaoruhana-cover .kh-procon-box ul {
+	margin: 0 !important;
+	padding: 0 0 0 18px !important;
+	font-size: 15.5px !important;
+	line-height: 1.85 !important;
+}
+
+/* 最終評分卡片 */
+.kaoruhana-cover .kh-final {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 100% !important;
+	margin: 44px 0 !important;
+	padding: 36px 28px !important;
+	background: linear-gradient(135deg, var(--kh-indigo) 0%, #312e81 100%) !important;
+	color: #ffffff !important;
+	border-radius: 8px !important;
+	box-shadow: 0 12px 32px rgba(30, 27, 75, .2) !important;
+	text-align: center !important;
+}
+.kaoruhana-cover .kh-final-label {
+	color: #cbd5e1 !important;
+	font-size: 15px !important;
+	font-weight: 700 !important;
+	letter-spacing: .08em !important;
+	text-transform: uppercase !important;
+	margin-bottom: 6px !important;
+}
+.kaoruhana-cover .kh-final-score {
+	color: #ffffff !important;
+	font-size: clamp(44px, 6vw, 56px) !important;
+	font-weight: 900 !important;
+	line-height: 1.1 !important;
+}
+.kaoruhana-cover .kh-final-score small {
+	font-size: .45em !important;
+	font-weight: 600 !important;
+	color: #94a3b8 !important;
+}
+
+/* FAQ 摺疊問答 */
+.kaoruhana-cover .kh-faq {
+	width: 100% !important;
+	margin: 30px 0 44px !important;
+}
+.kaoruhana-cover .kh-faq details {
+	margin: 0 0 14px !important;
+	background: var(--kh-soft) !important;
+	border: 1px solid var(--kh-line) !important;
+	border-radius: 6px !important;
+	overflow: hidden !important;
+}
+.kaoruhana-cover .kh-faq summary {
+	padding: 16px 20px !important;
+	font-size: 17.5px !important;
+	font-weight: 800 !important;
+	color: var(--kh-dark) !important;
+	cursor: pointer !important;
+	user-select: none !important;
+	list-style: none !important;
+	position: relative !important;
+}
+.kaoruhana-cover .kh-faq summary::-webkit-details-marker {
+	display: none !important;
+}
+.kaoruhana-cover .kh-faq summary::after {
+	content: '+' !important;
+	position: absolute !important;
+	right: 20px !important;
+	top: 50% !important;
+	transform: translateY(-50%) !important;
+	font-size: 20px !important;
+	color: var(--kh-rose) !important;
+	font-weight: 900 !important;
+}
+.kaoruhana-cover .kh-faq details[open] summary::after {
+	content: '−' !important;
+}
+.kaoruhana-cover .kh-faq-answer {
+	padding: 0 20px 20px !important;
+	color: var(--kh-text) !important;
+	font-size: 16.5px !important;
+	line-height: 1.9 !important;
+}
+.kaoruhana-cover .kh-faq-answer p:last-child {
+	margin-bottom: 0 !important;
+}
+
+/* 資料來源 */
+.kaoruhana-cover .kh-sources {
+	width: 100% !important;
+	margin: 44px 0 0 !important;
+	padding: 24px 28px !important;
+	background: var(--kh-beige) !important;
+	border-radius: 6px !important;
+	font-size: 14.5px !important;
+	color: var(--kh-muted) !important;
+}
+.kaoruhana-cover .kh-sources h3 {
+	margin: 0 0 12px !important;
+	font-size: 16px !important;
+	color: var(--kh-dark) !important;
+	font-weight: 800 !important;
+}
+.kaoruhana-cover .kh-sources ol {
+	margin: 0 !important;
+	padding-left: 20px !important;
+	line-height: 1.8 !important;
+}
+
+@media (max-width: 768px) {
+	.kaoruhana-cover {
+		padding: 20px 16px !important;
+		font-size: 17px !important;
+	}
+	.kaoruhana-cover .kh-procon {
+		grid-template-columns: 1fr !important;
+	}
+	.kaoruhana-cover .kh-lead {
+		font-size: 21px !important;
+	}
+}
+
 
 
 
