@@ -326,6 +326,35 @@
 }
 .mc-badges-tier-row__check{font-size:15px;color:#4ade80}
 
+/*
+ * 集滿時的完成感（v1.9.1）。
+ *
+ * 原本只有一個小勾勾，普通那排是灰色，滿條也還是灰色——灰色在介面上
+ * 慣例讀成「未啟用／背景」，滿了反而看不出來是「完成」，勾勾又太小
+ * 抵銷不了這個錯覺。改成整排給一圈淡淡的底色高亮＋外框，數字變粗變亮，
+ * 勾勾放大，四個稀有度、傳說都套同一套規則，不再只靠顏色本身傳達完成。
+ */
+.mc-badges-tier-row.is-complete{
+    background:rgba(255,255,255,.05);
+    border-radius:10px;
+    padding:5px 8px;margin:-5px -8px;
+}
+.mc-badges-tier-row.is-complete .mc-badges-tier-row__num{
+    color:#fff;font-weight:800;
+}
+.mc-badges-tier-row.is-complete .mc-badges-tier-row__check{
+    font-size:18px;
+    filter:drop-shadow(0 0 4px rgba(74,222,128,.6));
+}
+.mc-badges-tier-row.tier-common.is-complete  {box-shadow:inset 0 0 0 1px rgba(209,213,219,.3)}
+.mc-badges-tier-row.tier-uncommon.is-complete{box-shadow:inset 0 0 0 1px rgba(74,222,128,.35)}
+.mc-badges-tier-row.tier-rare.is-complete    {box-shadow:inset 0 0 0 1px rgba(96,165,250,.35)}
+.mc-badges-tier-row.tier-epic.is-complete    {box-shadow:inset 0 0 0 1px rgba(192,132,252,.4)}
+/* 普通滿條本來就是灰色，額外補一段淺色漸層，滿了才會亮得比未滿明顯 */
+.mc-badges-tier-row.tier-common.is-complete .mc-badges-tier-row__fill{
+    background:linear-gradient(90deg,#e5e7eb,#9ca3af);
+}
+
 .mc-badges-tier-row.tier-common   .mc-badges-tier-row__fill{background:linear-gradient(90deg,#9ca3af,#6b7280)}
 .mc-badges-tier-row.tier-uncommon .mc-badges-tier-row__fill{background:linear-gradient(90deg,#4ade80,#22c55e)}
 .mc-badges-tier-row.tier-rare     .mc-badges-tier-row__fill{background:linear-gradient(90deg,#60a5fa,#3b82f6)}
