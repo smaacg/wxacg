@@ -231,12 +231,19 @@
  * v1.1.0 (2026-05-14)
  * ========================================================= */
 
-/* Hero 區職業徽章 */
+/*
+ * Hero 區職業徽章
+ *
+ * 原本是實心漸層底（跟 .mc-plan-badge 同樣搶眼），跟名字旁另外 4 個徽章
+ * 疊在一起太吵。改成跟 .mc-tier-mini 同一套「深色底 + 彩色邊框/文字」的
+ * 安靜樣式，只留 .mc-plan-badge 一個實心徽章當視覺重點。
+ */
 .mc-job-badge{
     display:inline-flex;align-items:center;gap:4px;
     padding:3px 10px;margin-left:8px;
-    font-size:13px;font-weight:600;
-    color:#fff;background:linear-gradient(135deg,#8b5cf6,#ec4899);
+    font-size:12px;font-weight:600;
+    color:#c9a8ff;background:rgba(0,0,0,.2);
+    border:1px solid rgba(139,92,246,.5);
     border-radius:999px;vertical-align:middle;
 }
 

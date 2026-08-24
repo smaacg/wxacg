@@ -521,24 +521,29 @@
   border-left: 1px solid currentColor;
 }
 
-/* 公開頁連結 */
+/*
+ * 公開頁連結
+ *
+ * 這是動作（點了跳頁），不是狀態徽章，原本卻做成跟其他徽章一樣的
+ * 外框藥丸形狀，視覺上被誤讀成第 6 個徽章。拿掉底色與外框，改成純
+ * 文字連結（保留 icon），跟旁邊的徽章群明確區隔開來。
+ */
 .mc-public-link {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   margin-left: 8px;
-  padding: 3px 10px;
+  padding: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--mc-text-2);
-  background: var(--mc-surface);
-  border: 1px solid var(--mc-border);
-  border-radius: 999px;
+  background: none;
+  border: none;
   text-decoration: none;
   vertical-align: middle;
-  transition: color .15s, border-color .15s, background .15s;
+  transition: color .15s;
 }
-.mc-public-link:hover { color: var(--mc-accent); border-color: var(--mc-accent); background: rgba(244,114,182,.08); }
+.mc-public-link:hover { color: var(--mc-accent); }
 .mc-public-link i { font-size: 11px; }
 
 /* ==========================================================
@@ -1566,7 +1571,7 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   .mc-avatar-progress { max-width: 100%; }
 
   /* 名字置中、字縮小 */
-  .mc-hero-name { justify-content: center; font-size: 20px; gap: 8px; }
+  .mc-hero-name { justify-content: center; font-size: 20px; gap: 8px; margin-bottom: 4px; }
 
   /* ★ 手機 Hero 隱藏項目 ★ */
   .mc-meta-chip--email,          /* email 文字 */
@@ -1579,8 +1584,12 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   .mc-hero-bio                   /* 簡介（次要資訊） */
   { display: none !important; }
 
-  /* 驗證徽章保留但簡化 */
-  .mc-meta-chips { justify-content: center; gap: 6px; margin: 6px 0 10px; }
+  /*
+   * 驗證徽章保留但簡化。其他 meta chip（email/加入天數）已隱藏，只剩
+   * 已驗證這一個，上緣間距縮小到跟名字那排徽章視覺相連，讀起來像
+   * 同一群徽章的延伸，不是另外獨立一段。
+   */
+  .mc-meta-chips { justify-content: center; gap: 6px; margin: 0 0 10px; }
   .mc-meta-chip  { font-size: 12px; padding: 4px 10px; }
 
   /* 追蹤數置中 */
