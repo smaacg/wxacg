@@ -2,10 +2,25 @@
 /**
  * Template Name: 番組表 - 季度詳細列表
  * File: blocksy-child/page-bangumi.php
- * Version: 1.8.0
- * Date: 2026-08-17
+ * Version: 1.9.0
+ * Date: 2026-08-24
  *
  * Changelog
+ *  v1.9.0 (2026-08-24) 修正未來季度頁被灌入整季當季新番
+ *    - [Fix] v1.7.3 起「跨季續播」的判斷是「開播日早於本季 + anime_status
+ *            仍為 RELEASING」。RELEASING 是「現在」的狀態，只能推出
+ *            「結束日 >= 今天」；要再推到「結束日 >= 本季開始」，前提是
+ *            本季開始日不晚於今天。未來季度不滿足這個前提，於是每一個
+ *            未來季度頁都把當下正在播的作品整批收進去——實測 2027年7月
+ *            新番表 69 部全部是 2026 夏番，2027年1月 114 部裡有 69 部是。
+ *            未來季度改為必須有正面證據才算跨季續播。
+ *    - [Feature] 新增第二個「播畢日」來源 smacg_bgm_last_scheduled_ymd()：
+ *            AniList 對播出中的作品 endDate 一律是 null（已用 API 驗證），
+ *            anime_end_date 只涵蓋 83 部在播作品中的 9 部；改以站上既有的
+ *            anime_episodes_json（Bangumi 逐集排程，含尚未播出的排定日）
+ *            補上，涵蓋率升到 73 部。是實際排定日而非推算，不額外發請求、
+ *            不額外查詢（該篇 meta 早已在 get_post_meta 的快取裡）。
+ *    - [Note] 只作用於未來季度；當季與過去季度的行為完全不變。
  *  v1.8.0 (2026-08-17) 分頁改為 全部／新作／續作
  *    - [Feature] 改讀 anime_has_prequel 欄位判斷新作／續作。該欄位由
  *                anime-sync-pro 的每小時 cron 搭既有 AniList 查詢順風車
@@ -61,6 +76,41 @@ if ( ! function_exists( 'smacg_bgm_norm_date_ts' ) ) {
         }
         $ts = strtotime( $raw );
         return $ts ? (int) $ts : 0;
+    }
+}
+
+/* ============================================================
+ * [1.9.0] Helper：從逐集排程取「排定播畢日」
+ *
+ * 為什麼需要這個：AniList 對正在播出的作品 endDate 一律是 null（實測
+ * Media id 203490《うちの弟どもがすみません》確認），所以 anime_end_date
+ * 在播出期間多半是 0，無法用來判斷一部作品會播到哪一季。站上另有
+ * anime_episodes_json（Bangumi 逐集排程），裡面連尚未播出的集數都帶
+ * 排定日期，涵蓋率遠高於 anime_end_date，而且是排定日不是推算值。
+ *
+ * airdate 的格式不一定補零（實際資料裡有 "2026-4-26"），所以一律走
+ * smacg_bgm_norm_date_ts() 正規化；用 date() 不用 gmdate()，因為
+ * strtotime() 解出來的是站台時區的午夜，gmdate 會倒退一天。
+ *
+ * @param string $episodes_json anime_episodes_json 原始值
+ * @return int YYYYMMDD，取不到回 0
+ * ============================================================ */
+if ( ! function_exists( 'smacg_bgm_last_scheduled_ymd' ) ) {
+    function smacg_bgm_last_scheduled_ymd( $episodes_json ) {
+        if ( empty( $episodes_json ) ) return 0;
+
+        $eps = json_decode( (string) $episodes_json, true );
+        if ( ! is_array( $eps ) ) return 0;
+
+        $last = 0;
+        foreach ( $eps as $ep ) {
+            if ( ! is_array( $ep ) || empty( $ep['airdate'] ) ) continue;
+            $ts = smacg_bgm_norm_date_ts( $ep['airdate'] );
+            if ( ! $ts ) continue;
+            $ymd = (int) date( 'Ymd', $ts );
+            if ( $ymd > $last ) $last = $ymd;
+        }
+        return $last;
     }
 }
 
@@ -123,6 +173,11 @@ $year       = (int) $ctx['year'];
 /* [1.7.0] 本季首月，用來判斷「跨季續播」：RELEASING 且結束日落在本季（含）之後的作品 */
 $season_first_month = [ 'WINTER' => 1, 'SPRING' => 4, 'SUMMER' => 7, 'FALL' => 10 ][ $season_key ] ?? 1;
 $season_start_ymd    = (int) sprintf( '%d%02d01', $year, $season_first_month );
+
+/* [1.9.0] 目標季度是否晚於「現在所在的季度」。
+   未來季度不能只靠 anime_status=RELEASING 判斷跨季續播——那是「現在」的
+   狀態，推不出該作品到那一季還在播。詳見下方合併迴圈的過濾條件。 */
+$is_future_season = ( (int) $ym > (int) $current_ym );
 
 /**
  * [1.7.2] 拆成兩個單純的 AND 查詢再於 PHP 合併。
@@ -190,6 +245,24 @@ foreach ( $q_continuing->posts as $bgm_obj ) {
     $bgm_end = (int) get_post_meta( $bgm_id, 'anime_end_date', true );
     if ( $bgm_end > 0 && $bgm_end < $season_start_ymd ) {
         continue;
+    }
+
+    /* [1.9.0] 未來季度：RELEASING 只證明「現在」在播，證明不了那一季還在播。
+       沒有這道防線的話，當下正在播的作品會被每一個未來季度頁整批收進去。
+       所以未來季度改成必須有正面證據——已填的 anime_end_date，或排程上
+       排定的最後一集日期——而且該日期要到得了本季開始，才算跨季續播；
+       兩者都問不出來就不納入（寧可少收，排程一延長就會自動回來）。
+       當季與過去季度 $is_future_season 為 false，行為完全不變。 */
+    if ( $is_future_season ) {
+        $bgm_last_air = $bgm_end;
+        if ( $bgm_last_air <= 0 ) {
+            $bgm_last_air = smacg_bgm_last_scheduled_ymd(
+                get_post_meta( $bgm_id, 'anime_episodes_json', true )
+            );
+        }
+        if ( $bgm_last_air < $season_start_ymd ) {
+            continue;
+        }
     }
 
     $bgm_seen_ids[ $bgm_id ] = true;
