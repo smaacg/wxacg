@@ -91,6 +91,17 @@ if ( function_exists( 'smacg_get_all_seasons_schedule' ) ) {
         }
     }
 }
+
+/* ★ v2.6.0 新增：展示帳號（官方帳號，全成就滿等，僅供展示，不參與排行） */
+$showcase_user        = get_user_by( 'slug', 'weixiaoacg' );
+$showcase_info         = null;
+$showcase_badge_total  = 0;
+if ( $showcase_user && class_exists( '\WXACG\Gamification\Level_System' ) ) {
+    $showcase_info = \WXACG\Gamification\Level_System::get_user_level( $showcase_user->ID );
+    if ( defined( 'WXACG_BADGE_SLUG' ) ) {
+        $showcase_badge_total = (int) wp_count_posts( WXACG_BADGE_SLUG )->publish;
+    }
+}
 ?>
 
 <section class="ranku-hero ranku-hero--<?php echo esc_attr( $ranku_season ); ?>">
@@ -252,6 +263,35 @@ $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 
       </div>
 
       <aside class="ranku-sidebar">
+
+        <?php if ( $showcase_user && $showcase_info ) : ?>
+        <div class="ranku-sidebar-card glass-mid ranku-showcase">
+          <h3 class="ranku-sidebar-title">
+            <i class="fa-solid fa-star" style="color:#ffd76a;"></i>
+            <?php esc_html_e( '展示帳號', 'weixiaoacg' ); ?>
+          </h3>
+          <a class="ranku-showcase-user" href="<?php echo esc_url( function_exists( 'wxacg_get_public_profile_url' ) ? wxacg_get_public_profile_url( $showcase_user->ID ) : '#' ); ?>">
+            <img class="ranku-showcase-avatar" src="<?php echo esc_url( get_avatar_url( $showcase_user->ID, [ 'size' => 64 ] ) ); ?>" alt="" />
+            <div class="ranku-showcase-meta">
+              <span class="ranku-showcase-name">
+                <?php echo esc_html( $showcase_user->display_name ); ?>
+                <i class="fa-solid fa-circle-check ranku-showcase-verified" title="<?php esc_attr_e( '官方帳號', 'weixiaoacg' ); ?>"></i>
+              </span>
+              <div class="ranku-showcase-tags">
+                <span class="ranku-showcase-tag ranku-showcase-tag--gold">
+                  <i class="fa-solid fa-crown"></i>
+                  <?php echo esc_html( sprintf( __( 'Lv.%d 滿等', 'weixiaoacg' ), $showcase_info['level'] ) ); ?>
+                </span>
+                <span class="ranku-showcase-tag ranku-showcase-tag--legend">
+                  <i class="fa-solid fa-medal"></i>
+                  <?php echo esc_html( sprintf( __( '%d/%d 全成就', 'weixiaoacg' ), $showcase_info['badge_count'], $showcase_badge_total ) ); ?>
+                </span>
+              </div>
+            </div>
+          </a>
+          <p class="ranku-showcase-note"><?php esc_html_e( '官方帳號僅作展示，不參與排行競賽', 'weixiaoacg' ); ?></p>
+        </div>
+        <?php endif; ?>
 
         <div class="ranku-sidebar-card glass-mid">
           <h3 class="ranku-sidebar-title">
@@ -607,6 +647,48 @@ $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 
 }
 .ranku-season-countdown i { font-size: 12px; }
 .ranku-season-countdown b { color: #ffe9a8; }
+
+/* ============================================================
+   ★ v2.6.0 新增：展示帳號卡片（官方帳號，全成就滿等）
+   ============================================================ */
+.ranku-showcase-user {
+    display: flex; align-items: center; gap: 12px;
+    text-decoration: none; color: inherit;
+    padding: 4px 0;
+}
+.ranku-showcase-avatar {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 2px solid rgba(212,175,55,.6);
+    box-shadow: 0 0 14px rgba(212,175,55,.35);
+    flex-shrink: 0;
+}
+.ranku-showcase-meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ranku-showcase-name {
+    font-size: 14.5px; font-weight: 700; color: #fff;
+    display: flex; align-items: center; gap: 6px;
+}
+.ranku-showcase-verified { color: #3a86ff; font-size: 13px; }
+.ranku-showcase-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ranku-showcase-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700; padding: 3px 9px;
+    border-radius: 999px; white-space: nowrap;
+}
+.ranku-showcase-tag--gold {
+    background: linear-gradient(135deg, rgba(212,175,55,.28), rgba(255,255,255,.05));
+    border: 1px solid rgba(212,175,55,.55); color: #ffe9a8;
+}
+.ranku-showcase-tag--legend {
+    background: linear-gradient(90deg, rgba(255,0,150,.18), rgba(0,180,255,.18), rgba(160,0,255,.18));
+    background-size: 200% auto;
+    border: 1px solid rgba(200,120,255,.5); color: #f0d9ff;
+    animation: rankuLegendShift 4s linear infinite;
+}
+@keyframes rankuLegendShift { to { background-position: 200% center; } }
+.ranku-showcase-note {
+    margin: 10px 0 0; font-size: 11.5px; color: var(--text-muted,#9ca3af);
+    line-height: 1.6;
+}
 
 /* ---- 手機端 ---- */
 @media (max-width: 640px) {
