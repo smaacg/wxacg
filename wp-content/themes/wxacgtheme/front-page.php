@@ -357,12 +357,12 @@ $random_anime_url = add_query_arg(
 
             <h1 class="hero-title">
                 繁體中文<br>動漫資料庫<br>
-                <span class="line-gradient">查詢新番<br>角色與聲優</span><br>
-                <span class="line-accent">掌握動漫播出資訊</span>
+                <span class="line-gradient">追番清單<br>評分與成就</span><br>
+                <span class="line-accent">掌握新番播出資訊</span>
             </h1>
 
             <p class="hero-subtitle hero-site-description">
-                <span class="hero-sub-part">整理本季新番、動畫作品、播出進度、</span><span class="hero-sub-part">角色聲優、動漫新聞、評論與專題。</span>
+                <span class="hero-sub-part">建立你的追番清單、為動畫評分、解鎖成就，</span><span class="hero-sub-part">同時掌握本季新番、播出進度、動漫新聞與深度專題。</span>
             </p>
 
             <blockquote class="hero-quote">
