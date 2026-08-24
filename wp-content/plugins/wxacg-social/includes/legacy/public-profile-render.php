@@ -275,7 +275,7 @@ function smacg_pp_render_inline_css() {
         /* Hero level icon */
         .pp-hero-avatar{position:relative}
         .pp-hero-level-icon{
-            position:absolute;bottom:-28px;right:-28px;
+            position:absolute;bottom:-10px;right:-10px;
             width:32px;height:32px;
             display:grid;place-items:center;
             background:#1a1f26;
