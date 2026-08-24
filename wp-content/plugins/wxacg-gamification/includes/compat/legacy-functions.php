@@ -88,6 +88,9 @@ if ( ! function_exists( 'wxacg_get_achievement_icon' ) ) {
             'badge-first-dice-roll'           => 'fa-dice',
             'badge-first-career-change'       => 'fa-briefcase',
             'badge-first-review'              => 'fa-pen-to-square',
+            'badge-first-dice-roll-wife'      => 'fa-venus',
+            'badge-first-dice-roll-husband'   => 'fa-mars',
+            'badge-first-dice-roll-seiyuu'    => 'fa-microphone',
         ];
 
         if ( isset( $map[ $slug ] ) ) {

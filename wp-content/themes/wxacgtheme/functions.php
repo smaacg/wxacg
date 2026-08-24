@@ -1480,6 +1480,94 @@ add_action(
 );
 
 /* ============================================================
+ * 隨機老婆／老公／聲優
+ *
+ * 資料來源是 wp_anime_characters／wp_anime_persons 兩張表（角色／聲優
+ * 攤平表，不是 CPT），跟隨機動漫的 WP_Query 抽法不一樣，改用
+ * ORDER BY RAND() 直接對資料表抽。
+ *
+ * gender 欄位是從 Bangumi 原樣存進來的自由文字，除了「男」「女」外還有
+ * 大量惡搞／不明性別的長尾值（例如「男（遇到冷水變成女孩）」），這裡
+ * 只比對最常見的乾淨值，抓不到的長尾值寧可不抽到、不強行猜測。
+ *
+ * 只篩 image 有值：沒圖的角色/聲優頁面點開會很空，體驗差。
+ * ============================================================ */
+
+function wxacg_random_wife_redirect(): void {
+	global $wpdb;
+
+	$bgm_id = $wpdb->get_var(
+		"SELECT bgm_id FROM {$wpdb->prefix}anime_characters
+		 WHERE gender IN ('女','♀','雌','母')
+		   AND image IS NOT NULL AND image != ''
+		 ORDER BY RAND() LIMIT 1"
+	);
+
+	if ( $bgm_id ) {
+		// 給成就系統掛勾（初次抽老婆），只在真的抽到時觸發。
+		do_action( 'wxacg_random_wife_used', get_current_user_id() );
+
+		wp_safe_redirect( home_url( '/character/' . (int) $bgm_id . '/' ), 302 );
+		exit;
+	}
+
+	wp_safe_redirect( home_url( '/' ), 302 );
+	exit;
+}
+add_action( 'wp_ajax_wxacg_random_wife',         'wxacg_random_wife_redirect' );
+add_action( 'wp_ajax_nopriv_wxacg_random_wife',  'wxacg_random_wife_redirect' );
+
+function wxacg_random_husband_redirect(): void {
+	global $wpdb;
+
+	$bgm_id = $wpdb->get_var(
+		"SELECT bgm_id FROM {$wpdb->prefix}anime_characters
+		 WHERE gender IN ('男','♂','雄','公')
+		   AND image IS NOT NULL AND image != ''
+		 ORDER BY RAND() LIMIT 1"
+	);
+
+	if ( $bgm_id ) {
+		do_action( 'wxacg_random_husband_used', get_current_user_id() );
+
+		wp_safe_redirect( home_url( '/character/' . (int) $bgm_id . '/' ), 302 );
+		exit;
+	}
+
+	wp_safe_redirect( home_url( '/' ), 302 );
+	exit;
+}
+add_action( 'wp_ajax_wxacg_random_husband',        'wxacg_random_husband_redirect' );
+add_action( 'wp_ajax_nopriv_wxacg_random_husband', 'wxacg_random_husband_redirect' );
+
+function wxacg_random_seiyuu_redirect(): void {
+	global $wpdb;
+
+	// persons 表混了 staff（導演/編劇等）與 cv（聲優），只抽 cv。
+	$bgm_id = $wpdb->get_var(
+		"SELECT bgm_id FROM {$wpdb->prefix}anime_persons
+		 WHERE type = 'cv'
+		   AND image IS NOT NULL AND image != ''
+		 ORDER BY RAND() LIMIT 1"
+	);
+
+	if ( $bgm_id ) {
+		do_action( 'wxacg_random_seiyuu_used', get_current_user_id() );
+
+		wp_safe_redirect( home_url( '/person/' . (int) $bgm_id . '/' ), 302 );
+		exit;
+	}
+
+	wp_safe_redirect( home_url( '/' ), 302 );
+	exit;
+}
+add_action( 'wp_ajax_wxacg_random_seiyuu',         'wxacg_random_seiyuu_redirect' );
+add_action(
+	'wp_ajax_nopriv_wxacg_random_seiyuu',
+	'wxacg_random_seiyuu_redirect'
+);
+
+/* ============================================================
  * wpForo 的會員連結 → 導向站上的公開檔案頁 /u/{nicename}/
  * ============================================================
  * 論壇裡點使用者名稱會連到 /participant/{nicename}/（wpForo 自己的

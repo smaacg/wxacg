@@ -332,6 +332,14 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
   <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
 </button>
 
+<!-- ── 抽選模式切換（動漫／老婆／老公／聲優，點擊循環） ── -->
+<button type="button"
+        id="random-anime-mode-toggle"
+        aria-label="<?php echo esc_attr__('切換抽選模式：動漫／老婆／老公／聲優','blocksy-child'); ?>"
+        title="<?php echo esc_attr__('切換抽選模式：動漫／老婆／老公／聲優','blocksy-child'); ?>">
+  <i class="fa-solid fa-dice ra-mode-icon" aria-hidden="true"></i>
+</button>
+
 
 <!-- ── Back to Top ── -->
 <button id="back-to-top" aria-label="<?php echo esc_attr__( '回到頂端', 'blocksy-child' ); ?>" title="<?php echo esc_attr__( '回到頂端', 'blocksy-child' ); ?>">
@@ -375,6 +383,20 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
 #random-anime-sound-toggle:hover{background:rgba(20,30,45,.92);}
 #random-anime-sound-toggle.is-muted{color:rgba(207,228,245,.45);}
 @media (max-width:768px){#random-anime-sound-toggle{display:none;}}
+
+/* 抽選模式切換：疊在音效開關正下方，樣式共用同一套小圓鈕語彙 */
+#random-anime-mode-toggle{
+  position:fixed; right:20px; bottom:114px; z-index:9999;
+  width:26px; height:26px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(20,30,45,.75); border:1px solid rgba(255,255,255,.25);
+  color:#cfe4f5; font-size:11px; cursor:pointer; padding:0;
+  opacity:0; visibility:hidden; transform:translateY(10px) scale(.9);
+  transition:opacity .3s ease, transform .3s cubic-bezier(.34,1.56,.64,1), background .15s ease;
+}
+#random-anime-mode-toggle.visible{opacity:1; visibility:visible; transform:translateY(0) scale(1);}
+#random-anime-mode-toggle:hover{background:rgba(20,30,45,.92);}
+@media (max-width:768px){#random-anime-mode-toggle{display:none;}}
 
 /* 中間毛玻璃骰子 —— 科技白/藍/灰 */
 #random-anime-btn .ra-glass{
@@ -513,6 +535,74 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
       var next = !diceSoundEnabled();
       try { localStorage.setItem(SMACG_DICE_SOUND_KEY, next ? '1' : '0'); } catch (err) {}
       syncSoundToggleUI();
+    });
+  }
+
+  /*
+   * 抽選模式切換：動漫／老婆／老公／聲優，點擊在骰子右下角的小圓鈕
+   * 循環切換。切換時同步改骰子按鈕的 href（實際導頁目標）、外環文字、
+   * 圖示，偏好存 localStorage，下次進站記得上次選的模式。
+   *
+   * href 直接改 admin-ajax action 名稱，後端三支新的 wxacg_random_wife /
+   * wxacg_random_husband / wxacg_random_seiyuu 已各自處理成就與導頁，
+   * 這裡不用管抽獎邏輯本身。
+   */
+  var SMACG_DICE_MODE_KEY = 'smacg_dice_mode';
+  var DICE_MODES = [
+    { key: 'anime',   action: 'wxacg_random_anime',    icon: 'fa-dice',       arc: '· 抽 動 漫 ·', label: '隨機抽一部動漫' },
+    { key: 'wife',    action: 'wxacg_random_wife',     icon: 'fa-venus',      arc: '· 抽 老 婆 ·', label: '隨機抽一位老婆' },
+    { key: 'husband', action: 'wxacg_random_husband',  icon: 'fa-mars',       arc: '· 抽 老 公 ·', label: '隨機抽一位老公' },
+    { key: 'seiyuu',  action: 'wxacg_random_seiyuu',   icon: 'fa-microphone', arc: '· 抽 聲 優 ·', label: '隨機抽一位聲優' }
+  ];
+  var modeToggle = document.getElementById('random-anime-mode-toggle');
+  var diceAjaxBase = '<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>';
+
+  function findModeIndex() {
+    try {
+      var saved = localStorage.getItem(SMACG_DICE_MODE_KEY);
+      for (var i = 0; i < DICE_MODES.length; i++) {
+        if (DICE_MODES[i].key === saved) return i;
+      }
+    } catch (err) {}
+    return 0;
+  }
+
+  function applyDiceMode(idx) {
+    var mode = DICE_MODES[idx];
+
+    if (diceBtn) {
+      diceBtn.setAttribute('href', diceAjaxBase + '?action=' + mode.action);
+      diceBtn.setAttribute('aria-label', mode.label);
+      diceBtn.setAttribute('title', mode.label);
+
+      var iconEl = diceBtn.querySelector('.ra-icon');
+      if (iconEl) iconEl.className = 'fa-solid ' + mode.icon + ' ra-icon';
+
+      var arcTextEl = diceBtn.querySelector('.ra-arc textPath');
+      if (arcTextEl) arcTextEl.textContent = mode.arc;
+    }
+
+    if (modeToggle) {
+      var modeIconEl = modeToggle.querySelector('.ra-mode-icon');
+      if (modeIconEl) modeIconEl.className = 'fa-solid ' + mode.icon + ' ra-mode-icon';
+
+      var toggleLabel = '目前：' + mode.label + '（點擊切換下一種）';
+      modeToggle.setAttribute('aria-label', toggleLabel);
+      modeToggle.setAttribute('title', toggleLabel);
+    }
+  }
+
+  var currentDiceModeIdx = findModeIndex();
+  applyDiceMode(currentDiceModeIdx);
+
+  if (modeToggle) {
+    modeToggle.classList.add('visible');
+    modeToggle.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      currentDiceModeIdx = (currentDiceModeIdx + 1) % DICE_MODES.length;
+      try { localStorage.setItem(SMACG_DICE_MODE_KEY, DICE_MODES[currentDiceModeIdx].key); } catch (err) {}
+      applyDiceMode(currentDiceModeIdx);
     });
   }
 

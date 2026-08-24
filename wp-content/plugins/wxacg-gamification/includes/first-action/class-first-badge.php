@@ -35,6 +35,10 @@ defined( 'ABSPATH' ) || exit;
  * @version 1.0.1 (2026-08-16) — 修正 exp=0 導致 once 鎖完全不觸發的 bug
  * @version 1.1.0 (2026-08-16) — 新增初次抽動漫／初次轉職
  * @version 1.2.0 (2026-08-17) — 新增初次發表評論（wxacg_review_submitted）
+ * @version 1.3.0 (2026-08-24) — 新增初次抽老婆／老公／聲優
+ *     （wxacg_random_wife_used／wxacg_random_husband_used／
+ *     wxacg_random_seiyuu_used，比照 first_dice_roll 同一套抽獎骰子，
+ *     只是抽的資料表換成 wp_anime_characters／wp_anime_persons）
  */
 class First_Badge {
 
@@ -67,6 +71,15 @@ class First_Badge {
 		'first_dice_roll'           => [ 'badge_slug' => 'badge-first-dice-roll',         'exp' => 10,  'label' => '初次抽動漫' ],
 		'first_career_change'       => [ 'badge_slug' => 'badge-first-career-change',     'exp' => 20,  'label' => '初次轉職' ],
 		'first_review'              => [ 'badge_slug' => 'badge-first-review',           'exp' => 40,  'label' => '初次發表評論' ],
+		/*
+		 * v1.3.0：隨機老婆／老公／聲優。跟 first_dice_roll 是同一種行為
+		 * （骰子隨機導頁），只是抽的池子換成角色／聲優表，各自獨立成就，
+		 * 因為前台是三顆（或三個模式的同一顆）不同按鈕，使用者感受上是
+		 * 三件不同的事。
+		 */
+		'first_dice_roll_wife'      => [ 'badge_slug' => 'badge-first-dice-roll-wife',    'exp' => 10,  'label' => '初次抽老婆' ],
+		'first_dice_roll_husband'   => [ 'badge_slug' => 'badge-first-dice-roll-husband', 'exp' => 10,  'label' => '初次抽老公' ],
+		'first_dice_roll_seiyuu'    => [ 'badge_slug' => 'badge-first-dice-roll-seiyuu',  'exp' => 10,  'label' => '初次抽聲優' ],
 	];
 
 	private static $badge_id_cache = [];
@@ -92,6 +105,9 @@ class First_Badge {
 		add_action( 'wxacg_random_anime_used',   [ __CLASS__, 'on_dice_roll' ], 10, 1 );
 		add_action( 'smacg_career_selected',     [ __CLASS__, 'on_career_change' ], 10, 3 );
 		add_action( 'wxacg_review_submitted',    [ __CLASS__, 'on_review_submitted' ], 10, 4 );
+		add_action( 'wxacg_random_wife_used',    [ __CLASS__, 'on_dice_roll_wife' ], 10, 1 );
+		add_action( 'wxacg_random_husband_used', [ __CLASS__, 'on_dice_roll_husband' ], 10, 1 );
+		add_action( 'wxacg_random_seiyuu_used',  [ __CLASS__, 'on_dice_roll_seiyuu' ], 10, 1 );
 	}
 
 	/**
@@ -192,6 +208,18 @@ class First_Badge {
 
 	public static function on_dice_roll( $uid ) {
 		self::maybe_award( 'first_dice_roll', (int) $uid );
+	}
+
+	public static function on_dice_roll_wife( $uid ) {
+		self::maybe_award( 'first_dice_roll_wife', (int) $uid );
+	}
+
+	public static function on_dice_roll_husband( $uid ) {
+		self::maybe_award( 'first_dice_roll_husband', (int) $uid );
+	}
+
+	public static function on_dice_roll_seiyuu( $uid ) {
+		self::maybe_award( 'first_dice_roll_seiyuu', (int) $uid );
 	}
 
 	public static function on_career_change( $uid, $job_key, $is_change ) {
