@@ -1724,13 +1724,25 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   }
 }
 
-/* 手機版 tab 只顯示 emoji，文字隱藏 */
+/*
+ * 手機版 tab 只顯示 emoji，文字隱藏。
+ *
+ * 原本用 font-size:0 蓋掉整顆按鈕的文字，再靠 ::first-letter 把「第一個
+ * 字」的字級加回來，指望剛好保留 emoji。但 emoji 不是 CSS 定義的字母，
+ * 瀏覽器對「::first-letter 算不算到 emoji」判定不一致，實測會連 emoji
+ * 一起被 font-size:0 蓋掉，導致手機版分頁列整排看起來是空的。
+ *
+ * 改成直接鎖定 .mc-tab-text／.mc-tab-icon 兩個獨立 span（page-member.php
+ * 渲染時已拆開），不再依賴 ::first-letter 的不可靠判定。
+ */
 @media (max-width: 480px) {
   .mc-tabs .mc-tab {
-    font-size: 0 !important;
     padding: 8px 12px !important;
   }
-  .mc-tabs .mc-tab::first-letter {
+  .mc-tabs .mc-tab .mc-tab-text {
+    font-size: 0 !important;
+  }
+  .mc-tabs .mc-tab .mc-tab-icon {
     font-size: 18px !important;
   }
 }

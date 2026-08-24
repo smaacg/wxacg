@@ -419,8 +419,18 @@ get_header(); ?>
             <?php endif; ?>
             <?php foreach ( $group as $k => $label ) :
                 $active = $k === 'dashboard' ? ' active' : '';
+                /*
+                 * emoji 跟文字拆成獨立 span，480px 手機版才能只對文字下
+                 * font-size:0（見 member.css）。原本靠 ::first-letter
+                 * 保留 emoji，但 emoji 不是 CSS 定義的「字母」，瀏覽器
+                 * 對算不算「第一個字」判定不一致，實測會連 emoji 一起
+                 * 消失，導致手機版分頁列整排看起來是空的。
+                 */
+                $tab_space_pos = mb_strpos( $label, ' ' );
+                $tab_icon      = $tab_space_pos !== false ? mb_substr( $label, 0, $tab_space_pos ) : $label;
+                $tab_text      = $tab_space_pos !== false ? mb_substr( $label, $tab_space_pos + 1 ) : '';
                 ?>
-                <button class="mc-tab<?php echo $active; ?>" data-tab="<?php echo esc_attr( $k ); ?>" role="tab"><?php echo $label; ?></button>
+                <button class="mc-tab<?php echo $active; ?>" data-tab="<?php echo esc_attr( $k ); ?>" role="tab"><span class="mc-tab-icon"><?php echo esc_html( $tab_icon ); ?></span><span class="mc-tab-text"><?php echo esc_html( $tab_text ); ?></span></button>
             <?php endforeach; ?>
         <?php endforeach; ?>
 
@@ -429,7 +439,7 @@ get_header(); ?>
             <a class="mc-tab mc-tab--link"
                href="<?php echo esc_url( do_shortcode( '[better_messages_my_messages_url]' ) ); ?>"
                title="開啟我的訊息（全寬頁面）">
-                💬 訊息
+                <span class="mc-tab-icon">💬</span><span class="mc-tab-text">訊息</span>
                 <?php echo do_shortcode( '[better_messages_unread_counter hide_when_no_messages="1" preserve_space="1"]' ); ?>
             </a>
         <?php endif; ?>
