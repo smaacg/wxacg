@@ -6,11 +6,14 @@
  * Date: 2026-08-24
  *
  * Changelog
- *  v1.10.0 (2026-08-24) 導覽新增「檔期未定作品」連結
- *    - [Feature] 季度導覽列加一個連到既有 /upcoming-anime/ 的按鈕，樣式
- *                比照 is-archive。新番表只收錄 AniList 已確認季度的作品
- *                （搭配 anime-sync-pro v1.5.5 修正撤回檔期會清除舊值），
- *                這裡讓「宣布動畫化但檔期還沒定」的作品有地方可查。
+ *  v1.10.0 (2026-08-24) 導覽改版：歷年存檔／檔期未定移到右上角徽章
+ *    - [Feature] 「歷年存檔」「檔期未定作品」一起移出 .bgm-nav 導覽列，
+ *                改成 hero 右上角徽章組，不再跟上一季/本季/下一季擠
+ *                同一排。配色區分「過去／未來」語意：歷年存檔＝回顧
+ *                過去用石板藍，檔期未定＝展望未來用琥珀橙，各自帶陰影。
+ *                新番表只收錄 AniList 已確認季度的作品（搭配
+ *                anime-sync-pro v1.5.5 修正撤回檔期會清除舊值），檔期
+ *                未定連結讓「宣布動畫化但檔期還沒定」的作品有地方可查。
  *  v1.9.0 (2026-08-24) 修正未來季度頁被灌入整季當季新番
  *    - [Fix] v1.7.3 起「跨季續播」的判斷是「開播日早於本季 + anime_status
  *            仍為 RELEASING」。RELEASING 是「現在」的狀態，只能推出
@@ -832,6 +835,10 @@ get_header();
 
     <section class="bgm-hero bgm-season-<?php echo esc_attr( strtolower( $theme_key ) ); ?>">
         <div class="bgm-hero-inner">
+            <div class="bgm-hero-corner">
+                <a class="bgm-hero-corner-link is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
+                <a class="bgm-hero-corner-link is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
+            </div>
             <div class="bgm-hero-badge"><?php echo esc_html( $theme['icon'] ); ?> <?php echo esc_html( $ctx['season_zh'] ); ?>季</div>
             <h1 class="bgm-hero-title"><?php echo esc_html( $ctx['label'] ); ?></h1>
             <p class="bgm-hero-sub"><?php echo esc_html( $kw_season ); ?>，<?php echo esc_html( $seo_desc ); ?></p>
@@ -846,8 +853,6 @@ get_header();
                     $next_ctx = function_exists( 'smacg_bangumi_parse_ym' ) ? smacg_bangumi_parse_ym( $next_ym ) : [ 'label' => '下一季' ]; ?>
                 <a class="bgm-nav-btn" href="<?php echo esc_url( home_url( "/bangumi/{$next_ym}/" ) ); ?>" rel="next"><?php echo esc_html( $next_ctx['label'] ); ?> →</a>
                 <?php endif; ?>
-                <a class="bgm-nav-btn is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
-                <a class="bgm-nav-btn is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
             </div>
 
             <div class="bgm-stats">

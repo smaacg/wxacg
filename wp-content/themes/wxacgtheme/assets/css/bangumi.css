@@ -242,6 +242,65 @@ body:has(.bgm-arc-main) .entry-content > * {
     50%      { box-shadow: 0 4px 24px var(--bgm-glow), 0 0 0 6px rgba(255,255,255,0); }
 }
 
+.bgm-hero-corner {
+    position: absolute;
+    top: 28px;
+    right: 36px;
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.bgm-hero-corner-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all .2s;
+}
+
+.bgm-hero-corner-link:hover {
+    transform: translateY(-2px);
+}
+
+/* 歷年存檔＝回顧過去，用沉靜的石板藍 */
+.bgm-hero-corner-link.is-archive {
+    color: #cbd5e1;
+    background: linear-gradient(135deg, rgba(100,116,139,.38), rgba(51,65,85,.3));
+    border: 1px solid rgba(148,163,184,.45);
+    box-shadow: 0 4px 16px rgba(15,23,42,.4);
+}
+
+.bgm-hero-corner-link.is-archive:hover {
+    background: linear-gradient(135deg, rgba(100,116,139,.52), rgba(51,65,85,.42));
+    border-color: rgba(203,213,225,.7);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(15,23,42,.5);
+}
+
+/* 檔期未定＝展望未來，用溫暖的琥珀橙 */
+.bgm-hero-corner-link.is-upcoming {
+    color: #fed7aa;
+    background: linear-gradient(135deg, rgba(245,158,11,.3), rgba(251,146,60,.2));
+    border: 1px solid rgba(245,158,11,.5);
+    box-shadow: 0 4px 16px rgba(245,158,11,.28);
+}
+
+.bgm-hero-corner-link.is-upcoming:hover {
+    background: linear-gradient(135deg, rgba(245,158,11,.46), rgba(251,146,60,.34));
+    border-color: rgba(245,158,11,.85);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(245,158,11,.4);
+}
+
 .bgm-hero-title {
     font-size: clamp(28px, 4.2vw, 42px);
     font-weight: 800;
@@ -395,18 +454,6 @@ body:has(.bgm-arc-main) .entry-content > * {
 .bgm-nav-btn.is-archive {
     margin-left: auto;
     background: rgba(255,255,255,.06);
-}
-
-.bgm-nav-btn.is-upcoming {
-    background: linear-gradient(135deg, rgba(124,92,255,.18), rgba(76,201,240,.12));
-    border-color: rgba(124,92,255,.45);
-    color: #c4b0ff;
-}
-
-.bgm-nav-btn.is-upcoming:hover {
-    background: linear-gradient(135deg, rgba(124,92,255,.32), rgba(76,201,240,.22));
-    border-color: rgba(124,92,255,.8);
-    color: #fff;
 }
 
 .bgm-stats {
@@ -2018,6 +2065,17 @@ body:not(.bgm-view-schedule-mode) .bgm-schedule {
 
     .bgm-nav-btn.is-archive { margin-left: 0; }
 
+    /* 手機版寬度不夠放右上角徽章，改回正常排版 */
+    .bgm-hero-corner {
+        position: static;
+        justify-content: flex-start;
+        margin: 0 0 12px;
+    }
+    .bgm-hero-corner-link {
+        font-size: 12px;
+        padding: 7px 14px;
+    }
+
     .bgm-hero::after { animation-duration: 30s; opacity: .6; }
     .bgm-hero::before { animation: none; }
     .bgm-stat-n { animation: none; }
@@ -2404,6 +2462,65 @@ body:has(.bgm-arc-main) .entry-content > * {
     box-shadow: 0 4px 16px var(--arc-glow);
 }
 
+.bgm-arc-hero-corner {
+    position: absolute;
+    top: 28px;
+    right: 36px;
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.bgm-arc-hero-corner-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all .2s;
+}
+
+.bgm-arc-hero-corner-link:hover {
+    transform: translateY(-2px);
+}
+
+/* 歷年存檔＝回顧過去，用沉靜的石板藍 */
+.bgm-arc-hero-corner-link.is-archive {
+    color: #cbd5e1;
+    background: linear-gradient(135deg, rgba(100,116,139,.38), rgba(51,65,85,.3));
+    border: 1px solid rgba(148,163,184,.45);
+    box-shadow: 0 4px 16px rgba(15,23,42,.4);
+}
+
+.bgm-arc-hero-corner-link.is-archive:hover {
+    background: linear-gradient(135deg, rgba(100,116,139,.52), rgba(51,65,85,.42));
+    border-color: rgba(203,213,225,.7);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(15,23,42,.5);
+}
+
+/* 檔期未定＝展望未來，用溫暖的琥珀橙 */
+.bgm-arc-hero-corner-link.is-upcoming {
+    color: #fed7aa;
+    background: linear-gradient(135deg, rgba(245,158,11,.3), rgba(251,146,60,.2));
+    border: 1px solid rgba(245,158,11,.5);
+    box-shadow: 0 4px 16px rgba(245,158,11,.28);
+}
+
+.bgm-arc-hero-corner-link.is-upcoming:hover {
+    background: linear-gradient(135deg, rgba(245,158,11,.46), rgba(251,146,60,.34));
+    border-color: rgba(245,158,11,.85);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(245,158,11,.4);
+}
+
 .bgm-arc-hero-title {
     font-size: clamp(28px, 4.2vw, 42px);
     font-weight: 800;
@@ -2671,6 +2788,16 @@ body:has(.bgm-arc-main) .entry-content > * {
     .bgm-arc-hero { padding: 28px 20px 26px; margin-bottom: 18px; border-radius: 14px; }
     .bgm-arc-hero-title { font-size: 24px; margin: 0 0 8px; }
     .bgm-arc-hero-sub { font-size: 12.5px; margin: 0 0 16px; }
+    /* 手機版寬度不夠放右上角徽章，改回正常排版，放到左上角徽章下方 */
+    .bgm-arc-hero-corner {
+        position: static;
+        justify-content: flex-start;
+        margin: 0 0 14px;
+    }
+    .bgm-arc-hero-corner-link {
+        font-size: 12px;
+        padding: 7px 14px;
+    }
     .bgm-arc-seasons { grid-template-columns: repeat(2, 1fr); }
     .bgm-arc-year-head { flex-direction: column; align-items: flex-start; gap: 4px; }
     .bgm-index-feat-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }

@@ -3,7 +3,12 @@
  * 新番表入口頁（/bangumi/）
  *
  * @package weixiaoacg
- * @version 1.4.0 (2026-08-24)
+ * @version 1.4.1 (2026-08-24)
+ *   - 「歷年存檔」「檔期未定作品」一起移出導覽列，改成 hero 右上角
+ *     徽章組（與左上角「日本動畫季度總覽」徽章對稱），不再跟上一季/
+ *     本季/下一季擠在同一排。配色區分「過去／未來」語意：歷年存檔＝
+ *     回顧過去用石板藍，檔期未定＝展望未來用琥珀橙，各自帶陰影。
+ * v1.4.0 (2026-08-24)
  *   - hero 導覽新增「檔期未定作品」按鈕，連到既有的 /upcoming-anime/
  *     （anime-sync-pro 的「製作決定但尚未播出」列表）。新番表只收錄
  *     AniList 已確認季度的作品，這裡讓「宣布動畫化但檔期還沒定」的
@@ -238,6 +243,10 @@ get_header();
   <!-- ===== Hero ===== -->
   <section class="bgm-arc-hero">
     <div class="bgm-arc-hero-inner">
+      <div class="bgm-arc-hero-corner">
+        <a class="bgm-arc-hero-corner-link is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
+        <a class="bgm-arc-hero-corner-link is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
+      </div>
       <div class="bgm-arc-hero-badge">
         <i class="fa-solid fa-calendar-days" aria-hidden="true"></i> 日本動畫季度總覽
       </div>
@@ -265,9 +274,6 @@ get_header();
           <?php echo esc_html( $season_meta[ $next_ctx['season'] ]['icon'] ); ?> 下一季：<?php echo esc_html( $next_ctx['label'] ); ?> →
         </a>
         <?php endif; ?>
-
-        <a class="bgm-nav-btn is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
-        <a class="bgm-nav-btn is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
       </nav>
     </div>
   </section>
