@@ -315,7 +315,7 @@ class Anime_Sync_User_Status_Manager {
     private function set_status( int $user_id, int $anime_id, string $status ) {
         if ( ! isset( self::STATUS_MAP[ $status ] ) ) return false;
 
-        // 🚫 未播出動畫只能點「想看」「棄坑」，不能點「追番中」「已看完」
+        // 🚫 播出狀態限制：未播出只能「想看」／「棄坑」；連載中不能「已看完」
         // ★ v1.1.0：僅對 post_type === 'anime' 生效，漫畫無此概念
         if ( in_array( $status, [ 'watching', 'completed' ], true )
              && get_post_type( $anime_id ) === 'anime' ) {
@@ -330,6 +330,25 @@ class Anime_Sync_User_Status_Manager {
                 return new WP_Error(
                     'not_yet_released',
                     '這部作品尚未播出，目前只能標記「想看」或「棄坑」。',
+                    [ 'status' => 400 ]
+                );
+            }
+
+            /*
+             * v1.2.0：連載中不能標「已看完」。
+             *
+             * 還在播出代表作品本身沒有「看完」這個狀態可言——就算追到最新一集
+             * 播出進度，下一集也還沒出，語意上不算完結。「追番中」才是這種
+             * 情況該用的狀態，不受此限（上面的 in_array 只擋 completed 沒擋
+             * watching 進到這裡，這裡再精確排除 watching，只擋 completed）。
+             *
+             * 順帶避免「看完 N 部」成就／EXP 被連載中作品灌水——那些是依這張
+             * 表的 completed 筆數算的，提早標完成等於免費多算一部。
+             */
+            if ( $status === 'completed' && $airing === 'RELEASING' ) {
+                return new WP_Error(
+                    'still_releasing',
+                    '這部作品還在連載中，尚未完結，請標記「追番中」。',
                     [ 'status' => 400 ]
                 );
             }
