@@ -397,6 +397,18 @@ body:has(.bgm-arc-main) .entry-content > * {
     background: rgba(255,255,255,.06);
 }
 
+.bgm-nav-btn.is-upcoming {
+    background: linear-gradient(135deg, rgba(124,92,255,.18), rgba(76,201,240,.12));
+    border-color: rgba(124,92,255,.45);
+    color: #c4b0ff;
+}
+
+.bgm-nav-btn.is-upcoming:hover {
+    background: linear-gradient(135deg, rgba(124,92,255,.32), rgba(76,201,240,.22));
+    border-color: rgba(124,92,255,.8);
+    color: #fff;
+}
+
 .bgm-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

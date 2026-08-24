@@ -4,6 +4,21 @@
  * Cron Manager — 排程同步管理
  *
  * 修正紀錄：
+ * - [v1.5.5] [Fix 撤回檔期未跟著清除] sync_dynamic_for_post() 寫入
+ *            anime_season / anime_season_year / anime_start_date /
+ *            anime_end_date 的邏輯只處理「AniList 現在有值」，完全沒有
+ *            「AniList 之前有值、現在撤回成 null」的清除分支——片商先發
+ *            製作消息、AniList 一度標了暫定季度/日期，之後撤回成未定，
+ *            站上的舊值會永久卡住，前台一直顯示已經作廢的檔期（例如
+ *            「劇場版 鬼滅之刃 無限城篇 第二章」站上顯示 2027 年 1 月，
+ *            AniList 現在其實完全沒有排定季度）。實測 86 部尚未播出的
+ *            作品中有 16 部受影響。
+ *            新增對稱的清除分支：僅在 AniList 回傳的 status 仍為
+ *            NOT_YET_RELEASED（end_date 額外納入 RELEASING）時，若上游
+ *            該欄位現在是 null/缺漏，且站上仍有舊值、欄位未被鎖定，
+ *            就清掉。不動 RELEASING／FINISHED 的 season 與 start_date、
+ *            不動 FINISHED 的 end_date——那些已成既定事實，不該被任何
+ *            上游波動清空。
  * - [v1.5.4] [Fix 評分回補誤殺未開分作品] backfill_score_for_post() 抓不到 MAL 分時，
  *            先以 confirm_mal_has_no_score() 直查官方 API 確認是否「尚未開分」；確認
  *            未開分者打 anime_mal_no_score=1 標記，不再累加 retry_count（避免達上限
@@ -1069,6 +1084,69 @@ class Anime_Sync_Cron_Manager {
             if ( $old_val !== $end_date ) {
                 update_post_meta( $post_id, 'anime_end_date', $end_date );
                 $diff[] = '完結日 ' . $old_val . '→' . $end_date;
+            }
+        }
+
+        /*
+         * [v1.5.5] 撤回檔期／季度時，站上舊值要跟著清掉。
+         *
+         * 以上四個欄位的寫入邏輯都只處理「AniList 現在有值」，AniList 把先前
+         * 給過的值撤回成 null 時完全沒有分支處理，站上的舊值會永久卡住，
+         * 前台繼續顯示已經作廢的季度／日期。
+         *
+         * 清除範圍刻意收窄，只信任 AniList 這次回應本身回報的 status
+         * （不是站上可能同樣過期的 anime_status）：
+         *   - season / season_year / start_date：僅在 NOT_YET_RELEASED 才清。
+         *     一旦開播（RELEASING／FINISHED），開播日與所屬季度已成既定
+         *     事實，不該被任何上游波動清空。
+         *   - end_date：額外放行 RELEASING——分割放送的下半季常常先公布
+         *     完結日、之後又延期改回未定，這種撤回會發生在播出期間，
+         *     不是只有播出前。FINISHED 不放行：已完結的作品完結日不會、
+         *     也不該被撤回。
+         */
+        $upstream_status = (string) ( $media['status'] ?? '' );
+
+        if ( $upstream_status === 'NOT_YET_RELEASED' ) {
+            if ( ! $is_locked( 'anime_season_year' ) && $upstream_season_year <= 0 ) {
+                $old_val = (int) get_post_meta( $post_id, 'anime_season_year', true );
+                if ( $old_val > 0 ) {
+                    delete_post_meta( $post_id, 'anime_season_year' );
+                    $diff[] = '播出年份 ' . $old_val . '→（撤回，改為未定）';
+                }
+            }
+
+            if ( ! $is_locked( 'anime_season' ) && $upstream_season_year <= 0 ) {
+                $old_val = (string) get_post_meta( $post_id, 'anime_season', true );
+                if ( $old_val !== '' ) {
+                    delete_post_meta( $post_id, 'anime_season' );
+                    $diff[] = '季度 ' . $old_val . '→（撤回，改為未定）';
+                }
+            }
+
+            $upstream_has_start = ! empty( $media['startDate']['year'] )
+                && ! empty( $media['startDate']['month'] )
+                && ! empty( $media['startDate']['day'] );
+
+            if ( ! $is_locked( 'anime_start_date' ) && ! $upstream_has_start ) {
+                $old_val = (string) get_post_meta( $post_id, 'anime_start_date', true );
+                if ( $old_val !== '' ) {
+                    delete_post_meta( $post_id, 'anime_start_date' );
+                    $diff[] = '開播日 ' . $old_val . '→（撤回，改為未定）';
+                }
+            }
+        }
+
+        if ( $upstream_status === 'NOT_YET_RELEASED' || $upstream_status === 'RELEASING' ) {
+            $upstream_has_end = ! empty( $media['endDate']['year'] )
+                && ! empty( $media['endDate']['month'] )
+                && ! empty( $media['endDate']['day'] );
+
+            if ( ! $is_locked( 'anime_end_date' ) && ! $upstream_has_end ) {
+                $old_val = (string) get_post_meta( $post_id, 'anime_end_date', true );
+                if ( $old_val !== '' ) {
+                    delete_post_meta( $post_id, 'anime_end_date' );
+                    $diff[] = '完結日 ' . $old_val . '→（撤回，改為未定）';
+                }
             }
         }
 

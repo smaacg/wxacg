@@ -2,10 +2,15 @@
 /**
  * Template Name: 番組表 - 季度詳細列表
  * File: blocksy-child/page-bangumi.php
- * Version: 1.9.0
+ * Version: 1.10.0
  * Date: 2026-08-24
  *
  * Changelog
+ *  v1.10.0 (2026-08-24) 導覽新增「檔期未定作品」連結
+ *    - [Feature] 季度導覽列加一個連到既有 /upcoming-anime/ 的按鈕，樣式
+ *                比照 is-archive。新番表只收錄 AniList 已確認季度的作品
+ *                （搭配 anime-sync-pro v1.5.5 修正撤回檔期會清除舊值），
+ *                這裡讓「宣布動畫化但檔期還沒定」的作品有地方可查。
  *  v1.9.0 (2026-08-24) 修正未來季度頁被灌入整季當季新番
  *    - [Fix] v1.7.3 起「跨季續播」的判斷是「開播日早於本季 + anime_status
  *            仍為 RELEASING」。RELEASING 是「現在」的狀態，只能推出
@@ -842,6 +847,7 @@ get_header();
                 <a class="bgm-nav-btn" href="<?php echo esc_url( home_url( "/bangumi/{$next_ym}/" ) ); ?>" rel="next"><?php echo esc_html( $next_ctx['label'] ); ?> →</a>
                 <?php endif; ?>
                 <a class="bgm-nav-btn is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
+                <a class="bgm-nav-btn is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
             </div>
 
             <div class="bgm-stats">

@@ -3,7 +3,12 @@
  * 新番表入口頁（/bangumi/）
  *
  * @package weixiaoacg
- * @version 1.3.0 (2026-06-23)
+ * @version 1.4.0 (2026-08-24)
+ *   - hero 導覽新增「檔期未定作品」按鈕，連到既有的 /upcoming-anime/
+ *     （anime-sync-pro 的「製作決定但尚未播出」列表）。新番表只收錄
+ *     AniList 已確認季度的作品，這裡讓「宣布動畫化但檔期還沒定」的
+ *     作品有地方可以查，不會讓使用者以為站上沒收錄。
+ * v1.3.0 (2026-06-23)
  *   - 修正 <title> 不輸出：移除 remove_action(_wp_render_title_tag)，
  *     改由 WordPress 正常輸出 <title>，內容仍由 pre_get_document_title 控制
  *   - 精選封面 WP_Query 加 ignore_sticky_posts，避免置頂文章干擾排序
@@ -262,6 +267,7 @@ get_header();
         <?php endif; ?>
 
         <a class="bgm-nav-btn is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
+        <a class="bgm-nav-btn is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
       </nav>
     </div>
   </section>
