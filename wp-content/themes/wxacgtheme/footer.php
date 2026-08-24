@@ -311,7 +311,6 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
     <defs>
       <path id="raArcPath" d="M 44,44 m -37,0 a 37,37 0 1 1 74,0 a 37,37 0 1 1 -74,0" />
     </defs>
-    <circle class="ra-arc-track" cx="44" cy="44" r="37" fill="none" />
     <text>
       <textPath href="#raArcPath" xlink:href="#raArcPath" startOffset="50%" text-anchor="middle">
         · 抽 動 漫 ·
@@ -446,16 +445,13 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
   position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none;
   animation:raSpin 12s linear infinite;
-  filter:drop-shadow(0 1px 3px rgba(20,50,90,.6));
 }
 #random-anime-btn:hover .ra-arc{animation-duration:4s;}
-#random-anime-btn .ra-arc-track{
-  stroke:rgba(2,4,10,.96); stroke-width:17px;
-}
 #random-anime-btn .ra-arc text{
-  fill:#ffffff; font-size:12.5px; font-weight:800; letter-spacing:.5px;
+  fill:#ffffff; font-size:14.5px; font-weight:600; letter-spacing:0;
   paint-order:stroke;
-  stroke:rgba(10,18,32,.85); stroke-width:1.4px;
+  stroke:rgba(10,18,32,.9); stroke-width:1px;
+  filter:drop-shadow(0 0 3px rgba(0,0,0,.95)) drop-shadow(0 0 3px rgba(0,0,0,.95)) drop-shadow(0 0 5px rgba(0,0,0,.7));
 }
 
 @keyframes raSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}

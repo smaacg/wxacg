@@ -362,7 +362,7 @@ $random_anime_url = add_query_arg(
             </h1>
 
             <p class="hero-subtitle hero-site-description">
-                <span class="hero-sub-part">整理本季新番、動畫作品、播出進度、角色聲優、</span><span class="hero-sub-part">動漫新聞與深度專題，追蹤紀錄通通幫你保存。</span>
+                整理本季新番、動畫作品、播出進度、角色聲優、動漫新聞與深度專題，追蹤紀錄通通幫你保存。
             </p>
 
             <blockquote class="hero-quote">
