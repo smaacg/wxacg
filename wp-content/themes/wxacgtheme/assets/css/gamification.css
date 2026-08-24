@@ -420,10 +420,16 @@
 .mc-badge-card.tier-rare.is-locked    {border-color:rgba(96,165,250,.25)}
 .mc-badge-card.tier-epic.is-locked    {border-color:rgba(192,132,252,.3)}
 
+/*
+ * 普通等級解鎖後原本用暗灰漸層（rgba 156,163,175 低透明度），在深色底的
+ * 卡片上幾乎融進背景，跟鎖住的卡片分不太出來——這正是「已完成的分級
+ * 進度列」同一個問題（灰色在深色介面上不會讀成「完成」），這裡也要一併
+ * 補。改用接近銀白的淺灰＋內側高光，跟「鎖住」的暗沉觀感明確拉開。
+ */
 .mc-badge-card.tier-common.is-unlocked{
-    background:linear-gradient(135deg,rgba(156,163,175,.16),rgba(107,114,128,.08));
-    border-color:rgba(156,163,175,.4);
-    box-shadow:0 4px 16px rgba(156,163,175,.12);
+    background:linear-gradient(135deg,rgba(229,231,235,.2),rgba(156,163,175,.1));
+    border-color:rgba(229,231,235,.45);
+    box-shadow:0 4px 16px rgba(229,231,235,.18),0 0 0 1px rgba(255,255,255,.06) inset;
 }
 .mc-badge-card.tier-uncommon.is-unlocked{
     background:linear-gradient(135deg,rgba(74,222,128,.18),rgba(34,197,94,.08));
