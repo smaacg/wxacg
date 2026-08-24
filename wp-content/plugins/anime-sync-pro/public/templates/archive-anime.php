@@ -170,6 +170,41 @@ $format_terms = get_terms( [ 'taxonomy' => 'anime_format_tax', 'orderby' => 'cou
 $genre_terms  = get_terms( [ 'taxonomy' => 'genre', 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'number' => 20 ] );
 $source_terms = get_terms( [ 'taxonomy' => 'anime_source_tax', 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true ] );
 
+/*
+ * [v1.7.1] /upcoming-anime/ 限定：篩選選項改成只列「這批作品裡真的有的」。
+ * 上面三行是全站範圍，套用在這裡會出現選了卻是空清單的選項（跟播映
+ * 狀態篩選同一套謹慎邏輯——沒有作品的選項不顯示）。用 object_ids 精準
+ * 查詢，只回傳這批作品實際掛過的詞。查詢已在 pre_get_posts 跑完
+ * （posts_per_page 已改 -1），這裡直接讀 $wp_query->posts 不必重查。
+ */
+if ( $is_upcoming ) {
+    $upcoming_ids = wp_list_pluck( $GLOBALS['wp_query']->posts, 'ID' );
+
+    $format_terms = $upcoming_ids ? get_terms( [
+        'taxonomy'   => 'anime_format_tax',
+        'object_ids' => $upcoming_ids,
+        'hide_empty' => false,
+        'orderby'    => 'count',
+        'order'      => 'DESC',
+    ] ) : [];
+
+    $genre_terms = $upcoming_ids ? get_terms( [
+        'taxonomy'   => 'genre',
+        'object_ids' => $upcoming_ids,
+        'hide_empty' => false,
+        'orderby'    => 'count',
+        'order'      => 'DESC',
+    ] ) : [];
+
+    $source_terms = $upcoming_ids ? get_terms( [
+        'taxonomy'   => 'anime_source_tax',
+        'object_ids' => $upcoming_ids,
+        'hide_empty' => false,
+        'orderby'    => 'count',
+        'order'      => 'DESC',
+    ] ) : [];
+}
+
 /* ── 播映狀態：直接統計 meta ──
    狀態會隨時間變動（連載中 → 已完結），沒有對應分類法可用 get_terms 取數量，
    因此掃 postmeta 統計。快取一小時，避免每次載入列表頁都跑一次群組查詢。
@@ -319,7 +354,11 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
     <?php if ( $geo_intro ) : ?>
     <p class="aaa-desc"><?php echo esc_html( $geo_intro ); ?></p>
     <?php endif; ?>
+    <?php if ( $is_upcoming ) : ?>
+    <p class="aaa-count">共 <strong id="aaa-visible-count"><?php echo number_format( $total_posts ); ?></strong> / <?php echo number_format( $total_posts ); ?> 部作品</p>
+    <?php else : ?>
     <p class="aaa-count">共 <strong><?php echo number_format( $total_posts ); ?></strong> 部作品</p>
+    <?php endif; ?>
     <?php if ( ! $is_upcoming && ! $current_term && ! $is_search ) : ?>
     <div class="aaa-shortcut-row">
         <a href="<?php echo esc_url( home_url( "/upcoming-anime/" ) ); ?>" class="aaa-shortcut-btn aaa-shortcut-upcoming">
@@ -454,6 +493,65 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
 </div>
 <?php endif; ?>
 
+<?php
+/*
+ * [v1.7.1] /upcoming-anime/ 專用篩選面板：只留格式／原作類型／動漫類型。
+ *
+ * 不套用上面那組現成面板的原因：那組的「播出季度」「播映狀態」在這頁
+ * 沒有篩選意義（狀態全部同值是 NOT_YET_RELEASED；季度這批作品多半還
+ * 沒排定，見 anime-sync-pro v1.5.5 的撤回檔期修正），而且那組的每個
+ * 按鈕都是用 get_term_link() 連到別的分類頁網址，點下去會離開這份
+ * 「未定檔期」清單本身，篩選條件也一起丟失。
+ *
+ * 這裡改成 <button data-key data-value>，JS（upcoming-filters.js）端
+ * 直接切卡片的 is-hidden-by-filter class，不重載頁面、三組可疊加。
+ */
+?>
+<?php if ( $is_upcoming ) : ?>
+<div class="aaa-filter-wrap" id="aaa-upcoming-filters">
+    <?php if ( ! is_wp_error( $format_terms ) && $format_terms ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">🎬 動漫格式</div>
+        <div class="aaa-filter-row">
+            <?php foreach ( $format_terms as $ft ) : ?>
+            <button type="button" class="aaa-filter-btn" data-key="format" data-value="<?php echo esc_attr( $ft->name ); ?>">
+                <?php echo esc_html( $format_labels[ $ft->name ] ?? $ft->name ); ?>
+            </button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ( ! is_wp_error( $source_terms ) && $source_terms ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">📖 原作類型</div>
+        <div class="aaa-filter-row">
+            <?php foreach ( $source_terms as $st ) : ?>
+            <button type="button" class="aaa-filter-btn" data-key="source" data-value="<?php echo esc_attr( $st->name ); ?>">
+                <?php echo esc_html( $st->name ); ?>
+            </button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
+    <div class="aaa-filter-group">
+        <div class="aaa-filter-label">🏷️ 動漫類型</div>
+        <div class="aaa-filter-row">
+            <?php foreach ( $genre_terms as $gt ) : ?>
+            <button type="button" class="aaa-filter-btn" data-key="genre" data-value="<?php echo esc_attr( $gt->name ); ?>">
+                <?php echo esc_html( $gt->name ); ?>
+            </button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <button type="button" class="aaa-filter-btn" id="aaa-upcoming-filter-reset" hidden>清除篩選 ×</button>
+</div>
+<?php endif; ?>
+
 <?php if ( have_posts() ) : ?>
     <div class="aaa-grid" id="aaa-grid">
     <?php while ( have_posts() ) : the_post();
@@ -478,8 +576,26 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
         $status_label = $status_labels[ $status ] ?? '';
         $status_class = $status_classes[ $status ] ?? '';
         $season_str   = ( $year && $season_label ) ? $year . ' ' . $season_label : ( $year ?: '' );
+
+        /*
+         * [v1.7.1] 篩選用的 data-* 屬性，只在 /upcoming-anime/ 才算——
+         * 一般列表頁沒有篩選面板，不需要多這兩個 taxonomy 查詢。
+         * WP_Query 預設已把這兩個 taxonomy 的關聯批次撈進 cache
+         * （update_post_term_cache，預設開啟），這裡不會變成 N+1。
+         */
+        $card_data_attrs = '';
+        if ( $is_upcoming ) {
+            $card_genre_names  = wp_get_post_terms( $pid, 'genre', [ 'fields' => 'names' ] );
+            $card_source_names = wp_get_post_terms( $pid, 'anime_source_tax', [ 'fields' => 'names' ] );
+            $card_data_attrs   = sprintf(
+                ' data-format="%s" data-source="%s" data-genres="%s"',
+                esc_attr( $format ),
+                esc_attr( is_wp_error( $card_source_names ) ? '' : implode( '|', $card_source_names ) ),
+                esc_attr( is_wp_error( $card_genre_names ) ? '' : implode( '|', $card_genre_names ) )
+            );
+        }
     ?>
-        <article class="aaa-card">
+        <article class="aaa-card"<?php echo $card_data_attrs; ?>>
             <a href="<?php the_permalink(); ?>" class="aaa-card-link">
                 <div class="aaa-card-cover-wrap">
                     <?php if ( $cover ) : ?>
@@ -510,9 +626,11 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
     <?php endwhile; ?>
     </div>
 
+    <?php if ( ! $is_upcoming ) : ?>
     <nav class="aaa-pagination" aria-label="分頁導航">
         <?php echo paginate_links( [ 'prev_text' => '← 上一頁', 'next_text' => '下一頁 →', 'mid_size' => 2, 'type' => 'list' ] ); ?>
     </nav>
+    <?php endif; ?>
 
     <?php if ( ! $is_search ) : ?>
     <div class="aaa-seo-footer">
@@ -584,6 +702,11 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
 .aaa-filter-btn{display:inline-flex;align-items:center;min-height:32px;padding:0 14px;border-radius:var(--pill);font-size:13px;text-decoration:none;color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--bd);transition:all var(--tr);white-space:nowrap;}
 .aaa-filter-btn:hover{color:#fff;background:rgba(124,92,255,.18);border-color:rgba(124,92,255,.42);}
 .aaa-filter-btn.active{color:#fff;background:rgba(124,92,255,.28);border-color:rgba(124,92,255,.6);box-shadow:0 0 16px rgba(124,92,255,.28);}
+/* [v1.7.1] /upcoming-anime/ 的篩選鈕是 <button> 不是 <a>，補上瀏覽器預設按鈕樣式的重置 */
+button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;cursor:pointer;}
+#aaa-upcoming-filter-reset{align-self:flex-start;color:#fecaca;border-color:rgba(248,113,113,.4);}
+#aaa-upcoming-filter-reset:hover{color:#fff;background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.5);}
+.aaa-card.is-hidden-by-filter{display:none;}
 .aaa-year-accordion{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:4px;}
 .aaa-year-item{border-radius:var(--rmd);border:1px solid var(--bd);background:rgba(255,255,255,.03);overflow:hidden;transition:border-color var(--tr),background var(--tr);}
 .aaa-year-item.has-active{border-color:rgba(124,92,255,.55);background:rgba(124,92,255,.08);box-shadow:0 0 16px rgba(124,92,255,.18);}

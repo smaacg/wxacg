@@ -2,13 +2,24 @@
 /**
  * Plugin Name: Anime Sync Pro
  * Description: 從 AniList、Bangumi 自動同步動畫資料，並支援多媒體形式（動畫/漫畫/小說/遊戲/音樂）的作品系列聚合。
- * Version:     1.7.0
+ * Version:     1.7.1
  * Author:      weixiaoacg
  * Requires PHP: 8.0
  * Text Domain: anime-sync-pro
  *
  * 完整 Changelog 請見 CHANGELOG.md
  *
+ * 1.7.1 — /upcoming-anime/ 即時篩選（2026-08-24）
+ *   - [新增] 篩選面板開放格式／原作類型／動漫類型三組（改按鈕、JS 端
+ *     即時篩選、可疊加，不重載頁面）；播映狀態與播出季度不開放——
+ *     前者這頁全部同值、後者這批作品多半還沒有排定季度，篩了沒意義。
+ *     選項只列這批作品裡實際出現過的（get_terms object_ids 精準查），
+ *     不會有點了空清單的選項。
+ *   - [Change] 查詢改成不分頁（原 24 部/頁 → 全部一次載入），即時篩選
+ *     才篩得到還沒翻到的頁面；目前 65 筆，效能無虞。
+ *   - [新增] public/assets/js/upcoming-filters.js：獨立小檔案，只做
+ *     篩選（不掛 bangumi.js——那支綁了星期分頁/時間表視圖/觸控手勢，
+ *     這頁用不到，硬接上去是拖累不是重用）。
  * 1.6.0 — 新增原作類型分類法 anime_source_tax（2026-08-16）
  *         作品頁的「原作類型」與「製作公司」改為可點。
  *         版本號提升會觸發 init priority 99 的 flush_rewrite_rules()，
@@ -82,7 +93,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * ============================================================ */
 // ★ 1.6.1：新增 manga_publisher_tax。版本號變動會在 init priority 99
 //   觸發 flush_rewrite_rules()，否則 /manga-publisher/{slug}/ 會 404。
-define( 'ANIME_SYNC_PRO_VERSION',  '1.7.0' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.7.1' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -282,7 +293,15 @@ add_action( 'pre_get_posts', function( WP_Query $q ): void {
 
 	$q->set( 'post_type',      'anime' );
 	$q->set( 'post_status',    'publish' );
-	$q->set( 'posts_per_page', 24 );
+	/*
+	 * [v1.7.1] 改成不分頁，一次撈全部。
+	 *
+	 * 前台改成即時篩選（格式／原作／類型可疊加，JS 端做，不重載頁面），
+	 * 篩不到的是「還沒載入的那幾頁」，不是真的沒有——所以分頁只能拿掉。
+	 * 這份清單本身有自然上限（開播日一進 60 天窗口就會被 3.4 的
+	 * posts_where 排除掉），實測目前 65 筆，不分頁沒有效能疑慮。
+	 */
+	$q->set( 'posts_per_page', -1 );
 	$q->set( 'meta_key',       'anime_popularity' );
 	$q->set( 'orderby',        'meta_value_num' );
 	$q->set( 'order',          'DESC' );

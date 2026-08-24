@@ -275,6 +275,23 @@ class Anime_Sync_Frontend {
 
         wp_script_add_data( 'anime-sync-frontend', 'defer', true );
 
+        // ----------------------------------------------------------
+        // [v1.7.1] /upcoming-anime/ 即時篩選：只在這個視圖載入，獨立小檔案
+        // 不掛 frontend.js（無依賴關係，各自獨立初始化）。
+        // 檔案不存在時自動跳過（向下相容，不會 fatal）。
+        // ----------------------------------------------------------
+        $upcoming_filters_js_path = ANIME_SYNC_PRO_DIR . 'public/assets/js/upcoming-filters.js';
+        if ( $is_upcoming && file_exists( $upcoming_filters_js_path ) ) {
+            wp_enqueue_script(
+                'anime-sync-upcoming-filters',
+                ANIME_SYNC_PRO_URL . 'public/assets/js/upcoming-filters.js',
+                [],
+                (string) filemtime( $upcoming_filters_js_path ),
+                true
+            );
+            wp_script_add_data( 'anime-sync-upcoming-filters', 'defer', true );
+        }
+
         wp_localize_script( 'anime-sync-frontend', 'animeSyncData', [
             // 向後相容:restUrl 仍保留給既有 anime-sync/v1 前台 API 使用
             'restUrl'       => esc_url_raw( rest_url( 'anime-sync/v1/' ) ),
@@ -809,7 +826,17 @@ class Anime_Sync_Frontend {
 
         $query->set( 'post_type',      'anime' );
         $query->set( 'post_status',    'publish' );
-        $query->set( 'posts_per_page', 24 );
+        /*
+         * [v1.7.1] 改成不分頁，跟 anime-sync-pro.php 3.3 節同步改動。
+         *
+         * 這個 hook 跟 anime-sync-pro.php 的 pre_get_posts（priority 1）
+         * 是同一件事的重複實作——兩邊都設定同一批 query 參數，這裡沒有
+         * 明確 priority，預設 10，跑在後面，原本用 posts_per_page=24
+         * 把前面那份的 -1 蓋掉，即時篩選會篩不到還沒載入的頁面。
+         * 兩邊沒有指定 priority 的原因不明，暫不合併成一份（避免這次
+         * 改動範圍擴大到跟這個 bug 無關的重構），先保持同步不衝突。
+         */
+        $query->set( 'posts_per_page', -1 );
         $query->set( 'meta_key',       'anime_popularity' );
         $query->set( 'orderby',        'meta_value_num' );
         $query->set( 'order',          'DESC' );
