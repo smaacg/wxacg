@@ -300,34 +300,126 @@
 /* Badges tab */
 .mc-badges-wrap{padding:8px 0}
 .mc-badges-summary{
-    padding:20px 24px;margin-bottom:20px;
-    background:rgba(255,255,255,.06);border-radius:14px;text-align:center;
+    padding:18px 22px;margin-bottom:20px;
+    background:rgba(255,255,255,.06);border-radius:14px;
 }
-.mc-badges-summary-num b{font-size:36px;color:#fbbf24;font-weight:800}
-.mc-badges-summary-num span{font-size:18px;color:rgba(255,255,255,.6)}
-.mc-badges-summary-bar{
-    width:100%;height:8px;margin:12px 0 6px;
-    background:rgba(255,255,255,.1);border-radius:999px;overflow:hidden;
+
+/*
+ * 分級進度列（v1.9.0）——取代原本單一「0/20 已解鎖 0%」的總計列。
+ * 每排一個稀有度，顏色跟徽章卡片、tier-tag 用同一組配色（灰／綠／藍／紫），
+ * 傳說那排是額外疊加的「全部解鎖」大目標，獨立用彩虹動態呈現，
+ * 跟前四排的靜態配色明確區隔開，一眼看出這是最終目標而非第五個稀有度。
+ */
+.mc-badges-tier-rows{display:flex;flex-direction:column;gap:10px}
+.mc-badges-tier-row{
+    display:grid;grid-template-columns:52px 1fr 52px 18px;align-items:center;gap:10px;
 }
-.mc-badges-summary-bar-fill{
-    height:100%;background:linear-gradient(90deg,#fbbf24,#f59e0b);transition:width .4s ease;
+.mc-badges-tier-row__label{font-size:13px;font-weight:700;color:rgba(255,255,255,.75)}
+.mc-badges-tier-row__bar{
+    height:8px;border-radius:999px;overflow:hidden;
+    background:rgba(255,255,255,.08);
 }
-.mc-badges-summary-text{font-size:13px;color:rgba(255,255,255,.6);margin:0}
+.mc-badges-tier-row__fill{height:100%;border-radius:999px;transition:width .4s ease}
+.mc-badges-tier-row__num{
+    font-size:12px;font-weight:700;color:rgba(255,255,255,.6);
+    text-align:right;font-variant-numeric:tabular-nums;
+}
+.mc-badges-tier-row__check{font-size:15px;color:#4ade80}
+
+.mc-badges-tier-row.tier-common   .mc-badges-tier-row__fill{background:linear-gradient(90deg,#9ca3af,#6b7280)}
+.mc-badges-tier-row.tier-uncommon .mc-badges-tier-row__fill{background:linear-gradient(90deg,#4ade80,#22c55e)}
+.mc-badges-tier-row.tier-rare     .mc-badges-tier-row__fill{background:linear-gradient(90deg,#60a5fa,#3b82f6)}
+.mc-badges-tier-row.tier-epic     .mc-badges-tier-row__fill{background:linear-gradient(90deg,#c084fc,#a855f7)}
+
+.mc-badges-tier-row.tier-common   .mc-badges-tier-row__label{color:#d1d5db}
+.mc-badges-tier-row.tier-uncommon .mc-badges-tier-row__label{color:#86efac}
+.mc-badges-tier-row.tier-rare     .mc-badges-tier-row__label{color:#93c5fd}
+.mc-badges-tier-row.tier-epic     .mc-badges-tier-row__label{color:#d8b4fe}
+
+.mc-badges-tier-row.tier-legendary{padding-top:10px;margin-top:2px;border-top:1px dashed rgba(255,255,255,.12)}
+.mc-badges-tier-row.tier-legendary .mc-badges-tier-row__label{
+    font-size:13px;font-weight:800;
+    background:linear-gradient(90deg,#fbbf24,#f472b6,#818cf8,#34d399,#fbbf24);
+    background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:mcTierLegendaryShift 4s linear infinite;
+}
+.mc-badges-tier-row.tier-legendary .mc-badges-tier-row__bar{background:rgba(255,255,255,.1)}
+.mc-badges-tier-row.tier-legendary .mc-badges-tier-row__fill{
+    background:linear-gradient(90deg,#fbbf24,#f472b6,#818cf8,#34d399,#fbbf24);
+    background-size:300% 100%;animation:mcTierLegendaryShift 4s linear infinite;
+}
+.mc-badges-tier-row.tier-legendary.is-complete{
+    box-shadow:0 0 0 1px rgba(251,191,36,.2);border-radius:10px;
+    padding:10px 8px 8px;margin:2px -8px -2px;
+}
+@keyframes mcTierLegendaryShift{
+    0%{background-position:0% 50%}
+    100%{background-position:300% 50%}
+}
+@media (prefers-reduced-motion: reduce){
+    .mc-badges-tier-row.tier-legendary .mc-badges-tier-row__label,
+    .mc-badges-tier-row.tier-legendary .mc-badges-tier-row__fill{animation:none}
+}
 
 .mc-badges-grid{
     display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;
 }
 .mc-badge-card{
+    position:relative;
     display:flex;flex-direction:column;align-items:center;
     padding:18px 12px;text-align:center;
     background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
     border-radius:14px;transition:all .2s;
 }
-.mc-badge-card.is-unlocked{
-    background:linear-gradient(135deg,rgba(251,191,36,.15),rgba(245,158,11,.08));
-    border-color:rgba(251,191,36,.35);
-    box-shadow:0 4px 16px rgba(251,191,36,.12);
+
+/*
+ * 稀有度分級（v1.8.0）——灰／綠／藍／紫，刻意不用銅/銀/金。
+ * 那組配色已經是段位賽季系統在用（.mc-tier-mini），這裡再用一次會讓
+ * 「成就等級」跟「賽季段位」兩套系統撞色、混在一起看。
+ *
+ * 未解鎖時只給邊框上一點對應顏色（讓玩家隱約看得出這顆目標的份量），
+ * 主體維持中性灰階；解鎖後才給滿版漸層底 + 對應色光暈，史詩級再加一圈
+ * 更明顯的光暈，做出「這顆最稀有」的份量感。
+ */
+.mc-badge-card.tier-common   .mc-badge-tier-tag{background:rgba(156,163,175,.22);color:#d1d5db;border-color:rgba(156,163,175,.4)}
+.mc-badge-card.tier-uncommon .mc-badge-tier-tag{background:rgba(34,197,94,.2);color:#86efac;border-color:rgba(74,222,128,.45)}
+.mc-badge-card.tier-rare     .mc-badge-tier-tag{background:rgba(59,130,246,.2);color:#93c5fd;border-color:rgba(96,165,250,.45)}
+.mc-badge-card.tier-epic     .mc-badge-tier-tag{background:rgba(168,85,247,.22);color:#d8b4fe;border-color:rgba(192,132,252,.5)}
+
+.mc-badge-card.tier-common.is-locked  {border-color:rgba(156,163,175,.25)}
+.mc-badge-card.tier-uncommon.is-locked{border-color:rgba(74,222,128,.25)}
+.mc-badge-card.tier-rare.is-locked    {border-color:rgba(96,165,250,.25)}
+.mc-badge-card.tier-epic.is-locked    {border-color:rgba(192,132,252,.3)}
+
+.mc-badge-card.tier-common.is-unlocked{
+    background:linear-gradient(135deg,rgba(156,163,175,.16),rgba(107,114,128,.08));
+    border-color:rgba(156,163,175,.4);
+    box-shadow:0 4px 16px rgba(156,163,175,.12);
 }
+.mc-badge-card.tier-uncommon.is-unlocked{
+    background:linear-gradient(135deg,rgba(74,222,128,.18),rgba(34,197,94,.08));
+    border-color:rgba(74,222,128,.45);
+    box-shadow:0 4px 16px rgba(34,197,94,.16);
+}
+.mc-badge-card.tier-rare.is-unlocked{
+    background:linear-gradient(135deg,rgba(96,165,250,.18),rgba(59,130,246,.08));
+    border-color:rgba(96,165,250,.45);
+    box-shadow:0 4px 16px rgba(59,130,246,.18);
+}
+.mc-badge-card.tier-epic.is-unlocked{
+    background:linear-gradient(135deg,rgba(192,132,252,.22),rgba(168,85,247,.1));
+    border-color:rgba(192,132,252,.55);
+    box-shadow:0 4px 20px rgba(168,85,247,.28),0 0 0 1px rgba(192,132,252,.15) inset;
+}
+
+.mc-badge-tier-tag{
+    position:absolute;top:8px;right:8px;
+    padding:2px 8px;border-radius:999px;
+    font-size:10px;font-weight:700;letter-spacing:.02em;
+    border:1px solid;
+    line-height:1.6;
+}
+
 /*
  * 未解鎖：原本整張卡片 opacity:.45 + grayscale(.8)。
  * 加上進度條之後改為只暗化「圖示與文字」——CSS 的 filter/opacity 會
@@ -338,6 +430,7 @@
 .mc-badge-card.is-locked .mc-badge-icon{opacity:.45;filter:grayscale(.8)}
 .mc-badge-card.is-locked .mc-badge-title{opacity:.75}
 .mc-badge-card.is-locked .mc-badge-desc{opacity:.6}
+.mc-badge-card.is-locked .mc-badge-tier-tag{opacity:.55}
 
 /* 累積型徽章的進度（僅未解鎖時顯示） */
 .mc-badge-progress{
@@ -476,6 +569,9 @@
     .mc-career-grid{grid-template-columns:1fr 1fr}
     .mc-badges-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
     .mc-badge-icon{width:64px;height:64px;font-size:32px}
+    .mc-badges-tier-row{grid-template-columns:44px 1fr 40px 16px;gap:6px}
+    .mc-badges-tier-row__label{font-size:11px}
+    .mc-badges-tier-row__num{font-size:11px}
     .mc-career-current{flex-direction:column;text-align:center}
 }
 

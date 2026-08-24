@@ -155,6 +155,11 @@ class Exp_Events {
             'forum_topic'        => '論壇發表主題',
             'forum_reply'        => '論壇回覆',
             'email_verified'     => 'Email 驗證',
+            'badge_tier_complete_common'    => '成就集滿：普通',
+            'badge_tier_complete_uncommon'  => '成就集滿：少見',
+            'badge_tier_complete_rare'      => '成就集滿：稀有',
+            'badge_tier_complete_epic'      => '成就集滿：史詩',
+            'badge_tier_complete_legendary' => '成就集滿：傳說（全部解鎖）',
         ];
         return apply_filters( 'smacg_exp_reason_labels', $labels );
     }

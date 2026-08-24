@@ -100,6 +100,21 @@ class Exp_Config {
 
             /* ───── 徽章解鎖（預設值；個別徽章可用 _smacg_badge_exp 覆蓋） ───── */
             'badge_unlock'    => [ 'exp' => 20,  'season_score' => 10,  'cap_type' => null,    'cap_key' => null ],
+
+            /*
+             * ───── 成就集齊獎勵（v1.9.0）─────
+             * 集滿同一稀有度的全部成就時額外加碼；33 個全部解鎖再加一筆
+             * 傳說級大獎。cap_type 刻意留 null——去重不是靠這裡的
+             * cap_key（那是「整條規則只能領一次」，不分稀有度），而是呼叫端
+             * （smacg_render_badges）用 dedupe_key 依稀有度各自去重，
+             * 同一使用者每個稀有度只會真正發放一次。
+             * exp:season_score 比照 badge_unlock 抓 2:1。
+             */
+            'badge_tier_complete_common'    => [ 'exp' => 30,  'season_score' => 15,  'cap_type' => null, 'cap_key' => null ],
+            'badge_tier_complete_uncommon'  => [ 'exp' => 60,  'season_score' => 30,  'cap_type' => null, 'cap_key' => null ],
+            'badge_tier_complete_rare'      => [ 'exp' => 120, 'season_score' => 60,  'cap_type' => null, 'cap_key' => null ],
+            'badge_tier_complete_epic'      => [ 'exp' => 250, 'season_score' => 125, 'cap_type' => null, 'cap_key' => null ],
+            'badge_tier_complete_legendary' => [ 'exp' => 500, 'season_score' => 250, 'cap_type' => null, 'cap_key' => null ],
         ];
 
         self::$rules = apply_filters( 'smacg_exp_rules', self::$rules );

@@ -742,14 +742,121 @@ function smacg_render_badges( $uid ) {
     $total      = count( $all_badges );
     $unlocked   = count( $earned_ids );
     $percent    = $total > 0 ? round( $unlocked / $total * 100 ) : 0;
+
+    /*
+     * 稀有度分級（v1.8.0）——不新增任何欄位，直接從既有資料推導。
+     *
+     * 累積型徽章本來就是「同一系列 4 階、target 遞增」（看完 3/10/30/100
+     * 部這種），系列內第 1/2/3/4 階天然對應普通/少見/稀有/史詩，不必
+     * 手動標記。「首次行動」徽章（初次登入⋯）沒有 target 可比，13 個
+     * 性質都是新手引導動作，一律算普通。
+     *
+     * 配色刻意不用銅/銀/金——那組顏色已經是段位賽季系統在用（見
+     * mc-tier-mini），徽章這裡再用一次會讓使用者搞混「這是成就等級」
+     * 還是「這是我的賽季段位」，改用寶石稀有度色系（灰／綠／藍／紫）
+     * 兩套系統一眼分得開。
+     *
+     * 這裡要撈全部 33 個徽章的 type/target（不分鎖沒鎖），下面顯示
+     * 進度的邏輯只在未解鎖時才算，兩段目的不同、不能合併。
+     *
+     * 移到 milestone 進度／集齊獎勵之前計算，因為兩邊都要用。
+     */
+    $milestone_ready = class_exists( '\WXACG\Gamification\Milestone_Badge' );
+    $tier_slugs   = [ 'common', 'uncommon', 'rare', 'epic' ];
+    $tier_labels  = [ '普通', '少見', '稀有', '史詩' ];
+    $tier_rank_by_badge = [];
+    if ( $milestone_ready ) {
+        $by_ms_type = [];
+        foreach ( $all_badges as $b ) {
+            $t   = get_post_meta( $b->ID, '_wxacg_milestone_type', true );
+            $tgt = (int) get_post_meta( $b->ID, '_wxacg_milestone_target', true );
+            if ( $t && $tgt > 0 ) {
+                $by_ms_type[ $t ][] = [ 'id' => $b->ID, 'target' => $tgt ];
+            }
+        }
+        foreach ( $by_ms_type as $items ) {
+            usort( $items, static fn( $a, $b ) => $a['target'] <=> $b['target'] );
+            foreach ( $items as $idx => $item ) {
+                // 超過 4 階時封頂在史詩，不會有陣列越界
+                $tier_rank_by_badge[ $item['id'] ] = min( $idx, count( $tier_slugs ) - 1 );
+            }
+        }
+    }
+
+    // 依稀有度排序成一排一排（普通在前、史詩在後）。usort 在 PHP 8 起是穩定
+    // 排序，同一稀有度內的相對順序維持 $all_badges 原本的排序，不會被打亂。
+    usort( $all_badges, static function ( $a, $b ) use ( $tier_rank_by_badge ) {
+        $ra = $tier_rank_by_badge[ $a->ID ] ?? 0;
+        $rb = $tier_rank_by_badge[ $b->ID ] ?? 0;
+        return $ra <=> $rb;
+    } );
+
+    // 每個稀有度的總數／已解鎖數（含非累積型，預設普通），驅動下面的
+    // 分級進度列，也是集齊獎勵判斷唯一依據的數字。
+    $tier_totals   = array_fill( 0, count( $tier_slugs ), 0 );
+    $tier_unlocked = array_fill( 0, count( $tier_slugs ), 0 );
+    foreach ( $all_badges as $b ) {
+        $idx = $tier_rank_by_badge[ $b->ID ] ?? 0;
+        $tier_totals[ $idx ]++;
+        if ( isset( $earned_map[ $b->ID ] ) ) {
+            $tier_unlocked[ $idx ]++;
+        }
+    }
+
+    /*
+     * 集齊獎勵（v1.9.0）。同一稀有度、同一使用者只會真正發放一次：
+     * smacg_trigger_exp_event() 內部用 dedupe_key 呼叫
+     * add_user_meta(..., unique=true) 原子搶鎖，鎖搶不到代表已經發過，
+     * 直接跳過，不會重複加 EXP（跟系統既有的每日/一次性發放同一套機制）。
+     *
+     * 只在使用者查看自己的成就頁時檢查——跟上面 backfill 同一道守門，
+     * 避免看別人公開頁時，因為算到「對方」的稀有度已集滿而誤觸發。
+     * 傳說級是全部 33 個都解鎖的終極獎勵，疊加在 4 個稀有度獎勵之上。
+     */
+    if ( function_exists( 'smacg_trigger_exp_event' ) && $uid === get_current_user_id() ) {
+        foreach ( $tier_slugs as $idx => $slug ) {
+            if ( $tier_totals[ $idx ] > 0 && $tier_unlocked[ $idx ] === $tier_totals[ $idx ] ) {
+                smacg_trigger_exp_event( $uid, 'badge_tier_complete_' . $slug, [
+                    'dedupe_key' => 'smacg_tier_complete_' . $slug,
+                ] );
+            }
+        }
+        if ( $total > 0 && $unlocked === $total ) {
+            smacg_trigger_exp_event( $uid, 'badge_tier_complete_legendary', [
+                'dedupe_key' => 'smacg_tier_complete_legendary',
+            ] );
+        }
+    }
     ?>
     <div class="mc-badges-wrap">
         <div class="mc-badges-summary">
-            <div class="mc-badges-summary-num"><b><?php echo $unlocked; ?></b><span>/ <?php echo $total; ?></span></div>
-            <div class="mc-badges-summary-bar">
-                <div class="mc-badges-summary-bar-fill" style="width:<?php echo $percent; ?>%"></div>
+            <div class="mc-badges-tier-rows">
+                <?php foreach ( $tier_slugs as $idx => $slug ):
+                    $t_total = $tier_totals[ $idx ];
+                    if ( $t_total <= 0 ) continue;
+                    $t_unlocked = $tier_unlocked[ $idx ];
+                    $t_pct      = $t_total > 0 ? round( $t_unlocked / $t_total * 100 ) : 0;
+                    $t_done     = ( $t_unlocked === $t_total );
+                ?>
+                    <div class="mc-badges-tier-row tier-<?php echo esc_attr( $slug ); ?><?php echo $t_done ? ' is-complete' : ''; ?>">
+                        <span class="mc-badges-tier-row__label"><?php echo esc_html( $tier_labels[ $idx ] ); ?></span>
+                        <div class="mc-badges-tier-row__bar">
+                            <div class="mc-badges-tier-row__fill" style="width:<?php echo (int) $t_pct; ?>%"></div>
+                        </div>
+                        <span class="mc-badges-tier-row__num"><?php echo (int) $t_unlocked; ?>/<?php echo (int) $t_total; ?></span>
+                        <?php if ( $t_done ): ?><i class="fa-solid fa-circle-check mc-badges-tier-row__check"></i><?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+                <?php $legendary_done = ( $total > 0 && $unlocked === $total ); ?>
+                <div class="mc-badges-tier-row tier-legendary<?php echo $legendary_done ? ' is-complete' : ''; ?>">
+                    <span class="mc-badges-tier-row__label">🌈 傳說</span>
+                    <div class="mc-badges-tier-row__bar">
+                        <div class="mc-badges-tier-row__fill" style="width:<?php echo (int) $percent; ?>%"></div>
+                    </div>
+                    <span class="mc-badges-tier-row__num"><?php echo (int) $unlocked; ?>/<?php echo (int) $total; ?></span>
+                    <?php if ( $legendary_done ): ?><i class="fa-solid fa-circle-check mc-badges-tier-row__check"></i><?php endif; ?>
+                </div>
             </div>
-            <p class="mc-badges-summary-text">已解鎖 <?php echo $percent; ?>%</p>
         </div>
 
         <div class="mc-badges-grid">
@@ -764,13 +871,16 @@ function smacg_render_badges( $uid ) {
              * post meta，不靠解析 slug 字串。抓不到 Milestone_Badge 類別
              * （例如 gamification 外掛停用）時整段略過，維持原本的顯示。
              */
-            $milestone_ready = class_exists( '\WXACG\Gamification\Milestone_Badge' );
             $milestone_count_cache = [];
+            $tier_classes = array_map( static fn( $s ) => 'tier-' . $s, $tier_slugs );
             ?>
             <?php foreach ( $all_badges as $badge ):
                 $is_unlocked = isset( $earned_map[ $badge->ID ] );
                 $thumb       = get_the_post_thumbnail_url( $badge->ID, 'thumbnail' );
                 $excerpt     = mb_strimwidth( wp_strip_all_tags( $badge->post_excerpt ?: $badge->post_content ), 0, 60, '…' );
+                $tier_index  = $tier_rank_by_badge[ $badge->ID ] ?? 0; // 非累積型（首次行動）一律普通
+                $tier_class  = $tier_classes[ $tier_index ];
+                $tier_label  = $tier_labels[ $tier_index ];
 
                 // 未解鎖的累積型徽章才需要算進度
                 $ms_type = $ms_target = null;
@@ -792,7 +902,8 @@ function smacg_render_badges( $uid ) {
                     }
                 }
             ?>
-                <div class="mc-badge-card <?php echo $is_unlocked ? 'is-unlocked' : 'is-locked'; ?>">
+                <div class="mc-badge-card <?php echo $is_unlocked ? 'is-unlocked' : 'is-locked'; ?> <?php echo esc_attr( $tier_class ); ?>">
+                    <span class="mc-badge-tier-tag"><?php echo esc_html( $tier_label ); ?></span>
                     <div class="mc-badge-icon">
                         <?php if ( $thumb ): ?>
                             <img src="<?php echo esc_url( $thumb ); ?>" alt="<?php echo esc_attr( $badge->post_title ); ?>" loading="lazy">
