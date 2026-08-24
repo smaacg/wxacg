@@ -210,6 +210,8 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
       <div class="guide-callout">
         <strong>💡 小提醒：</strong>
         EXP 是<b>永久累積</b>的，會影響你的等級與會員稱號。賽季積分另計，每季會重置（詳見「段位積分來源」與「賽季時程」）。
+        另外，集滿同稀有度成就會有額外 EXP 加碼，詳見
+        <a class="guide-callout-cta" href="<?php echo esc_url( home_url( '/mc/#achievements' ) ); ?>">會員中心 → 成就頁 →</a>
       </div>
     </section>
 

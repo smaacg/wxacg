@@ -328,6 +328,8 @@ if ( ! function_exists( 'smacg_get_all_exp_rules' ) ) {
              * Milestone_Badge 透過 smacg_exp_rules filter 掛進來的，性質是
              * 「解鎖徽章時的附帶獎勵」，不是使用者可以主動執行的行為——
              * 沒有人會為了拿 first_login 而去「做 first_login」。
+             * badge_tier_complete_*（5 條，集齊同稀有度成就的加碼獎勵）
+             * 性質相同，一併排除。
              *
              * 它們也沒有中文 label，會落到下面的 fallback 印出原始 key，
              * 等級指南上就出現一整片「first_watchlist_add」「milestone_watch_3」。
@@ -338,7 +340,7 @@ if ( ! function_exists( 'smacg_get_all_exp_rules' ) ) {
              */
             if (
                 ! $include_badge_rules
-                && ( strpos( $key, 'first_' ) === 0 || strpos( $key, 'milestone_' ) === 0 )
+                && ( strpos( $key, 'first_' ) === 0 || strpos( $key, 'milestone_' ) === 0 || strpos( $key, 'badge_tier_complete_' ) === 0 )
             ) {
                 continue;
             }
