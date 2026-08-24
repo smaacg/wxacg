@@ -3,7 +3,15 @@
  * Bangumi 歷年存檔頁
  *
  * @package weixiaoacg
- * @version 1.2.0 (2026-06-21)
+ * @version 1.3.0 (2026-08-24)
+ *   - [Fix] 麵包屑跟 hero 移進 <main class="bgm-arc-main"> 裡面。原本兩者
+ *     都在 <main> 外面，拿不到 .bgm-arc-main 定義的 --arc-bg-card／
+ *     --arc-main／--arc-glow 等變數，hero 的漸層背景跟光暈效果全部失效
+ *     （CSS 自訂屬性只往子孫元素傳，跑到容器外面就繼承不到），畫面上
+ *     看起來是扁平色塊、寬度也跟下方置中的年份卡片對不齊。結構比照
+ *     page-bangumi-index.php（hero 本來就在 <main> 裡面），純調整標籤
+ *     順序，沒有動任何查詢或邏輯。
+ * v1.2.0 (2026-06-21)
  *   - H1 改帶關鍵字「歷年新番表總覽」
  *   - 季度連結 aria-label / title 帶「YYYY年M月新番表」強化內部錨文字
  *   - year 範圍查詢排除 0 與非四位數年份（避免「0 年」）
@@ -175,6 +183,8 @@ $breadcrumb_render = function () use ( $canonical ) {
 get_header();
 ?>
 
+<main class="bgm-arc-main">
+
 <?php $breadcrumb_render(); ?>
 
 <section class="bgm-arc-hero">
@@ -194,8 +204,6 @@ get_header();
     </nav>
   </div>
 </section>
-
-<main class="bgm-arc-main">
 
 <?php if ( empty( $by_year ) ): ?>
   <div class="bgm-arc-empty">
