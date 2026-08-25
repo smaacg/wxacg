@@ -88,12 +88,27 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 		foreach ( self::PUBLISH_SECTION_TITLES as $needle ) {
 			$pattern = '/^(={2,3})\s*' . preg_quote( $needle, '/' ) . '\s*\1\s*$'
 			         . '(.*?)(?=^={2,3}\s*[^=\s]|\z)/sum';
-			if ( preg_match( $pattern, $full_wt, $m ) ) {
-				$body = $m[2];
-				if ( strpos( $body, '{|' ) !== false
-				  || strpos( $body, '{{Graphic novel list' ) !== false
-				  || preg_match( '/\{\{:\s*[^}|]+\}\}/', $body ) ) {
-					return $body;
+			/*
+			 * ★ 用 preg_match_all 而非 preg_match。
+			 *
+			 *   有些條目把「出版書籍」同時當二級標題(外層空殼，純粹用來
+			 *   包住下面的子章節)與三級標題(真正放表格的地方)，兩者
+			 *   標題文字完全相同，例如東京喰種：
+			 *     == 出版書籍 ==       ← 外層，內容為空
+			 *     === 出版書籍 ===     ← 內層，這裡才有表格
+			 *     === 小說 ===
+			 *   原本只取第一個符合的，抓到外層空殼（body 在下一個標題
+			 *   前就結束，等於沒內容）就放棄，不會再往下找內層同名子
+			 *   章節，導致整部作品的出版資料抓不到。改成抓出所有同名
+			 *   候選，依序檢查誰的內容真的含表格標記。
+			 */
+			if ( preg_match_all( $pattern, $full_wt, $ms ) ) {
+				foreach ( $ms[2] as $body ) {
+					if ( strpos( $body, '{|' ) !== false
+					  || strpos( $body, '{{Graphic novel list' ) !== false
+					  || preg_match( '/\{\{:\s*[^}|]+\}\}/', $body ) ) {
+						return $body;
+					}
 				}
 			}
 		}
