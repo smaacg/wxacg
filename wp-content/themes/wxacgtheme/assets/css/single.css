@@ -3236,9 +3236,571 @@
 }
 
 /* =========================================================
-   《薰香花朵凜然綻放》深度專題專屬排版樣式 (.kaoruhana-cover)
-   配色哲學：粉櫻玫瑰色 + 蛋糕暖陽琥珀金 + 千鳥桔梗深靛藍
+   全站通用旗艦動漫影評框架 (.anime-review-cover)
+   專為長期發布各大作品深度漫評設計（零程式碼、全自動適配）
 ========================================================= */
+
+.anime-review-cover,
+.kaoruhana-cover {
+	/* 預設通用色系（標準旗艦藍 + 琥珀金） */
+	--rv-theme: #2563eb;
+	--rv-theme-dark: #1d4ed8;
+	--rv-theme-soft: #eff6ff;
+	--rv-theme-border: #bfdbfe;
+	--rv-accent: #d97706;
+	--rv-accent-soft: #fffbeb;
+	--rv-dark: #0f172a;
+	--rv-text: #334155;
+	--rv-muted: #64748b;
+	--rv-soft: #f8fafc;
+	--rv-beige: #f1f5f9;
+	--rv-line: #e2e8f0;
+
+	display: block !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	margin: 0 !important;
+	padding: clamp(24px, 4vw, 48px) !important;
+	overflow: hidden !important;
+	color: var(--rv-text) !important;
+	background: #ffffff !important;
+	border: 1px solid var(--rv-line) !important;
+	border-radius: 10px !important;
+	box-shadow: 0 12px 38px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .02) !important;
+	color-scheme: light !important;
+	isolation: isolate !important;
+	font-family: "Noto Serif TC", "Songti TC", "PingFang TC", "Microsoft JhengHei", serif !important;
+	font-size: 18px !important;
+	line-height: 2.05 !important;
+	letter-spacing: .02em !important;
+	counter-reset: rv-section;
+}
+
+/* ── 5 大主題預設色系（只需在最外層加 class 或自訂 style 即可） ── */
+.anime-review-cover.theme-sakura,
+.kaoruhana-cover {
+	--rv-theme: #e11d48;
+	--rv-theme-dark: #be123c;
+	--rv-theme-soft: #fff1f2;
+	--rv-theme-border: #fecdd3;
+	--rv-accent: #d97706;
+	--rv-accent-soft: #fffbeb;
+}
+.anime-review-cover.theme-emerald {
+	--rv-theme: #059669;
+	--rv-theme-dark: #047857;
+	--rv-theme-soft: #ecfdf5;
+	--rv-theme-border: #a7f3d0;
+	--rv-accent: #b45309;
+	--rv-accent-soft: #fef3c7;
+}
+.anime-review-cover.theme-crimson {
+	--rv-theme: #991b1b;
+	--rv-theme-dark: #7f1d1d;
+	--rv-theme-soft: #fef2f2;
+	--rv-theme-border: #fecaca;
+	--rv-accent: #b45309;
+	--rv-accent-soft: #fef3c7;
+}
+.anime-review-cover.theme-purple {
+	--rv-theme: #7c3aed;
+	--rv-theme-dark: #6d28d9;
+	--rv-theme-soft: #f5f3ff;
+	--rv-theme-border: #ddd6fe;
+	--rv-accent: #d97706;
+	--rv-accent-soft: #fffbeb;
+}
+.anime-review-cover.theme-darkmode {
+	--rv-theme: #38bdf8;
+	--rv-theme-dark: #0284c7;
+	--rv-theme-soft: #0f172a;
+	--rv-theme-border: #334155;
+	--rv-dark: #f8fafc;
+	--rv-text: #cbd5e1;
+	--rv-muted: #94a3b8;
+	--rv-soft: #1e293b;
+	--rv-beige: #0f172a;
+	--rv-line: #334155;
+	background: #0b0f19 !important;
+}
+
+.anime-review-cover *,
+.anime-review-cover *::before,
+.anime-review-cover *::after,
+.kaoruhana-cover *,
+.kaoruhana-cover *::before,
+.kaoruhana-cover *::after {
+	box-sizing: border-box !important;
+}
+
+.anime-review-cover p,
+.kaoruhana-cover p,
+.kaoruhana-cover .kh-callout p,
+.anime-review-cover .rv-callout p {
+	margin: 0 0 1.5em !important;
+	padding: 0 !important;
+	color: var(--rv-text) !important;
+	background: transparent !important;
+	font-size: 18px !important;
+	line-height: 2.05 !important;
+}
+
+.anime-review-cover strong,
+.kaoruhana-cover strong {
+	color: var(--rv-dark) !important;
+	font-weight: 800 !important;
+}
+
+.anime-review-cover a,
+.kaoruhana-cover a {
+	color: var(--rv-theme-dark) !important;
+	text-decoration-color: rgba(37, 99, 235, .45) !important;
+	text-decoration-thickness: 1px !important;
+	text-underline-offset: 4px !important;
+}
+.anime-review-cover a:hover,
+.kaoruhana-cover a:hover {
+	color: var(--rv-theme) !important;
+	text-decoration-color: var(--rv-theme) !important;
+}
+
+.anime-review-cover img,
+.kaoruhana-cover img {
+	display: block !important;
+	max-width: 100% !important;
+	height: auto !important;
+	margin: 0 !important;
+}
+
+/* 頂部 Hero */
+.anime-review-cover .rv-hero,
+.kaoruhana-cover .kh-hero {
+	display: block !important;
+	width: 100% !important;
+	margin: 0 0 40px !important;
+	padding: 0 !important;
+}
+.anime-review-cover .rv-hero-image,
+.kaoruhana-cover .kh-hero-image {
+	display: block !important;
+	width: 100% !important;
+	overflow: hidden !important;
+	background: #eee !important;
+	border-radius: 8px !important;
+	border: 1px solid var(--rv-line) !important;
+}
+.anime-review-cover .rv-hero-image img,
+.kaoruhana-cover .kh-hero-image img {
+	width: 100% !important;
+	height: auto !important;
+	aspect-ratio: 16 / 9 !important;
+	object-fit: cover !important;
+}
+
+.anime-review-cover .rv-lead,
+.kaoruhana-cover .kh-lead {
+	margin: 0 0 20px !important;
+	color: var(--rv-dark) !important;
+	font-size: clamp(20px, 2.7vw, 25px) !important;
+	font-weight: 900 !important;
+	line-height: 1.8 !important;
+}
+
+.anime-review-cover .rv-update,
+.kaoruhana-cover .kh-update {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 8px 20px !important;
+	width: 100% !important;
+	margin: 0 0 36px !important;
+	padding: 0 0 20px !important;
+	color: var(--rv-muted) !important;
+	border-bottom: 1px solid var(--rv-line) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 13.5px !important;
+	line-height: 1.6 !important;
+}
+.anime-review-cover .rv-pill,
+.kaoruhana-cover .kh-tag-pill {
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 4px !important;
+	background: var(--rv-theme-soft) !important;
+	color: var(--rv-theme) !important;
+	border: 1px solid var(--rv-theme-border) !important;
+	padding: 2px 10px !important;
+	border-radius: 999px !important;
+	font-weight: 700 !important;
+	font-size: 12px !important;
+}
+
+/* 目錄 Table of Contents */
+.anime-review-cover .rv-toc,
+.kaoruhana-cover .kh-toc {
+	width: 100% !important;
+	margin: 0 0 44px !important;
+	padding: 26px 30px !important;
+	background: var(--rv-soft) !important;
+	border: 1px solid var(--rv-line) !important;
+	border-radius: 8px !important;
+}
+.anime-review-cover .rv-toc h2,
+.kaoruhana-cover .kh-toc h2 {
+	margin: 0 0 16px !important;
+	padding: 0 !important;
+	color: var(--rv-dark) !important;
+	border: 0 !important;
+	font-size: 19px !important;
+	font-weight: 900 !important;
+	line-height: 1.4 !important;
+}
+.anime-review-cover .rv-toc h2::before,
+.kaoruhana-cover .kh-toc h2::before {
+	content: none !important;
+}
+.anime-review-cover .rv-toc ol,
+.kaoruhana-cover .kh-toc ol {
+	margin: 0 !important;
+	padding: 0 0 0 22px !important;
+	font-size: 16px !important;
+	line-height: 2 !important;
+	color: var(--rv-muted) !important;
+}
+.anime-review-cover .rv-toc a,
+.kaoruhana-cover .kh-toc a {
+	color: var(--rv-text) !important;
+	text-decoration: none !important;
+	font-weight: 600 !important;
+}
+.anime-review-cover .rv-toc a:hover,
+.kaoruhana-cover .kh-toc a:hover {
+	color: var(--rv-theme) !important;
+	text-decoration: underline !important;
+}
+
+/* 快速結論卡片 */
+.anime-review-cover .rv-quick,
+.kaoruhana-cover .kh-quick {
+	width: 100% !important;
+	margin: 0 0 44px !important;
+	padding: 26px 30px !important;
+	background: linear-gradient(135deg, var(--rv-theme-soft) 0%, var(--rv-accent-soft) 100%) !important;
+	border: 1px solid var(--rv-theme-border) !important;
+	border-left: 5px solid var(--rv-theme) !important;
+	border-radius: 8px !important;
+}
+.anime-review-cover .rv-quick-title,
+.kaoruhana-cover .kh-quick-title {
+	margin: 0 0 14px !important;
+	color: var(--rv-theme) !important;
+	font-size: 19px !important;
+	font-weight: 900 !important;
+	display: flex !important;
+	align-items: center !important;
+	gap: 8px !important;
+}
+.anime-review-cover .rv-quick ul,
+.kaoruhana-cover .kh-quick ul {
+	margin: 0 !important;
+	padding: 0 0 0 20px !important;
+	font-size: 16.5px !important;
+	line-height: 1.9 !important;
+}
+
+/* 結構化標題 (H2 / H3) */
+.anime-review-cover h2,
+.kaoruhana-cover h2 {
+	margin: 54px 0 24px !important;
+	padding: 0 0 14px !important;
+	color: var(--rv-dark) !important;
+	border-bottom: 2px solid var(--rv-theme-soft) !important;
+	font-size: clamp(23px, 3.2vw, 29px) !important;
+	font-weight: 900 !important;
+	line-height: 1.4 !important;
+	letter-spacing: -.01em !important;
+}
+.anime-review-cover h2::before,
+.kaoruhana-cover h2::before {
+	counter-increment: rv-section;
+	content: "0" counter(rv-section) " ";
+	color: var(--rv-theme) !important;
+	font-family: "PingFang TC", sans-serif !important;
+	font-size: .88em !important;
+	font-weight: 900 !important;
+	margin-right: 6px !important;
+}
+
+.anime-review-cover h3,
+.kaoruhana-cover h3 {
+	margin: 36px 0 16px !important;
+	padding: 0 !important;
+	color: var(--rv-dark) !important;
+	font-size: 21px !important;
+	font-weight: 800 !important;
+	line-height: 1.45 !important;
+}
+
+/* 表格樣式 */
+.anime-review-cover .rv-table-wrap,
+.kaoruhana-cover .kh-table-wrap {
+	width: 100% !important;
+	margin: 30px 0 40px !important;
+	overflow-x: auto !important;
+	border: 1px solid var(--rv-line) !important;
+	border-radius: 8px !important;
+}
+.anime-review-cover .rv-table,
+.kaoruhana-cover .kh-table {
+	width: 100% !important;
+	border-collapse: collapse !important;
+	font-size: 16px !important;
+	line-height: 1.7 !important;
+	background: #ffffff !important;
+}
+.anime-review-cover .rv-table th,
+.kaoruhana-cover .kh-table th {
+	padding: 14px 18px !important;
+	color: var(--rv-theme-dark) !important;
+	background: var(--rv-theme-soft) !important;
+	border-bottom: 2px solid var(--rv-theme-border) !important;
+	font-weight: 900 !important;
+	text-align: left !important;
+	white-space: nowrap !important;
+}
+.anime-review-cover .rv-table td,
+.kaoruhana-cover .kh-table td {
+	padding: 14px 18px !important;
+	border-bottom: 1px solid var(--rv-line) !important;
+	color: var(--rv-text) !important;
+}
+.anime-review-cover .rv-table tr:last-child td,
+.kaoruhana-cover .kh-table tr:last-child td {
+	border-bottom: 0 !important;
+}
+.anime-review-cover .rv-table tr:nth-child(even) td,
+.kaoruhana-cover .kh-table tr:nth-child(even) td {
+	background: var(--rv-soft) !important;
+}
+
+/* 劇照圖片 Figure */
+.anime-review-cover .rv-figure,
+.kaoruhana-cover .kh-figure {
+	display: block !important;
+	width: 100% !important;
+	margin: 36px 0 44px !important;
+	padding: 0 !important;
+}
+.anime-review-cover .rv-figure-image,
+.kaoruhana-cover .kh-figure-image {
+	display: block !important;
+	width: 100% !important;
+	overflow: hidden !important;
+	border: 1px solid var(--rv-line) !important;
+	border-radius: 8px !important;
+	box-shadow: 0 6px 20px rgba(0,0,0,0.06) !important;
+}
+.anime-review-cover .rv-figure figcaption,
+.kaoruhana-cover .kh-figure figcaption {
+	display: block !important;
+	margin: 10px 0 0 !important;
+	color: var(--rv-muted) !important;
+	font-family: "PingFang TC", "Microsoft JhengHei", sans-serif !important;
+	font-size: 13.5px !important;
+	text-align: center !important;
+	line-height: 1.6 !important;
+}
+
+/* 金句引用 */
+.anime-review-cover .rv-quote,
+.kaoruhana-cover .kh-quote {
+	margin: 36px 0 !important;
+	padding: 24px 28px !important;
+	color: var(--rv-dark) !important;
+	background: linear-gradient(135deg, var(--rv-accent-soft) 0%, var(--rv-soft) 100%) !important;
+	border-left: 5px solid var(--rv-accent) !important;
+	border-radius: 0 8px 8px 0 !important;
+	font-size: 19px !important;
+	font-weight: 700 !important;
+	line-height: 1.85 !important;
+}
+
+/* 優缺點 Pro / Con */
+.anime-review-cover .rv-procon,
+.kaoruhana-cover .kh-procon {
+	display: grid !important;
+	grid-template-columns: 1fr 1fr !important;
+	gap: 20px !important;
+	width: 100% !important;
+	margin: 36px 0 44px !important;
+}
+.anime-review-cover .rv-procon-box,
+.kaoruhana-cover .kh-procon-box {
+	padding: 24px 26px !important;
+	border-radius: 8px !important;
+}
+.anime-review-cover .rv-procon-good,
+.kaoruhana-cover .kh-procon-good {
+	background: #f0fdf4 !important;
+	border: 1px solid #bbf7d0 !important;
+}
+.anime-review-cover .rv-procon-bad,
+.kaoruhana-cover .kh-procon-bad {
+	background: #fff1f2 !important;
+	border: 1px solid #fecdd3 !important;
+}
+.anime-review-cover .rv-procon-box h3,
+.kaoruhana-cover .kh-procon-box h3 {
+	margin: 0 0 14px !important;
+	font-size: 18px !important;
+	font-weight: 900 !important;
+}
+.anime-review-cover .rv-procon-good h3,
+.kaoruhana-cover .kh-procon-good h3 { color: #166534 !important; }
+.anime-review-cover .rv-procon-bad h3,
+.kaoruhana-cover .kh-procon-bad h3 { color: #9f1239 !important; }
+.anime-review-cover .rv-procon-box ul,
+.kaoruhana-cover .kh-procon-box ul {
+	margin: 0 !important;
+	padding: 0 0 0 18px !important;
+	font-size: 15.5px !important;
+	line-height: 1.85 !important;
+}
+
+/* 最終評分卡片 */
+.anime-review-cover .rv-final,
+.kaoruhana-cover .kh-final {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 100% !important;
+	margin: 44px 0 !important;
+	padding: 36px 28px !important;
+	background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+	color: #ffffff !important;
+	border-radius: 10px !important;
+	box-shadow: 0 12px 32px rgba(15, 23, 42, .2) !important;
+	text-align: center !important;
+}
+.anime-review-cover .rv-final-label,
+.kaoruhana-cover .kh-final-label {
+	color: #cbd5e1 !important;
+	font-size: 15px !important;
+	font-weight: 700 !important;
+	letter-spacing: .08em !important;
+	text-transform: uppercase !important;
+	margin-bottom: 6px !important;
+}
+.anime-review-cover .rv-final-score,
+.kaoruhana-cover .kh-final-score {
+	color: #ffffff !important;
+	font-size: clamp(44px, 6vw, 56px) !important;
+	font-weight: 900 !important;
+	line-height: 1.1 !important;
+}
+.anime-review-cover .rv-final-score small,
+.kaoruhana-cover .kh-final-score small {
+	font-size: .45em !important;
+	font-weight: 600 !important;
+	color: #94a3b8 !important;
+}
+
+/* FAQ 摺疊問答 */
+.anime-review-cover .rv-faq,
+.kaoruhana-cover .kh-faq {
+	width: 100% !important;
+	margin: 30px 0 44px !important;
+}
+.anime-review-cover .rv-faq details,
+.kaoruhana-cover .kh-faq details {
+	margin: 0 0 14px !important;
+	background: var(--rv-soft) !important;
+	border: 1px solid var(--rv-line) !important;
+	border-radius: 8px !important;
+	overflow: hidden !important;
+}
+.anime-review-cover .rv-faq summary,
+.kaoruhana-cover .kh-faq summary {
+	padding: 16px 20px !important;
+	font-size: 17.5px !important;
+	font-weight: 800 !important;
+	color: var(--rv-dark) !important;
+	cursor: pointer !important;
+	user-select: none !important;
+	list-style: none !important;
+	position: relative !important;
+}
+.anime-review-cover .rv-faq summary::-webkit-details-marker,
+.kaoruhana-cover .kh-faq summary::-webkit-details-marker {
+	display: none !important;
+}
+.anime-review-cover .rv-faq summary::after,
+.kaoruhana-cover .kh-faq summary::after {
+	content: '+' !important;
+	position: absolute !important;
+	right: 20px !important;
+	top: 50% !important;
+	transform: translateY(-50%) !important;
+	font-size: 20px !important;
+	color: var(--rv-theme) !important;
+	font-weight: 900 !important;
+}
+.anime-review-cover .rv-faq details[open] summary::after,
+.kaoruhana-cover .kh-faq details[open] summary::after {
+	content: '−' !important;
+}
+.anime-review-cover .rv-faq-answer,
+.kaoruhana-cover .kh-faq-answer {
+	padding: 0 20px 20px !important;
+	color: var(--rv-text) !important;
+	font-size: 16.5px !important;
+	line-height: 1.9 !important;
+}
+.anime-review-cover .rv-faq-answer p:last-child,
+.kaoruhana-cover .kh-faq-answer p:last-child {
+	margin-bottom: 0 !important;
+}
+
+/* 資料來源 */
+.anime-review-cover .rv-sources,
+.kaoruhana-cover .kh-sources {
+	width: 100% !important;
+	margin: 44px 0 0 !important;
+	padding: 24px 28px !important;
+	background: var(--rv-beige) !important;
+	border-radius: 8px !important;
+	font-size: 14.5px !important;
+	color: var(--rv-muted) !important;
+}
+.anime-review-cover .rv-sources h3,
+.kaoruhana-cover .kh-sources h3 {
+	margin: 0 0 12px !important;
+	font-size: 16px !important;
+	color: var(--rv-dark) !important;
+	font-weight: 800 !important;
+}
+.anime-review-cover .rv-sources ol,
+.kaoruhana-cover .kh-sources ol {
+	margin: 0 !important;
+	padding-left: 20px !important;
+	line-height: 1.8 !important;
+}
+
+@media (max-width: 768px) {
+	.anime-review-cover,
+	.kaoruhana-cover {
+		padding: 20px 16px !important;
+		font-size: 17px !important;
+	}
+	.anime-review-cover .rv-procon,
+	.kaoruhana-cover .kh-procon {
+		grid-template-columns: 1fr !important;
+	}
+	.anime-review-cover .rv-lead,
+	.kaoruhana-cover .kh-lead {
+		font-size: 21px !important;
+	}
+}
 .kaoruhana-cover {
 	--kh-text: #332d29;
 	--kh-dark: #28211d;
