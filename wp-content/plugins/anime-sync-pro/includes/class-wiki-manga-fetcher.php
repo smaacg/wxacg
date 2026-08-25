@@ -422,8 +422,21 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 			$reg = '';
 			if ( preg_match( '/Flagicon\|\s*(?:Korea|KOR)|大韓民國|大韩民国|韓國|韩国|D&amp;C Media|D&C Media/u', $lt ) ) $reg = 'kr';
 			elseif ( preg_match( '/Flagicon\|\s*Japan|JPN|日本/u', $lt ) )                              $reg = 'jp';
-			elseif ( preg_match( '/Flagicon\|\s*Hong Kong|HKG|香港|玉皇朝|天下出版/u', $lt ) )       $reg = 'hk';
+			/*
+			 * ★ tw 要排在 hk 前面判斷。
+			 *
+			 *   台灣出版社（東立/青文/尖端）發行的單行本，維基常把台港澳
+			 *   三地合併成同一欄表頭，例如：
+			 *     {{flagicon|TWN}}{{flagicon|HKG}}{{flagicon|MAC}} [[東立出版社]]
+			 *   這行文字同時含 HKG 與 TWN/東立，若先比對 hk 會直接命中、
+			 *   elseif 鏈不會再往下比對 tw，整欄被誤判成 hk。實際上這是
+			 *   台灣出版社的欄位（ISBN 前綴 978-986 一類），下游的「ISBN
+			 *   國別前綴校正」邏輯偵測到位置(hk)與 ISBN 國別(tw)矛盾後
+			 *   會直接清空，導致台版 ISBN 憑空消失（鬼滅之刃即此案例）。
+			 *   純港版欄位（玉皇朝/天下出版）不含台灣關鍵字，改順序不影響。
+			 */
 			elseif ( preg_match( '/Flagicon\|\s*Taiwan|TWN|ROC|臺灣|台灣|台湾|東立|青文|尖端/u', $lt ) ) $reg = 'tw';
+			elseif ( preg_match( '/Flagicon\|\s*Hong Kong|HKG|香港|玉皇朝|天下出版/u', $lt ) )       $reg = 'hk';
 			elseif ( preg_match( '/Flagicon\|\s*China|CHNML|CHN|中國大陸|中国大陆|中國|中国/u', $lt ) )  $reg = 'cn';
 
 			if ( $reg !== '' && empty( $seen[ $reg ] ) ) {
@@ -799,6 +812,17 @@ class Anime_Sync_Wiki_Manga_Fetcher {
 	}
 
 	private function extract_isbn( string $raw ): string {
+		/*
+		 * ★ 先比對 {{ISBN|978-...}} 樣板語法。
+		 *
+		 *   維基有些條目（例如鬼滅之刃）的出版表格用 {{ISBN|數字}} 樣板，
+		 *   ISBN 後面接的是 | 不是空白，下面純文字格式的正則
+		 *   （ISBN\s*(...)）完全比對不到，導致該格所有地區的 ISBN
+		 *   都抓不到、整欄看起來像沒資料。
+		 */
+		if ( preg_match( '/\{\{ISBN\s*\|\s*([\d\-Xx]{10,20})/', $raw, $m ) ) {
+			return trim( $m[1], '-' );
+		}
 		if ( preg_match( '/ISBN\s*([\d\-Xx]{10,20})/', $raw, $m ) ) {
 			return trim( $m[1], '-' );
 		}
