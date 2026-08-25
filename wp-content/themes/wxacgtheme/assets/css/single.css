@@ -3582,64 +3582,89 @@
 	background: var(--rv-soft) !important;
 }
 
-/* 角色圖鑑卡片網格 */
-.anime-review-cover .rv-char-grid,
-.kaoruhana-cover .kh-char-grid {
-	display: grid !important;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-	gap: 22px !important;
-	width: 100% !important;
-	margin: 32px 0 44px !important;
-}
-.anime-review-cover .rv-char-card,
-.kaoruhana-cover .kh-char-card {
-	background: var(--rv-soft) !important;
-	border: 1px solid var(--rv-line) !important;
-	border-radius: 10px !important;
-	overflow: hidden !important;
-	padding: 24px 20px !important;
+/* 角色圖鑑卡片網格與橫式名冊 */
+.anime-review-cover .rv-char-list,
+.kaoruhana-cover .kh-char-list {
 	display: flex !important;
 	flex-direction: column !important;
-	align-items: center !important;
-	text-align: center !important;
-	box-shadow: 0 4px 14px rgba(0, 0, 0, .03) !important;
+	gap: 20px !important;
+	width: 100% !important;
+	margin: 28px 0 44px !important;
 }
-.anime-review-cover .rv-char-img,
-.kaoruhana-cover .kh-char-img {
-	width: 120px !important;
-	height: 120px !important;
-	border-radius: 50% !important;
+.anime-review-cover .rv-char-item,
+.kaoruhana-cover .kh-char-item {
+	display: flex !important;
+	align-items: flex-start !important;
+	gap: 20px !important;
+	background: var(--rv-soft) !important;
+	border: 1px solid var(--rv-line) !important;
+	border-left: 5px solid var(--rv-theme) !important;
+	border-radius: 8px !important;
+	padding: 20px !important;
+}
+.anime-review-cover .rv-char-avatar,
+.kaoruhana-cover .kh-char-avatar {
+	width: 90px !important;
+	height: 90px !important;
+	flex-shrink: 0 !important;
+	border-radius: 8px !important;
+	overflow: hidden !important;
+	border: 1px solid var(--rv-line) !important;
+	background: #ffffff !important;
+}
+.anime-review-cover .rv-char-avatar img,
+.kaoruhana-cover .kh-char-avatar img {
+	width: 100% !important;
+	height: 100% !important;
 	object-fit: cover !important;
-	object-position: center top !important;
-	background: var(--rv-theme-soft) !important;
-	border: 3px solid var(--rv-theme-border) !important;
-	margin-bottom: 14px !important;
-	display: block !important;
 }
-.anime-review-cover .rv-char-name,
-.kaoruhana-cover .kh-char-name {
+.anime-review-cover .rv-char-content,
+.kaoruhana-cover .kh-char-content {
+	flex: 1 !important;
+}
+.anime-review-cover .rv-char-header,
+.kaoruhana-cover .kh-char-header {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: center !important;
+	gap: 8px 14px !important;
+	margin-bottom: 8px !important;
+}
+.anime-review-cover .rv-char-name-title,
+.kaoruhana-cover .kh-char-name-title {
 	font-size: 20px !important;
 	font-weight: 900 !important;
 	color: var(--rv-dark) !important;
-	margin-bottom: 4px !important;
+	margin: 0 !important;
 }
-.anime-review-cover .rv-char-cv,
-.kaoruhana-cover .kh-char-cv {
-	font-size: 13.5px !important;
+.anime-review-cover .rv-char-cv-badge,
+.kaoruhana-cover .kh-char-cv-badge {
+	font-size: 13px !important;
 	font-weight: 700 !important;
 	color: var(--rv-theme) !important;
-	margin-bottom: 14px !important;
 	background: var(--rv-theme-soft) !important;
-	padding: 3px 12px !important;
+	padding: 2px 10px !important;
 	border-radius: 999px !important;
-	display: inline-block !important;
 }
-.anime-review-cover .rv-char-desc,
-.kaoruhana-cover .kh-char-desc {
+.anime-review-cover .rv-char-meta-text,
+.kaoruhana-cover .kh-char-meta-text {
 	font-size: 15.5px !important;
 	line-height: 1.8 !important;
 	color: var(--rv-text) !important;
 	margin: 0 !important;
+}
+
+@media (max-width: 640px) {
+	.anime-review-cover .rv-char-item,
+	.kaoruhana-cover .kh-char-item {
+		flex-direction: column !important;
+		align-items: center !important;
+		text-align: center !important;
+	}
+	.anime-review-cover .rv-char-header,
+	.kaoruhana-cover .kh-char-header {
+		justify-content: center !important;
+	}
 }
 
 /* 劇照圖片 Figure */
