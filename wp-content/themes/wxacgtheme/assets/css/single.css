@@ -3586,8 +3586,8 @@
 .anime-review-cover .rv-char-grid,
 .kaoruhana-cover .kh-char-grid {
 	display: grid !important;
-	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
-	gap: 20px !important;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+	gap: 22px !important;
 	width: 100% !important;
 	margin: 32px 0 44px !important;
 }
@@ -3595,27 +3595,30 @@
 .kaoruhana-cover .kh-char-card {
 	background: var(--rv-soft) !important;
 	border: 1px solid var(--rv-line) !important;
-	border-radius: 8px !important;
+	border-radius: 10px !important;
 	overflow: hidden !important;
-	padding: 20px !important;
+	padding: 24px 20px !important;
 	display: flex !important;
 	flex-direction: column !important;
 	align-items: center !important;
 	text-align: center !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, .03) !important;
 }
 .anime-review-cover .rv-char-img,
 .kaoruhana-cover .kh-char-img {
-	width: 110px !important;
-	height: 110px !important;
+	width: 120px !important;
+	height: 120px !important;
 	border-radius: 50% !important;
 	object-fit: cover !important;
+	object-position: center top !important;
 	background: var(--rv-theme-soft) !important;
 	border: 3px solid var(--rv-theme-border) !important;
 	margin-bottom: 14px !important;
+	display: block !important;
 }
 .anime-review-cover .rv-char-name,
 .kaoruhana-cover .kh-char-name {
-	font-size: 19px !important;
+	font-size: 20px !important;
 	font-weight: 900 !important;
 	color: var(--rv-dark) !important;
 	margin-bottom: 4px !important;
@@ -3625,15 +3628,16 @@
 	font-size: 13.5px !important;
 	font-weight: 700 !important;
 	color: var(--rv-theme) !important;
-	margin-bottom: 12px !important;
+	margin-bottom: 14px !important;
 	background: var(--rv-theme-soft) !important;
-	padding: 2px 10px !important;
+	padding: 3px 12px !important;
 	border-radius: 999px !important;
+	display: inline-block !important;
 }
 .anime-review-cover .rv-char-desc,
 .kaoruhana-cover .kh-char-desc {
-	font-size: 15px !important;
-	line-height: 1.75 !important;
+	font-size: 15.5px !important;
+	line-height: 1.8 !important;
 	color: var(--rv-text) !important;
 	margin: 0 !important;
 }
