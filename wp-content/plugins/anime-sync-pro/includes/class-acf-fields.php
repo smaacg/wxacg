@@ -3243,6 +3243,32 @@ $cast_prompt .= "以下是 JSON:\n";
                         }
                     }
                 }
+
+                // 3c. 鏡像複製 FAQ 提示詞到左側(比照 3a 的 CAST 鏡像機制,不含字典管理按鈕)
+                var $faqSwitchField = $('#acf-group_anime_shortcuts_ai .acf-field[data-name="shortcut_ai_generate_faq"]');
+                if ($faqSwitchField.length > 0 && $('#asp-mirrored-prompt-faq').length === 0) {
+                    var $faqInputWrap = $faqSwitchField.find('.acf-input');
+
+                    // 尋找包含 FAQ 提示詞的來源 textarea
+                    var $faqSourceTextarea = $('textarea').filter(function() {
+                        return $(this).val().indexOf('並撰寫 FAQ') > -1;
+                    }).first();
+
+                    if ($faqSourceTextarea.length > 0) {
+                        var faqMirroredValue = $faqSourceTextarea.val();
+                        var $faqMirroredBox = $('<div id="asp-mirrored-prompt-faq" style="margin-left: 10px; flex: 1; min-width: 0;">' +
+                            '<div style="font-size:9px; font-weight:bold; color:#888; margin-bottom:1px; line-height:1;">📋 提示詞(點擊複製)</div>' +
+                            '<textarea readonly title="點擊全選複製" style="width:100%; height:80px; background:#f5f5f5; color:#444; font-size:11px; border:1px solid #ccc; resize:none; padding:2px 4px; box-sizing:border-box; line-height:1.2;" onclick="this.select();"></textarea>' +
+                            '</div>');
+                        $faqMirroredBox.find('textarea').val(faqMirroredValue);
+
+                        $faqInputWrap.css({
+                            'display': 'flex',
+                            'align-items': 'flex-start'
+                        });
+                        $faqInputWrap.append($faqMirroredBox);
+                    }
+                }
                 
                 // 4. 注入字典管理 Modal HTML
                 if ($('#asp-dict-modal').length === 0) {
