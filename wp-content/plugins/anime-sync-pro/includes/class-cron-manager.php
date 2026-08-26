@@ -1575,10 +1575,43 @@ class Anime_Sync_Cron_Manager {
             $not_in    = ' AND bgm_id NOT IN (' . implode( ',', $skip_ints ) . ')';
         }
 
+        /*
+         * ✅ [v1.5.6] 冷卻期 + 最久未檢查優先
+         *
+         * ★ 修的是什麼問題：
+         *   舊版是「WHERE 缺漏條件 LIMIT 60」，沒有 ORDER BY 也沒有冷卻機制，
+         *   於是每一輪都撈到同樣的前 60 筆。而其中有一批（實測 222 筆）是
+         *   Bangumi 確實有回資料、但 infobox 只有「简体中文名 / 别名」，
+         *   這兩個 key 會被 fetch_bgm_person_detail() 的 $infobox_skip 濾掉，
+         *   導致 infobox_json 永遠寫不進去 → 缺漏條件永遠成立 → 每 5 分鐘
+         *   重撈同一批、log 一直回報「實補=60」，但實際 8 小時零進展，
+         *   後面 3,155 筆則完全輪不到（餓死）。
+         *
+         * ★ 為什麼用 updated_at 而不是把它們塞進跳過名單：
+         *   跳過名單存在 option，膨脹到數千筆後每次載入都要反序列化，
+         *   且 SQL 得帶 NOT IN (數千個 ID) 愈跑愈慢；而且永久跳過之後，
+         *   Bangumi 日後補了資料也不會再抓。改用既有的 updated_at 欄位
+         *   當「最後檢查時間」，配合下方 foreach 內的強制 touch，
+         *   就能天然做到：檢查過的先冷卻、最久沒檢查的優先、
+         *   冷卻期滿自動重試，且不需要改資料表結構。
+         *
+         * ★ 冷卻期為什麼預設 7 天：
+         *   現有待補資料的 updated_at 多落在 12 天前，冷卻期若設得比它還長
+         *   （例如 30 天）會把整批擋在門外，實測會變成一筆都撈不到、完全停擺。
+         *   而跑完一輪全部待補資料只需約 5 小時（每 5 分鐘 60 筆），
+         *   7 天足夠涵蓋，又不至於頻繁重試浪費 Bangumi API。
+         */
+        $cooldown_days = (int) apply_filters( 'anime_sync_entity_backfill_cooldown_days', 7 );
+        if ( $cooldown_days < 1 ) {
+            $cooldown_days = 7;
+        }
+
         // $table / $where_missing / $not_in 皆為內部組成（skip 已 intval），無外部輸入。
         $ids = $wpdb->get_col(
             "SELECT bgm_id FROM {$table}
              WHERE bgm_id > 0 AND {$where_missing} {$not_in}
+               AND updated_at < DATE_SUB( NOW(), INTERVAL {$cooldown_days} DAY )
+             ORDER BY updated_at ASC
              LIMIT {$batch}"
         );
 
@@ -1596,13 +1629,27 @@ class Anime_Sync_Cron_Manager {
             );
 
             if ( $true_remaining > 0 ) {
-                // 「假空」：仍有缺漏，只是全落在跳過名單內（BGM 整筆無資料）。
-                // 維持原模式不切換，避免把還沒補完的階段誤判為完成。
+                /*
+                 * 「假空」：仍有缺漏，只是這一輪撈不到可處理的項目。原因有二：
+                 *   (a) 全落在跳過名單內（BGM 整筆無資料，永久跳過）
+                 *   (b) [v1.5.6] 全落在冷卻期內（本輪都檢查過了，等冷卻期滿再試）
+                 * 兩者都要維持原模式不切換，避免把還沒補完的階段誤判為完成。
+                 * 注意上方 $true_remaining 的查詢刻意「不含冷卻條件」，
+                 * 才能正確反映真實剩餘量。
+                 */
+                $in_cooldown = (int) $wpdb->get_var(
+                    "SELECT COUNT(*) FROM {$table}
+                     WHERE bgm_id > 0 AND {$where_missing}
+                       AND updated_at >= DATE_SUB( NOW(), INTERVAL {$cooldown_days} DAY )"
+                );
+
                 self::update_cron_option(
                     self::ENTITY_BACKFILL_LAST_OPTION,
                     current_time( 'Y-m-d H:i:s' ) . ' | ' . $table
-                        . ' 剩餘 ' . $true_remaining . ' 筆全在跳過名單內（BGM 無資料），維持 '
-                        . $mode . ' 模式，不切換 (跳過名單 ' . count( $skip ) . ' 筆)'
+                        . ' 剩餘 ' . $true_remaining . ' 筆本輪無可處理項目（其中 '
+                        . $in_cooldown . ' 筆在 ' . $cooldown_days . ' 天冷卻期內、'
+                        . count( $skip ) . ' 筆在跳過名單內），維持 '
+                        . $mode . ' 模式，不切換'
                 );
                 return;
             }
@@ -1626,8 +1673,9 @@ class Anime_Sync_Cron_Manager {
             return;
         }
 
-        $updated = 0;
-        $no_data = 0;
+        $updated  = 0;
+        $no_data  = 0;
+        $no_field = 0; // 有回資料但目標欄位仍空（例如 infobox 全被 skip 濾掉）
 
         foreach ( $ids as $id ) {
             $id = (int) $id;
@@ -1637,11 +1685,46 @@ class Anime_Sync_Cron_Manager {
             } catch ( \Throwable $e ) {
                 $this->logger->log( 'error', '實體回補例外 bgm_id=' . $id . ' : ' . $e->getMessage() );
             }
-            if ( ! empty( $r['updated'] ) && $r['updated'] > 0 ) {
-                $updated++;
-            } elseif ( ! empty( $r['failed'] ) && $r['failed'] > 0 ) {
-                $skip[] = $id;
+
+            /*
+             * ✅ [v1.5.6] 不論結果如何都 touch updated_at，標記「這一輪已經檢查過」。
+             *
+             * 這是上方冷卻期查詢能生效的前提。特別注意：不能倚賴 MySQL 的
+             * ON UPDATE CURRENT_TIMESTAMP —— backfill 帶 force=true 時會把
+             * summary 等欄位用「相同的值」再寫一次，MySQL 對「值沒有實際改變」
+             * 的 UPDATE 不會觸發 timestamp 自動更新（實測 8 小時內 updated_at
+             * 完全沒動），所以必須在這裡顯式寫入。
+             */
+            $wpdb->update(
+                $table,
+                [ 'updated_at' => current_time( 'mysql' ) ],
+                [ 'bgm_id' => $id ],
+                [ '%s' ],
+                [ '%d' ]
+            );
+
+            if ( ! empty( $r['failed'] ) && $r['failed'] > 0 ) {
+                // BGM 整筆查無資料 → 永久跳過（維持既有行為）
+                $skip[]   = $id;
                 $no_data++;
+                continue;
+            }
+
+            /*
+             * 補完後驗證：確認目標欄位是否真的填上了。
+             * 沒填上的（例如 infobox 只有「简体中文名 / 别名」被濾光）不加入
+             * 跳過名單，僅靠上面的 updated_at 進入冷卻，冷卻期滿後會再試一次
+             * ——Bangumi 日後補齊資料就能自動抓到，不會像永久跳過那樣錯過。
+             */
+            $still_missing = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE bgm_id = %d AND {$where_missing}",
+                $id
+            ) );
+
+            if ( $still_missing > 0 ) {
+                $no_field++;
+            } else {
+                $updated++;
             }
         }
 
@@ -1650,6 +1733,7 @@ class Anime_Sync_Cron_Manager {
 
         $summary = current_time( 'Y-m-d H:i:s' ) . ' | ' . $table
             . ' 這批 ' . count( $ids ) . ' 筆，實補=' . $updated
+            . '，欄位仍空(冷卻 ' . $cooldown_days . ' 天後重試)=' . $no_field
             . '，BGM無資料跳過=' . $no_data
             . '，跳過名單累計=' . count( $skip );
 
