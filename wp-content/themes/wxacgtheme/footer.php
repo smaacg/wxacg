@@ -288,7 +288,7 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
           <span class="footer-legal-sep" aria-hidden="true">·</span>
           <button type="button" id="wxacg-view-mode-toggle" class="footer-legal-desktop-btn" aria-label="<?php echo esc_attr__( '切換至桌面版檢視', 'blocksy-child' ); ?>" title="<?php echo esc_attr__( '切換至桌面版', 'blocksy-child' ); ?>">
             <i class="fa-solid fa-desktop" aria-hidden="true"></i>
-            <span><?php echo esc_html__( '桌面版', 'blocksy-child' ); ?></span>
+            <span class="view-toggle-text"><?php echo esc_html__( '桌面版', 'blocksy-child' ); ?></span>
           </button>
         </nav>
       <?php endif; ?>

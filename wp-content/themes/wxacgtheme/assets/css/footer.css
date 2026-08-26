@@ -267,6 +267,41 @@
   }
 }
 
+/* ── 觸控裝置的桌面版「逃生鈕」 ──
+ * 強制桌面版時 viewport 為 width=1280, initial-scale=0.3，整頁縮到三成，
+ * 頁尾這顆 12px 的按鈕只剩約 3.6 實體像素、又埋在頁面最底部，
+ * 而 .wx-bottom-nav 因為 max-width:768px 不再成立也一併消失，
+ * 導致手機使用者切過去之後找不到路回來。
+ *
+ * 這裡把它改成固定在右下角的浮動按鈕並放大字級，×0.3 後仍有約 13px 可點面積。
+ * 用 pointer:coarse 而非寬度斷點，是因為強制桌面版時 viewport 一律回報 1280，
+ * 手機與真實桌機無法用寬度區分，只能靠指標精細度。
+ */
+@media (pointer: coarse) {
+  html.view-as-desktop .footer-legal-desktop-btn {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1000000;
+    font-size: 44px;
+    padding: 20px 30px;
+    border-radius: 999px;
+    background: rgba(10, 14, 24, .92);
+    border: 2px solid rgba(255, 255, 255, .28);
+    color: #fff;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, .6);
+  }
+  html.view-as-desktop .footer-legal-desktop-btn i {
+    font-size: 40px;
+    opacity: 1;
+  }
+  /* 浮動之後，原位置留下的分隔點會變成孤兒，一併隱藏 */
+  html.view-as-desktop .footer-legal-desktop-btn + .footer-legal-sep,
+  html.view-as-desktop .footer-legal-sep:has(+ .footer-legal-desktop-btn) {
+    display: none;
+  }
+}
+
 
 /* ─────────── 法務連結（版權列下方） ───────────
  * 從「關於」欄移下來，讓該欄從 7 項降到 5 項、四欄高度接近。
