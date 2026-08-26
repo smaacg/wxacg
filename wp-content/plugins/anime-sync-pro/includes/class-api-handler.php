@@ -2438,7 +2438,10 @@ class Anime_Sync_API_Handler {
             $cached = get_transient( $cache_key );
             if ( $cached !== false ) {
                 $sets = $this->normalize_episode_cache( $cached );
-                return $this->select_episodes_for_post( $sets['main'], $sets['sp'], $post_id );
+                return $this->localize_chinese_episode_names(
+                    $this->select_episodes_for_post( $sets['main'], $sets['sp'], $post_id ),
+                    $post_id
+                );
             }
         }
 
@@ -2491,7 +2494,64 @@ class Anime_Sync_API_Handler {
 
         set_transient( $cache_key, [ 'main' => $main, 'sp' => $sp ], 12 * HOUR_IN_SECONDS );
 
-        return $this->select_episodes_for_post( $main, $sp, $post_id );
+        return $this->localize_chinese_episode_names(
+            $this->select_episodes_for_post( $main, $sp, $post_id ),
+            $post_id
+        );
+    }
+
+    /**
+     * 中文圈作品（CN/TW/HK）：把簡體原文轉繁體填進 name_cn。
+     *
+     * ★ 為什麼需要這個：
+     *   Bangumi 的 name 是「原文」、name_cn 是「中文譯名」。日本動畫的
+     *   name 是日文、name_cn 是（簡體）中文，前台顯示 name_cn 並轉繁即可。
+     *   但中國／台灣／香港製作的動畫，Bangumi 認為「原文已經是中文」，
+     *   於是 name 放簡體中文、name_cn 直接留空。前台在 name_cn 為空時會
+     *   fallback 顯示 name，而那條路徑沒有繁簡轉換，簡體就這樣露出到前台
+     *   （實例：《時光代理人》顯示「只许输，不许赢」）。
+     *
+     * ★ 為什麼用 anime_country 判斷，而不是猜字元：
+     *   實測過三種自動判斷都不可靠——日文假名偵測會漏掉純漢字日文標題；
+     *   簡體字偵測會把日文新字體（学/体/万/会/来/断）誤判成簡體；
+     *   逐字比對則無法區分「日文漢字」與「中文繁體」。anime_country 來自
+     *   AniList 的 countryOfOrigin，是明確的來源國事實，不用猜。
+     *
+     * ★ 為什麼放在快取之後：
+     *   transient 只以 bangumi_id 為 key、不含 post_id，所以快取一律存
+     *   Bangumi 原始資料，轉換留到取用時依當前作品的來源國決定，
+     *   既避免不同作品共用快取造成污染，已存在的快取也能立即受惠。
+     *
+     * @param array $episodes 已挑選好的集數陣列。
+     * @param int   $post_id  對應的 anime 文章 ID；0 代表無從判斷來源國。
+     * @return array
+     */
+    private function localize_chinese_episode_names( array $episodes, int $post_id ): array {
+        if ( $post_id <= 0 || empty( $episodes ) || ! class_exists( 'Anime_Sync_CN_Converter' ) ) {
+            return $episodes;
+        }
+
+        $country = strtoupper( trim( (string) get_post_meta( $post_id, 'anime_country', true ) ) );
+        if ( ! in_array( $country, [ 'CN', 'TW', 'HK' ], true ) ) {
+            return $episodes;
+        }
+
+        foreach ( $episodes as &$ep ) {
+            if ( ! is_array( $ep ) ) {
+                continue;
+            }
+            $name    = trim( (string) ( $ep['name'] ?? '' ) );
+            $name_cn = trim( (string) ( $ep['name_cn'] ?? '' ) );
+
+            // 只補空的 name_cn；Bangumi 已提供譯名時尊重原資料，不覆蓋。
+            if ( $name === '' || $name_cn !== '' ) {
+                continue;
+            }
+            $ep['name_cn'] = Anime_Sync_CN_Converter::static_convert( $name );
+        }
+        unset( $ep );
+
+        return $episodes;
     }
 
     /**
