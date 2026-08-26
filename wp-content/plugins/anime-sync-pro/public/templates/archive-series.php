@@ -110,7 +110,7 @@ if ( ! function_exists( 'asa_build_post_row' ) ) {
     }
 }
 
-/* ── 一次 Query 取得所有「已打系列 tag」的作品（多 CPT，由 pre_get_posts 控制排序）── */
+/* ── 一次 Query 取得所有「已打系列 tag」的作品（多 CPT，pre_get_posts 只設 post_type/-1）── */
 $all_posts = [];
 if ( have_posts() ) {
     while ( have_posts() ) {
@@ -119,6 +119,30 @@ if ( have_posts() ) {
     }
     wp_reset_postdata();
 }
+
+/* ── [v1.5.7] 年份排序改在 PHP 層做 ──────────────────────────
+ * 原本是 pre_get_posts 用 meta_key='anime_season_year' + orderby=meta_value_num
+ * 在 SQL 排序，但那會讓 WordPress 加上 INNER JOIN postmeta，把「沒有該 meta 列」
+ * 的作品整個排除（未播出的動畫、以及所有 manga/novel/game/music）。
+ *
+ * 改在這裡排序的好處：$p['year'] 已經套過完整 fallback
+ * （season_year → start_date → post_date），比原始 meta 更能反映真實年份，
+ * 而且不會漏掉任何資料。未播出的作品沒有確定檔期，一律排在最後。
+ */
+usort( $all_posts, static function ( array $a, array $b ): int {
+    $a_pending = ( ( $a['status'] ?? '' ) === 'NOT_YET_RELEASED' );
+    $b_pending = ( ( $b['status'] ?? '' ) === 'NOT_YET_RELEASED' );
+
+    if ( $a_pending !== $b_pending ) {
+        return $a_pending ? 1 : -1;
+    }
+
+    $a_year = (int) ( $a['year'] ?? 0 );
+    $b_year = (int) ( $b['year'] ?? 0 );
+
+    // 年份不明者排在同群組最後，避免 0 被當成最早年份衝到最前面
+    return ( $a_year ?: PHP_INT_MAX ) <=> ( $b_year ?: PHP_INT_MAX );
+} );
 
 /* ── [v1.3.0 新增] Fallback：撈漏標籤但透過 manga_related_anime 連結的漫畫 ──
  * 原因：匯入漫畫時只寫入 manga_related_anime（指向動畫），

@@ -391,8 +391,23 @@ class Anime_Sync_Frontend {
     // ACP v1.2.1 變更:
     //   - post_type 從 'anime' 擴充為 ANIME_SYNC_PRO_CPTS 全部 5 種 CPT
     //   - 讓 /series/{slug}/ 同時撈出 anime + manga + novel + game + music
-    //   - 排序鍵 anime_season_year 對 manga/novel 可能為空 → 由 archive-series.php
-    //     端做二次處理（用 meta_query 容錯 + post_date fallback）
+    //
+    // ★ [v1.5.7] 移除 meta_key + orderby=meta_value_num 的 SQL 排序
+    //
+    //   舊寫法設定 meta_key='anime_season_year' 搭配 orderby=meta_value_num，
+    //   WordPress 會因此加上 INNER JOIN postmeta —— 也就是「沒有這個 meta 列」
+    //   的文章會被整個排除在查詢外，不是排到後面而已。實測《鬼滅之刃》系列
+    //   10 部只撈得到 7 部，消失的是：
+    //     · 劇場版無限城篇 第二、三章（未播出、檔期未定 → 無 season_year）
+    //     · 鬼滅之刃 漫畫（漫畫本來就不會有 anime_season_year）
+    //
+    //   註：舊註解說「由 archive-series.php 端做二次處理」，但那邊做的是
+    //   year「顯示值」的 fallback（season_year → start_date → post_date），
+    //   無法救回在 SQL 階段就被 JOIN 濾掉的資料；同檔 v1.3.0 那段「漫畫
+    //   fallback 補撈」也是為了補救本問題的症狀，根因其實在這裡。
+    //
+    //   改由 archive-series.php 在 PHP 層排序：那裡的 year 已套用完整
+    //   fallback，比原始 meta 更準確，且不會排除任何資料。
     // =========================================================
 
     public function sort_series_archive( \WP_Query $query ): void {
@@ -407,9 +422,6 @@ class Anime_Sync_Frontend {
 
         $query->set( 'post_type',      $cpts );
         $query->set( 'posts_per_page', -1 );
-        $query->set( 'meta_key',       'anime_season_year' );
-        $query->set( 'orderby',        'meta_value_num' );
-        $query->set( 'order',          'ASC' );
     }
 
     // =========================================================
