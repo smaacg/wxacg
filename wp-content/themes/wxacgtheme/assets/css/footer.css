@@ -280,7 +280,9 @@
 @media (pointer: coarse) {
   html.view-as-desktop .footer-legal-desktop-btn {
     position: fixed;
-    right: 24px;
+    /* 置中而非靠右：右下角已有抽動漫骰子鈕，靠右會互相重疊 */
+    left: 50%;
+    transform: translateX(-50%);
     bottom: 24px;
     z-index: 1000000;
     font-size: 44px;
