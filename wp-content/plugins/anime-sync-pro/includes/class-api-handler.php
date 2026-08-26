@@ -480,7 +480,27 @@ class Anime_Sync_API_Handler {
                 }
 
                 if ( ! $from_bangumi ) {
-                    return true;
+                    /*
+                     * [新增] Bangumi 端資料還沒成形時不覆蓋。
+                     *
+                     * 未播出續季的 Bangumi 條目常常只先掛一筆佔位角色，此時若
+                     * 照上面的政策無條件取代 AniList 資料，前台 cast 會從數筆
+                     * 掉到 1 筆，看起來像資料遺失——實測 26 部這類作品，
+                     * Bangumi 端全部都只有 1 筆，沒有任何一部覆蓋後會變好。
+                     *
+                     * 這與函式開頭 empty( $incoming ) 就不覆蓋是同一個概念，
+                     * 只是把「完全沒有」延伸到「少到還沒成形」，不是推翻
+                     * 「以 Bangumi 為準」的既定政策：Bangumi 一旦有像樣的
+                     * 名單（達門檻），仍然照舊取代 AniList，筆數多寡不影響。
+                     */
+                    $min_entries = (int) apply_filters(
+                        'anime_sync_cross_source_min_entries',
+                        2,
+                        $meta_key,
+                        $post_id
+                    );
+
+                    return count( $incoming ) >= $min_entries;
                 }
 
                 // 兩邊都是 Bangumi：只增不減（續季條目常只先建原作／動畫製作兩筆）
