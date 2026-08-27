@@ -80,6 +80,17 @@ class First_Badge {
 		'first_dice_roll_wife'      => [ 'badge_slug' => 'badge-first-dice-roll-wife',    'exp' => 10,  'label' => '初次抽老婆' ],
 		'first_dice_roll_husband'   => [ 'badge_slug' => 'badge-first-dice-roll-husband', 'exp' => 10,  'label' => '初次抽老公' ],
 		'first_dice_roll_seiyuu'    => [ 'badge_slug' => 'badge-first-dice-roll-seiyuu',  'exp' => 10,  'label' => '初次抽聲優' ],
+
+		/*
+		 * v1.4.0：會員自訂動漫排行。
+		 *
+		 * 分成「建立」與「填滿」兩個成就：建立只要按下新增就達成，門檻低、
+		 * 用來把人帶進功能；填滿要湊足 TOP10 或 TOP20，是實質的完成度，
+		 * EXP 也給得比較高。兩者由 wxacg-social 的 wxacg_toplist_saved
+		 * 與 wxacg_toplist_completed 兩個 action 觸發。
+		 */
+		'first_toplist_created'     => [ 'badge_slug' => 'badge-first-toplist-created',   'exp' => 20,  'label' => '初次建立排行' ],
+		'first_toplist_completed'   => [ 'badge_slug' => 'badge-first-toplist-completed', 'exp' => 40,  'label' => '初次完成排行' ],
 	];
 
 	private static $badge_id_cache = [];
@@ -108,6 +119,8 @@ class First_Badge {
 		add_action( 'wxacg_random_wife_used',    [ __CLASS__, 'on_dice_roll_wife' ], 10, 1 );
 		add_action( 'wxacg_random_husband_used', [ __CLASS__, 'on_dice_roll_husband' ], 10, 1 );
 		add_action( 'wxacg_random_seiyuu_used',  [ __CLASS__, 'on_dice_roll_seiyuu' ], 10, 1 );
+		add_action( 'wxacg_toplist_saved',       [ __CLASS__, 'on_toplist_saved' ], 10, 3 );
+		add_action( 'wxacg_toplist_completed',   [ __CLASS__, 'on_toplist_completed' ], 10, 2 );
 	}
 
 	/**
@@ -220,6 +233,27 @@ class First_Badge {
 
 	public static function on_dice_roll_seiyuu( $uid ) {
 		self::maybe_award( 'first_dice_roll_seiyuu', (int) $uid );
+	}
+
+	/**
+	 * 初次建立排行。
+	 *
+	 * wxacg_toplist_saved 每次儲存都會觸發，第三個參數才分得出是新建
+	 * 還是編輯既有的——只有新建才算「初次建立」，否則改個名字也會拿。
+	 * maybe_award() 本身有一次性保護，這裡再擋一層是為了語意正確。
+	 */
+	public static function on_toplist_saved( $uid, $list_id, $is_new ) {
+		if ( ! $is_new ) {
+			return;
+		}
+		self::maybe_award( 'first_toplist_created', (int) $uid );
+	}
+
+	/**
+	 * 初次把排行填滿到設定的名次上限。
+	 */
+	public static function on_toplist_completed( $uid, $list_id ) {
+		self::maybe_award( 'first_toplist_completed', (int) $uid );
 	}
 
 	public static function on_career_change( $uid, $job_key, $is_change ) {
