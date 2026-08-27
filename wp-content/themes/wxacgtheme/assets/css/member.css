@@ -1813,3 +1813,119 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* ==========================================================
+ *  每日簽到面板
+ *
+ *  站上的簽到是登入即自動計算，這個面板只做視覺化——把已經發生的
+ *  連續天數、本輪進度與下一個里程碑呈現出來。
+ * ========================================================== */
+.wxci {
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, rgba(255, 107, 174, .1), rgba(108, 99, 255, .08));
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+}
+.wxci-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.wxci-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--mc-text);
+}
+.wxci-title i { color: #ff8c42; margin-right: 4px; }
+.wxci-streak {
+  font-size: 13px;
+  color: var(--mc-text-2);
+}
+.wxci-streak b {
+  font-size: 20px;
+  color: var(--mc-accent);
+  font-variant-numeric: tabular-nums;
+  margin: 0 2px;
+}
+.wxci-done {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, .16);
+  color: var(--mc-completed);
+  font-size: 11px;
+  font-weight: 700;
+}
+.wxci-note {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--mc-text-2);
+}
+.wxci-note b { color: var(--mc-text); }
+
+/* 本輪 7 格 */
+.wxci-cells {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.wxci-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 2px;
+  border-radius: 8px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+}
+.wxci-cell-day {
+  font-size: 11px;
+  color: var(--mc-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.wxci-cell-icon {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--mc-text-2);
+}
+.wxci-cell.is-done {
+  border-color: rgba(255, 107, 174, .45);
+  background: rgba(255, 107, 174, .12);
+}
+.wxci-cell.is-done .wxci-cell-icon { color: var(--mc-accent); }
+.wxci-cell.is-done .wxci-cell-day  { color: var(--mc-text); }
+/* 第 7 格是里程碑，即使還沒達成也要看得出有獎勵 */
+.wxci-cell.is-bonus {
+  border-color: rgba(251, 191, 36, .45);
+}
+.wxci-cell.is-bonus.is-done {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, .16);
+}
+
+.wxci-next {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mc-text);
+}
+.wxci-next b {
+  color: var(--mc-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .wxci { padding: 13px 14px; }
+  .wxci-cells { gap: 4px; }
+  .wxci-cell { padding: 7px 1px; }
+  .wxci-cell-icon { font-size: 13px; }
+}

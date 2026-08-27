@@ -61,6 +61,9 @@ class Plugin {
         require_once $base . 'exp/class-daily-login-fallback.php';
         Daily_Login_Fallback::instance();
 
+        // 簽到面板（純顯示，不掛 hook 也不改獎勵，只提供 render 給會員中心呼叫）
+        require_once $base . 'exp/class-checkin-panel.php';
+
         // 3b. EXP 新管道（v2.7.0）
         require_once $base . 'exp/class-read-tracker.php';
         Read_Tracker::instance();

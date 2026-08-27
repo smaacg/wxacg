@@ -110,6 +110,18 @@ function smacg_render_dashboard( $watchlist, $stats, $recent_cmt, $points_log, $
         : [];
     $current_year = (int) date( 'Y' );
     ?>
+    <?php
+    /*
+     * 簽到面板放在總覽最上方：連續天數是每天回站的理由，擺在要捲動才
+     * 看得到的地方就失去提醒效果。
+     *
+     * 由 wxacg-gamification 提供（那邊擁有 streak 資料），這裡只呼叫。
+     */
+    if ( $uid > 0 && class_exists( '\WXACG\Gamification\Checkin_Panel' ) ) {
+        \WXACG\Gamification\Checkin_Panel::render( $uid );
+    }
+    ?>
+
     <div class="mc-dash-grid">
         <div class="mc-widget mc-widget--watching">
             <h3>🎬 追番中 <small>（最近 6 部）</small></h3>

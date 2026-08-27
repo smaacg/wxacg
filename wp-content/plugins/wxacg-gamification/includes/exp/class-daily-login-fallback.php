@@ -32,9 +32,12 @@ defined( 'ABSPATH' ) || exit;
  * @version 1.1.0 (2026-05-23)
  *   - streak 計算改為循環式（對齊 Exp_Events v2.7.2 C 方案）
  *   - 引入 smacg_streak_gen（斷簽代次），dedupe_key 含 gen + cycle
- *   - 每滿 7 天 → streak_7（+100 EXP / +100 賽季分）
- *   - 每滿 30 天 → streak_30（+500 EXP / +500 賽季分）
+ *   - 每滿 7 天 → streak_7、每滿 30 天 → streak_30
  *   - 斷簽歸 1 後 gen +1，新代次的 dedupe_key 不同 → 可重新領取
+ *
+ * 註：實際的 EXP 數值以 Exp_Config::rules() 為準（目前 streak_7 = 500、
+ * streak_30 = 2500），本註解原本寫死 100 / 500 但與設定不符，容易誤導。
+ * 需要顯示數字的地方一律讀 rules()，不要照抄註解。
  */
 class Daily_Login_Fallback {
 
