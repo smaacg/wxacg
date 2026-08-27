@@ -91,6 +91,20 @@ final class Corrections_CPT {
             'supports'            => [ 'title' ],
             'capability_type'     => 'post',
             'map_meta_cap'        => true,
+
+            /*
+             * 這個 CPT 只用來承接前台使用者送出的回報，後台不應該手動新增。
+             * create_posts 設為 do_not_allow 會一併移除「新增文章」子選單、
+             * 列表頁的「新增」按鈕，並擋掉直接開 post-new.php 的路徑——
+             * 不只是把選單藏起來而已。
+             *
+             * 前台提交不受影響：corrections-form.php 的 AJAX handler 是用
+             * wp_insert_post() 直接建立，不經過 create_posts 檢查。
+             * 檢視／編輯／刪除既有回報也不受影響，仍沿用 post 的預設權限。
+             */
+            'capabilities'        => [
+                'create_posts' => 'do_not_allow',
+            ],
         ] );
     }
 
