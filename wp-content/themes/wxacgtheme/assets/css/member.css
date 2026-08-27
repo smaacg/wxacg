@@ -1929,3 +1929,46 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   .wxci-cell { padding: 7px 1px; }
   .wxci-cell-icon { font-size: 13px; }
 }
+
+/* ── 留言面板的分類篩選 ── */
+.mc-cmt-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+.mc-cmt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.mc-cmt-chip:hover { border-color: var(--mc-accent); color: var(--mc-accent); }
+.mc-cmt-chip.is-active {
+  border-color: var(--mc-accent);
+  background: rgba(255, 107, 174, .1);
+  color: var(--mc-accent);
+}
+.mc-cmt-chip-n {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--mc-surface-hi);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.mc-cmt-chip.is-active .mc-cmt-chip-n { background: rgba(255, 107, 174, .2); }
+.mc-cmt-none {
+  padding: 20px 0;
+  text-align: center;
+  color: var(--mc-text-2);
+  font-size: 14px;
+}

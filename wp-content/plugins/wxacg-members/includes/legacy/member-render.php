@@ -576,13 +576,41 @@ function smacg_render_comments( $uid ) {
 
     $total = count( $items );
     $items = array_slice( $items, 0, $max );
+
+    /*
+     * 分類篩選。
+     *
+     * 三種來源混在一起時，想找「我寫過哪幾篇長評」得自己一則一則看。
+     * 純前端篩選即可——項目已經全部渲染在頁面上，不需要再打一次後端。
+     *
+     * 數量為 0 的分類直接不顯示：這裡不像排行編輯器有「這個狀態我還沒
+     * 有作品」的語意，列一個永遠空的分頁只是雜訊。
+     */
+    $counts = [ '留言' => 0, '短評' => 0, '長評' => 0 ];
+    foreach ( $items as $it ) {
+        if ( isset( $counts[ $it['kind'] ] ) ) {
+            $counts[ $it['kind'] ]++;
+        }
+    }
     ?>
     <div class="mc-comments-wrap">
         <div class="mc-comments-meta">共 <b><?php echo (int) $total; ?></b> 則留言與評論</div>
 
+        <div class="mc-cmt-filters" id="mc-cmt-filters">
+            <button type="button" class="mc-cmt-chip is-active" data-kind="all">
+                全部<span class="mc-cmt-chip-n"><?php echo (int) count( $items ); ?></span>
+            </button>
+            <?php foreach ( $counts as $kind => $n ) : ?>
+                <?php if ( $n <= 0 ) { continue; } ?>
+                <button type="button" class="mc-cmt-chip" data-kind="<?php echo esc_attr( $kind ); ?>">
+                    <?php echo esc_html( $kind ); ?><span class="mc-cmt-chip-n"><?php echo (int) $n; ?></span>
+                </button>
+            <?php endforeach; ?>
+        </div>
+
         <ul class="mc-cmt-fulllist" id="mc-cmt-list">
             <?php foreach ( $items as $it ): ?>
-                <li>
+                <li data-kind="<?php echo esc_attr( $it['kind'] ); ?>">
                     <a href="<?php echo esc_url( $it['link'] ); ?>">
                         <b><?php echo esc_html( $it['title'] ); ?></b>
                         <span class="mc-cmt-kind"><?php echo esc_html( $it['kind'] ); ?></span>
@@ -592,6 +620,8 @@ function smacg_render_comments( $uid ) {
                 </li>
             <?php endforeach; ?>
         </ul>
+
+        <p class="mc-cmt-none" id="mc-cmt-none" hidden>這個分類沒有項目。</p>
     </div>
     <?php
 }

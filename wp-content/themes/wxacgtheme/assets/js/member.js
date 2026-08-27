@@ -743,3 +743,40 @@
   });
 
 })(jQuery);
+
+/* ==========================================================
+ *  留言面板的分類篩選（全部／留言／短評／長評）
+ *
+ *  純前端：項目已經全部由 PHP 渲染在頁面上，篩選只是切換顯示，
+ *  不需要再打一次後端。
+ * ========================================================== */
+(function () {
+  'use strict';
+
+  const bar = document.getElementById('mc-cmt-filters');
+  const list = document.getElementById('mc-cmt-list');
+  if (!bar || !list) { return; }
+
+  const none = document.getElementById('mc-cmt-none');
+  const items = Array.prototype.slice.call(list.querySelectorAll('li'));
+
+  bar.addEventListener('click', function (e) {
+    const btn = e.target.closest('.mc-cmt-chip');
+    if (!btn) { return; }
+
+    const kind = btn.dataset.kind;
+
+    bar.querySelectorAll('.mc-cmt-chip').forEach(function (b) {
+      b.classList.toggle('is-active', b === btn);
+    });
+
+    let shown = 0;
+    items.forEach(function (li) {
+      const hit = (kind === 'all') || (li.dataset.kind === kind);
+      li.hidden = !hit;
+      if (hit) { shown++; }
+    });
+
+    if (none) { none.hidden = shown > 0; }
+  });
+})();
