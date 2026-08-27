@@ -85,6 +85,11 @@
     exp_monthly:      '本月 EXP 榜',
     login_streak:     '簽到榜',
     followers:        '人氣榜',
+    /*
+     * 分頁實際送出的 type 是 achievements，badges 是沒人用的舊名。
+     * 只留 badges 的話成就榜標題會退回「排行」、單位會是空的。
+     */
+    achievements:     '成就榜',
     badges:           '徽章榜',
   };
   /*
@@ -99,6 +104,7 @@
     exp_monthly:      'EXP',
     login_streak:     '天',
     followers:        '粉絲',
+    achievements:     '枚',
     badges:           '枚',
   };
 

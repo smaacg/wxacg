@@ -1,14 +1,18 @@
 <?php
 /**
- * 每日簽到面板（視覺化）
+ * 每日簽到狀態
  *
  * 站上的簽到是「登入即自動計算」，不需要手動點擊——這點刻意不改：
  * 229 位會員已經累積了連續紀錄，改成手動點擊等於讓所有人歸零重來，
  * 而且忘記點就斷簽，反而要再做補簽機制來補救。
  *
- * 這支只負責把已經發生的事呈現出來：目前連續幾天、本輪 7 天走到哪、
- * 距離下一個里程碑還差幾天。獎勵結構完全沿用既有的 streak_7 / streak_30，
- * 不新增也不修改 EXP 規則。
+ * 這支只負責算出目前狀態：連續幾天、本輪 7 天走到哪、距離下一個里程碑
+ * 還差幾天。獎勵結構完全沿用既有的 streak_7 / streak_30，不新增也不修改
+ * EXP 規則。
+ *
+ * 原本還有一個 render() 會把這些畫在會員中心，簽到改到頭像選單的彈窗
+ * （class-checkin-modal.php）之後就沒有呼叫者了，連同 member.css 裡的
+ * .wxci* 樣式一起移除。現在只剩 get_status()，由 Checkin_Modal 使用。
  *
  * 資料來源（由 class-daily-login-fallback.php 與 class-exp-events.php 寫入）：
  *   smacg_login_streak     目前連續天數
@@ -83,110 +87,5 @@ class Checkin_Panel {
             'to_next7'   => $streak > 0 ? ( self::CYCLE - $cycle_pos ) : self::CYCLE,
             'to_next30'  => $streak > 0 ? ( self::BIG_CYCLE - $big_pos ) : self::BIG_CYCLE,
         ];
-    }
-
-    /**
-     * 渲染簽到面板。
-     *
-     * @param int $uid 會員 ID。
-     */
-    public static function render( int $uid ): void {
-        if ( $uid <= 0 ) {
-            return;
-        }
-
-        $s = self::get_status( $uid );
-
-        // 兩個里程碑各自的 EXP，直接讀規則避免與實際發放的數字說法不一
-        $rules = Exp_Config::rules();
-        $exp7  = (int) ( $rules['streak_7']['exp']  ?? 100 );
-        $exp30 = (int) ( $rules['streak_30']['exp'] ?? 500 );
-        ?>
-        <div class="wxci">
-
-            <div class="wxci-head">
-                <div class="wxci-title">
-                    <i class="fa-solid fa-fire" aria-hidden="true"></i> 每日簽到
-                </div>
-                <div class="wxci-streak">
-                    已連續簽到 <b><?php echo (int) $s['streak']; ?></b> 天
-                    <?php if ( $s['streak'] > self::BIG_CYCLE ) : ?>
-                        <?php
-                        // 超過一大輪的人要看得出自己走過幾輪，否則格子重頭
-                        // 開始會讓人以為進度被歸零
-                        $rounds = (int) floor( $s['streak'] / self::BIG_CYCLE );
-                        ?>
-                        <span class="wxci-rounds">已完成 <?php echo $rounds; ?> 輪</span>
-                    <?php endif; ?>
-                    <?php if ( $s['today_done'] ) : ?>
-                        <span class="wxci-done">今日已簽到</span>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <p class="wxci-note">
-                登入就自動簽到，不用另外點擊。連續 <?php echo (int) self::CYCLE; ?> 天可得
-                <b>+<?php echo $exp7; ?> EXP</b>，連續 <?php echo (int) self::BIG_CYCLE; ?> 天可得
-                <b>+<?php echo $exp30; ?> EXP</b>，之後每滿一輪再發一次。
-            </p>
-
-            <?php
-            /*
-             * 畫 30 格而不是 7 格。
-             *
-             * 原本只畫一輪 7 格，但實際會員已經連續 75 天——看到「第 5 格
-             * ／共 7 格」完全反映不出累積的量。改成對齊 streak_30 這個大
-             * 週期，中間每 7 天標一個小獎勵，進度感才出得來。
-             *
-             * 不做成巴哈的 4 週 28 格：那對應的是他們的獎勵結構，而本站
-             * 的循環是 7 與 30，畫 28 會讓第 30 天那個大獎沒有位置。
-             */
-            ?>
-            <ol class="wxci-cells" aria-label="連續簽到進度（30 天為一大輪）">
-                <?php for ( $i = 1; $i <= self::BIG_CYCLE; $i++ ) :
-                    $filled   = ( $i <= $s['big_pos'] );
-                    $is_big   = ( $i === self::BIG_CYCLE );
-                    $is_small = ( ! $is_big && $i % self::CYCLE === 0 );
-                    ?>
-                    <li class="wxci-cell<?php
-                        echo $filled ? ' is-done' : '';
-                        echo $is_big ? ' is-bigbonus' : ( $is_small ? ' is-bonus' : '' );
-                    ?>" title="<?php
-                        if ( $is_big )        { echo esc_attr( '第 30 天：大獎勵' ); }
-                        elseif ( $is_small )  { echo esc_attr( '第 ' . $i . ' 天：連續獎勵' ); }
-                        else                  { echo esc_attr( '第 ' . $i . ' 天' ); }
-                    ?>">
-                        <span class="wxci-cell-day"><?php echo (int) $i; ?></span>
-                        <span class="wxci-cell-icon">
-                            <?php if ( $is_big ) : ?>
-                                💎
-                            <?php elseif ( $is_small ) : ?>
-                                🎁
-                            <?php elseif ( $filled ) : ?>
-                                <i class="fa-solid fa-check" aria-hidden="true"></i>
-                            <?php else : ?>
-                                ·
-                            <?php endif; ?>
-                        </span>
-                    </li>
-                <?php endfor; ?>
-            </ol>
-
-            <p class="wxci-next">
-                <?php if ( $s['streak'] === 0 ) : ?>
-                    今天登入就會開始累積連續天數。
-                <?php elseif ( $s['to_next7'] === 0 ) : ?>
-                    本輪已完成，明天開始新的一輪。
-                <?php else : ?>
-                    再 <b><?php echo (int) $s['to_next7']; ?></b> 天可得 +<?php echo $exp7; ?> EXP<?php
-                    if ( $s['to_next30'] > 0 && $s['to_next30'] <= 10 ) {
-                        printf( '，再 %d 天可得 +%d EXP', (int) $s['to_next30'], $exp30 );
-                    }
-                    ?>。
-                <?php endif; ?>
-            </p>
-
-        </div>
-        <?php
     }
 }

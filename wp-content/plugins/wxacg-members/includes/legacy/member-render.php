@@ -112,14 +112,14 @@ function smacg_render_dashboard( $watchlist, $stats, $recent_cmt, $points_log, $
     ?>
     <?php
     /*
-     * 簽到面板放在總覽最上方：連續天數是每天回站的理由，擺在要捲動才
-     * 看得到的地方就失去提醒效果。
+     * 簽到已移出會員中心。
      *
-     * 由 wxacg-gamification 提供（那邊擁有 streak 資料），這裡只呼叫。
+     * 原本放在總覽最上方，但這頁的區塊本來就多，再擺一組簽到格子只會更雜。
+     * 改成比照巴哈放進頭像下拉選單（header.php 的「每日簽到」），選單上直接
+     * 顯示今天簽了沒，點了才展開彈窗看連續天數與本月月曆。
+     *
+     * Checkin_Panel 類別本身保留，get_status() 仍被 Checkin_Modal 使用。
      */
-    if ( $uid > 0 && class_exists( '\WXACG\Gamification\Checkin_Panel' ) ) {
-        \WXACG\Gamification\Checkin_Panel::render( $uid );
-    }
     ?>
 
     <div class="mc-dash-grid">

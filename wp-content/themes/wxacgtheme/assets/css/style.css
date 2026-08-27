@@ -433,7 +433,8 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 180px;
+  /* 220px：180px 放不下「每日簽到 + 已簽到」標籤，文字與標籤都會被擠到換行 */
+  min-width: 220px;
   background: #1e2030;
   border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 12px;
@@ -457,6 +458,27 @@
 .header-user-menu a:hover          { background: rgba(255, 255, 255, .08); }
 .header-user-menu .logout-link     { color: #f87171; }
 .header-user-menu .logout-link:hover { background: rgba(248, 113, 113, .1); }
+
+/* 每日簽到：標籤靠右，比照巴哈把狀態直接寫在選單上 */
+.header-user-menu-checkin { white-space: nowrap; }
+.header-user-menu-checkin .header-checkin-badge {
+  margin-left: auto;
+  flex-shrink: 0;          /* 不讓標籤被壓縮成兩行 */
+  white-space: nowrap;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #9ca3af;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .10);
+}
+.header-user-menu-checkin .header-checkin-badge.is-done {
+  color: #fff;
+  background: linear-gradient(135deg, #ff8c42, #ff6bae);
+  border-color: transparent;
+}
 
 .header-user-menu-divider {
   height: 1px;

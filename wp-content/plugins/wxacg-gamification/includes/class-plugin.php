@@ -64,6 +64,16 @@ class Plugin {
         // 簽到面板（純顯示，不掛 hook 也不改獎勵，只提供 render 給會員中心呼叫）
         require_once $base . 'exp/class-checkin-panel.php';
 
+        // 簽到彈窗（前台頁尾置中，一天一次）
+        //     依賴 Daily_Login_Fallback 發出的 wxacg_daily_checkin，故排在其後
+        require_once $base . 'exp/class-checkin-modal.php';
+        Checkin_Modal::init();
+
+        // 簽到月曆（逐日紀錄，供會員中心呼叫 render）
+        //     同樣掛在 wxacg_daily_checkin 上記錄當天
+        require_once $base . 'exp/class-checkin-calendar.php';
+        Checkin_Calendar::init();
+
         // 3b. EXP 新管道（v2.7.0）
         require_once $base . 'exp/class-read-tracker.php';
         Read_Tracker::instance();

@@ -94,6 +94,12 @@ class Daily_Login_Fallback {
         $streak    = (int) get_user_meta( $uid, 'smacg_login_streak', true );
         $yesterday = date( 'Ymd', strtotime( '-1 day', current_time( 'timestamp' ) ) );
 
+        /*
+         * 是否為「中斷後重新開始」。
+         * 提示 UI 對這兩種情況要用不同語氣，首次登入不算中斷。
+         */
+        $broken = false;
+
         if ( $last === $yesterday ) {
             // 昨天有登 → 累積
             $streak += 1;
@@ -102,7 +108,8 @@ class Daily_Login_Fallback {
             $streak = 1;
             if ( $last !== '' ) {
                 // 真正的斷簽（非首次）→ 代次 +1
-                $gen = (int) get_user_meta( $uid, 'smacg_streak_gen', true );
+                $broken = true;
+                $gen    = (int) get_user_meta( $uid, 'smacg_streak_gen', true );
                 update_user_meta( $uid, 'smacg_streak_gen', $gen + 1 );
 
                 if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
@@ -138,6 +145,23 @@ class Daily_Login_Fallback {
             ] );
             do_action( 'smacg_streak_milestone', $uid, 30, $cycle, $gen );
         }
+
+        /*
+         * 簽到完成事件。
+         *
+         * 擺在里程碑之後才發，訂閱者才拿得到完整結果——提示 UI 要知道今天
+         * 是不是剛好領到 streak_7／streak_30，語氣才給得對。
+         *
+         * 這個 hook 只負責通知，不做任何 EXP 相關決策；簽到本身仍是登入自動
+         * 計算，既有會員的 smacg_login_streak 完全不受影響。
+         */
+        do_action( 'wxacg_daily_checkin', $uid, [
+            'streak' => $streak,
+            'gen'    => $gen,
+            'broken' => $broken,
+            'hit_7'  => ( $streak > 0 && $streak % 7 === 0 ),
+            'hit_30' => ( $streak > 0 && $streak % 30 === 0 ),
+        ] );
 
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( sprintf(

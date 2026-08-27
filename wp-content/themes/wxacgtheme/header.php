@@ -177,6 +177,24 @@ if ( ! is_user_logged_in() ) {
           </button>
 
           <div class="header-user-menu" id="header-user-menu" role="menu">
+            <?php
+            /*
+             * 每日簽到。
+             *
+             * 比照巴哈放在頭像選單第一項，右邊直接顯示今天簽了沒——會員中心
+             * 的區塊已經很多，簽到擺在那邊只會讓整頁更雜。點了才展開完整內容
+             * （彈窗由 wxacg-gamification 的 Checkin_Modal 輸出在頁尾）。
+             */
+            if ( class_exists( '\WXACG\Gamification\Checkin_Modal' ) ) :
+                $ci_done = \WXACG\Gamification\Checkin_Modal::is_done_today( $user->ID );
+                ?>
+                <a href="#" id="wxcm-open" class="header-user-menu-checkin" role="menuitem">
+                    <i class="fa-solid fa-calendar-check"></i> 每日簽到
+                    <span class="header-checkin-badge<?php echo $ci_done ? ' is-done' : ''; ?>">
+                        <?php echo $ci_done ? '已簽到' : '未簽到'; ?>
+                    </span>
+                </a>
+            <?php endif; ?>
             <a href="<?php echo esc_url( $profile_url ); ?>" role="menuitem"><i class="fa-solid fa-user"></i> 個人頁面</a>
             <a href="<?php echo esc_url( $profile_url . '#settings' ); ?>" role="menuitem"><i class="fa-solid fa-gear"></i> 設定</a>
             <a href="<?php echo esc_url( home_url( '/announcement/' ) ); ?>" role="menuitem"><i class="fa-solid fa-bullhorn"></i> 站務中心</a>
