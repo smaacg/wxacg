@@ -264,6 +264,44 @@ case 'followers':
     $rows = $wpdb->get_results( $sql, ARRAY_A );
     return $rows ?: [];
 
+            /*
+             * 簽到榜——依連續登入天數排名。
+             *
+             * 直接讀既有的 smacg_login_streak：站上早就有每日登入與連續
+             * 天數的計算（見 class-daily-login-fallback.php），229 位會員
+             * 都已有紀錄，不需要另做一套簽到機制再從零開始累積。
+             *
+             * 排除已斷簽的人：last_login_date 距今超過 1 天代表連續已中斷，
+             * 但 streak 值要等下次登入才會被重設。不擋的話榜上會留著一堆
+             * 早就斷簽、數字卻停在高點的舊紀錄。
+             */
+            case 'login_streak':
+                /*
+                 * 日期格式必須是 Ymd（20260827）而不是 Y-m-d。
+                 * smacg_last_login_date 由 class-daily-login-fallback.php 以
+                 * current_time('Ymd') 寫入——用帶連字號的格式比對會永遠不
+                 * 匹配，榜單整片空白。實測時才發現，語法檢查抓不到這種錯。
+                 */
+                $today     = current_time( 'Ymd' );
+                $yesterday = gmdate( 'Ymd', strtotime( '-1 day', current_time( 'timestamp' ) ) );
+
+                $sql = $wpdb->prepare( "
+                    SELECT s.user_id, CAST(s.meta_value AS UNSIGNED) AS score
+                    FROM {$wpdb->usermeta} s
+                    INNER JOIN {$wpdb->usermeta} d
+                            ON d.user_id = s.user_id
+                           AND d.meta_key = 'smacg_last_login_date'
+                    WHERE s.meta_key = 'smacg_login_streak'
+                      AND CAST(s.meta_value AS UNSIGNED) > 0
+                      AND d.meta_value IN (%s, %s)
+                      AND s.user_id NOT IN ($excluded_in)
+                    ORDER BY score DESC
+                    LIMIT %d
+                ", $today, $yesterday, $limit );
+
+                $rows = $wpdb->get_results( $sql, ARRAY_A );
+                return $rows ?: [];
+
 
             case 'achievements':
                 $earnings_tbl = $wpdb->prefix . 'gamipress_user_earnings';

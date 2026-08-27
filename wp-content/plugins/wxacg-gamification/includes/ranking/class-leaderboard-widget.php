@@ -93,6 +93,7 @@ class Leaderboard_Widget {
         return [
             'exp_total'   => 'EXP 總榜',
             'exp_monthly' => '本月 EXP 榜',
+            'login_streak' => '簽到榜',
             'followers'   => '人氣榜',
             'achievements' => '成就榜',
         ][ $type ] ?? '排行榜';
@@ -102,6 +103,7 @@ class Leaderboard_Widget {
         return [
             'exp_total'   => 'fa-crown',
             'exp_monthly' => 'fa-calendar-star',
+            'login_streak' => 'fa-fire',
             'followers'   => 'fa-users',
             'achievements' => 'fa-trophy',
         ][ $type ] ?? 'fa-ranking-star';

@@ -41,7 +41,15 @@ $is_logged_in = is_user_logged_in();
 $updated_at   = get_option( 'smacg_ranking_last_rebuild', '' );
 
 $default_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'exp_total';
-$valid_tabs  = [ 'exp_total', 'rank_season', 'rank_last_season', 'exp_monthly', 'followers', 'achievements' ];
+/*
+ * followers（人氣榜）暫時下架。
+ *
+ * 站上目前 230 位會員、追蹤關係稀疏，榜單多半只有個位數而且長期不動，
+ * 呈現出來反而像功能壞掉。等會員規模成長再開回來——排行類型本身仍註冊
+ * 在 WXACG_RANKING_TYPES，資料也持續累積，把 'followers' 加回這個陣列
+ * 就能復原，不需要其他改動。
+ */
+$valid_tabs  = [ 'exp_total', 'rank_season', 'rank_last_season', 'exp_monthly', 'login_streak', 'achievements' ];
 if ( ! in_array( $default_tab, $valid_tabs, true ) ) $default_tab = 'exp_total';
 
 $season_info = null;
@@ -125,7 +133,7 @@ $hero_title_labels = [
   'rank_season'       => __( '本季牌位排行', 'weixiaoacg' ),
   'rank_last_season'  => __( '上季牌位排行', 'weixiaoacg' ),
   'exp_monthly'       => __( '本月 EXP 榜', 'weixiaoacg' ),
-  'followers'         => __( '人氣榜', 'weixiaoacg' ),
+  'login_streak'      => __( '簽到榜', 'weixiaoacg' ),
   'achievements'      => __( '成就榜', 'weixiaoacg' ),
 ];
 $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 'weixiaoacg' );
@@ -205,7 +213,7 @@ $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 
               'rank_season'      => [ 'fa-trophy',        __( '本季牌位排行', 'weixiaoacg' ) ],
               'rank_last_season' => [ 'fa-scroll',        __( '上季牌位排行', 'weixiaoacg' ) ],
               'exp_monthly'      => [ 'fa-calendar-days', __( '本月 EXP 榜', 'weixiaoacg' ) ],
-              'followers'        => [ 'fa-users',         __( '人氣榜', 'weixiaoacg' ) ],
+              'login_streak'     => [ 'fa-fire',          __( '簽到榜', 'weixiaoacg' ) ],
               'achievements'     => [ 'fa-medal',         __( '成就榜', 'weixiaoacg' ) ],
             ];
             foreach ( $tabs as $key => $info ) {

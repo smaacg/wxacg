@@ -46,7 +46,7 @@ if ( ! defined( 'WXACG_EVENT_DB_VERSION' ) ) define( 'WXACG_EVENT_DB_VERSION', '
 if ( ! defined( 'WXACG_RANKING_DB_VERSION' ) ) define( 'WXACG_RANKING_DB_VERSION', '1.0.0' );
 if ( ! defined( 'WXACG_RANKING_TOP_N' ) )      define( 'WXACG_RANKING_TOP_N',      100 );
 if ( ! defined( 'WXACG_RANKING_PAGE_SIZE' ) )  define( 'WXACG_RANKING_PAGE_SIZE',  20 );
-if ( ! defined( 'WXACG_RANKING_TYPES' ) )      define( 'WXACG_RANKING_TYPES',      [ 'exp_total', 'exp_monthly', 'followers', 'achievements', 'rank_season', 'rank_last_season' ] );
+if ( ! defined( 'WXACG_RANKING_TYPES' ) )      define( 'WXACG_RANKING_TYPES',      [ 'exp_total', 'exp_monthly', 'login_streak', 'followers', 'achievements', 'rank_season', 'rank_last_season' ] );
 if ( ! defined( 'WXACG_RANKING_META_KEY' ) )   define( 'WXACG_RANKING_META_KEY',   'wxacg_appear_in_ranking' );
 
 if ( ! defined( 'WXACG_RANK_SEASON_DB_VERSION' ) ) define( 'WXACG_RANK_SEASON_DB_VERSION', '1.0.0' );
