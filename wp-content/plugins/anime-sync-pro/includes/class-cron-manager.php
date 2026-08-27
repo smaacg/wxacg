@@ -953,6 +953,53 @@ class Anime_Sync_Cron_Manager {
                 if ( $old_val !== $aired ) {
                     update_post_meta( $post_id, 'anime_episodes_aired', $aired );
                     $diff[] = '已播 ' . $old_val . '→' . $aired . '集';
+
+                    /*
+                     * 新集數 → 通知追番會員。
+                     *
+                     * 這個變化原本只寫進 $diff（進 log 就結束），是站上唯一每週
+                     * 都會發生、而且追番會員真正在等的訊號，卻完全沒接到通知系統。
+                     * 既有的 episodes 事件講的是「總集數改變」（史上 3 筆），不是這件事。
+                     *
+                     * 只在集數往上走時發：
+                     *   - $aired <= $old_val 代表上游資料回退（nextAiringEpisode 抖動
+                     *     或改期），發「第 3 集已播出」給看過第 5 集的人是錯的訊息
+                     *   - $old_val === 0 時不發：那是這部作品第一次被同步，
+                     *     一次補上「已播 8 集」不該通知成「第 8 集已播出」
+                     *
+                     * fingerprint 用集數，配合 record() 的 UNIQUE(dedupe_key)
+                     * 保證一集只會有一則事件，重跑同步不會重複發。
+                     */
+                    if ( $aired > $old_val
+                         && $old_val > 0
+                         && class_exists( 'Anime_Sync_Anime_Events' ) ) {
+
+                        $ev_id = Anime_Sync_Anime_Events::record( [
+                            'anime_id'    => $post_id,
+                            'event_type'  => 'episode_aired',
+                            'fingerprint' => (string) $aired,
+                            'event_date'  => current_time( 'Y-m-d' ),
+                            'source'      => 'anilist_sync',
+                        ] );
+
+                        /*
+                         * record() 只寫入 pending，是 publish() 才會轉成
+                         * published 並呼叫 notify_followers()。少了這一步，
+                         * 事件會靜靜躺在待審清單裡、一則通知都不會發出去。
+                         *
+                         * 回傳值三種：>0 新事件、0 已存在（重複偵測，正常）、
+                         * -1 失敗。只有 >0 才需要發布。
+                         */
+                        if ( $ev_id > 0 ) {
+                            $summary = Anime_Sync_Anime_Events::auto_summary(
+                                'episode_aired', $old_val, $aired
+                            );
+
+                            if ( '' !== $summary ) {
+                                Anime_Sync_Anime_Events::publish( $ev_id, $summary );
+                            }
+                        }
+                    }
                 }
             }
         }

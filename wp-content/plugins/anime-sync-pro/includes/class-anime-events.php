@@ -44,6 +44,13 @@ class Anime_Sync_Anime_Events {
 		'schedule'  => '播出時間',
 		'status'    => '播出狀態',
 		'episodes'  => '集數',
+		/*
+		 * episodes 與 episode_aired 是兩件事，不要混用：
+		 *   episodes      總集數改變（「全 12 話確定」）——一部作品大概發生一次
+		 *   episode_aired 播出了新一集（「第 5 集已播出」）——連載期間每週一次
+		 * 站上原本只有前者（史上 3 筆），後者才是追番會員真正在等的訊號。
+		 */
+		'episode_aired' => '新集數',
 		'staff'     => '製作陣容',
 		'cast'      => '聲優',
 		'streaming' => '串流平台',
@@ -74,7 +81,7 @@ class Anime_Sync_Anime_Events {
 	 *
 	 * @var array<string>
 	 */
-	private static array $AUTO_PUBLISH_TYPES = [ 'schedule', 'status', 'episodes', 'trailer', 'visual' ];
+	private static array $AUTO_PUBLISH_TYPES = [ 'schedule', 'status', 'episodes', 'trailer', 'visual', 'episode_aired' ];
 
 	/**
 	 * 這個類型是否自動發布。
@@ -120,6 +127,19 @@ class Anime_Sync_Anime_Events {
 				}
 
 				return '' === (string) $old ? '公開宣傳影片' : '公開新宣傳影片';
+
+			case 'episode_aired':
+				/*
+				 * $new 是「已播集數」。誤報空間小：集數只會往上走，
+				 * 偵測端（class-cron-manager.php）已擋掉 $new <= $old 的情況。
+				 */
+				$n = (int) $new;
+
+				if ( $n <= 0 ) {
+					return '';
+				}
+
+				return sprintf( '第 %d 集已播出', $n );
 
 			case 'episodes':
 				$o = (int) $old;
@@ -691,6 +711,30 @@ class Anime_Sync_Anime_Events {
 
 		$sent = 0;
 
+		/*
+		 * 新集數用獨立的通知類型。
+		 *
+		 * 兩者頻率差一個量級：視覺圖／預告一部作品發生幾次，新集數連載期間
+		 * 每週一次。混用同一個類型的話，被預告洗煩而關掉的人會連「我追的番
+		 * 更新了」也一起關掉——而後者正是追番會員最想要的那一則。
+		 *
+		 * 類型必須同時登錄在 wxacg-social 的 notification-types.php，否則
+		 * wxacg_should_notify() 查不到偏好會一律回 false、靜默不送。
+		 */
+		$is_episode  = ( 'episode_aired' === $event->event_type );
+		$notif_type  = $is_episode ? 'episode_aired' : 'anime_update';
+		$notif_icon  = $is_episode ? 'fa-tv' : 'fa-bullhorn';
+		$anime_title = get_the_title( $event->anime_id );
+
+		$notif_title = $is_episode
+			? sprintf( '《%s》%s', $anime_title, $event->summary )
+			: sprintf( '《%s》有新消息', $anime_title );
+
+		// 新集數直接連到作品頁本身，不跳事件區——使用者要看的是作品不是公告
+		$notif_url = $is_episode
+			? get_permalink( $event->anime_id )
+			: get_permalink( $event->anime_id ) . '#asd-sec-events';
+
 		foreach ( $user_ids as $user_id ) {
 			/*
 			 * data 的欄位名由 wxacg_render_notification_item() 決定，
@@ -699,14 +743,14 @@ class Anime_Sync_Anime_Events {
 			 */
 			$result = wxacg_create_notification( [
 				'user_id'     => (int) $user_id,
-				'type'        => 'anime_update',
+				'type'        => $notif_type,
 				'object_type' => 'anime',
 				'object_id'   => (int) $event->anime_id,
 				'data'        => [
-					'title'      => sprintf( '《%s》有新消息', get_the_title( $event->anime_id ) ),
-					'excerpt'    => $event->summary,
-					'url'        => get_permalink( $event->anime_id ) . '#asd-sec-events',
-					'icon'       => 'fa-bullhorn',
+					'title'      => $notif_title,
+					'excerpt'    => $is_episode ? '' : $event->summary,
+					'url'        => $notif_url,
+					'icon'       => $notif_icon,
 					'event_type' => $event->event_type,
 				],
 			] );
