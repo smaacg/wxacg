@@ -74,7 +74,7 @@ final class Corrections_Admin {
      *
      * 保留「移至垃圾桶」，讓處理者能清掉灌水或重複的回報。
      */
-    public static function row_actions( array $actions, WP_Post $post ): array {
+    public static function row_actions( array $actions, \WP_Post $post ): array {
         if ( $post->post_type !== Corrections_CPT::POST_TYPE ) {
             return $actions;
         }
