@@ -1054,14 +1054,32 @@ $top_query = new WP_Query(
     ]
 );
 
+/*
+ * 「即將開播」依開播日由近而遠排序。
+ *
+ * 原本是 orderby => 'date'，排的是文章建檔時間（誰最近被匯入誰在前），
+ * 與開播日無關。實測 FALL 2026 有 72 部、其中 10 月就佔 57 部，但顯示的
+ * 六部裡只有兩部是 10 月，其餘是 11 月、9 月與開播日未定的作品。
+ *
+ * anime_start_date >= 今天：
+ *   同季度資料中混有開播日已過的條目（實測 FALL 2026 有兩部標成 202601，
+ *   屬上游資料錯誤）。不擋掉的話，升冪排序會把它們推到最前面。
+ *
+ * 注意 meta_key 會產生 INNER JOIN，開播日未定的作品因此不會出現。
+ * 這對「即將開播」是正確的——日期未定本來就稱不上即將開播，且符合
+ * 條件的作品有 66 部，六個位置不會缺料。
+ */
+$today_ymd = (int) current_time( 'Ymd' );
+
 $upcoming_query = new WP_Query(
     [
         'post_type'      => 'anime',
         'post_status'    => 'publish',
         'posts_per_page' => 6,
-        'orderby'        => 'date',
-        'order'          => 'DESC',
         'no_found_rows'  => true,
+        'meta_key'       => 'anime_start_date',
+        'orderby'        => 'meta_value_num',
+        'order'          => 'ASC',
         'meta_query'     => [
             'relation' => 'AND',
             [
@@ -1073,6 +1091,12 @@ $upcoming_query = new WP_Query(
                 'key'     => 'anime_season_year',
                 'value'   => $next_year,
                 'compare' => '=',
+                'type'    => 'NUMERIC',
+            ],
+            [
+                'key'     => 'anime_start_date',
+                'value'   => $today_ymd,
+                'compare' => '>=',
                 'type'    => 'NUMERIC',
             ],
         ],
