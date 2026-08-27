@@ -103,9 +103,32 @@ $activity = ( $can_view_activity && function_exists( 'smacg_get_recent_activity'
 
 // 預設 tab
 $active_tab = get_query_var( 'smacg_pp_tab' ) ?: 'overview';
-$valid_tabs = [ 'overview', 'watchlist', 'ratings', 'reviews', 'achievements', 'activity' ];
+$valid_tabs = [ 'overview', 'watchlist', 'ratings', 'reviews', 'achievements', 'activity', 'toplist' ];
 if ( ! in_array( $active_tab, $valid_tabs, true ) ) {
     $active_tab = 'overview';
+}
+
+/*
+ * 單一排行清單：/u/{username}/toplist/{id}/
+ *
+ * 這種網址是拿去分享的，訪客點進來應該直接看到那份排行本身，而不是落在
+ * 一個要自己找分頁的個人頁。所以這裡先把清單撈出來，下方在有值時只渲染
+ * 排行、跳過整個分頁介面。
+ */
+$pp_toplist_id   = (int) get_query_var( 'smacg_pp_toplist' );
+$pp_toplist_data = null;
+
+if ( $pp_toplist_id > 0 && function_exists( 'wxacg_toplist_get' ) ) {
+    $maybe = wxacg_toplist_get( $uid, $pp_toplist_id );
+
+    if ( $maybe && wxacg_toplist_can_view( $maybe, $uid, get_current_user_id() ) ) {
+        $pp_toplist_data = $maybe;
+    } else {
+        // 清單不存在或不公開——不要靜默落回個人頁，那會讓分享連結看起來
+        // 像是「點了沒反應」。直接回 404，語意正確也不會被搜尋引擎收錄。
+        status_header( 404 );
+        $pp_toplist_id = 0;
+    }
 }
 
 // ── [v1.1] 會員公開頁一律 noindex，避免空白新會員頁面被搜尋引擎建立索引 ──
@@ -160,11 +183,25 @@ get_header(); ?>
             'is_owner'     => $is_owner,
         ] ); ?>
 
+        <?php
+        /*
+         * 單一排行清單模式：只渲染那份排行，不顯示分頁介面。
+         * 分享連結的訪客要的是那份榜單，不是這個人的個人檔案。
+         */
+        if ( $pp_toplist_data && function_exists( 'wxacg_toplist_render_single' ) ) :
+            wxacg_toplist_render_single( $user, $pp_toplist_data );
+        else :
+        ?>
+
         <nav class="pp-tabs" role="tablist">
             <?php
+            $has_toplist = function_exists( 'wxacg_toplist_get_all' )
+                && ! empty( wxacg_toplist_get_all( $uid ) );
+
             $tabs = [
                 'overview'  => [ '📊', '總覽', true ],
                 'watchlist' => [ '🎬', '清單', $can_view_watchlist ],
+                'toplist'   => [ '🏆', '排行', $has_toplist && $can_view_profile ],
                 'ratings'   => [ '⭐', '評分', $can_view_ratings ],
                 'reviews'   => [ '📝', '評論', $can_view_profile ],
                 'achievements' => [ '🏆', '成就', $can_view_profile ],
@@ -196,6 +233,12 @@ get_header(); ?>
             </section>
             <?php endif; ?>
 
+            <?php if ( $has_toplist && $can_view_profile ) : ?>
+            <section class="pp-panel<?php echo $active_tab === 'toplist' ? ' active' : ''; ?>" data-panel="toplist">
+                <?php wxacg_toplist_render_index( $user, get_current_user_id() === $uid ); ?>
+            </section>
+            <?php endif; ?>
+
             <?php if ( $can_view_ratings ) : ?>
             <section class="pp-panel<?php echo $active_tab === 'ratings' ? ' active' : ''; ?>" data-panel="ratings">
                 <?php smacg_pp_render_ratings( $ratings ); ?>
@@ -224,6 +267,8 @@ get_header(); ?>
             </section>
             <?php endif; ?>
         </div>
+
+        <?php endif; /* $pp_toplist_data：單一排行模式 */ ?>
 
     <?php endif; ?>
 

@@ -106,10 +106,26 @@ function smacg_pp_register_rewrite() {
         'top'
     );
 
-    // Tabs：/u/{username}/(watchlist|ratings|badges|activity)/
+    // Tabs：/u/{username}/(watchlist|ratings|badges|activity|toplist)/
     add_rewrite_rule(
-        '^' . $slug . '/([^/]+)/(watchlist|ratings|badges|activity)/?$',
+        '^' . $slug . '/([^/]+)/(watchlist|ratings|badges|activity|toplist)/?$',
         'index.php?smacg_pp_user=$matches[1]&smacg_pp_tab=$matches[2]',
+        'top'
+    );
+
+    /*
+     * 單一排行清單：/u/{username}/toplist/{id}/
+     *
+     * 這條要排在上面那條之前才會生效嗎？不用——WordPress 依序比對，上面
+     * 那條的 pattern 以 /?$ 結尾，不會吃掉後面還有 /{id}/ 的網址。
+     *
+     * 為什麼要獨立網址而不是 /u/{name}/toplist/#id：
+     * 井號片段不會送到伺服器，社群平台抓不到，分享卡片就只能顯示整個
+     * 個人頁的資訊。排行要能單獨產生 OG 卡片，就必須有自己的網址。
+     */
+    add_rewrite_rule(
+        '^' . $slug . '/([^/]+)/toplist/([0-9]+)/?$',
+        'index.php?smacg_pp_user=$matches[1]&smacg_pp_tab=toplist&smacg_pp_toplist=$matches[2]',
         'top'
     );
 
@@ -134,6 +150,7 @@ function smacg_pp_query_vars( $vars ) {
     $vars[] = 'smacg_pp_paged';
     $vars[] = 'smacg_pp_tab';
     $vars[] = 'smacg_pp_section';   // v1.2.0：'followers' | 'following'
+    $vars[] = 'smacg_pp_toplist';   // 單一排行清單的 ID
     return $vars;
 }
 
@@ -261,6 +278,18 @@ function smacg_pp_dispatch() {
     add_filter( 'rank_math/opengraph/facebook/og_title', 'smacg_pp_filter_seo_title', 10, 1 );
 
     /*
+     * 排行頁的描述與圖片也要蓋掉 SEO 外掛的預設值，否則卡片會是
+     * 「某某在微笑動漫的追番清單與評分」配上頭像——看不出是哪份榜單。
+     */
+    add_filter( 'rank_math/opengraph/facebook/og_description', 'wxacg_toplist_filter_og_desc', 10, 1 );
+    add_filter( 'rank_math/opengraph/facebook/og_image',       'wxacg_toplist_filter_og_image', 10, 1 );
+    add_filter( 'rank_math/opengraph/twitter/twitter_title',   'smacg_pp_filter_seo_title', 10, 1 );
+    add_filter( 'rank_math/opengraph/twitter/twitter_description', 'wxacg_toplist_filter_og_desc', 10, 1 );
+    add_filter( 'rank_math/opengraph/twitter/twitter_image',   'wxacg_toplist_filter_og_image', 10, 1 );
+    add_filter( 'wpseo_opengraph_desc',                        'wxacg_toplist_filter_og_desc', 10, 1 );
+    add_filter( 'wpseo_opengraph_image',                       'wxacg_toplist_filter_og_image', 10, 1 );
+
+    /*
      * ★ <title> 與 robots
      *
      * 上面那幾條只處理 canonical 與「社群分享用的 og:title」，瀏覽器分頁
@@ -353,6 +382,32 @@ function smacg_pp_render_meta_tags() {
     }
 
     $title = sprintf( '%s 的個人頁 - %s', $display, get_bloginfo( 'name' ) );
+
+    /*
+     * 單一排行清單的專屬分享卡片。
+     *
+     * 這是整個排行功能能不能被分享出去的關鍵：貼到 Threads／Discord 時，
+     * 對方先看到卡片才決定要不要點。用清單名稱當標題、前幾名當描述、
+     * 第一名的封面當圖，卡片就會長得像一張推薦榜而不是某人的個人頁。
+     *
+     * twitter:card 一併改成 summary_large_image——預設的 summary 是小方圖，
+     * 封面直式海報在小卡裡幾乎看不清楚。
+     */
+    $tl = function_exists( 'wxacg_toplist_current_meta' ) ? wxacg_toplist_current_meta() : null;
+    if ( $tl ) {
+        printf( "<meta property=\"og:type\" content=\"article\">\n" );
+        printf( "<meta property=\"og:title\" content=\"%s\">\n", esc_attr( $tl['title'] ) );
+        printf( "<meta property=\"og:description\" content=\"%s\">\n", esc_attr( wp_strip_all_tags( $tl['desc'] ) ) );
+        printf( "<meta property=\"og:url\" content=\"%s\">\n", esc_url( $tl['url'] ) );
+        printf( "<meta property=\"og:image\" content=\"%s\">\n", esc_url( $tl['image'] ) );
+        printf( "<meta name=\"twitter:card\" content=\"summary_large_image\">\n" );
+        printf( "<meta name=\"twitter:title\" content=\"%s\">\n", esc_attr( $tl['title'] ) );
+        printf( "<meta name=\"twitter:description\" content=\"%s\">\n", esc_attr( wp_strip_all_tags( $tl['desc'] ) ) );
+        printf( "<meta name=\"twitter:image\" content=\"%s\">\n", esc_url( $tl['image'] ) );
+
+        // 已輸出排行專屬標籤，不要再輸出個人頁那組，否則同名標籤重複
+        return;
+    }
     $desc  = $bio ?: sprintf( '%s 在 %s 的追番清單與評分', $display, get_bloginfo( 'name' ) );
 
     echo "\n<!-- SMACG Public Profile Meta -->\n";
@@ -424,10 +479,32 @@ function smacg_pp_filter_seo_canonical( $canonical ) {
  */
 function smacg_pp_filter_seo_title( $title ) {
     if ( ! smacg_is_public_profile_page() ) return $title;
+
+    // 單一排行頁：改用排行名稱，否則分享卡片會顯示「某某的個人頁」
+    $tl = function_exists( 'wxacg_toplist_current_meta' ) ? wxacg_toplist_current_meta() : null;
+    if ( $tl ) return $tl['title'];
+
     $user = wxacg_get_public_profile_user();
     if ( ! $user ) return $title;
     $display = $user->display_name ?: $user->user_login;
     return sprintf( '%s 的個人頁 - %s', $display, get_bloginfo( 'name' ) );
+}
+
+/**
+ * 單一排行頁的 og:description / og:image。
+ *
+ * 與 smacg_pp_render_meta_tags() 共用 wxacg_toplist_current_meta()，
+ * 兩條輸出路徑的內容因此必定一致——SEO 外掛那組與本外掛自己 printf 的
+ * 那組若說法不同，社群平台取到哪一個就變成擲骰子。
+ */
+function wxacg_toplist_filter_og_desc( $desc ) {
+    $tl = function_exists( 'wxacg_toplist_current_meta' ) ? wxacg_toplist_current_meta() : null;
+    return $tl ? wp_strip_all_tags( $tl['desc'] ) : $desc;
+}
+
+function wxacg_toplist_filter_og_image( $image ) {
+    $tl = function_exists( 'wxacg_toplist_current_meta' ) ? wxacg_toplist_current_meta() : null;
+    return ( $tl && $tl['image'] ) ? $tl['image'] : $image;
 }
 
 /**

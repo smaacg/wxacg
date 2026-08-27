@@ -100,6 +100,15 @@ final class Plugin {
         require_once $legacy . 'public-profile.php';
         require_once $legacy . 'public-profile-render.php';
 
+        // 會員自訂動漫排行（可命名、可分享）
+        require_once $legacy . 'toplist-data.php';
+        require_once $legacy . 'toplist-render.php';
+        require_once $legacy . 'toplist-editor.php';
+        require_once $legacy . 'toplist-ajax.php';
+        require_once $legacy . 'toplist-card.php';
+        require_once $legacy . 'toplist-views.php';
+        require_once $legacy . 'toplist-gamify.php';
+
         // v1.2.0：粉絲 / 追蹤中子頁
         require_once $legacy . 'followers-page.php';
 

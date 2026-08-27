@@ -395,6 +395,7 @@ get_header(); ?>
             [
                 'dashboard'     => '📊 總覽',
                 'watchlist'     => '🎬 我的清單',
+                'toplist'       => '🏆 我的排行',
                 'favorites'     => '❤️ 我的收藏',
                 'ratings'       => '⭐ 我的評分',
                 'comments'      => '💬 留言',
@@ -463,6 +464,19 @@ get_header(); ?>
             <?php if ( function_exists( 'smacg_render_watchlist' ) ) {
                 smacg_render_watchlist( $watchlist, $stats['counts'] );
             } else { echo '<p class="mc-empty">清單模組尚未載入</p>'; } ?>
+        </section>
+
+        <section class="mc-panel" data-panel="toplist">
+            <?php
+            /*
+             * 自訂動漫排行編輯器。
+             *
+             * $watchlist 已於本檔上方載入，直接傳入當作可挑選的作品來源，
+             * 不重複查資料庫——與上面「我的收藏」重用同一份資料的作法一致。
+             */
+            if ( function_exists( 'wxacg_toplist_render_editor' ) ) {
+                wxacg_toplist_render_editor( $uid, $watchlist );
+            } else { echo '<p class="mc-empty">排行模組尚未載入</p>'; } ?>
         </section>
 
         <section class="mc-panel" data-panel="favorites">
