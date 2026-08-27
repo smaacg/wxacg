@@ -836,24 +836,83 @@ a.pp-timeline-target:hover { color: var(--mc-accent); }
 /* ==========================================================
  *  Badges
  * ========================================================== */
+/*
+ * 徽章卡片。
+ *
+ * ⚠ 選擇器原本寫的是 .pp-badge-item，但 PHP 輸出的一直是 .pp-badge——
+ * 整段卡片樣式（背景、邊框、內距、hover）從來沒有生效過，畫面上就是
+ * 一排裸露的圖示配文字。實測正式站頁面有 28 個 .pp-badge、0 個
+ * .pp-badge-item。
+ */
 .pp-badge-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px;
 }
+.pp-badge,
 .pp-badge-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   text-align: center;
-  padding: 16px 10px;
+  padding: 18px 10px 14px;
   background: var(--mc-surface);
   border: 1px solid var(--mc-border);
   border-radius: var(--mc-radius);
-  transition: transform .15s, border-color .15s;
+  transition: transform .15s, border-color .15s, background .15s;
 }
-.pp-badge-item:hover { transform: translateY(-2px); border-color: var(--mc-accent); }
-.pp-badge-icon { font-size: 36px; margin-bottom: 6px; }
-.pp-badge-name { font-size: 13px; font-weight: 600; color: var(--mc-text); }
-.pp-badge-desc { font-size: 11px; color: var(--mc-text-3); margin-top: 2px; line-height: 1.4; }
+.pp-badge:hover,
+.pp-badge-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--mc-accent);
+  background: var(--mc-surface-hi);
+}
+
+/*
+ * 圖示放在一個圓形底座上，而不是讓字元直接浮在卡片裡——沒有底座時
+ * 每張卡的視覺重心會隨圖示寬度飄移，整片看起來很雜。
+ */
+.pp-badge-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  font-size: 26px;
+  line-height: 1;
+  background: linear-gradient(135deg, rgba(255, 107, 174, .16), rgba(167, 139, 250, .16));
+  border: 1px solid rgba(255, 107, 174, .25);
+}
+/* Font Awesome 圖示用主色，與 emoji 那批區分開 */
+.pp-badge--fa .pp-badge-icon {
+  color: var(--mc-accent);
+  font-size: 22px;
+}
+
+.pp-badge-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mc-text);
+  line-height: 1.35;
+}
+.pp-badge-desc {
+  font-size: 11px;
+  color: var(--mc-text-3);
+  line-height: 1.5;
+}
+.pp-badge.locked,
 .pp-badge-item.locked { opacity: .35; filter: grayscale(1); }
+
+@media (max-width: 480px) {
+  .pp-badge-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 9px; }
+  .pp-badge, .pp-badge-item { padding: 14px 7px 11px; }
+  .pp-badge-icon { width: 44px; height: 44px; font-size: 22px; }
+  .pp-badge--fa .pp-badge-icon { font-size: 19px; }
+  .pp-badge-name { font-size: 12px; }
+}
 
 /* ==========================================================
  *  Followers / Following

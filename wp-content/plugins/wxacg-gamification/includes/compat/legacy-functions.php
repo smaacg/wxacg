@@ -91,6 +91,11 @@ if ( ! function_exists( 'wxacg_get_achievement_icon' ) ) {
             'badge-first-dice-roll-wife'      => 'fa-venus',
             'badge-first-dice-roll-husband'   => 'fa-mars',
             'badge-first-dice-roll-seiyuu'    => 'fa-microphone',
+            'badge-first-toplist-created'     => 'fa-list-ol',
+            'badge-first-toplist-completed'   => 'fa-ranking-star',
+            // 這兩個原本沒對應，會落到預設的 fa-trophy，與其他徽章分不出來
+            'badge-first-fav-character'       => 'fa-user-astronaut',
+            'badge-first-fav-person'          => 'fa-user-tie',
         ];
 
         if ( isset( $map[ $slug ] ) ) {

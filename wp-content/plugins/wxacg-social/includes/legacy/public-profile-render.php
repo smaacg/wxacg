@@ -496,11 +496,35 @@ function smacg_pp_render_badges( $uid, $stats ) {
     if ( $watch_days >= 30 )   $badges[] = [ '📅', '常駐觀眾', '觀看 30 天' ];
     if ( $favorites >= 10 )    $badges[] = [ '❤️', '收藏家', '收藏 10 部作品' ];
 
+    /*
+     * 上面那批是依統計數字即時算出來的，用 emoji；下面這批是 GamiPress
+     * 實際發放的成就文章。
+     *
+     * 原本把每一個成就都寫死成 🏅，導致整頁二十幾個徽章長得一模一樣、
+     * 完全分不出是哪一個成就。站上早就有 wxacg_get_achievement_icon()
+     * 依 slug 對應 Font Awesome 圖示（初次登入→鑰匙、初次收藏→愛心、
+     * 里程碑類用前綴比對），這裡卻沒用到。
+     *
+     * 說明文字原本讀 post_excerpt，但站上的成就文章說明是寫在
+     * post_content——實測 38 篇全部 excerpt 為空，所以描述一直沒顯示。
+     * 改為 excerpt 優先、退回 content。
+     */
     if ( function_exists( 'gamipress_get_user_achievements' ) ) {
         $achievements = gamipress_get_user_achievements( [ 'user_id' => $uid ] );
         if ( $achievements ) {
             foreach ( $achievements as $a ) {
-                $badges[] = [ '🏅', get_the_title( $a->ID ), wp_strip_all_tags( get_post_field( 'post_excerpt', $a->ID ) ) ];
+                $slug = get_post_field( 'post_name', $a->ID );
+
+                $icon = function_exists( 'wxacg_get_achievement_icon' )
+                    ? wxacg_get_achievement_icon( $slug )
+                    : '';
+
+                $desc = wp_strip_all_tags( (string) get_post_field( 'post_excerpt', $a->ID ) );
+                if ( $desc === '' ) {
+                    $desc = wp_strip_all_tags( (string) get_post_field( 'post_content', $a->ID ) );
+                }
+
+                $badges[] = [ $icon ?: '🏅', get_the_title( $a->ID ), $desc, 'fa' ];
             }
         }
     }
@@ -509,10 +533,19 @@ function smacg_pp_render_badges( $uid, $stats ) {
         <?php if ( $badges ) : ?>
             <div class="pp-badge-grid">
                 <?php foreach ( $badges as $b ) : ?>
-                    <div class="pp-badge">
-                        <div class="pp-badge-icon"><?php echo esc_html( $b[0] ); ?></div>
+                    <?php $is_fa = ( ( $b[3] ?? '' ) === 'fa' ) && strpos( $b[0], 'fa-' ) !== false; ?>
+                    <div class="pp-badge<?php echo $is_fa ? ' pp-badge--fa' : ''; ?>">
+                        <div class="pp-badge-icon">
+                            <?php if ( $is_fa ) : ?>
+                                <i class="<?php echo esc_attr( $b[0] ); ?>" aria-hidden="true"></i>
+                            <?php else : ?>
+                                <?php echo esc_html( $b[0] ); ?>
+                            <?php endif; ?>
+                        </div>
                         <div class="pp-badge-name"><?php echo esc_html( $b[1] ); ?></div>
-                        <div class="pp-badge-desc"><?php echo esc_html( $b[2] ); ?></div>
+                        <?php if ( ! empty( $b[2] ) ) : ?>
+                            <div class="pp-badge-desc"><?php echo esc_html( $b[2] ); ?></div>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
