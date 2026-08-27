@@ -258,6 +258,46 @@
         '已達 TOP ' + list.size + ' 上限，要加入其他作品請先移除一部，或把長度改成 20。'));
     }
 
+    /*
+     * 分類篩選。
+     *
+     * 數量標在候選池「尚未加入」的基準上，而不是整份清單——使用者看到
+     * 「已看完 (3)」時，那 3 部就是他現在真的能點的，不會出現顯示 11
+     * 卻只列出 3 個的落差。
+     */
+    const chips = el('div', 'wxtl-pool-filters');
+    let activeFilter = 'all';
+
+    function matchFilter(p, key) {
+      if (key === 'all') { return true; }
+      if (key === 'favorited') { return !!p.fav; }
+      return p.st === key;
+    }
+
+    (boot.filters || []).forEach(function (f) {
+      const n = avail.filter(function (p) { return matchFilter(p, f.key); }).length;
+
+      const c = el('button', 'wxtl-chip' + (f.key === activeFilter ? ' is-active' : ''));
+      c.type = 'button';
+      c.dataset.key = f.key;
+      c.appendChild(el('span', null, f.label));
+      c.appendChild(el('span', 'wxtl-chip-n', String(n)));
+
+      // 這個分類在候選池裡沒有東西可加就停用，避免點了看到空白
+      if (n === 0) { c.disabled = true; }
+
+      c.addEventListener('click', function () {
+        activeFilter = f.key;
+        chips.querySelectorAll('.wxtl-chip').forEach(function (x) {
+          x.classList.toggle('is-active', x.dataset.key === activeFilter);
+        });
+        paint(search.value);
+      });
+
+      chips.appendChild(c);
+    });
+    wrap.appendChild(chips);
+
     const search = el('input', 'wxtl-input wxtl-search');
     search.type = 'search';
     search.placeholder = '搜尋自己的清單…';
@@ -270,6 +310,7 @@
       const kw = (filter || '').trim().toLowerCase();
 
       avail.forEach(function (p) {
+        if (!matchFilter(p, activeFilter)) { return; }
         if (kw && p.title.toLowerCase().indexOf(kw) === -1) { return; }
 
         const b = el('button', 'wxtl-pool-item');

@@ -31,6 +31,16 @@ function wxacg_toplist_render_editor( int $user_id, array $watchlist = [] ): voi
      * 把可挑選的作品整理成前端要的最小形狀。
      * 只帶 id / 標題 / 封面——編輯器不需要年份、狀態等其他欄位。
      */
+    /*
+     * 候選池必須與儲存時的驗證用同一份允許清單。
+     *
+     * 追番清單裡混有漫畫，但 wxacg_toplist_sanitize_items() 只保留
+     * wxacg_toplist_post_types() 允許的類型——不在這裡先濾掉的話，
+     * 漫畫看得到也點得下去，一按儲存卻被靜默丟棄，使用者只會覺得
+     * 「加了沒反應」。
+     */
+    $allowed = wxacg_toplist_post_types();
+
     $pool = [];
     foreach ( $watchlist as $w ) {
         // smacg_build_watchlist() 用的鍵是 post_id（見 member-stats.php），
@@ -40,15 +50,26 @@ function wxacg_toplist_render_editor( int $user_id, array $watchlist = [] ): voi
             continue;
         }
 
+        if ( ! in_array( get_post_type( $pid ), $allowed, true ) ) {
+            continue;
+        }
+
         $cover = (string) get_the_post_thumbnail_url( $pid, 'weixiaoacg-cover' );
         if ( $cover === '' ) {
             $cover = (string) get_the_post_thumbnail_url( $pid, 'medium' );
         }
 
+        /*
+         * st 是清單狀態、fav 是收藏旗標，兩者獨立。
+         * 「收藏」會跨越各種狀態（已看完的也可能被收藏），所以不能當成
+         * 第七種 status 來算，篩選時要分開處理。
+         */
         $pool[] = [
             'id'    => $pid,
             'title' => get_the_title( $pid ),
             'cover' => $cover,
+            'st'    => (string) ( $w['status'] ?? '' ),
+            'fav'   => ! empty( $w['favorited'] ),
         ];
     }
 
@@ -69,9 +90,46 @@ function wxacg_toplist_render_editor( int $user_id, array $watchlist = [] ): voi
         }
     }
 
+    /*
+     * 候選池的分類篩選。
+     *
+     * 中文對照沿用 member-render.php 既有那份，會員在「我的清單」看到的
+     * 說法與這裡一致。收藏放最後並標成 fav 類型——它是旗標不是狀態，
+     * 會與其他分類重疊，數字加總不等於全部是正常的。
+     */
+    $filter_defs = [
+        [ 'key' => 'all',       'label' => '全部',   'type' => 'all' ],
+        [ 'key' => 'watching',  'label' => '追番中', 'type' => 'st'  ],
+        [ 'key' => 'completed', 'label' => '已看完', 'type' => 'st'  ],
+        [ 'key' => 'want',      'label' => '想看',   'type' => 'st'  ],
+        [ 'key' => 'paused',    'label' => '暫停',   'type' => 'st'  ],
+        [ 'key' => 'dropped',   'label' => '棄番',   'type' => 'st'  ],
+        [ 'key' => 'favorited', 'label' => '收藏',   'type' => 'fav' ],
+    ];
+
+    $filters = [];
+    foreach ( $filter_defs as $f ) {
+        $n = 0;
+        foreach ( $pool as $p ) {
+            if ( $f['type'] === 'all' ) {
+                $n++;
+            } elseif ( $f['type'] === 'fav' ) {
+                if ( ! empty( $p['fav'] ) ) { $n++; }
+            } elseif ( $p['st'] === $f['key'] ) {
+                $n++;
+            }
+        }
+
+        // 數量 0 的分類仍然顯示——使用者要看得出「這個狀態我還沒有作品」，
+        // 而不是以為功能壞了
+        $f['count'] = $n;
+        $filters[]  = $f;
+    }
+
     $boot = [
         'lists'    => $lists,
         'pool'     => $pool,
+        'filters'  => $filters,
         'max'      => WXACG_TOPLIST_MAX,
         'sizes'    => wxacg_toplist_sizes(),
         'titleMax' => WXACG_TOPLIST_TITLE_MAX,
