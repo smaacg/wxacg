@@ -61,19 +61,27 @@ class Checkin_Panel {
 
         $today_done = ( $last === $today );
 
-        // streak 為 7 的倍數時 % 7 會是 0，那其實是走完整輪的第 7 格
+        /*
+         * 兩個週期的位置。
+         *
+         * % 為 0 時代表剛好走完整輪，要顯示成最後一格而不是第 0 格
+         * （streak=7 是本輪第 7 格、streak=30 是大輪第 30 格）。
+         */
         $cycle_pos = $streak > 0
             ? ( ( $streak % self::CYCLE ) === 0 ? self::CYCLE : $streak % self::CYCLE )
+            : 0;
+
+        $big_pos = $streak > 0
+            ? ( ( $streak % self::BIG_CYCLE ) === 0 ? self::BIG_CYCLE : $streak % self::BIG_CYCLE )
             : 0;
 
         return [
             'streak'     => $streak,
             'today_done' => $today_done,
             'cycle_pos'  => $cycle_pos,
+            'big_pos'    => $big_pos,
             'to_next7'   => $streak > 0 ? ( self::CYCLE - $cycle_pos ) : self::CYCLE,
-            'to_next30'  => $streak > 0
-                ? ( self::BIG_CYCLE - ( $streak % self::BIG_CYCLE === 0 ? self::BIG_CYCLE : $streak % self::BIG_CYCLE ) )
-                : self::BIG_CYCLE,
+            'to_next30'  => $streak > 0 ? ( self::BIG_CYCLE - $big_pos ) : self::BIG_CYCLE,
         ];
     }
 
@@ -102,6 +110,14 @@ class Checkin_Panel {
                 </div>
                 <div class="wxci-streak">
                     已連續簽到 <b><?php echo (int) $s['streak']; ?></b> 天
+                    <?php if ( $s['streak'] > self::BIG_CYCLE ) : ?>
+                        <?php
+                        // 超過一大輪的人要看得出自己走過幾輪，否則格子重頭
+                        // 開始會讓人以為進度被歸零
+                        $rounds = (int) floor( $s['streak'] / self::BIG_CYCLE );
+                        ?>
+                        <span class="wxci-rounds">已完成 <?php echo $rounds; ?> 輪</span>
+                    <?php endif; ?>
                     <?php if ( $s['today_done'] ) : ?>
                         <span class="wxci-done">今日已簽到</span>
                     <?php endif; ?>
@@ -114,22 +130,40 @@ class Checkin_Panel {
                 <b>+<?php echo $exp30; ?> EXP</b>，之後每滿一輪再發一次。
             </p>
 
-            <!-- 本輪 7 天 -->
-            <ol class="wxci-cells" aria-label="本輪簽到進度">
-                <?php for ( $i = 1; $i <= self::CYCLE; $i++ ) :
-                    $filled = ( $i <= $s['cycle_pos'] );
-                    $is_last = ( $i === self::CYCLE );
+            <?php
+            /*
+             * 畫 30 格而不是 7 格。
+             *
+             * 原本只畫一輪 7 格，但實際會員已經連續 75 天——看到「第 5 格
+             * ／共 7 格」完全反映不出累積的量。改成對齊 streak_30 這個大
+             * 週期，中間每 7 天標一個小獎勵，進度感才出得來。
+             *
+             * 不做成巴哈的 4 週 28 格：那對應的是他們的獎勵結構，而本站
+             * 的循環是 7 與 30，畫 28 會讓第 30 天那個大獎沒有位置。
+             */
+            ?>
+            <ol class="wxci-cells" aria-label="連續簽到進度（30 天為一大輪）">
+                <?php for ( $i = 1; $i <= self::BIG_CYCLE; $i++ ) :
+                    $filled   = ( $i <= $s['big_pos'] );
+                    $is_big   = ( $i === self::BIG_CYCLE );
+                    $is_small = ( ! $is_big && $i % self::CYCLE === 0 );
                     ?>
                     <li class="wxci-cell<?php
                         echo $filled ? ' is-done' : '';
-                        echo $is_last ? ' is-bonus' : '';
+                        echo $is_big ? ' is-bigbonus' : ( $is_small ? ' is-bonus' : '' );
+                    ?>" title="<?php
+                        if ( $is_big )        { echo esc_attr( '第 30 天：大獎勵' ); }
+                        elseif ( $is_small )  { echo esc_attr( '第 ' . $i . ' 天：連續獎勵' ); }
+                        else                  { echo esc_attr( '第 ' . $i . ' 天' ); }
                     ?>">
                         <span class="wxci-cell-day"><?php echo (int) $i; ?></span>
                         <span class="wxci-cell-icon">
-                            <?php if ( $filled ) : ?>
-                                <i class="fa-solid fa-check" aria-hidden="true"></i>
-                            <?php elseif ( $is_last ) : ?>
+                            <?php if ( $is_big ) : ?>
+                                💎
+                            <?php elseif ( $is_small ) : ?>
                                 🎁
+                            <?php elseif ( $filled ) : ?>
+                                <i class="fa-solid fa-check" aria-hidden="true"></i>
                             <?php else : ?>
                                 ·
                             <?php endif; ?>

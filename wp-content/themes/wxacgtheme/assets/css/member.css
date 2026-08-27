@@ -1869,22 +1869,22 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
 }
 .wxci-note b { color: var(--mc-text); }
 
-/* 本輪 7 格 */
+/* 30 格為一大輪（對齊 streak_30），每 7 天一個小獎勵 */
 .wxci-cells {
   list-style: none;
   margin: 0 0 10px;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  gap: 5px;
 }
 .wxci-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 9px 2px;
-  border-radius: 8px;
+  padding: 7px 1px;
+  border-radius: 7px;
   border: 1px solid var(--mc-border);
   background: var(--mc-surface);
 }
@@ -1971,4 +1971,34 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   text-align: center;
   color: var(--mc-text-2);
   font-size: 14px;
+}
+
+/* ── 30 格版面的補充 ── */
+.wxci-rounds {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: rgba(167, 139, 250, .18);
+  color: #c4b5fd;
+  font-size: 11px;
+  font-weight: 700;
+}
+/* 第 30 天的大獎勵：比每 7 天的小獎勵更顯眼 */
+.wxci-cell.is-bigbonus {
+  border-color: rgba(167, 139, 250, .5);
+}
+.wxci-cell.is-bigbonus.is-done {
+  border-color: #a78bfa;
+  background: rgba(167, 139, 250, .18);
+}
+
+@media (max-width: 900px) {
+  .wxci-cells { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .wxci-cells { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+  .wxci-cell { padding: 6px 1px; }
+  .wxci-cell-day { font-size: 10px; }
+  .wxci-cell-icon { font-size: 12px; }
 }
