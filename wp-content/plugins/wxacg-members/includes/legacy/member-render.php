@@ -455,50 +455,131 @@ function smacg_render_ratings( $ratings, $rating_stats ) {
 }
 
 /* ===== Tab 5：留言 ===== */
+/**
+ * 會員中心「留言」面板。
+ *
+ * 同時列出兩種來源：
+ *   - WordPress 原生留言（wp_comments）：文章底下的留言
+ *   - 動漫評論（wxacg_review CPT）：作品頁的短評與長評
+ *
+ * 原本只查 get_comments()，完全不認識 wxacg_review——會員在作品頁發了
+ * 長評，回到這裡卻一片空白，看起來像內容遺失。實際資料好好的，只是
+ * 這個面板不知道要去哪裡撈。
+ *
+ * 兩邊合併後依時間排序，不做分頁：實測資料量最多的會員也只有 23 筆，
+ * 而原本的「載入更多」AJAX 只認得 wp_comments，硬要沿用會在合併後算錯
+ * offset。上限設 100 筆，超過的極端情況才會被截斷。
+ */
 function smacg_render_comments( $uid ) {
     $uid = (int) $uid;
     if ( $uid <= 0 ) { echo '<p class="mc-empty">尚無留言</p>'; return; }
 
-    $total = (int) get_comments( [ 'user_id' => $uid, 'status' => 'approve', 'count' => true ] );
-    if ( ! $total ) { echo '<p class="mc-empty">尚無留言</p>'; return; }
+    $max = (int) apply_filters( 'smacg_member_comments_max', 100 );
 
+    global $wpdb;
+
+    $items = [];
+
+    /* ── 動漫短評／長評 ── */
+    $reviews = get_posts( [
+        'post_type'      => 'wxacg_review',
+        'post_status'    => 'publish',
+        'author'         => $uid,
+        'posts_per_page' => $max,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+        'no_found_rows'  => true,
+    ] );
+
+    /*
+     * 評論系統上線時把舊留言遷移成了 wxacg_review，但原始留言沒有刪除
+     * （meta _wxacg_migrated_from_comment 記著來源 ID）。實測 21 則留言
+     * 裡有 19 則在評論表有一模一樣的副本——兩邊都撈就會每筆顯示兩次，
+     * 比原本「長評看不到」更糟。這裡先收集已遷移的留言 ID，稍後排除。
+     */
+    $migrated = [];
+    foreach ( $reviews as $r ) {
+        $from = (int) get_post_meta( $r->ID, '_wxacg_migrated_from_comment', true );
+        if ( $from > 0 ) {
+            $migrated[ $from ] = true;
+        }
+    }
+
+    /* ── 原生留言（排除已遷移的）── */
     $cmts = get_comments( [
         'user_id' => $uid,
         'status'  => 'approve',
-        'number'  => SMACG_COMMENT_PAGE_SIZE,
-        'offset'  => 0,
+        'number'  => $max,
         'orderby' => 'comment_date',
         'order'   => 'DESC',
     ] );
 
-    $loaded = count( $cmts );
-    $nonce  = wp_create_nonce( 'smacg_load_more_comments' );
+    foreach ( $cmts as $c ) {
+        if ( isset( $migrated[ (int) $c->comment_ID ] ) ) {
+            continue;
+        }
+
+        $items[] = [
+            'kind'  => '留言',
+            'title' => get_the_title( $c->comment_post_ID ),
+            'text'  => wp_trim_words( $c->comment_content, 40 ),
+            'link'  => get_comment_link( $c ),
+            'date'  => $c->comment_date,
+        ];
+    }
+
+    foreach ( $reviews as $r ) {
+        $parent = (int) $r->post_parent;
+
+        // 母作品被刪掉的評論不顯示——點進去只會是 404
+        if ( ! $parent || ! get_post( $parent ) ) {
+            continue;
+        }
+
+        $track = (string) get_post_meta( $r->ID, '_wxacg_review_track', true );
+        if ( $track === '' ) {
+            // 舊資料可能沒有這個 meta，用內容長度粗略判斷即可，
+            // 只影響標籤文字不影響連結
+            $track = mb_strlen( wp_strip_all_tags( $r->post_content ) ) >= 80 ? 'long' : 'short';
+        }
+
+        $items[] = [
+            'kind'  => $track === 'long' ? '長評' : '短評',
+            'title' => get_the_title( $parent ),
+            // 長評有自己的標題，優先顯示；沒有就用內文開頭
+            'text'  => $r->post_title !== ''
+                ? $r->post_title
+                : wp_trim_words( wp_strip_all_tags( $r->post_content ), 40 ),
+            'link'  => get_permalink( $parent ) . '#asd-sec-reviews',
+            'date'  => $r->post_date,
+        ];
+    }
+
+    if ( ! $items ) { echo '<p class="mc-empty">尚無留言</p>'; return; }
+
+    // 兩種來源合併後重新依時間排序
+    usort( $items, static function ( array $a, array $b ): int {
+        return strcmp( $b['date'], $a['date'] );
+    } );
+
+    $total = count( $items );
+    $items = array_slice( $items, 0, $max );
     ?>
     <div class="mc-comments-wrap">
-        <div class="mc-comments-meta">共 <b><?php echo $total; ?></b> 則留言</div>
+        <div class="mc-comments-meta">共 <b><?php echo (int) $total; ?></b> 則留言與評論</div>
 
         <ul class="mc-cmt-fulllist" id="mc-cmt-list">
-            <?php foreach ( $cmts as $c ): ?>
+            <?php foreach ( $items as $it ): ?>
                 <li>
-                    <a href="<?php echo esc_url( get_comment_link( $c ) ); ?>">
-                        <b><?php echo esc_html( get_the_title( $c->comment_post_ID ) ); ?></b>
-                        <p><?php echo esc_html( wp_trim_words( $c->comment_content, 40 ) ); ?></p>
-                        <small><?php echo esc_html( mysql2date( 'Y-m-d H:i', $c->comment_date ) ); ?></small>
+                    <a href="<?php echo esc_url( $it['link'] ); ?>">
+                        <b><?php echo esc_html( $it['title'] ); ?></b>
+                        <span class="mc-cmt-kind"><?php echo esc_html( $it['kind'] ); ?></span>
+                        <p><?php echo esc_html( $it['text'] ); ?></p>
+                        <small><?php echo esc_html( mysql2date( 'Y-m-d H:i', $it['date'] ) ); ?></small>
                     </a>
                 </li>
             <?php endforeach; ?>
         </ul>
-
-        <?php if ( $total > $loaded ): ?>
-            <div class="mc-loadmore-wrap">
-                <button type="button" class="mc-loadmore mc-loadmore-comments"
-                        data-loaded="<?php echo $loaded; ?>"
-                        data-total="<?php echo $total; ?>"
-                        data-nonce="<?php echo esc_attr( $nonce ); ?>">
-                    載入更多（剩 <span><?php echo $total - $loaded; ?></span>）
-                </button>
-            </div>
-        <?php endif; ?>
     </div>
     <?php
 }

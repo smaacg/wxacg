@@ -1798,3 +1798,18 @@ body.page-template-page-member .mc-wrap { width: 100% !important; max-width: 128
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── 留言面板的來源標籤 ──
+ * 面板同時列出原生留言與作品頁的短評／長評，標一下才分得出來源。
+ */
+.mc-cmt-fulllist .mc-cmt-kind {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .1);
+  color: var(--mc-text-2);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}

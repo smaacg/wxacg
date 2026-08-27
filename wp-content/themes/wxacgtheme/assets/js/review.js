@@ -271,13 +271,21 @@ document.addEventListener('DOMContentLoaded', function () {
     /* ── 骨架 ── */
     const trackLabels = { short: '吐槽（短評）', long: '評論（長評）' };
 
-    // 只有一種軌道時不顯示切換列，避免出現一顆按不動的分頁
+    /*
+     * 只有一種軌道時不顯示切換列，避免出現一顆按不動的分頁。
+     *
+     * 每顆鈕帶一個數量徽章：預設只顯示第一個軌道（短評），使用者發了長評
+     * 之後回到頁面看不到自己的東西，會以為沒存進去——實際只是在另一個
+     * 分頁。標上數量就能一眼看出另一邊有沒有內容。
+     */
     const tabsHtml = tracks.length > 1
         ? '<div class="asd-review-tabs">' +
               tracks.map(function (t, i) {
                   return '<button type="button" class="asd-review-track-btn' +
                       (i === 0 ? ' is-active' : '') +
-                      '" data-track="' + t + '">' + trackLabels[t] + '</button>';
+                      '" data-track="' + t + '">' + trackLabels[t] +
+                      '<span class="asd-review-track-count" data-count-for="' + t + '" hidden></span>' +
+                      '</button>';
               }).join('') +
           '</div>'
         : '';
@@ -346,7 +354,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         formWrap.innerHTML =
-            '<div class="asd-review-form">' +
+            // is-long 讓 CSS 只放大長評的輸入框——短評限 300 字，維持原本
+            // 的小方框比較不佔版面
+            '<div class="asd-review-form' + (currentTrack === 'long' ? ' is-long' : '') + '">' +
                 (currentTrack === 'long'
                     ? '<input type="text" class="asd-review-title-input" placeholder="標題（選填）" maxlength="100">' +
                       '<input type="text" class="asd-review-excerpt-input" placeholder="摘要（選填，20–60 字）" maxlength="60">'
@@ -375,11 +385,29 @@ document.addEventListener('DOMContentLoaded', function () {
         const submitBtn    = formWrap.querySelector('.asd-review-submit-btn');
         const msgEl        = formWrap.querySelector('.asd-review-form-msg');
 
+        /*
+         * 長評輸入框隨內容自動長高。
+         *
+         * 只靠 CSS 的 min-height 沒辦法解決：使用者寫到 1000 字時，固定
+         * 高度的框仍然只看得到開頭幾行，得一直捲動才能檢查自己寫了什麼。
+         * 上限 720px，超過就恢復內部捲動，避免整頁被一個輸入框撐爆。
+         */
+        function autoGrow() {
+            if (currentTrack !== 'long') { return; }
+            contentInput.style.height = 'auto';
+            const h = Math.min(contentInput.scrollHeight, 720);
+            contentInput.style.height = h + 'px';
+        }
+
         contentInput.addEventListener('input', function () {
             const len = Array.from(contentInput.value.trim()).length;
             counter.textContent = len + ' / ' + minLen + '+';
             counter.classList.toggle('is-ok', len >= minLen);
+            autoGrow();
         });
+
+        // 貼上大段文字時 input 事件會晚一拍，補一次
+        contentInput.addEventListener('paste', function () { setTimeout(autoGrow, 0); });
 
         submitBtn.addEventListener('click', function () {
             const content = contentInput.value.trim();
@@ -596,8 +624,35 @@ document.addEventListener('DOMContentLoaded', function () {
         );
     }
 
+    /*
+     * 更新切換鈕上的數量徽章。
+     *
+     * 各軌道各打一次 API——後端沒有「一次回傳所有軌道數量」的端點，而
+     * 為了一個數字去改 REST 介面不划算。軌道最多兩個，成本可接受，
+     * 失敗也只是徽章不顯示，不影響閱讀。
+     */
+    function refreshTrackCounts() {
+        tracks.forEach(function (t) {
+            const badge = root.querySelector('[data-count-for="' + t + '"]');
+            if (!badge) { return; }
+
+            callApi('reviews/' + animeId + '?track=' + t + '&sort=new', 'GET')
+                .then(function (d) {
+                    const n = (d && d.items) ? d.items.length : 0;
+                    if (n > 0) {
+                        badge.textContent = String(n);
+                        badge.hidden = false;
+                    } else {
+                        badge.hidden = true;
+                    }
+                })
+                .catch(function () { /* 徽章拿不到就不顯示，不干擾主流程 */ });
+        });
+    }
+
     function loadList() {
         listWrap.innerHTML = '<p class="asd-review-loading">評論載入中…</p>';
+        refreshTrackCounts();
         callApi('reviews/' + animeId + '?track=' + currentTrack + '&sort=' + currentSort, 'GET').then(function (data) {
             const items = data.items || [];
             if (items.length === 0) {

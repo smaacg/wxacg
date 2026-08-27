@@ -119,6 +119,26 @@
   line-height: 1.6;
 }
 
+/*
+ * 長評的輸入框要大得多。
+ *
+ * 短評限 300 字，90px（約 3 行）剛好；長評下限就 80 字、上限 20000 字，
+ * 實際使用者會寫到上千字——維持 90px 的話寫到後面只看得到最後三行，
+ * 要一直捲動才能檢查前文。
+ *
+ * JS 端另有 autoGrow() 隨內容長高（上限 720px），這裡的 min-height 是
+ * 還沒開始打字時的初始高度。
+ */
+.asd-review-form.is-long .asd-review-content-input {
+  min-height: 320px;
+}
+
+@media (max-width: 640px) {
+  .asd-review-form.is-long .asd-review-content-input {
+    min-height: 240px;
+  }
+}
+
 .asd-review-content-input::placeholder,
 .asd-review-title-input::placeholder,
 .asd-review-excerpt-input::placeholder {
@@ -722,4 +742,23 @@ a.asd-review-author {
 a.asd-review-author:hover {
   color: var(--rv-primary);
   text-decoration: underline;
+}
+
+/* ── 軌道切換鈕上的數量徽章 ──
+ * 預設只顯示第一個軌道，使用者發了另一種評論後回頁面看不到自己的東西，
+ * 會以為沒存進去。標上數量讓人知道另一邊有內容。
+ */
+.asd-review-track-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .14);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+}
+.asd-review-track-btn.is-active .asd-review-track-count {
+  background: rgba(255, 255, 255, .28);
 }
