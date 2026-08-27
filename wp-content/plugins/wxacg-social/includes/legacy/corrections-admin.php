@@ -194,19 +194,34 @@ final class Corrections_Admin {
             esc_url( $resolve )
         );
 
-        // 駁回（帶原因）：用小表單 POST
-        $reject_action = admin_url( 'admin-post.php' );
-        ?>
-        <form method="post" action="<?php echo esc_url( $reject_action ); ?>" style="margin-top:6px"
-              onsubmit="return confirm('確定駁回這筆回報？');">
-            <?php wp_nonce_field( 'wxacg_corr_reject_' . $post_id ); ?>
-            <input type="hidden" name="action" value="wxacg_corr_reject">
-            <input type="hidden" name="post_id" value="<?php echo esc_attr( $post_id ); ?>">
-            <input type="text" name="reason" placeholder="駁回原因（選填）"
-                   style="width:130px;font-size:11px;padding:3px 6px">
-            <button type="submit" class="button" style="font-size:11px">✕ 駁回</button>
-        </form>
-        <?php
+        /*
+         * 駁回：與上面的「標記已修正」一樣用帶 nonce 的連結，不用表單。
+         *
+         * 原本這裡是一個 <form method="post" action="admin-post.php">，但它被
+         * 渲染在列表表格的儲存格內，而整張列表本身已經包在 WordPress 的
+         * <form method="get" id="posts-filter"> 裡。HTML 不允許表單巢狀，
+         * 瀏覽器會直接丟棄內層的 <form> 標籤、只留下裡面的 input——於是按下
+         * 駁回送出的是外層表單：GET 到 edit.php，帶著兩組 _wpnonce 與兩組
+         * action，handle_reject() 根本不會被執行，畫面只顯示「連結已到期」。
+         *
+         * 改用連結後兩個動作機制一致，nonce 照樣保護。駁回原因用 prompt()
+         * 取得後附加到 href；使用者按取消（回傳 null）就不送出。
+         */
+        $reject = wp_nonce_url(
+            admin_url( 'admin-post.php?action=wxacg_corr_reject&post_id=' . $post_id ),
+            'wxacg_corr_reject_' . $post_id
+        );
+
+        $onclick = "var r = window.prompt('駁回原因（選填，可留空）', '');"
+                 . "if ( r === null ) { return false; }"
+                 . "this.href = this.href + '&reason=' + encodeURIComponent( r );"
+                 . "return true;";
+
+        printf(
+            '<a href="%s" class="button" style="margin-top:6px;font-size:11px" onclick="%s">✕ 駁回</a>',
+            esc_url( $reject ),
+            esc_attr( $onclick )
+        );
     }
 
     /* -------------------------------------------------- *
@@ -278,14 +293,15 @@ final class Corrections_Admin {
         if ( ! current_user_can( self::manage_cap() ) ) {
             wp_die( '權限不足' );
         }
-        $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+        // 改用連結送出後參數在 query string，與 handle_resolve() 一致
+        $post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
         check_admin_referer( 'wxacg_corr_reject_' . $post_id );
 
         if ( ! $post_id || get_post_type( $post_id ) !== Corrections_CPT::POST_TYPE ) {
             wp_die( '無效的回報' );
         }
 
-        $reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';
+        $reason = isset( $_GET['reason'] ) ? sanitize_text_field( wp_unslash( $_GET['reason'] ) ) : '';
 
         update_post_meta( $post_id, '_wxacg_corr_status', 'rejected' );
         if ( $reason ) {
