@@ -63,6 +63,75 @@ $smacg_brand = '微笑動漫';
   </div>
 </section>
 
+<?php
+/* ================================================================
+   自訂排行入口
+   ================================================================
+   放在 hero 之後而不是側欄：側欄在手機版會被推到整頁最底部，
+   而這個功能最需要的就是被看見。做成扁的橫幅，不佔太多垂直空間、
+   不把主要的排行榜內容推得太下面。
+
+   文案刻意與這頁的主題形成對比——上面是「整合全球四大平台數據」，
+   這裡問「那你自己的呢」，動機才成立。
+
+   三種狀態各給不同的行動點，避免未登入的人點進去撞牆。
+   ================================================================ */
+$wxtl_uid   = get_current_user_id();
+$wxtl_lists = ( $wxtl_uid && function_exists( 'wxacg_toplist_get_all' ) )
+    ? wxacg_toplist_get_all( $wxtl_uid )
+    : [];
+?>
+<div class="rank-mylist-cta">
+  <div class="container rank-mylist-cta__inner">
+
+    <div class="rank-mylist-cta__text">
+      <strong class="rank-mylist-cta__title">
+        🏆 <?php echo esc_html__( '這是全球數據，那你的呢？', 'weixiaoacg' ); ?>
+      </strong>
+      <span class="rank-mylist-cta__desc">
+        <?php echo esc_html__( '排出自己的推薦榜，取個主題名稱，一鍵複製就能貼到任何地方分享。', 'weixiaoacg' ); ?>
+      </span>
+    </div>
+
+    <div class="rank-mylist-cta__actions">
+      <?php if ( ! $wxtl_uid ) : ?>
+
+        <a class="rank-mylist-cta__btn" href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>">
+          <?php echo esc_html__( '登入後建立', 'weixiaoacg' ); ?>
+        </a>
+
+      <?php elseif ( empty( $wxtl_lists ) ) : ?>
+
+        <a class="rank-mylist-cta__btn" href="<?php echo esc_url( home_url( '/mc/#toplist' ) ); ?>">
+          <?php echo esc_html__( '建立我的第一份排行', 'weixiaoacg' ); ?>
+        </a>
+
+      <?php else : ?>
+
+        <?php
+        // 已有排行：直接給公開頁連結，方便他複製去分享
+        $wxtl_first = $wxtl_lists[0];
+        ?>
+        <a class="rank-mylist-cta__btn rank-mylist-cta__btn--ghost"
+           href="<?php echo esc_url( wxacg_toplist_permalink( $wxtl_uid, (int) $wxtl_first['id'] ) ); ?>">
+          <?php
+          printf(
+              /* translators: %s 排行名稱 */
+              esc_html__( '看我的「%s」', 'weixiaoacg' ),
+              esc_html( $wxtl_first['title'] )
+          );
+          ?>
+        </a>
+        <a class="rank-mylist-cta__btn" href="<?php echo esc_url( home_url( '/mc/#toplist' ) ); ?>">
+          <?php echo esc_html__( '管理我的排行', 'weixiaoacg' ); ?>
+        </a>
+
+      <?php endif; ?>
+    </div>
+
+  </div>
+</div>
+
 <!-- ================================================================
      第一層分類頁籤
      ================================================================ -->
