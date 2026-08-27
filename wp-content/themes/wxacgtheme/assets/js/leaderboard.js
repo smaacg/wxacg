@@ -83,14 +83,21 @@
     rank_season:      '本季牌位排行',
     rank_last_season: '上季牌位排行',
     exp_monthly:      '本月 EXP 榜',
+    login_streak:     '簽到榜',
     followers:        '人氣榜',
     badges:           '徽章榜',
   };
+  /*
+   * 沒有登記在這裡的類型，單位會是空字串——使用者只看到一個沒有單位的
+   * 數字，分不出是天數、分數還是筆數。login_streak 的 score 是連續簽到
+   * 天數，一定要標「天」。
+   */
   const scoreUnit = {
     exp_total:        'EXP',
     rank_season:      '分',
     rank_last_season: '分',
     exp_monthly:      'EXP',
+    login_streak:     '天',
     followers:        '粉絲',
     badges:           '枚',
   };
@@ -387,8 +394,31 @@
     startCountdown();
   }
 
+  /*
+   * 各榜的分數單位不同（EXP／天／粉絲數），只給一個數字使用者分不出代表
+   * 什麼——實際收到「簽到榜的數字代表什麼」的疑問才補這段說明。
+   * 文案與 page-ranking-users.php 的 $ranku_descs 一致，兩邊要一起改。
+   */
+  const typeDesc = {
+    exp_total:        '依累積 EXP 排名，EXP 只增不減。',
+    rank_season:      '依本季賽季積分排名，每季結算後重新開始。',
+    rank_last_season: '上一季結算後的最終排名。',
+    exp_monthly:      '依本月獲得的 EXP 排名，每月一號重新計算。',
+    login_streak:     '數字是連續簽到天數。登入就自動簽到，中斷一天會從頭算起。',
+    achievements:     '依獲得的成就徽章數量排名。',
+  };
+
+  function updateTabDesc() {
+    const el = document.getElementById('ranku-tab-desc');
+    if (!el) return;
+    const t = typeDesc[state.type] || '';
+    el.textContent = t;
+    el.hidden = (t === '');
+  }
+
   function updateCountInfo(data) {
     if (!countInfo) return;
+    updateTabDesc();
     const label   = typeLabel[state.type] || '排行';
     const total   = Number(data?.total ?? 0);
     const extra   = data?.season_label ? ` · ${data.season_label}` : '';

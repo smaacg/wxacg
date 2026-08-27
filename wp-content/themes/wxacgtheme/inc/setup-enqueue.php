@@ -651,8 +651,18 @@ add_action( 'wp_enqueue_scripts', function () {
 
     wp_enqueue_script( 'smacg-leaderboard', weixiaoacg_THEME_URL . '/assets/js/leaderboard.js', [], filemtime( $js_path ), true );
 
+    /*
+     * 分頁白名單必須與 page-ranking-users.php 的 $valid_tabs 一致。
+     *
+     * 這份清單原本只有前三項，後來新增的 exp_monthly／login_streak／
+     * achievements 沒同步進來，導致直接開 ?tab=login_streak 時：
+     * PHP 把簽到榜標成選中，JS 卻因為 defaultTab 被打回 exp_total 而
+     * 載入等級排行——分頁高亮與實際資料對不上。站內點擊分頁不受影響
+     * （leaderboard.js 的點擊處理自己會設定 state.type），只有直接
+     * 輸入網址／書籤／分享連結會踩到。
+     */
     $default_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'exp_total';
-    if ( ! in_array( $default_tab, [ 'exp_total', 'rank_season', 'rank_last_season' ], true ) ) {
+    if ( ! in_array( $default_tab, [ 'exp_total', 'rank_season', 'rank_last_season', 'exp_monthly', 'login_streak', 'achievements' ], true ) ) {
         $default_tab = 'exp_total';
     }
 

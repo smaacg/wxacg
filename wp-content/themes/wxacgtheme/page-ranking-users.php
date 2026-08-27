@@ -244,6 +244,28 @@ $hero_title_text = $hero_title_labels[ $default_tab ] ?? __( '會員排行榜', 
           </div>
         </div>
 
+        <?php
+        /*
+         * 分頁說明。
+         *
+         * 各榜的分數單位不同（EXP／天／粉絲數），只給一個數字使用者分不出
+         * 代表什麼——實際收到「簽到榜的數字代表什麼」的疑問才補上。
+         * 內容由 leaderboard.js 依分頁切換，這裡先渲染預設分頁的說明，
+         * 避免 JS 載入前是空白。
+         */
+        $ranku_descs = [
+            'exp_total'        => __( '依累積 EXP 排名，EXP 只增不減。', 'weixiaoacg' ),
+            'rank_season'      => __( '依本季賽季積分排名，每季結算後重新開始。', 'weixiaoacg' ),
+            'rank_last_season' => __( '上一季結算後的最終排名。', 'weixiaoacg' ),
+            'exp_monthly'      => __( '依本月獲得的 EXP 排名，每月一號重新計算。', 'weixiaoacg' ),
+            'login_streak'     => __( '數字是連續簽到天數。登入就自動簽到，中斷一天會從頭算起。', 'weixiaoacg' ),
+            'achievements'     => __( '依獲得的成就徽章數量排名。', 'weixiaoacg' ),
+        ];
+        ?>
+        <p class="ranku-tab-desc" id="ranku-tab-desc">
+          <?php echo esc_html( $ranku_descs[ $default_tab ] ?? '' ); ?>
+        </p>
+
         <div class="ranku-list" id="ranku-list" aria-live="polite">
           <div class="ranku-loading">
             <?php for ( $i = 0; $i < 5; $i++ ) : ?>

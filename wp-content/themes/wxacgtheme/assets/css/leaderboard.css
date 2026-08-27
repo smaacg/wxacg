@@ -106,6 +106,13 @@
 .ranku-tab i{font-size:13px;}
 .ranku-count-info{font-size:13px;color:var(--text-muted,#9ca3af);}
 
+/* 分頁說明：各榜分數單位不同，一行說明讓使用者知道數字代表什麼 */
+.ranku-tab-desc{
+  margin:10px 0 0;
+  font-size:13px;line-height:1.6;
+  color:var(--text-muted,#9ca3af);
+}
+
 /* ============================================================
    ★ v1.1.0 新增：Tabs 旁 meta 區（排行標籤 + 倒數）
    ============================================================ */
