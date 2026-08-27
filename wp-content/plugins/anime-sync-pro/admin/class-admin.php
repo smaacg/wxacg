@@ -177,19 +177,29 @@ class Anime_Sync_Admin {
         /*
          * 操作紀錄開放給編輯（唯讀）。
          *
-         * edit_others_posts 是編輯有、作者以下沒有的權限，界線清楚，
-         * 不必另外註冊自訂 capability。頁面上唯一的寫入動作「清除舊紀錄」
-         * 前後端都仍然只認 manage_options。
+         * 沿用站上既有的 wxacg_editorial_tools_cap()（預設 edit_others_posts，
+         * 可用同名 filter 調整）——短評控管與消息審核已經是用它掛在同一個
+         * 父選單下，編輯本來就看得到「動漫同步」，不必也不該再動父選單。
          *
-         * 父選單一併降為 $view_cap，否則編輯連「動漫同步」都看不到，
-         * 子選單也就進不去。其餘子頁維持 manage_options，WordPress 會把
-         * 使用者無權存取的子項移除，並把父選單連結指向第一個可存取的
-         * 子項——對編輯而言就是操作紀錄。
+         * ⚠ 父選單維持 manage_options，兩個理由：
+         *
+         * 1. add_menu_page() 註冊的 page hook 帶的就是這個 capability。
+         *    降級的話編輯直接開 admin.php?page=anime-sync-pro 會通過檢查，
+         *    render_dashboard() 就渲染給他看了——那是管理員儀表板。
+         *
+         * 2. add_submenu_page() 在 $submenu 尚未建立時會自動把父選單複製成
+         *    第一個子項，但前提是 current_user_can( 父選單的 cap )。維持
+         *    manage_options 才不會對編輯觸發這個複製，側欄不會多出一個灰色
+         *    且點了會噴權限不足的「動漫同步」。
+         *
+         * 頁面上唯一的寫入動作「清除舊紀錄」前後端都仍然只認 manage_options。
          */
-        $view_cap = 'edit_others_posts';
+        $view_cap = function_exists( 'wxacg_editorial_tools_cap' )
+            ? wxacg_editorial_tools_cap()
+            : 'edit_others_posts';
 
         add_menu_page(
-            '動漫同步 Pro', '動漫同步', $view_cap,
+            '動漫同步 Pro', '動漫同步', $cap,
             'anime-sync-pro',
             [ $this, 'render_dashboard' ],
             'dashicons-video-alt', 30
