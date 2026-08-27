@@ -43,6 +43,45 @@ final class Corrections_Admin {
 
         // 後台通知條（成功/失敗提示）
         add_action( 'admin_notices', [ __CLASS__, 'admin_notices' ] );
+
+        // 移除通往空白編輯畫面的列操作
+        add_filter( 'post_row_actions', [ __CLASS__, 'row_actions' ], 10, 2 );
+    }
+
+    /**
+     * 處理回報所需的權限。
+     *
+     * 與站上其他編輯工具（短評控管、消息審核、操作紀錄）同一個 filter，
+     * 預設 edit_others_posts——編輯有、作者以下沒有。
+     *
+     * 用 function_exists 包住，wxacg-social 不硬相依 anime-sync-pro；
+     * 那個函式不存在時退回同名 filter 的預設值，兩邊仍然同步。
+     */
+    private static function manage_cap(): string {
+        if ( function_exists( 'wxacg_editorial_tools_cap' ) ) {
+            return wxacg_editorial_tools_cap();
+        }
+
+        return (string) apply_filters( 'wxacg_editorial_tools_cap', 'edit_others_posts' );
+    }
+
+    /**
+     * 拿掉「編輯／快速編輯」列操作。
+     *
+     * 這個 CPT 只 supports title、也沒有註冊任何 meta box，編輯畫面除了
+     * 標題什麼都沒有——回報的類別、說明、來源、狀態全都在列表頁的自訂
+     * 欄位裡，處理按鈕也在列表頁。點進編輯畫面只會看到一片空白，是條死路。
+     *
+     * 保留「移至垃圾桶」，讓處理者能清掉灌水或重複的回報。
+     */
+    public static function row_actions( array $actions, WP_Post $post ): array {
+        if ( $post->post_type !== Corrections_CPT::POST_TYPE ) {
+            return $actions;
+        }
+
+        unset( $actions['edit'], $actions['inline hide-if-no-js'] );
+
+        return $actions;
     }
 
     /* -------------------------------------------------- *
@@ -205,7 +244,7 @@ final class Corrections_Admin {
      * 處理：標記已修正
      * -------------------------------------------------- */
     public static function handle_resolve(): void {
-        if ( ! current_user_can( 'manage_options' ) ) {
+        if ( ! current_user_can( self::manage_cap() ) ) {
             wp_die( '權限不足' );
         }
         $post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
@@ -236,7 +275,7 @@ final class Corrections_Admin {
      * 處理：駁回
      * -------------------------------------------------- */
     public static function handle_reject(): void {
-        if ( ! current_user_can( 'manage_options' ) ) {
+        if ( ! current_user_can( self::manage_cap() ) ) {
             wp_die( '權限不足' );
         }
         $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
