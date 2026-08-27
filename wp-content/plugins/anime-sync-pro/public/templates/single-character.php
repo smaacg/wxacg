@@ -274,8 +274,26 @@ if ( ! empty( $same_as ) ) {
 }
 
 /* ── 外部連結按鈕 ── */
+
+/*
+ * Bangumi 連結只給編輯與管理員看。
+ *
+ * bgm.tv 是簡體站，不適合把一般讀者導過去；但站上的角色／聲優資料就是
+ * 從那裡來的，內部人員核對資料時需要這個入口，所以不是拿掉而是收起來。
+ * AniList 與 MyAnimeList 是國際站，維持對所有人公開。
+ *
+ * 權限沿用站上編輯工具的同一個 filter（預設 edit_others_posts），
+ * function_exists 是為了在 capabilities.php 尚未載入時仍有合理預設值。
+ *
+ * 快取安全性：LiteSpeed 的 cache-priv 為 0（私有快取關閉），登入者一律
+ * 拿未快取的即時頁面、訪客拿公開快取版，兩者不會互相污染。
+ */
+$can_see_source = current_user_can(
+    function_exists( 'wxacg_editorial_tools_cap' ) ? wxacg_editorial_tools_cap() : 'edit_others_posts'
+);
+
 $external_links = [];
-if ( $character['bgm_id'] > 0 ) {
+if ( $character['bgm_id'] > 0 && $can_see_source ) {
     $external_links[] = [ 'label' => 'Bangumi', 'icon' => '🍡', 'url' => 'https://bgm.tv/character/' . $character['bgm_id'] ];
 }
 if ( $character['anilist_id'] > 0 ) {

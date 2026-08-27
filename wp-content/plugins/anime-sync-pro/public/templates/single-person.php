@@ -321,8 +321,18 @@ if ( ! empty( $same_as ) ) {
 }
 
 /* ── 外部連結按鈕 ── */
+
+/*
+ * Bangumi 連結只給編輯與管理員看——理由同 single-character.php：
+ * bgm.tv 是簡體站不宜導讀者過去，但內部核對資料需要這個入口。
+ * AniList 與 MyAnimeList 維持對所有人公開。
+ */
+$can_see_source = current_user_can(
+    function_exists( 'wxacg_editorial_tools_cap' ) ? wxacg_editorial_tools_cap() : 'edit_others_posts'
+);
+
 $external_links = [];
-if ( $person['bgm_id'] > 0 ) {
+if ( $person['bgm_id'] > 0 && $can_see_source ) {
     $external_links[] = [ 'label' => 'Bangumi', 'icon' => '🍡', 'url' => 'https://bgm.tv/person/' . $person['bgm_id'] ];
 }
 if ( $person['anilist_id'] > 0 ) {
