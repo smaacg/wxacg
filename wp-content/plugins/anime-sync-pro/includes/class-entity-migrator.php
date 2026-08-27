@@ -46,6 +46,23 @@ class Anime_Sync_Entity_Migrator {
 	const BGM_PERSON_URL    = 'https://api.bgm.tv/v0/persons/';
 	const USER_AGENT        = 'weixiaoacg-Project/1.0 (https://weixiaoacg.com)';
 
+	/**
+	 * 續跑游標的 post meta key。
+	 *
+	 * 逾時中斷時記錄「跑到哪一筆」，下次從那裡接續，不再從頭重跑。
+	 *
+	 * 沒有這個機制時的實際後果（ONE PIECE 本篇，1051 個角色）：
+	 * 多數角色還缺 summary／name_cn／infobox，upsert_character() 會去打
+	 * Bangumi 詳情 API，而 rate limiter 是 1 req/s，跑完一輪要 30 分鐘。
+	 * cron handler 只給 50 秒預算，於是每輪都從索引 0 開始、永遠到不了
+	 * 最後一筆，run() 又把事件重排一次——變成每小時空轉的無限循環。
+	 *
+	 * 值的結構：[ 'sig' => string, 'phase' => 'cast'|'staff', 'idx' => int ]
+	 * sig 是 cast_json + staff_json 的 md5：來源資料變動時游標即失效，
+	 * 避免用舊索引跳過新資料。
+	 */
+	const CURSOR_META = '_asp_migrate_cursor';
+
 	private $t_char;
 	private $t_person;
 	private $t_rel;
@@ -113,12 +130,50 @@ class Anime_Sync_Entity_Migrator {
 
 	private function migrate_one( int $anime_id, bool $dry_run, array &$stats, int $deadline = 0 ): bool {
 		// ---- CAST ----
-		$cast_raw = get_post_meta( $anime_id, 'anime_cast_json', true );
-		$cast     = $this->decode( $cast_raw );
+		$cast_raw  = get_post_meta( $anime_id, 'anime_cast_json', true );
+		$staff_raw = get_post_meta( $anime_id, 'anime_staff_json', true );
 
-		foreach ( $cast as $c ) {
+		// array_values()：確保索引是 0..n-1 連號，游標才能安全地用來跳過。
+		$cast  = array_values( $this->decode( $cast_raw ) );
+		$staff = array_values( $this->decode( $staff_raw ) );
+
+		$signature = md5( (string) $cast_raw . '|' . (string) $staff_raw );
+
+		/*
+		 * 讀取續跑游標。dry_run 一律從頭跑，才能報出完整的統計數字。
+		 * 簽章不符（來源 JSON 已變動）時游標作廢，從頭開始。
+		 */
+		$phase     = 'cast';
+		$start_idx = 0;
+
+		if ( ! $dry_run ) {
+			$cursor = get_post_meta( $anime_id, self::CURSOR_META, true );
+
+			if ( is_array( $cursor )
+				&& isset( $cursor['sig'], $cursor['phase'], $cursor['idx'] )
+				&& $cursor['sig'] === $signature
+			) {
+				$phase     = ( $cursor['phase'] === 'staff' ) ? 'staff' : 'cast';
+				$start_idx = max( 0, (int) $cursor['idx'] );
+			}
+		}
+
+		/*
+		 * 兩段各自的起始索引。phase 已經是 'staff' 表示 CAST 整段跑完了，
+		 * 用 PHP_INT_MAX 讓 CAST 迴圈自然跳過全部，不必額外包一層條件區塊。
+		 */
+		$cast_start  = ( $phase === 'cast' ) ? $start_idx : PHP_INT_MAX;
+		$staff_start = ( $phase === 'staff' ) ? $start_idx : 0;
+
+		foreach ( $cast as $cast_idx => $c ) {
+
+			// 上一輪已處理過的略過
+			if ( $cast_idx < $cast_start ) {
+				continue;
+			}
 
 			if ( $deadline > 0 && time() >= $deadline ) {
+				$this->save_cursor( $anime_id, $dry_run, $signature, 'cast', $cast_idx );
 				return false;
 			}
 
@@ -171,10 +226,22 @@ class Anime_Sync_Entity_Migrator {
 		}
 
 		// ---- STAFF ----
-		$staff_raw = get_post_meta( $anime_id, 'anime_staff_json', true );
-		$staff     = $this->decode( $staff_raw );
+		foreach ( $staff as $staff_idx => $s ) {
 
-		foreach ( $staff as $s ) {
+			if ( $staff_idx < $staff_start ) {
+				continue;
+			}
+
+			/*
+			 * STAFF 這段原本沒有逾時檢查。角色多的作品在 CAST 就把預算用光，
+			 * STAFF 反而不會被執行到；一旦 CAST 跑完、STAFF 又長，同樣會
+			 * 被 max_execution_time 硬中斷，寫到一半且沒有任何記錄。
+			 */
+			if ( $deadline > 0 && time() >= $deadline ) {
+				$this->save_cursor( $anime_id, $dry_run, $signature, 'staff', $staff_idx );
+				return false;
+			}
+
 			$p_bgm = (int) ( $s['id'] ?? 0 );
 			$p_nm  = trim( (string) ( $s['name'] ?? '' ) );
 			$p_img = (string) ( $s['image'] ?? '' );
@@ -193,6 +260,11 @@ class Anime_Sync_Entity_Migrator {
 			$stats['relations']++;
 		}
 
+		// 全部跑完，清掉游標，下次（例如資料更新後）從頭來過
+		if ( ! $dry_run ) {
+			delete_post_meta( $anime_id, self::CURSOR_META );
+		}
+
 		return true;
 	}
 
@@ -202,6 +274,30 @@ class Anime_Sync_Entity_Migrator {
 		}
 		$data = json_decode( $raw, true );
 		return is_array( $data ) ? $data : [];
+	}
+
+	/**
+	 * 記錄續跑游標。
+	 *
+	 * $idx 是「下次要從這一筆開始」的索引——逾時檢查在處理該筆之前，
+	 * 所以當下那一筆尚未處理，直接存它本身而不是 +1。
+	 *
+	 * @param int    $anime_id 文章 ID。
+	 * @param bool   $dry_run  試跑時不寫入。
+	 * @param string $sig      來源 JSON 的簽章。
+	 * @param string $phase    'cast' 或 'staff'。
+	 * @param int    $idx      下次接續的索引。
+	 */
+	private function save_cursor( int $anime_id, bool $dry_run, string $sig, string $phase, int $idx ): void {
+		if ( $dry_run ) {
+			return;
+		}
+
+		update_post_meta( $anime_id, self::CURSOR_META, [
+			'sig'   => $sig,
+			'phase' => $phase,
+			'idx'   => $idx,
+		] );
 	}
 
 	/**
