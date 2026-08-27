@@ -23,7 +23,10 @@ $limit         = isset( $_GET['aal_limit'] )   ? absint( $_GET['aal_limit'] )   
 $days          = isset( $_GET['aal_days'] )    ? absint( $_GET['aal_days'] )                        : 0;
 $limit         = $limit ?: 100;
 
-$summary = $logger->get_summary( $days );
+// 本頁編輯也看得到（唯讀），統計表補上零紀錄的編輯／管理員
+$can_manage = current_user_can( 'manage_options' );
+
+$summary = $logger->get_summary( $days, true );
 $totals  = $logger->get_totals( $days );
 $logs    = $logger->get_logs( $limit, $action_filter, $user_filter );
 $users   = $logger->get_distinct_users();
@@ -180,6 +183,13 @@ $has_filter = $action_filter || $user_filter || $limit !== 100 || $days !== 0;
                 </div>
             </form>
 
+            <?php
+            /*
+             * 清除舊紀錄只有管理員能用。後端兩個 AJAX handler 本來就檢查
+             * manage_options，這裡是不要讓唯讀的編輯看到按不動的按鈕。
+             */
+            if ( $can_manage ) :
+            ?>
             <div class="aal-filter-divider"></div>
 
             <div class="aal-filter-section">
@@ -202,6 +212,7 @@ $has_filter = $action_filter || $user_filter || $limit !== 100 || $days !== 0;
                     </div>
                 </div>
             </div>
+            <?php endif; /* $can_manage */ ?>
 
         </div><!-- .aal-filter-body -->
     </div><!-- .aal-filter-wrap -->

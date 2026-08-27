@@ -198,7 +198,16 @@ class Anime_Sync_Activity_Logger {
     // =========================================================================
 
     /** 依使用者彙總（近 N 天，days=0 代表全部時間不限制）：匯入/發布/修改/刪除幾篇 */
-    public function get_summary( int $days = 30 ): array {
+    /**
+     * 每位使用者的操作統計。
+     *
+     * @param int  $days               統計區間，0 代表全部時間。
+     * @param bool $include_zero_staff 是否把「有編輯／管理員身分但期間內沒有
+     *                                 任何操作」的人以全 0 補進來。預設 false
+     *                                 維持原行為（只列出紀錄中出現過的人）。
+     *                                 後台頁面傳 true，才能一眼看出誰沒有動作。
+     */
+    public function get_summary( int $days = 30, bool $include_zero_staff = false ): array {
         global $wpdb;
         $table = $this->table_name();
 
@@ -232,7 +241,57 @@ class Anime_Sync_Activity_Logger {
             );
         }
 
-        return $rows ?: [];
+        $rows = $rows ?: [];
+
+        if ( $include_zero_staff ) {
+            $rows = $this->append_zero_staff( $rows );
+        }
+
+        return $rows;
+    }
+
+    /**
+     * 把沒有任何紀錄的編輯／管理員以全 0 補進統計。
+     *
+     * 依 user_id 去重，不看 user_name——紀錄裡存的是操作當下的顯示名稱，
+     * 使用者改名後會與現在的 display_name 不同，用名稱比對會產生重複列。
+     *
+     * user_id 0（系統／排程任務）不是真人，不受影響，維持原本的排序位置。
+     * 有紀錄但已不具編輯／管理員身分的人也照樣保留——他們有真實的操作
+     * 歷史，不該因為身分變動就從統計中消失。
+     *
+     * @param array $rows get_summary() 查出的原始統計列。
+     */
+    private function append_zero_staff( array $rows ): array {
+        $seen = [];
+        foreach ( $rows as $r ) {
+            $seen[ (int) ( $r['user_id'] ?? 0 ) ] = true;
+        }
+
+        $staff = get_users( [
+            'role__in' => [ 'administrator', 'editor' ],
+            'orderby'  => 'display_name',
+            'order'    => 'ASC',
+            'fields'   => [ 'ID', 'display_name' ],
+        ] );
+
+        foreach ( $staff as $u ) {
+            if ( isset( $seen[ (int) $u->ID ] ) ) {
+                continue;
+            }
+
+            $rows[] = [
+                'user_id'   => (int) $u->ID,
+                'user_name' => $u->display_name,
+                'imported'  => 0,
+                'published' => 0,
+                'updated'   => 0,
+                'removed'   => 0,
+                'total'     => 0,
+            ];
+        }
+
+        return $rows;
     }
 
     /** 全站總計（近 N 天，days=0 代表全部時間不限制） */

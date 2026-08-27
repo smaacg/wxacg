@@ -173,8 +173,23 @@ class Anime_Sync_Admin {
 
     public function register_admin_menu(): void {
         $cap = 'manage_options';
+
+        /*
+         * 操作紀錄開放給編輯（唯讀）。
+         *
+         * edit_others_posts 是編輯有、作者以下沒有的權限，界線清楚，
+         * 不必另外註冊自訂 capability。頁面上唯一的寫入動作「清除舊紀錄」
+         * 前後端都仍然只認 manage_options。
+         *
+         * 父選單一併降為 $view_cap，否則編輯連「動漫同步」都看不到，
+         * 子選單也就進不去。其餘子頁維持 manage_options，WordPress 會把
+         * 使用者無權存取的子項移除，並把父選單連結指向第一個可存取的
+         * 子項——對編輯而言就是操作紀錄。
+         */
+        $view_cap = 'edit_others_posts';
+
         add_menu_page(
-            '動漫同步 Pro', '動漫同步', $cap,
+            '動漫同步 Pro', '動漫同步', $view_cap,
             'anime-sync-pro',
             [ $this, 'render_dashboard' ],
             'dashicons-video-alt', 30
@@ -185,7 +200,7 @@ class Anime_Sync_Admin {
         add_submenu_page( 'anime-sync-pro', '查看動漫', '📚 查看動漫', $cap, 'anime-sync-published', [ $this, 'render_published_page' ] );
         add_submenu_page( 'anime-sync-pro', '錯誤日誌', '🐞 錯誤日誌', $cap, 'anime-sync-logs',      [ $this, 'render_logs_page'      ] );
         add_submenu_page( 'anime-sync-pro', '插件設定', '🔧 插件設定', $cap, 'anime-sync-settings',  [ $this, 'render_settings'       ] );
-        add_submenu_page( 'anime-sync-pro', '操作紀錄', '🕘 操作紀錄', $cap, 'anime-sync-activity', [ $this, 'render_activity_page' ] );
+        add_submenu_page( 'anime-sync-pro', '操作紀錄', '🕘 操作紀錄', $view_cap, 'anime-sync-activity', [ $this, 'render_activity_page' ] );
     }
 
     private function safe_include_page( string $file_name ): void {
