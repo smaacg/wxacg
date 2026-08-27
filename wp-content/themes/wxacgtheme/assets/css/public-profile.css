@@ -242,15 +242,28 @@
 .pp-btn:active { transform: translateY(1px); }
 .pp-btn:disabled { opacity: .6; cursor: not-allowed; pointer-events: none; }
 
+/*
+ * 主要按鈕改用深色文字。
+ *
+ * 原本是白字疊在 #ff6bae → #a78bfa 的漸層上，實測對比只有 2.64:1（粉端）
+ * 與 2.72:1（紫端），遠低於 WCAG AA 對 13px 文字要求的 4.5:1。字級小又
+ * 是漸層底，抗鋸齒一糊整個化掉——「登入後追蹤」是訪客看到的唯一行動
+ * 呼籲，讀不到等於白放。
+ *
+ * 兩條路：把漸層加深 30% 才夠白字用（#B24B7A，品牌粉紅變濁色），或是
+ * 保留漸層改深色文字。選後者——用站上既有的深底 #0f1420 就有粉端
+ * 6.98:1、紫端 6.76:1，漸層一個像素都不用改。
+ */
 .pp-btn-primary {
   background: linear-gradient(135deg, var(--mc-accent), var(--mc-accent-3));
-  color: #fff;
+  color: #0f1420;
+  font-weight: 700;
   box-shadow: 0 4px 14px rgba(255, 107, 174, .35);
 }
 .pp-btn-primary:hover {
   box-shadow: 0 6px 20px rgba(255, 107, 174, .5);
   filter: brightness(1.05);
-  color: #fff;
+  color: #0f1420;
 }
 
 .pp-btn-secondary {
@@ -686,8 +699,26 @@
  *  Grid
  * ========================================================== */
 .pp-grid { display: grid; gap: 16px; }
-.pp-grid-2 { grid-template-columns: 1fr 1fr; }
-.pp-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+/*
+ * 總覽的雙欄改成 2:1 而不是等寬。
+ *
+ * 左欄是「最近更新」的封面格線、右欄是「喜愛類型」的標籤雲——一個是
+ * 圖卡陣列、一個是幾行小標籤，等寬的話右欄再多資料也填不滿，實測會
+ * 留下約 800px 的空白。這不是資料少造成的，是版面結構決定的。
+ *
+ * minmax(0, …) 是必要的：格線項目的預設 min-width 是 auto，裡面的長
+ * 標題會把欄位撐開、比例失效。
+ */
+.pp-grid-2 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.pp-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/*
+ * 右欄的標籤雲在變窄之後容易一列只排得下一個，縮小間距讓它排得緊一點。
+ */
+.pp-grid-2 > .pp-card:last-child .pp-tag-cloud {
+  gap: 6px;
+}
 
 /* ==========================================================
  *  Card 通用
