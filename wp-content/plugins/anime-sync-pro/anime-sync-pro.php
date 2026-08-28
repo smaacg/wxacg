@@ -503,7 +503,17 @@ function anime_sync_register_post_types(): void {
 	 * 日後資料變豐富（歌手、試聽、購買連結）再把 noindex 拿掉。
 	 */
 	anime_sync_register_hidden_cpt( 'manga',      '漫畫',   'dashicons-book',         6, true );
-	anime_sync_register_hidden_cpt( 'novel',      '小說',   'dashicons-book-alt',     7, true );
+	/*
+	 * 標籤用「輕小說」而非「小說」：台灣讀者講的是輕小說，搜尋字串也是。
+	 * 實測 447 部關聯小說絕大多數是文庫本輕小說，少數一般小說（時をかける
+	 * 少女、電影小說化）歸在底下是可接受的誤差——整個分類用台灣人不講的詞
+	 * 才是大問題。slug 維持 novel，網址不受影響。
+	 *
+	 * 註：無法可靠自動區分輕小說與一般小說。Bangumi 的「出版社」欄位存的是
+	 * 出版商（KADOKAWA、集英社）不是文庫品牌，文庫資訊在「书系」而該欄位
+	 * 447 部裡只有 86 部有值。
+	 */
+	anime_sync_register_hidden_cpt( 'novel',      '輕小說', 'dashicons-book-alt',     7, true );
 	anime_sync_register_hidden_cpt( 'game',       '遊戲',   'dashicons-games',        8, true );
 	anime_sync_register_hidden_cpt( 'music',      '音樂',   'dashicons-format-audio', 9, true );
 	anime_sync_register_hidden_cpt( 'liveaction', '真人版', 'dashicons-video-alt2',  10, true );

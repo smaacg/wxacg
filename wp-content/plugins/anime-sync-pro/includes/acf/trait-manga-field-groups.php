@@ -317,7 +317,13 @@ private function register_manga_fields(): void {
 			],
 		],
 		'location'   => [
-			[ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'manga' ] ],
+			/*
+                 * 小說沿用漫畫的欄位群組（同一份 trait，欄位結構相同）。
+                 * ACF 的 location 是「或」的關係：兩組條件任一成立就顯示。
+                 * 沒加這一組的話，小說在後台編輯頁看不到任何出版資訊欄位。
+                 */
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'manga' ] ],
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'novel' ] ],
 		],
 		'menu_order' => 10,
 		'position'   => 'normal',
@@ -355,6 +361,28 @@ private function register_manga_fields(): void {
                     'name'         => 'manga_first_publish_date',
                     'type'         => 'text',
                     'instructions' => 'YYYY-MM-DD。來自 Wikidata P577 或維基出版表第 1 卷。',
+                ],
+                /*
+                 * 單一 ISBN 與頁數。
+                 *
+                 * 漫畫的逐卷 ISBN 已經在 manga_volumes_json 裡（每卷 jp/tw/hk
+                 * 各一組），那是單行本用的結構。輕小說從 Bangumi 拿到的是整個
+                 * 條目一組 ISBN 與頁數，塞不進那個結構，另立兩個簡單欄位。
+                 * 實測 447 部小說裡 441 部有這兩項資料。
+                 */
+                [
+                    'key'          => 'field_manga_isbn',
+                    'label'        => 'ISBN',
+                    'name'         => 'manga_isbn',
+                    'type'         => 'text',
+                    'instructions' => '單一 ISBN（輕小說常見）。漫畫的逐卷 ISBN 請看下方單行本一覽。',
+                ],
+                [
+                    'key'          => 'field_manga_pages',
+                    'label'        => '頁數',
+                    'name'         => 'manga_pages',
+                    'type'         => 'text',
+                    'instructions' => '來自 Bangumi infobox 的「页数」。',
                 ],
                 [
                     'key'          => 'field_manga_hk_publisher',
@@ -454,7 +482,13 @@ private function register_manga_fields(): void {
                 ],
             ],
             'location'   => [
+                /*
+                 * 小說沿用漫畫的欄位群組（同一份 trait，欄位結構相同）。
+                 * ACF 的 location 是「或」的關係：兩組條件任一成立就顯示。
+                 * 沒加這一組的話，小說在後台編輯頁看不到任何出版資訊欄位。
+                 */
                 [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'manga' ] ],
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'novel' ] ],
             ],
             'menu_order' => 15,
             'position'   => 'normal',
@@ -497,7 +531,13 @@ private function register_manga_fields(): void {
                 ],
             ],
             'location'   => [
+                /*
+                 * 小說沿用漫畫的欄位群組（同一份 trait，欄位結構相同）。
+                 * ACF 的 location 是「或」的關係：兩組條件任一成立就顯示。
+                 * 沒加這一組的話，小說在後台編輯頁看不到任何出版資訊欄位。
+                 */
                 [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'manga' ] ],
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'novel' ] ],
             ],
             'menu_order' => 30,
             'position'   => 'side',
@@ -564,7 +604,13 @@ private function register_manga_fields(): void {
                 ],
             ],
             'location'   => [
+                /*
+                 * 小說沿用漫畫的欄位群組（同一份 trait，欄位結構相同）。
+                 * ACF 的 location 是「或」的關係：兩組條件任一成立就顯示。
+                 * 沒加這一組的話，小說在後台編輯頁看不到任何出版資訊欄位。
+                 */
                 [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'manga' ] ],
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'novel' ] ],
             ],
             'menu_order' => 20,
             'position'   => 'normal',
