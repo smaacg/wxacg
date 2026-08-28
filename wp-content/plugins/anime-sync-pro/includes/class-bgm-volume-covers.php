@@ -77,18 +77,33 @@ class Anime_Sync_BGM_Volume_Covers {
 			}
 		}
 
+		/*
+		 * 卷號取得的兩種情形。
+		 *
+		 *   漫畫   「ダンダダン (12)」 → 括號數字就是卷號
+		 *   輕小說 「涼宮ハルヒの溜息」 → 每一卷有自己的書名，沒有卷號
+		 *
+		 * 輕小說用原本的正規式會全部匹配失敗（實測涼宮 13 卷抓到 0 卷）。
+		 * 抓不到時退回用出現順序當序號，並把書名一起存起來給前台顯示——
+		 * 沒有書名的話畫面上會是 13 張看不出差別的封面。
+		 *
+		 * name 對漫畫也會存，但漫畫每卷書名相同，前台自行決定要不要顯示。
+		 */
 		$volumes = [];
+		$seq     = 0;
 		foreach ( $json as $rel ) {
 			if ( ( $rel['relation'] ?? '' ) !== '单行本' ) continue;
 
+			$seq++;
 			$name = (string) ( $rel['name'] ?? '' );
-			// 從 "ダンダダン (12)" 取卷號
-			if ( ! preg_match( '/\((\d+)\)\s*$/u', $name, $m ) ) continue;
-			$vol = (int) $m[1];
-			// 第 0 卷是真實存在的（前傳／番外，例如《呪術廻戦 0》），要保留。
-			// 這裡不必擔心「卷號缺失」被誤當成 0：上面的 preg_match 已經確保
-			// 括號裡有數字，抓不到的在那一行就 continue 了。
-			if ( $vol < 0 ) continue;
+
+			if ( preg_match( '/\((\d+)\)\s*$/u', $name, $m ) ) {
+				// 第 0 卷是真實存在的（前傳／番外，例如《呪術廻戦 0》），要保留。
+				$vol = (int) $m[1];
+				if ( $vol < 0 ) continue;
+			} else {
+				$vol = $seq;
+			}
 
 			$bgm_sub_id  = (int) ( $rel['id'] ?? 0 );
 			$remote_cover = $rel['images']['common']    // 400px
@@ -105,6 +120,7 @@ class Anime_Sync_BGM_Volume_Covers {
 				'vol'    => $vol,
 				'cover'  => $local_cover,   // 空字串代表無圖(如未出的最新卷)
 				'bgm_id' => $bgm_sub_id,
+				'name'   => $name,          // 輕小說每卷書名不同，前台要顯示
 			];
 		}
 

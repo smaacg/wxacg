@@ -1760,6 +1760,19 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                                 <img src="<?php echo esc_url( $vc_cover ); ?>" alt="第 <?php echo $vc_vol; ?> 卷封面" loading="lazy">
                                             </div>
                                             <span class="asd-vol-cover__num"><?php echo $vc_vol; ?></span>
+                                            <?php
+                                            /*
+                                             * 輕小說每一卷有自己的書名（涼宮ハルヒの憂鬱／の溜息／
+                                             * の退屈…），只顯示卷號的話畫面上是一排看不出差別的封面。
+                                             *
+                                             * 漫畫每卷書名相同（都是作品名），顯示出來只是重複，
+                                             * 因此與作品標題相同時不輸出。
+                                             */
+                                            $vc_name = trim( (string) ( $vc['name'] ?? '' ) );
+                                            if ( $vc_name !== '' && $vc_name !== $title_native && $vc_name !== $display_title ) :
+                                            ?>
+                                                <span class="asd-vol-cover__name"><?php echo esc_html( $vc_name ); ?></span>
+                                            <?php endif; ?>
                                     <?php echo $vc_link ? '</a>' : '</div>'; ?>
                                 <?php endforeach; ?>
                             </div>
