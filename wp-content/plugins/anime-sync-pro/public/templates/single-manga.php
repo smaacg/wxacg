@@ -874,7 +874,17 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
         <div class="asd-hero-body">
 
             <div class="asd-hero-breadcrumb">
-                <span>漫畫</span>
+                <?php
+                /*
+                 * 這支模板同時服務 manga 與 novel（見 class-frontend.php 的
+                 * load_single_template），原本寫死「漫畫」會讓小說頁的麵包屑
+                 * 顯示錯誤的類型。改用 post type 的標籤，日後再接別的類型
+                 * 也不用改這裡。
+                 */
+                $asd_pt_obj   = get_post_type_object( get_post_type( $post_id ) );
+                $asd_pt_label = $asd_pt_obj ? $asd_pt_obj->labels->singular_name : '漫畫';
+                ?>
+                <span><?php echo esc_html( $asd_pt_label ); ?></span>
                 <?php if ( ! empty( $genre_terms ) ) : ?><span class="asd-hbc-sep">›</span><span><?php echo esc_html( $genre_terms[0]->name ); ?></span><?php endif; ?>
             </div>
 
