@@ -331,6 +331,37 @@ class Anime_Sync_Frontend {
             }
         }
 
+        /*
+         * 輕小說沿用漫畫模板。
+         *
+         * novel 與 manga 的欄位結構相同（同一份 trait-manga-field-groups.php
+         * 提供作者、出版社、台灣代理、卷數、購買連結、關聯動畫），差別只在
+         * 資料來源的 format 是 NOVEL 還是 MANGA。共用模板避免維護兩套幾乎
+         * 一樣的版面；日後若輕小說要做出區隔，在主題放一支 single-novel.php
+         * 就會優先被 locate_template() 取用，不必改這裡。
+         */
+        if ( is_singular( 'novel' ) ) {
+            $theme = locate_template( [ 'single-novel.php', 'single-manga.php' ] );
+            if ( $theme ) {
+                return $theme;
+            }
+            $plugin = ANIME_SYNC_PRO_DIR . 'public/templates/single-manga.php';
+            if ( file_exists( $plugin ) ) {
+                return $plugin;
+            }
+        }
+
+        if ( is_post_type_archive( 'novel' ) ) {
+            $theme = locate_template( [ 'archive-novel.php', 'archive-manga.php' ] );
+            if ( $theme ) {
+                return $theme;
+            }
+            $plugin = ANIME_SYNC_PRO_DIR . 'public/templates/archive-manga.php';
+            if ( file_exists( $plugin ) ) {
+                return $plugin;
+            }
+        }
+
         if ( is_tax( 'anime_series_tax' ) ) {
             $theme = locate_template( 'archive-series.php' );
             if ( $theme ) return $theme;

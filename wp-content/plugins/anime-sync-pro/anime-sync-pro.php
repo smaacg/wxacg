@@ -487,10 +487,26 @@ function anime_sync_register_post_types(): void {
 		],
 	] );
 
-	anime_sync_register_hidden_cpt( 'manga', '漫畫', 'dashicons-book',     6, true );
-	anime_sync_register_hidden_cpt( 'novel', '小說', 'dashicons-book-alt', 7 );
-	anime_sync_register_hidden_cpt( 'game',  '遊戲', 'dashicons-games',    8 );
-	anime_sync_register_hidden_cpt( 'music', '音樂', 'dashicons-format-audio', 9 );
+	/*
+	 * 第五個參數是 $public：控制 public / has_archive / show_in_rest /
+	 * show_in_nav_menus / show_ui 五項，等於「這個類型要不要有前台與後台」。
+	 *
+	 * novel / game / liveaction 開放的依據（2026-08-28 實測 Bangumi 關聯）：
+	 *   小說   448 筆，58.3% 有中文名，「無職轉生 小說」有搜尋量
+	 *   遊戲   512 筆，78.7% 有中文名，四類裡最高
+	 *   真人版 455 筆，其中電影 71 + 日劇 63 有實際查詢
+	 *
+	 * music 一樣開放，但另外設為 noindex（見下方 anime_sync_noindex_music）：
+	 * 5,837 筆裡只有 5.6% 有中文名，內容僅有曲名與封面，全部送進搜尋索引
+	 * 會是大量薄內容，反而拖累整站評價；而搜尋意圖（「XX 片頭曲」）本來就
+	 * 落在動漫頁而非歌曲頁。開放是為了後台管理與站內連結，不是為了排名。
+	 * 日後資料變豐富（歌手、試聽、購買連結）再把 noindex 拿掉。
+	 */
+	anime_sync_register_hidden_cpt( 'manga',      '漫畫',   'dashicons-book',         6, true );
+	anime_sync_register_hidden_cpt( 'novel',      '小說',   'dashicons-book-alt',     7, true );
+	anime_sync_register_hidden_cpt( 'game',       '遊戲',   'dashicons-games',        8, true );
+	anime_sync_register_hidden_cpt( 'music',      '音樂',   'dashicons-format-audio', 9, true );
+	anime_sync_register_hidden_cpt( 'liveaction', '真人版', 'dashicons-video-alt2',  10, true );
 
 	// [v1.5.1 / 2026-07-29] 角色留言影子 post
 	// 影子 post用途：給 single-character.php 的 wpDiscuz 留言與
@@ -515,6 +531,38 @@ function anime_sync_register_post_types(): void {
 		] );
 	}
 }
+
+/**
+ * 音樂頁一律 noindex,follow。
+ *
+ * music 是站上唯一「開放但不求排名」的類型：5,837 筆裡只有 5.6% 有中文名，
+ * 每頁內容僅有曲名與封面，全部送進索引會是大量薄內容，反而稀釋整站評價。
+ * 而使用者搜「XX 片頭曲」時，該排名的本來就是動漫頁。
+ *
+ * follow 保留，讓爬蟲仍能循著連結回到動漫頁，不浪費內部連結權重。
+ *
+ * 之後音樂資料變豐富（歌手、試聽、購買連結）想開放索引時，把這兩個
+ * add_filter 拿掉即可，不必改 CPT 註冊。
+ */
+add_filter( 'rank_math/frontend/robots', function ( $robots ) {
+	if ( ! is_singular( 'music' ) && ! is_post_type_archive( 'music' ) ) {
+		return $robots;
+	}
+	$robots['index']  = 'noindex';
+	$robots['follow'] = 'follow';
+	return $robots;
+} );
+
+// 沒有 Rank Math 時的後備，比照 class-entity-routing.php 的作法。
+add_filter( 'wp_robots', function ( $robots ) {
+	if ( ! is_singular( 'music' ) && ! is_post_type_archive( 'music' ) ) {
+		return $robots;
+	}
+	$robots['noindex'] = true;
+	$robots['follow']  = true;
+	unset( $robots['index'] );
+	return $robots;
+} );
 
 function anime_sync_register_hidden_cpt(
 	string $slug,
