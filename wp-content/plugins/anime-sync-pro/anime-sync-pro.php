@@ -496,11 +496,18 @@ function anime_sync_register_post_types(): void {
 	 *   遊戲   512 筆，78.7% 有中文名，四類裡最高
 	 *   真人版 455 筆，其中電影 71 + 日劇 63 有實際查詢
 	 *
-	 * music 一樣開放，但另外設為 noindex（見下方 anime_sync_noindex_music）：
-	 * 5,837 筆裡只有 5.6% 有中文名，內容僅有曲名與封面，全部送進搜尋索引
-	 * 會是大量薄內容，反而拖累整站評價；而搜尋意圖（「XX 片頭曲」）本來就
-	 * 落在動漫頁而非歌曲頁。開放是為了後台管理與站內連結，不是為了排名。
-	 * 日後資料變豐富（歌手、試聽、購買連結）再把 noindex 拿掉。
+	 * music 維持隱藏，兩個原因：
+	 *
+	 *   1. slug 衝突：站上已有頁面 3120「動漫音樂」使用 /music/（樣板
+	 *      page-music.php）。CPT archive 的 rewrite 優先於頁面，開放後
+	 *      /music/ 會指向空的封存頁，把既有頁面擋掉。
+	 *
+	 *   2. 架構上不需要：音樂資訊要顯示在動漫頁的區塊裡（一頁列出該作品
+	 *      的所有專輯），資料直接讀 wp_wxacg_subject_relations 即可，
+	 *      不必為 5,837 首歌各建一篇文章。那樣也會是大量薄內容。
+	 *
+	 * 日後若真要做歌曲頁／歌手頁，記得同時換掉 rewrite slug（例如
+	 * anime-music），不要再撞到 /music/。
 	 */
 	anime_sync_register_hidden_cpt( 'manga',      '漫畫',   'dashicons-book',         6, true );
 	/*
@@ -515,7 +522,7 @@ function anime_sync_register_post_types(): void {
 	 */
 	anime_sync_register_hidden_cpt( 'novel',      '輕小說', 'dashicons-book-alt',     7, true );
 	anime_sync_register_hidden_cpt( 'game',       '遊戲',   'dashicons-games',        8, true );
-	anime_sync_register_hidden_cpt( 'music',      '音樂',   'dashicons-format-audio', 9, true );
+	anime_sync_register_hidden_cpt( 'music',      '音樂',   'dashicons-format-audio', 9 );
 	anime_sync_register_hidden_cpt( 'liveaction', '真人版', 'dashicons-video-alt2',  10, true );
 
 	// [v1.5.1 / 2026-07-29] 角色留言影子 post
