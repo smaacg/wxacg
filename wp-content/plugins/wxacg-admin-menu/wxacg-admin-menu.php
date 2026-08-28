@@ -43,6 +43,14 @@ function wxacg_admin_menu_groups(): array {
 			'wxacg-ai-news-engine',                    // AI 新聞部
 			'edit.php?post_type=anime',                // 動畫
 			'edit.php?post_type=manga',                // 漫畫
+			/*
+			 * 這四個接在漫畫後面。沒列進任何一組的項目會被歸到 $remaining，
+			 * 一路掉到「工具」之後——新 CPT 上線時就是這樣跑到選單最下方。
+			 */
+			'edit.php?post_type=novel',                // 小說
+			'edit.php?post_type=game',                 // 遊戲
+			'edit.php?post_type=music',                // 音樂
+			'edit.php?post_type=liveaction',           // 真人版
 			'edit.php',                                // 文章
 			'edit.php?post_type=wxacg_correction',     // 修正建議
 			'edit.php?post_type=music_chart',          // 音樂榜單
