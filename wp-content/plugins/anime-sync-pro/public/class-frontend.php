@@ -168,7 +168,14 @@ class Anime_Sync_Frontend {
     public function enqueue_assets(): void {
 
         $is_anime_single  = is_singular( 'anime' );
-        $is_manga_single  = is_singular( 'manga' ); // ACQ v1.3.2
+        /*
+         * novel 併入 manga 判斷。
+         *
+         * 輕小說沿用漫畫的模板（見 load_single_template），但 CSS 這裡原本
+         * 只認 manga，導致小說單篇整頁沒有樣式——內容都在，版面卻是裸的。
+         * 模板與樣式的條件必須同步，改一邊沒改另一邊就會出現這種情況。
+         */
+        $is_manga_single  = is_singular( [ 'manga', 'novel' ] ); // ACQ v1.3.2
         $is_anime_archive = is_post_type_archive( 'anime' );
         $is_anime_tax     = is_tax( 'genre' )
                          || is_tax( 'anime_season_tax' )

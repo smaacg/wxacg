@@ -152,7 +152,7 @@ add_action( 'wp_enqueue_scripts', function () {
     }
 
     // ★v2.14.0：追蹤列 CSS 放寬至 anime + manga
-    if ( is_singular( [ 'anime', 'manga' ] ) ) {
+    if ( is_singular( [ 'anime', 'manga', 'novel' ] ) ) {
         if ( ! wp_style_is( 'weixiaoacg-anime', 'registered' ) ) {
             $anime_css = WP_PLUGIN_DIR . '/anime-sync-pro/public/assets/css/anime-single.css';
             if ( file_exists( $anime_css ) ) {
@@ -238,7 +238,7 @@ add_action( 'wp_enqueue_scripts', function () {
 
     // ★v2.14.0：追蹤列 JS + SmacgConfig 放寬至 anime + manga
     // 注意：anime-rating.js（評分）仍只在 anime 載入，漫畫暫不啟用評分
-    if ( is_singular( [ 'anime', 'manga' ] ) ) {
+    if ( is_singular( [ 'anime', 'manga', 'novel' ] ) ) {
 
         /*
          * 評分腳本只給動畫；漫畫只載追蹤相關
