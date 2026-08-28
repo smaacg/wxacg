@@ -45,6 +45,38 @@ class Anime_Sync_BGM_Volume_Covers {
 		$json = json_decode( $body, true );
 		if ( ! is_array( $json ) ) return [];
 
+		/*
+		 * 找不到單行本時，往上跳一層到「系列」條目再找一次。
+		 *
+		 * ★ 為什麼需要這一跳：
+		 *   輕小說在 Bangumi 是兩層結構——「系列」條目底下掛各卷單行本，
+		 *   「作品」條目（例如 46 涼宮ハルヒの憂鬱）只有一條指向系列的關聯。
+		 *   直接查作品條目永遠是 0 卷。實測 46 只有「系列」1 筆，而系列
+		 *   505 底下有 13 筆單行本。
+		 *
+		 *   漫畫沒這個問題：漫畫的 Bangumi 條目本身就是系列層級，單行本
+		 *   直接掛在上面（例如 87500）。所以這一跳只會在輕小說觸發，
+		 *   對既有漫畫的行為完全沒有影響。
+		 *
+		 * ★ 只跳一層，不遞迴：Bangumi 的系列不會再往上有系列，多跳只會
+		 *   多打 API。找不到就放棄，維持原本回傳空陣列的行為。
+		 */
+		$has_volume = false;
+		$series_id  = 0;
+		foreach ( $json as $rel ) {
+			$r = (string) ( $rel['relation'] ?? '' );
+			if ( $r === '单行本' ) { $has_volume = true; break; }
+			if ( $r === '系列' && ! $series_id ) $series_id = (int) ( $rel['id'] ?? 0 );
+		}
+
+		if ( ! $has_volume && $series_id > 0 ) {
+			$body2 = $this->http_get( self::API_BASE . $series_id . '/subjects' );
+			$json2 = $body2 !== '' ? json_decode( $body2, true ) : null;
+			if ( is_array( $json2 ) ) {
+				$json = $json2;
+			}
+		}
+
 		$volumes = [];
 		foreach ( $json as $rel ) {
 			if ( ( $rel['relation'] ?? '' ) !== '单行本' ) continue;
