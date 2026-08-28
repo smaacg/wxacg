@@ -62,6 +62,9 @@ class Anime_Sync_Review_Manager {
 			'anime',
 			'post',              // 新聞
 			'manga',             // 漫畫
+			'novel',             // 輕小說
+			'game',              // 遊戲
+			'liveaction',        // 真人版
 			'asa_char_comments', // 角色頁的留言載體（角色本身不是文章，用影子文章掛載）
 		] );
 	}

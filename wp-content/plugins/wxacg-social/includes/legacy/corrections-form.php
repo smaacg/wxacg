@@ -50,7 +50,7 @@ defined( 'ABSPATH' ) || exit;
  * 人物頁）接上同一套糾錯表單，一樣把對應的影子 post_type 加進這裡即可。
  */
 if ( ! defined( 'WXACG_CORR_POST_TYPES' ) ) {
-    define( 'WXACG_CORR_POST_TYPES', [ 'anime', 'manga', 'asa_char_comments' ] );
+    define( 'WXACG_CORR_POST_TYPES', [ 'anime', 'manga', 'novel', 'game', 'liveaction', 'asa_char_comments' ] );
 }
 
 /* ============================================================

@@ -182,8 +182,15 @@ add_action( 'wp_enqueue_scripts', function () {
      * 這裡不能沿用上面那段：那段的 review.css 相依 smacg-anime-status，
      * 而該樣式只在 anime/manga 載入，掛到新聞頁會因相依缺失而不輸出。
      */
-    // 新聞、漫畫、角色頁、人物頁：後兩者是 rewrite 攔截的虛擬頁，用 query var 判斷
-    if ( is_singular( [ 'post', 'manga' ] )
+    /*
+     * 新聞、漫畫、輕小說、遊戲、真人版、角色頁、人物頁。
+     * 後兩者是 rewrite 攔截的虛擬頁，用 query var 判斷。
+     *
+     * 這份清單必須與 Anime_Sync_Review_Manager::allowed_post_types() 同步：
+     * 後端允許發表、前端卻沒載入 review.css，表單會變成沒有樣式的裸元素
+     * （2026-08-28 小說頁實際發生過）。
+     */
+    if ( is_singular( [ 'post', 'manga', 'novel', 'game', 'liveaction' ] )
         || (int) get_query_var( 'asa_character_id' ) > 0
         || (int) get_query_var( 'asa_person_id' ) > 0 ) {
         $rv_css = weixiaoacg_THEME_DIR . '/assets/css/review.css';
