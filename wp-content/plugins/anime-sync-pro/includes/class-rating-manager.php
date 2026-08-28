@@ -71,7 +71,12 @@ class Anime_Sync_Rating_Manager {
     /**
      * v1.4.0：排行榜允許的 post_type
      */
-    private const ALLOWED_POST_TYPES = [ 'anime', 'manga' ];
+    /*
+     * 新 CPT（小說／遊戲／真人版）一併開放評分：頁面上本來就有評分 UI，
+     * 白名單沒放行的話按下去會被後端擋掉，使用者看得到卻用不了。
+     * music 不加——noindex 的薄內容頁不需要評分。
+     */
+    private const ALLOWED_POST_TYPES = [ 'anime', 'manga', 'novel', 'game', 'liveaction' ];
 
     private static array $user_weight_cache = [];
 

@@ -129,7 +129,7 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/date-helpers.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/ai-editorial-tool.php';
 
 if ( ! defined( 'ANIME_SYNC_PRO_CPTS' ) ) {
-	define( 'ANIME_SYNC_PRO_CPTS', 'anime,manga,novel,game,music' );
+	define( 'ANIME_SYNC_PRO_CPTS', 'anime,manga,novel,game,music,liveaction' );
 }
 
 if ( ! defined( 'ANIME_SYNC_DISABLE_LARGE_SIZES' ) ) {

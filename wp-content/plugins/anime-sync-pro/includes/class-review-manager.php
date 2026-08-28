@@ -141,7 +141,7 @@ class Anime_Sync_Review_Manager {
 		 * 新聞、角色、人物則是純聊天，長評那套（標題、80 字下限）
 		 * 用不上。
 		 */
-		$tracks = in_array( get_post_type( $post_id ), [ 'anime', 'manga' ], true )
+		$tracks = in_array( get_post_type( $post_id ), [ 'anime', 'manga', 'novel', 'game', 'liveaction' ], true )
 			? [ self::TRACK_SHORT, self::TRACK_LONG ]
 			: [ self::TRACK_SHORT ];
 
