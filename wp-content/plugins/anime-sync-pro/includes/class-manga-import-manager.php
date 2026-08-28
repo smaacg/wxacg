@@ -133,8 +133,22 @@ class Anime_Sync_Manga_Import_Manager {
 				}
 			}
 
+			/*
+			 * 依 AniList 的 format 分流到 manga / novel。
+			 *
+			 * AniList 的 MANGA 資料庫同時收漫畫與輕小說，用 format 區分
+			 * （MANGA / NOVEL / ONE_SHOT）。這個值本來就有抓回來（下方
+			 * save_post_meta() 的 anime_format），只是建立文章時寫死成
+			 * manga，導致輕小說也被建成漫畫。
+			 *
+			 * 分流之後同一支匯入器就能同時服務兩種類型，AniList +
+			 * Bangumi + 維基三個來源的合併邏輯完全共用，不必為輕小說
+			 * 另寫一套（那樣會少掉 externalLinks、連載狀態、台版資訊）。
+			 */
+			$post_type = ( ( $data['anime_format'] ?? '' ) === 'NOVEL' ) ? 'novel' : 'manga';
+
 			$post_data = [
-				'post_type'   => 'manga',   // ★ 關鍵:manga 而非 anime
+				'post_type'   => $post_type,   // ★ 關鍵:manga / novel 而非 anime
 				'post_title'  => $post_title,
 				'post_name'   => $post_slug,
 				'post_status' => $post_status,
@@ -588,8 +602,15 @@ class Anime_Sync_Manga_Import_Manager {
 		$suffix   = 1;
 
 		while ( true ) {
-			// ★ 查 manga,不查 anime → 動畫漫畫同名不互相干擾
-			$found = get_page_by_path( $slug, OBJECT, 'manga' );
+			/*
+			 * ★ 查 manga + novel,不查 anime → 動畫與書籍同名不互相干擾。
+			 *
+			 * 兩者都要查的原因：輕小說與它的漫畫版書名幾乎都相同
+			 * （無職轉生、轉生史萊姆、刀劍神域…）。只查一邊的話，
+			 * 兩篇會拿到相同 slug，WordPress 再自行加 -2，結果是
+			 * 網址不可預期、也分不出哪篇是哪個類型。
+			 */
+			$found = get_page_by_path( $slug, OBJECT, [ 'manga', 'novel' ] );
 			if ( ! $found || ( $exclude_id > 0 && (int) $found->ID === $exclude_id ) ) {
 				break;
 			}
@@ -605,8 +626,15 @@ class Anime_Sync_Manga_Import_Manager {
 	private function find_existing( int $anilist_id ): int {
 		if ( $anilist_id <= 0 ) return 0;
 
+		/*
+		 * 兩種類型都要查。
+		 *
+		 * 匯入時會依 format 決定建成 manga 還是 novel，但比對「這個
+		 * AniList ID 是不是已經匯過」時如果只查 manga，輕小說會每次
+		 * 都被判定為新項目、重複建立。
+		 */
 		$q = new WP_Query( [
-			'post_type'      => 'manga',   // ★ 查 manga
+			'post_type'      => [ 'manga', 'novel' ],   // ★ 查 manga / novel
 			'post_status'    => 'any',
 			'posts_per_page' => 1,
 			'fields'         => 'ids',
