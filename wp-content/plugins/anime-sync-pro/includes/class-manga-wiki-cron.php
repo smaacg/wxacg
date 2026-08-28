@@ -70,7 +70,14 @@ class Anime_Sync_Manga_Wiki_Cron {
 
 	public function run_weekly(): void {
 		$q = new WP_Query( [
-			'post_type'      => 'manga',
+			/*
+			 * 輕小說一併納入。
+			 *
+			 * 輕小說也有單行本（文庫本），維基的「出版」章節與 Bangumi 的
+			 * 单行本關聯條目結構完全相同，抓取邏輯不必改。只查 manga 的話，
+			 * 輕小說頁的單行本封面牆與逐卷 ISBN 永遠是空的。
+			 */
+			'post_type'      => [ 'manga', 'novel' ],
 			'post_status'    => [ 'publish', 'draft', 'pending', 'private' ],
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
@@ -94,7 +101,7 @@ class Anime_Sync_Manga_Wiki_Cron {
 
 	public function run_single( int $post_id, string $source = 'cron' ): void {
 		if ( $post_id <= 0 ) return;
-		if ( get_post_type( $post_id ) !== 'manga' ) return;
+		if ( ! in_array( get_post_type( $post_id ), [ 'manga', 'novel' ], true ) ) return;
 
 		$anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
 		$zh_title   = (string) ( get_post_meta( $post_id, 'anime_title_chinese', true ) ?: get_the_title( $post_id ) );
