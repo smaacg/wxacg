@@ -4420,6 +4420,14 @@ $cast_prompt .= "以下是 JSON:\n";
             if ( is_wp_error( $response ) ) {
                 // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
                 // 重試後仍失敗才換下一把 Key。
+                error_log( sprintf(
+                    'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
+                    $provider,
+                    $key_set['index'] + 1,
+                    $key_set['count'],
+                    $is_retry ? 'true' : 'false',
+                    implode( '; ', $response->get_error_messages() )
+                ) );
                 $this->send_api_failure(
                     [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
                     $key_set,
@@ -4460,6 +4468,14 @@ $cast_prompt .= "以下是 JSON:\n";
             if ( is_wp_error( $response ) ) {
                 // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
                 // 重試後仍失敗才換下一把 Key。
+                error_log( sprintf(
+                    'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
+                    $provider,
+                    $key_set['index'] + 1,
+                    $key_set['count'],
+                    $is_retry ? 'true' : 'false',
+                    implode( '; ', $response->get_error_messages() )
+                ) );
                 $this->send_api_failure(
                     [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
                     $key_set,
@@ -4504,6 +4520,14 @@ $cast_prompt .= "以下是 JSON:\n";
             if ( is_wp_error( $response ) ) {
                 // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
                 // 重試後仍失敗才換下一把 Key。
+                error_log( sprintf(
+                    'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
+                    $provider,
+                    $key_set['index'] + 1,
+                    $key_set['count'],
+                    $is_retry ? 'true' : 'false',
+                    implode( '; ', $response->get_error_messages() )
+                ) );
                 $this->send_api_failure(
                     [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
                     $key_set,
@@ -4848,6 +4872,14 @@ $cast_prompt .= "以下是 JSON:\n";
             if ( is_wp_error( $response ) ) {
                 // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
                 // 重試後仍失敗才換下一把 Key。
+                error_log( sprintf(
+                    'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
+                    $provider,
+                    $key_set['index'] + 1,
+                    $key_set['count'],
+                    $is_retry ? 'true' : 'false',
+                    implode( '; ', $response->get_error_messages() )
+                ) );
                 $this->send_api_failure(
                     [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
                     $key_set,
@@ -5426,6 +5458,17 @@ $cast_prompt .= "以下是 JSON:\n";
      */
     private function send_api_failure( array $failure, array $key_set, bool $is_retry = false ): void {
         $key_no = $key_set['index'] + 1;
+
+        error_log( sprintf(
+            'ASP AI 失敗: provider=%s, key=%d/%d, type=%s, retryable=%s, is_retry=%s, message=%s',
+            $key_set['provider'] ?? 'unknown',
+            $key_no,
+            $key_set['count'],
+            $failure['type'],
+            ! empty( $failure['retryable'] ) ? 'true' : 'false',
+            $is_retry ? 'true' : 'false',
+            $failure['message']
+        ) );
 
         if ( 'key' === $failure['type'] ) {
             $this->advance_key_cursor( $key_set );
