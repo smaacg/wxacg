@@ -172,7 +172,11 @@ $footer_legal = apply_filters( 'smacg_footer_legal', [
     __( '免責聲明',   'blocksy-child' ) => home_url( '/disclaimer/' ),
 ] );
 
-/* ── 資料來源（可由 filter 擴充）── */
+/* ── 資料來源（可由 filter 擴充）──
+ *   注意：頁尾版權列已不再輸出這份清單（標示改由免責聲明頁第 04 節
+ *   「第三方資料來源」負責，那裡逐家寫明用途並附連結）。
+ *   陣列與 filter 保留給其他地方取用，不是死代碼。
+ */
 $data_sources = apply_filters( 'smacg_footer_data_sources', [
     'Bangumi'     => 'https://bgm.tv',
     'AniList'     => 'https://anilist.co',
@@ -249,23 +253,24 @@ $data_sources = apply_filters( 'smacg_footer_data_sources', [
 
     <div class="footer-divider" role="separator"></div>
 
-    <!-- ── Footer Bottom：版權 + 資料來源 ── -->
+    <!-- ── Footer Bottom：版權 ── -->
+    <?php
+    /*
+     * 資料來源清單不在這裡。
+     *
+     * 免責聲明頁第 04 節「第三方資料來源」已經逐家寫明「提供什麼」並附
+     * 連結，比這裡光列名字完整得多；而下方法務列本來就有「免責聲明」
+     * 連結指過去。兩邊並存只是把版權列撐長，讓「誰的版權」與「資料哪來」
+     * 兩件不相干的事擠成同一句。
+     *
+     * $data_sources（本檔上方）刻意保留：它有 smacg_footer_data_sources
+     * filter，之後別處要用不必重建。
+     */
+    ?>
     <div class="footer-bottom">
       <p class="footer-copy">
-        © <?php echo esc_html( wp_date( 'Y' ) ); ?> <?php echo esc_html( $site_name ); ?> WeixiaoACG．
-        <?php echo esc_html__( 'All rights reserved．', 'blocksy-child' ); ?>
-        <?php echo esc_html__( '資料來源包含', 'blocksy-child' ); ?>
-        <?php
-        $ds_html = [];
-        foreach ( $data_sources as $name => $url ) {
-            $ds_html[] = sprintf(
-                '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
-                esc_url( $url ),
-                esc_html( $name )
-            );
-        }
-        echo implode( '、', $ds_html ); // phpcs:ignore WordPress.Security.EscapeOutput
-        ?>。
+        © <?php echo esc_html( wp_date( 'Y' ) ); ?> <?php echo esc_html( $site_name ); ?> WeixiaoACG.
+        <?php echo esc_html__( 'All rights reserved.', 'blocksy-child' ); ?>
       </p>
 
       <?php /* 法務連結 + 桌面版切換（統一在同一列） */ ?>
