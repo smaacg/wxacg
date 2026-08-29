@@ -35,6 +35,7 @@ class Anime_Sync_Streaming_Registry {
         // ── 國際平台 ─────────────────────────────────────────────
         [
             'key'    => 'crunchyroll',
+            'billing' => 'sub',
             'label'  => 'Crunchyroll',
             'color'  => '#F47521',
             'icon'   => 'crunchyroll_icon.webp',
@@ -43,6 +44,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'netflix',
+            'billing' => 'sub',
             'label'  => 'Netflix',
             'color'  => '#E50914',
             'icon'   => 'netflix_icon.webp',
@@ -51,6 +53,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'disney',
+            'billing' => 'sub',
             'label'  => 'Disney+',
             'color'  => '#113CCF',
             'icon'   => 'disneyplus_icon.webp',
@@ -59,6 +62,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'appletv',
+            'billing' => 'sub',
             'label'  => 'Apple TV+',
             'color'  => '#555555',
             'icon'   => 'appletv_icon.webp',
@@ -67,6 +71,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'amazon',
+            'billing' => 'sub',
             'label'  => 'Amazon Prime Video',
             'color'  => '#00A8E1',
             'icon'   => 'amazon_prime_video_icon.webp',
@@ -75,6 +80,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'hidive',
+            'billing' => 'sub',
             'label'  => 'HIDIVE',
             'color'  => '#00AEEF',
             'icon'   => 'hidive_icon.webp',
@@ -83,6 +89,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'hulu',
+            'billing' => 'sub',
             'label'  => 'Hulu',
             'color'  => '#1CE783',
             'icon'   => 'disneyplus_icon.webp',
@@ -91,6 +98,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'bilibili',
+            'billing' => 'sub',
             'label'  => 'Bilibili 國際版',
             'color'  => '#00A1D6',
             'icon'   => 'bilibili_icon.webp',
@@ -99,6 +107,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'iqiyi',
+            'billing' => 'sub',
             'label'  => '愛奇藝',
             'color'  => '#00BE06',
             'icon'   => 'iqiyi_icon.webp',
@@ -109,6 +118,7 @@ class Anime_Sync_Streaming_Registry {
         // ── 台灣限定平台 ─────────────────────────────────────────
         [
             'key'    => 'bahamut',
+            'billing' => 'free',
             'label'  => '巴哈姆特動畫瘋',
             'color'  => '#009944',
             'icon'   => 'anigamer_icon.webp',
@@ -117,6 +127,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'hami',
+            'billing' => 'sub',
             'label'  => '中華電信 Hami Video',
             'color'  => '#0068B7',
             'icon'   => 'hami_icon.webp',
@@ -125,6 +136,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'myvideo',
+            'billing' => 'sub',
             'label'  => '台灣大哥大 MyVideo',
             'color'  => '#D6001C',
             'icon'   => 'myvideo_icon.webp',
@@ -133,6 +145,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'linetv',
+            'billing' => 'sub',
             'label'  => 'LINE TV',
             'color'  => '#06C755',
             'icon'   => 'linetv_icon.webp',
@@ -141,6 +154,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'friday',
+            'billing' => 'sub',
             'label'  => 'friDay 影音',
             'color'  => '#E2001A',
             'icon'   => 'friday_icon.webp',
@@ -149,6 +163,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'ofiii',
+            'billing' => 'free',
             'label'  => 'Ofiii 歐飛',
             'color'  => '#FF6600',
             'icon'   => 'ofiii_icon.webp',
@@ -157,6 +172,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'catchplay',
+            'billing' => 'sub',
             'label'  => 'CatchPlay+',
             'color'  => '#E60012',
             'icon'   => 'catchplay_icon.webp',
@@ -165,6 +181,7 @@ class Anime_Sync_Streaming_Registry {
         ],
              [
             'key'    => 'litv',
+            'billing' => 'sub',
             'label'  => 'LiTV 立視線上影視',
             'color'  => '#E5002B',
             'icon'   => 'litv_icon.webp',
@@ -173,6 +190,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'ptsplus',
+            'billing' => 'free',
             'label'  => '公視(台語版)',
             'color'  => '#00A0E9',
             'icon'   => 'channels4.webp',
@@ -181,6 +199,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'anipass',
+            'billing' => 'free',
             'label'  => 'AniPASS 車庫娛樂旗下',
             'color'  => '#6B4FBB',
             'icon'   => 'anipass_icon.webp',
@@ -190,6 +209,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'ani_one',
+            'billing' => 'free',
             'label'  => 'Ani-One 羚邦集團 YouTube',
             'color'  => '#1A1A2E',
             'icon'   => 'ani-one.webp',
@@ -199,6 +219,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'muse',
+            'billing' => 'free',
             'label'  => 'Muse 木棉花 YouTube',
             'color'  => '#C8A951',
             'icon'   => 'Muse.webp',
@@ -208,6 +229,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'mighty',
+            'billing' => 'free',
             'label'  => '曼迪 YouTube',
             'color'  => '#333333',
             'icon'   => 'Mighty.webp',
@@ -217,6 +239,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'ani_mi',
+            'billing' => 'free',
             'label'  => 'Ani-Mi 動漫迷動畫頻道',
             'color'  => '#FF4500',
             'icon'   => 'ani-mi.webp',
@@ -226,6 +249,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'tropicsanime',
+            'billing' => 'free',
             'label'  => '回歸線娛樂 YouTube',
             'color'  => '#2E8B57',
             'icon'   => 'tropicsanime.webp',
@@ -235,6 +259,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'renta',
+            'billing' => 'rent',
             'label'  => 'renta! 亂搭',
             'color'  => '#E4007F',
             'icon'   => 'renta.webp',
@@ -243,6 +268,7 @@ class Anime_Sync_Streaming_Registry {
         ],
 [
             'key'    => 'garageplay',
+            'billing' => 'free',
             'label'  => '車庫娛樂',
             'color'  => '#E60012',           // 可依實際品牌色調整
             'icon'   => 'garageplay_icon.webp',
@@ -251,6 +277,7 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'youtube',
+            'billing' => 'free',
             'label'  => 'YouTube',
             'color'  => '#FF0000',
             'icon'   => 'youtube_icon.webp',
@@ -375,6 +402,34 @@ class Anime_Sync_Streaming_Registry {
             $choices[ $p['key'] ] = $p['label'];
         }
         return $choices;
+    }
+
+    /**
+     * 收費模式分組用的標籤與顯示順序。
+     *
+     * 順序就是前台的呈現順序——免費排最前面，那是使用者最想先看到的。
+     */
+    public const BILLING_LABELS = [
+        'free' => '免費觀看',
+        'sub'  => '月租觀看',
+        'rent' => '單次租看',
+    ];
+
+    /**
+     * [ key => billing ]，給前台分組用。
+     *
+     * ⚠ 不少平台同時提供訂閱與單次租看（MyVideo／friDay／CatchPlay+），
+     *   這裡填的是「主要」模式。實際方案以平台公告為準，
+     *   前台的免責聲明已經有寫。
+     */
+    public static function get_billing_map(): array {
+        $map = [];
+
+        foreach ( self::all() as $p ) {
+            $map[ $p['key'] ] = $p['billing'] ?? 'sub';
+        }
+
+        return $map;
     }
 
     /**

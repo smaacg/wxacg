@@ -10,10 +10,23 @@
    ============================================================ */
 'use strict';
 
-document.addEventListener('DOMContentLoaded', function () {
+/*
+ * 改成具名函式並掛到 window，讓內容被抽換之後可以重新初始化。
+ *
+ * 原本整包只綁 DOMContentLoaded：作品頁改成分頁切換（/anime/xxx/characters/
+ * 等，由 anime-sync-pro 的 frontend.js 抽換 #asd-main）之後，切回含評論區的
+ * 分頁時這段不會再跑，評論永遠停在「評論載入中…」。
+ *
+ * 內容與邏輯完全沒動，只是包起來 + 加一道「同一個容器不重複初始化」的旗標。
+ */
+function smacgInitReview() {
 
     const root = document.getElementById('asd-review-root');
     if (!root) return;
+
+    /* 抽換後是全新的節點，舊節點上的旗標不會跟著來，所以不會誤擋 */
+    if (root.dataset.smacgReviewInited === '1') return;
+    root.dataset.smacgReviewInited = '1';
 
     const cfg      = window.SmacgConfig || {};
     const apiBase  = cfg.apiUrl || '/wp-json/weixiaoacg/v1/';
@@ -875,4 +888,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     renderForm();
     loadList();
-});
+}
+
+window.smacgInitReview = smacgInitReview;
+
+document.addEventListener('DOMContentLoaded', smacgInitReview);

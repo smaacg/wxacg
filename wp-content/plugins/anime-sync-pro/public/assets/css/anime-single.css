@@ -4140,3 +4140,847 @@ nav.asd-tabs a.asd-tab.is-active::after {
 		transition: none;
 	}
 }
+
+/* =================================================================
+   相關專輯 / 相關遊戲 / 真人版
+   （Bangumi 跨媒體關聯，資料來源 wp_wxacg_subject_relations）
+
+   關聯表沒有封面欄位，所以是文字清單而非封面牆。
+   分組依類型而異：音樂用關聯類型（原聲集／角色歌），
+   遊戲與三次元用平台（桌遊／電影／舞台劇）。
+   2026-08-29
+   ================================================================= */
+
+/* 專輯區塊與上方主題曲播放器之間的分隔 */
+.asd-album-block {
+	margin-top: 26px;
+	padding-top: 22px;
+	border-top: 1px solid var(--asd-border);
+}
+
+/* 標題旁的總數徽章 */
+.asd-album-total,
+.asd-album-count {
+	display: inline-block;
+	margin-left: 6px;
+	padding: 1px 8px;
+	border-radius: var(--asd-radius-pill, 20px);
+	background: rgba(255, 255, 255, .08);
+	color: var(--asd-text-muted);
+	font-size: 11px;
+	font-weight: 700;
+	vertical-align: middle;
+}
+
+/*
+   auto-fit 而非 auto-fill：只有一組時（例如遊戲只有「遊戲」一類）
+   auto-fill 會保留空的軌道，內容擠在最左邊、右邊空 3/4 版面；
+   auto-fit 會把空軌道收掉，讓單組撐滿寬度。
+*/
+.asd-album-groups {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 18px 22px;
+	align-items: start;
+}
+
+.asd-album-group {
+	min-width: 0;
+}
+
+/* 收合時整組沒有可見項目 → 連標題一起藏 */
+.asd-album-group-hidden {
+	display: none !important;
+}
+
+.asd-album-group-title {
+	margin: 0 0 8px;
+	padding-bottom: 6px;
+	border-bottom: 1px solid var(--asd-border);
+	color: var(--asd-text-muted);
+	font-size: 12px;
+	font-weight: 800;
+	letter-spacing: .5px;
+}
+
+.asd-album-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.asd-album-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 8px;
+	padding: 6px 0;
+	border-bottom: 1px solid rgba(255, 255, 255, .04);
+}
+
+.asd-album-item:last-child {
+	border-bottom: none;
+}
+
+.asd-album-hidden {
+	display: none !important;
+}
+
+/* 站內有對應文章時是 <a>，沒有時是 <span>，兩者外觀一致 */
+.asd-album-name {
+	color: var(--asd-text);
+	font-size: 13.5px;
+	font-weight: 600;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+
+a.asd-album-name {
+	text-decoration: none;
+	transition: var(--trans-smooth, color .2s ease);
+}
+
+a.asd-album-name:hover {
+	color: var(--asd-primary);
+}
+
+/* 原文名（中文名之外還有日文原名時才出現） */
+.asd-album-sub {
+	flex-basis: 100%;
+	color: var(--asd-text-dim);
+	font-size: 11.5px;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+/* 關聯類型標籤：改編／聯動／衍生。音樂不顯示（已用來分組） */
+.asd-album-badge {
+	flex-shrink: 0;
+	padding: 1px 7px;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-pill, 20px);
+	color: var(--asd-text-dim);
+	font-size: 10.5px;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.asd-album-source {
+	margin: 16px 0 0;
+	color: var(--asd-text-dim);
+	font-size: 11.5px;
+}
+
+/* 收合按鈕沿用 Cast 的外觀，只換選擇器 */
+.asd-album-toggle {
+	margin: 0 auto;
+	padding: 9px 22px;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-pill, 20px);
+	background: rgba(255, 255, 255, .04);
+	color: var(--asd-text-muted);
+	font-size: 13px;
+	font-weight: 700;
+	cursor: pointer;
+	transition: var(--trans-smooth, all .2s ease);
+}
+
+.asd-album-toggle:hover {
+	border-color: var(--asd-primary);
+	color: var(--asd-primary);
+}
+
+@media (max-width: 480px) {
+	.asd-album-groups {
+		grid-template-columns: 1fr;
+		gap: 16px;
+	}
+}
+
+/* =================================================================
+   音樂入口（動畫頁）＋ 音樂總覽頁 /anime/{slug}/music/
+   2026-08-29
+   ================================================================= */
+
+/* 動畫頁上取代整個音樂區塊的一行入口 */
+.asd-music-entry {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 16px 20px;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-md);
+	background: rgba(255, 255, 255, .04);
+	color: inherit;
+	text-decoration: none;
+	transition: var(--trans-smooth, all .2s ease);
+}
+
+.asd-music-entry:hover {
+	border-color: var(--asd-primary);
+	background: rgba(255, 255, 255, .07);
+	transform: translateY(-2px);
+}
+
+.asd-music-entry__main {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.asd-music-entry__label {
+	color: var(--asd-text);
+	font-size: 15px;
+	font-weight: 700;
+}
+
+.asd-music-entry__meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 14px;
+}
+
+.asd-music-entry__stat {
+	color: var(--asd-text-muted);
+	font-size: 13px;
+}
+
+.asd-music-entry__stat strong {
+	color: var(--asd-primary);
+	font-weight: 800;
+}
+
+.asd-music-entry__go {
+	flex-shrink: 0;
+	color: var(--asd-text-dim);
+	font-size: 20px;
+	transition: var(--trans-smooth, all .2s ease);
+}
+
+.asd-music-entry:hover .asd-music-entry__go {
+	color: var(--asd-primary);
+	transform: translateX(4px);
+}
+
+/* ---- 音樂總覽頁 ---- */
+
+.asd-music-crumb {
+	margin-bottom: 14px;
+	color: var(--asd-text-dim);
+	font-size: 13px;
+}
+
+.asd-music-crumb a {
+	color: var(--asd-text-muted);
+	text-decoration: none;
+}
+
+.asd-music-crumb a:hover {
+	color: var(--asd-primary);
+}
+
+.asd-music-crumb__sep {
+	margin: 0 8px;
+}
+
+.asd-music-crumb__here {
+	color: var(--asd-text);
+	font-weight: 700;
+}
+
+.asd-music-head {
+	margin-bottom: 22px;
+}
+
+/* 音樂頁的 H1。★ 不可叫 .asd-music-title——那是主題曲卡片裡的歌名
+   （本檔 2101 行，15px），同名會把每首歌的標題撐成 30px。 */
+.asd-music-page-title {
+	margin: 0 0 6px;
+	color: var(--asd-text);
+	font-size: clamp(22px, 3.4vw, 30px);
+	font-weight: 800;
+	line-height: 1.3;
+}
+
+.asd-music-lede {
+	margin: 0;
+	color: var(--asd-text-muted);
+	font-size: 14px;
+}
+
+.asd-music-back {
+	margin: 26px 0 0;
+	font-size: 14px;
+}
+
+.asd-music-back a {
+	color: var(--asd-text-muted);
+	text-decoration: none;
+}
+
+.asd-music-back a:hover {
+	color: var(--asd-primary);
+}
+
+@media (max-width: 480px) {
+	.asd-music-entry {
+		padding: 14px 16px;
+	}
+}
+
+/* ---- 作品頁 tab 列（AniList 風格分頁切換）---- */
+
+/*
+   分頁切換只有 6 個 tab（原本的錨點導覽有 14 個），沿用舊間距會擠在
+   左邊、右邊空一大片。改成平均撐滿整條，看起來才像刻意的設計。
+   min-width 讓標籤短的（總覽／角色）不會被壓到只剩文字寬度。
+*/
+nav.asd-tabs--views {
+	gap: 6px;
+	padding: 8px;
+}
+
+nav.asd-tabs--views a.asd-tab {
+	flex: 1 1 0;
+	min-width: 96px;
+	min-height: 44px;
+	padding: 0 14px;
+	font-size: 14px;
+	gap: 6px;
+}
+
+.asd-tabs--views .asd-tab.is-active {
+	background: var(--asd-primary);
+	border-color: var(--asd-primary);
+	color: #fff;
+	font-weight: 800;
+}
+
+/* 撐滿之後底部那條細線變多餘，整塊已經是主色 */
+nav.asd-tabs--views a.asd-tab.is-active::after {
+	display: none;
+}
+
+nav.asd-tabs--views a.asd-tab.is-active:hover {
+	background: var(--asd-primary);
+	color: #fff;
+}
+
+/* 窄畫面：一列放不下就兩兩並排，不要壓成一條細縫 */
+@media (max-width: 600px) {
+	nav.asd-tabs--views a.asd-tab {
+		flex: 1 1 calc(33.333% - 6px);
+		min-width: 0;
+		font-size: 13px;
+		padding: 0 8px;
+	}
+}
+
+.asd-subview-crumb {
+	margin-bottom: 16px;
+	color: var(--asd-text-dim);
+	font-size: 13px;
+}
+
+.asd-subview-crumb a {
+	color: var(--asd-text-muted);
+	text-decoration: none;
+}
+
+.asd-subview-crumb a:hover {
+	color: var(--asd-primary);
+}
+
+.asd-subview-crumb__sep {
+	margin: 0 8px;
+}
+
+.asd-subview-crumb__here {
+	color: var(--asd-text);
+	font-weight: 700;
+}
+
+/* tab 載入動畫已移除——內容一次全部輸出，沒有東西要等 */
+
+/* tab 本身也給一點回饋：active 立刻切換（JS 不等 fetch 就換高亮） */
+.asd-tabs--views .asd-tab {
+	transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+
+/* =================================================================
+   Hero 作品資料條（.asd-hero-facts）
+   2026-08-29
+
+   原本同一批資料散在三處：Hero 側欄卡、Hero 標籤列、下方「基本資訊」
+   區塊。13 個欄位有 7 個重複（集數出現三次）。整併到這裡之後：
+
+     標籤列 chips — 狀態／類型／季度／分類，可點通往歸檔頁，是導覽
+     這條資料條   — 所有文字型資料，一次列完
+     側欄卡       — 只剩評分
+
+   用橫向 grid 而非側欄直式清單：11 列塞進 230px 寬會又高又難掃，
+   跨滿寬度分三欄只要 4 排。
+   ================================================================= */
+/*
+   放在 .asd-hero-body 裡（按鈕列下方那塊空白），不是跨滿三欄的獨立條。
+   欄寬只有中間那欄，所以不用「卡片裡再放卡片」——那在窄欄位裡框線太
+   密、很吵。改成細分隔線切格，安靜但一樣好掃。
+*/
+.asd-hero-facts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 0;
+	margin: 2px 0 0;
+	padding: 0;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-md);
+	background: rgba(255, 255, 255, .025);
+	overflow: hidden;
+}
+
+.asd-hero-fact {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 2px;
+	min-width: 0;
+	padding: 10px 14px;
+	/* 用 inset 陰影當格線：格數會隨寬度變動，
+	   用 border 會在最後一欄留下多餘的線 */
+	box-shadow:
+		inset 1px 0 0 rgba(255, 255, 255, .05),
+		inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+
+.asd-hero-fact__k {
+	margin: 0;
+	color: var(--asd-text-dim);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .4px;
+}
+
+.asd-hero-fact__v {
+	margin: 0;
+	color: var(--asd-text);
+	font-size: 14px;
+	font-weight: 700;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.asd-hero-fact__v a {
+	color: inherit;
+	text-decoration: none;
+	border-bottom: 1px solid rgba(255, 255, 255, .18);
+	transition: var(--trans-smooth, color .2s ease);
+}
+
+.asd-hero-fact__v a:hover {
+	color: var(--asd-primary);
+	border-bottom-color: var(--asd-primary);
+}
+
+@media (max-width: 600px) {
+	.asd-hero-facts {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.asd-hero-fact {
+		padding: 9px 11px;
+	}
+
+	.asd-hero-fact__v {
+		font-size: 13px;
+	}
+}
+
+/* 側欄評分卡下方的四個重點欄位（原作者／原作類型／製作公司／集數） */
+/*
+   評分區與作品資料之間的分隔線。
+
+   原本用 --asd-border（9% 白），在深色卡片上幾乎看不見，
+   登入後多了評分滑桿與送出按鈕，兩區更是黏成一團。
+   這裡直接指定較明顯的透明度，並把上下留白拉開。
+*/
+.asd-hside-facts {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-top: 18px;
+	padding-top: 18px;
+	border-top: 1px solid rgba(255, 255, 255, .16);
+}
+
+/* =================================================================
+   STAFF 頭像（2026-08-29）
+
+   anime_staff_json 本來就帶 image（火影 59 筆裡 49 筆有），
+   先前沒渲染。加上之後卡片從「純文字置中」改成「頭像在左、
+   文字在右」的橫向排列——59 人的名單用 CAST 那種直式肖像卡
+   會拉得很長，橫向一排放得下更多人也好掃。
+   ================================================================= */
+.asd-staff-grid-v2 {
+	/* 多了頭像，最小寬度要放寬，否則名字會被擠成一個字一行 */
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.asd-staff-card-v2 {
+	justify-content: flex-start;
+	gap: 11px;
+	padding: 10px 12px;
+	text-align: left;
+}
+
+.asd-staff-avatar-wrap {
+	position: relative;
+	display: block;
+	flex-shrink: 0;
+	width: 46px;
+	height: 46px;
+	overflow: hidden;
+	border: 1px solid var(--asd-border);
+	border-radius: 50%;
+	background: var(--asd-bg);
+}
+
+.asd-staff-avatar-wrap img,
+.asd-staff-avatar-fb {
+	width: 100%;
+	height: 100%;
+}
+
+.asd-staff-avatar-wrap img {
+	object-fit: cover;
+	/* 人物照多半是半身，對齊上緣才不會切到臉 */
+	object-position: center top;
+	transition: transform .25s ease;
+}
+
+.asd-staff-card-v2:hover .asd-staff-avatar-wrap img {
+	transform: scale(1.07);
+}
+
+.asd-staff-avatar-fb {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--asd-text-dim);
+	font-size: 17px;
+	font-weight: 800;
+	background: linear-gradient(135deg, #20203a, #141426);
+}
+
+@media (max-width: 480px) {
+	.asd-staff-avatar-wrap {
+		width: 40px;
+		height: 40px;
+	}
+
+	.asd-staff-card-v2 {
+		gap: 9px;
+		padding: 9px 10px;
+	}
+}
+
+/* =================================================================
+   作品頁面板（.asd-panel）
+   2026-08-29
+
+   所有 tab 的內容都在同一份 HTML 裡，這裡只負責顯示哪一個。
+
+   為什麼不是「一次只渲染一個 tab」：內容分散在 6 個網址會把 Google
+   權重切成六份互相稀釋，AI 引擎抓一個網址也只拿得到 1/6。全部輸出後
+   爬蟲拿到完整內容，切 tab 也不必再 fetch（從 2 秒變 0 秒）。
+
+   用 HTML 原生的 hidden 屬性：沒有 JS 時伺服器端就已經標好正確的面板，
+   而 hidden 不影響爬蟲解析 HTML，內容照樣讀得到。
+   ================================================================= */
+/*
+   ★ 面板要複製 .asd-main 的排列方式。
+   .asd-main 是 flex column + gap，區塊原本是它的直接子元素所以有間距；
+   包進面板之後變成孫元素，gap 只作用在「面板與面板之間」，
+   同一個面板裡的區塊就全黏在一起了。
+*/
+.asd-panel {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: var(--asd-content-gap);
+}
+
+.asd-panel[hidden] {
+	display: none;
+}
+
+/* ---- 串流平台依收費模式分組 ---- */
+/*
+   平台一多就是一大片方塊，使用者得一個一個看才知道哪個要錢。
+   分成免費／月租／單次租看，最常見的需求（找免費的）兩秒內就滿足。
+*/
+.asd-stream-bill {
+	margin-bottom: 14px;
+}
+
+.asd-stream-bill:last-child {
+	margin-bottom: 0;
+}
+
+.asd-stream-bill-head {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin-bottom: 9px;
+	color: var(--asd-text-muted);
+	font-size: 12.5px;
+	font-weight: 800;
+	letter-spacing: .4px;
+}
+
+.asd-stream-bill-count {
+	padding: 1px 7px;
+	border-radius: var(--asd-radius-pill, 20px);
+	background: rgba(255, 255, 255, .07);
+	font-size: 11px;
+	font-weight: 700;
+}
+
+/* 免費那組用綠色點出來——那是使用者最想先看到的 */
+.asd-stream-bill:first-child .asd-stream-bill-head {
+	color: #34d399;
+}
+
+.asd-stream-bill:first-child .asd-stream-bill-count {
+	background: rgba(52, 211, 153, .15);
+	color: #34d399;
+}
+
+/*
+   分組後的平台清單改用等寬網格。
+
+   原本是 flex-wrap，按鈕寬度隨文字長度變動（「LINE TV」很短、
+   「中華電信 Hami Video」很長），每一行的右緣都對不齊，看起來很亂。
+   改成 auto-fill 等寬欄位，每格一樣寬、每行都切齊。
+
+   只作用在分組容器內，其他地方（配音版本、海外平台）維持 flex。
+*/
+.asd-stream-bill .asd-stream-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 10px;
+}
+
+/* 網格已經決定寬度，按鈕撐滿格子；文字靠左比置中好掃 */
+.asd-stream-bill .asd-stream-btn {
+	width: 100%;
+	justify-content: flex-start;
+}
+
+/* 只有圖示的按鈕（沒有文字）維持置中，靠左會很奇怪 */
+.asd-stream-bill .asd-stream-btn--icon-only {
+	justify-content: center;
+}
+
+@media (max-width: 560px) {
+	.asd-stream-bill .asd-stream-list {
+		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	}
+}
+
+/* =================================================================
+   左側快速導覽（.asd-toc）
+   2026-08-29
+
+   固定在畫面左側的目錄，點了捲到對應區塊。內容由 frontend.js 依
+   「目前可見的面板」生成，切 tab 會重建，不必在模板裡各寫一份。
+
+   只在 ≥1400px 出現：容器 1200px，兩側各要留約 200px 才不會擋到內容。
+   窄螢幕直接隱藏——擋住內容比沒有目錄更糟。
+   ================================================================= */
+.asd-toc {
+	position: fixed;
+	top: 50%;
+	left: 20px;
+	z-index: 40;
+	transform: translateY(-50%);
+	max-width: 230px;
+}
+
+.asd-toc[hidden] {
+	display: none;
+}
+
+.asd-toc__btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	padding: 14px 22px;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-pill, 20px);
+	background: rgba(36, 44, 53, .94);
+	color: var(--asd-text);
+	font-size: 15px;
+	font-weight: 800;
+	cursor: pointer;
+	box-shadow: var(--asd-shadow-sm);
+	transition: var(--trans-smooth, all .2s ease);
+}
+
+.asd-toc__btn:hover {
+	border-color: var(--asd-primary);
+	color: var(--asd-primary);
+}
+
+.asd-toc__icon {
+	font-size: 15px;
+}
+
+.asd-toc__panel {
+	margin: 10px 0 0;
+	padding: 10px;
+	list-style: none;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-md);
+	background: rgba(36, 44, 53, .96);
+	box-shadow: var(--asd-shadow-sm);
+
+	/* 預設收起，滑過按鈕或點開才展開 */
+	opacity: 0;
+	visibility: hidden;
+	transform: translateX(-8px);
+	transition: opacity .18s ease, transform .18s ease, visibility .18s;
+}
+
+.asd-toc:hover .asd-toc__panel,
+.asd-toc.is-open .asd-toc__panel,
+.asd-toc:focus-within .asd-toc__panel {
+	opacity: 1;
+	visibility: visible;
+	transform: translateX(0);
+}
+
+.asd-toc__list a {
+	display: block;
+	padding: 10px 14px;
+	border-radius: var(--asd-radius-sm);
+	color: var(--asd-text-muted);
+	font-size: 14.5px;
+	font-weight: 700;
+	line-height: 1.4;
+	text-decoration: none;
+	transition: var(--trans-smooth, all .15s ease);
+}
+
+.asd-toc__list a:hover {
+	background: rgba(255, 255, 255, .06);
+	color: var(--asd-text);
+}
+
+/* 捲到哪一段就標哪一段 */
+.asd-toc__list a.is-current {
+	background: rgba(109, 174, 255, .14);
+	color: var(--asd-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.asd-toc__list {
+		transition: none;
+	}
+}
+
+/* ---- 目錄：標頭與隱藏鈕 ---- */
+.asd-toc__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border: 0;
+	background: none;
+	box-shadow: none;
+	opacity: 1;
+	visibility: visible;
+	transform: none;
+}
+
+.asd-toc__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 6px;
+	padding: 0 6px 8px 10px;
+	border-bottom: 1px solid var(--asd-border);
+	color: var(--asd-text-dim);
+	font-size: 12px;
+	font-weight: 800;
+	letter-spacing: .5px;
+}
+
+.asd-toc__close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--asd-text-dim);
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	transition: var(--trans-smooth, all .15s ease);
+}
+
+.asd-toc__close:hover {
+	background: rgba(255, 255, 255, .08);
+	color: var(--asd-text);
+}
+
+/*
+   隱藏後留在左緣的把手。不留的話使用者關掉就再也叫不回來——
+   關閉是可逆的操作，不該變成單向門。
+*/
+.asd-toc-restore {
+	position: fixed;
+	top: 50%;
+	left: 0;
+	z-index: 40;
+	transform: translateY(-50%);
+	width: 22px;
+	height: 60px;
+	padding: 0;
+	border: 1px solid var(--asd-border);
+	border-left: 0;
+	border-radius: 0 var(--asd-radius-sm) var(--asd-radius-sm) 0;
+	background: rgba(36, 44, 53, .94);
+	color: var(--asd-text-dim);
+	font-size: 16px;
+	cursor: pointer;
+	transition: var(--trans-smooth, all .2s ease);
+}
+
+.asd-toc-restore[hidden] {
+	display: none;
+}
+
+.asd-toc-restore:hover {
+	width: 28px;
+	border-color: var(--asd-primary);
+	color: var(--asd-primary);
+}
+
+/* 目錄項目統一單行，過長截斷不折行——長短不一最傷整齊感 */
+.asd-toc__list a {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* 清單寬度給足，短標籤不會忽寬忽窄 */
+.asd-toc__panel {
+	min-width: 175px;
+}

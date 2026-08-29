@@ -724,6 +724,23 @@ while ( have_posts() ) :
 		}
 	}
 
+	/*
+	 * 依收費模式分組：免費觀看／月租觀看／單次租看。
+	 *
+	 * 平台一多就會排成一大片方塊，使用者要一個一個看才知道哪個要錢。
+	 * 分組後先看到「免費」那一區，最常見的需求兩秒內就滿足。
+	 *
+	 * 分組資料在 Anime_Sync_Streaming_Registry（billing 欄位）。
+	 * 手動填的「其他平台」沒有 key，無法判斷，歸到最後的「其他」。
+	 */
+	$tw_billing_map = $has_streaming_registry
+		? Anime_Sync_Streaming_Registry::get_billing_map()
+		: [];
+
+	$tw_billing_labels = $has_streaming_registry
+		? Anime_Sync_Streaming_Registry::BILLING_LABELS
+		: [];
+
 	if ( $tw_streaming_other ) {
 		$other_platforms = preg_split(
 			'/[,，、;；\r\n]+/u',
@@ -750,6 +767,27 @@ while ( have_posts() ) :
 			];
 		}
 	}
+
+	/* 依 billing 分桶，順序照 BILLING_LABELS（免費在最前面） */
+	$tw_stream_groups = [];
+
+	foreach ( array_keys( $tw_billing_labels ) as $bkey ) {
+		$tw_stream_groups[ $bkey ] = [];
+	}
+
+	$tw_stream_groups['other'] = [];
+
+	foreach ( $tw_streaming_items as $sitem ) {
+		$bkey = $tw_billing_map[ $sitem['key'] ?? '' ] ?? '';
+
+		if ( '' === $bkey || ! isset( $tw_stream_groups[ $bkey ] ) ) {
+			$bkey = 'other';
+		}
+
+		$tw_stream_groups[ $bkey ][] = $sitem;
+	}
+
+	$tw_stream_groups = array_filter( $tw_stream_groups );
 
 	/* =========================================================
 	 * 舊版／新版串流資料相容
@@ -1392,9 +1430,7 @@ while ( have_posts() ) :
 		wp_strip_all_tags( $editorial_note )
 	);
 
-	$themes_list = $decode_json(
-		$get_meta( 'anime_themes' )
-	);
+	/* anime_themes 的解析改由 Anime_Sync_Anime_Music_Data 負責,本頁不再自行讀取 */
 
 	$cast_list = $decode_json(
 		$get_meta( 'anime_cast_json' )
@@ -1839,55 +1875,197 @@ while ( have_posts() ) :
 
 	/* =========================================================
 	 * OP／ED
+	 * ---------------------------------------------------------
+	 * 解析已搬到 Anime_Sync_Anime_Music_Data::get()，音樂頁
+	 * （/anime/{slug}/music/）與本頁共用同一份，不再各解析一次。
+	 * 兩個變數在下面的音樂區段由該類別填入。
 	 * ======================================================= */
 
-	$theme_seen = [];
-	$openings   = [];
-	$endings    = [];
+	$openings = [];
+	$endings  = [];
 
-	foreach ( $themes_list as $theme_item ) {
-		if ( ! is_array( $theme_item ) ) {
-			continue;
-		}
+	/* =========================================================
+	 * Bangumi 跨媒體關聯:相關專輯 / 遊戲 / 真人版
+	 * ---------------------------------------------------------
+	 * 上面的 $openings/$endings 來自 AnimeThemes,只有主題曲;
+	 * 這裡補的是 Bangumi 的完整關聯(原聲集、角色歌、廣播劇…)。
+	 * 兩者資料來源不同、不重疊,同區塊分開顯示。
+	 *
+	 * 各類型覆蓋率(2026-08-29 實測 1,742 部已發布動畫):
+	 *   音樂 72.6%(1,264 部)、遊戲 21.9%(382)、三次元 20.5%(357)
+	 * 覆蓋率低的照樣給獨立區塊——導覽列本來就是有資料才顯示 tab,
+	 * 不會出現點進去沒東西的項目。
+	 * ======================================================= */
 
-		$theme_type = strtoupper(
-			trim(
-				(string) (
-					$theme_item['type']
-						?? ''
-				)
-			)
+	$rel_games      = [];
+	$rel_liveaction = [];
+
+	if ( class_exists( 'Anime_Sync_Subject_Relations_Repository' ) ) {
+		$subj_repo = new Anime_Sync_Subject_Relations_Repository();
+
+		$rel_games = $subj_repo->get_grouped(
+			$post_id,
+			Anime_Sync_Subject_Relations_Repository::TYPE_GAME
 		);
 
-		$theme_slug = trim(
-			(string) (
-				$theme_item['slug']
-					?? ''
-			)
+		$rel_liveaction = $subj_repo->get_grouped(
+			$post_id,
+			Anime_Sync_Subject_Relations_Repository::TYPE_REAL
 		);
+	}
 
-		$theme_title = trim(
-			(string) (
-				$theme_item['title']
-					?? ''
-			)
-		);
+	/*
+	 * 音樂改由 Anime_Sync_Anime_Music_Data 統一供應——這頁只用到摘要數字,
+	 * 完整內容在 /anime/{slug}/music/,兩邊必須是同一份資料,不能各解析一次。
+	 * 上面 $openings/$endings 的解析已搬進該類別。
+	 */
+	$rel_albums         = [];
+	$rel_albums_total   = 0;
+	$music_themes_total = 0;
+	$music_page_url     = '';
+	$has_music_section  = false;
 
-		$theme_key = $theme_slug !== ''
-			? $theme_slug
-			: $theme_type . '||' . $theme_title;
+	/*
+	 * 子檢視（/anime/{slug}/music|games|liveaction/）。
+	 *
+	 * 不另開模板——同一支 single-anime.php 只換 <main> 裡的內容,
+	 * Hero、導覽列、側欄全部留著。這樣：
+	 *   1) 直接輸入網址進來看到的,和站內點過去看到的完全一樣
+	 *   2) 前端抽換時只要換 #asd-main,Hero 不會消失
+	 *   3) Hero 那一千多行不必抽成 partial,風險最低
+	 */
+	$subview = class_exists( 'Anime_Sync_Subview_Routing' )
+		? Anime_Sync_Subview_Routing::current()
+		: '';
 
-		if ( isset( $theme_seen[ $theme_key ] ) ) {
-			continue;
+	$is_subview = ( '' !== $subview );
+
+	/*
+	 * 哪個 tab 顯示哪些區塊。
+	 *
+	 * 區塊本身留在原位不搬動,只是各自多一道 $show 判斷——比把
+	 * 一千多行的區塊剪下貼到不同分支安全得多,順序也自然跟著檔案。
+	 *
+	 * 主題曲（music 區塊）留在總覽,音樂 tab 只放 Bangumi 相關專輯。
+	 */
+	/*
+	 * 外部連結旗標。
+	 * ★ 原本寫在導覽列 <nav> 裡，2026-08-29 改成 tab 列時那段被換掉，
+	 *   旗標跟著消失、「資料來源」區塊永遠不顯示。移到這裡才不會再被牽連。
+	 */
+	$has_external_links =
+		$official_site
+		|| $twitter_url
+		|| $wikipedia_url
+		|| $tiktok_url
+		|| $anilist_id
+		|| $mal_id
+		|| $bangumi_id;
+
+	/*
+	 * 每個 tab 都固定顯示的區塊（使用者指定）。
+	 *
+	 * 這幾個不是「某個分頁的內容」，而是整部作品共通的東西：
+	 * 去哪看原作、常見問題、資料來源、留言、回報錯誤。
+	 * 不管使用者停在哪一頁，這些都該在手邊，不必先切回總覽。
+	 */
+	$always_sections = [ 'manga', 'faq', 'links', 'reviews', 'corrections' ];
+
+	$tab_sections = [
+		''           => [ 'info', 'editorial', 'synopsis', 'events', 'trailer', 'music', 'stream', 'online' ],
+		'characters' => [ 'cast' ],
+		'staff'      => [ 'staff' ],
+		'episodes'   => [ 'episodes' ],
+		'music'      => [ 'albums' ],
+		'related'    => [ 'games', 'liveaction' ],
+	];
+
+	/*
+	 * ★ 全部區塊一律渲染，由 CSS 決定看得到哪一個 tab。
+	 *
+	 * 原本是「一次只渲染當前 tab」，內容因此分散在 6 個網址：
+	 *   - Google 的權重被切成 6 份互相稀釋
+	 *   - AI 引擎抓一個網址只拿得到 1/6 的內容
+	 *   - 切 tab 要重新 fetch，實測要等 2 秒
+	 *
+	 * 改成一次全部輸出後：爬蟲拿到完整 HTML、切 tab 是 0 秒，
+	 * 使用者看到的畫面完全一樣（視覺上仍是分頁）。
+	 *
+	 * $tab_sections / $always_sections 現在的用途是「這個區塊屬於哪個
+	 * 面板」，不再是「要不要輸出」。
+	 */
+	$show = array_fill_keys(
+		array_merge( ...array_values( $tab_sections ) ),
+		true
+	);
+
+	$show += array_fill_keys( $always_sections, true );
+
+	/* 區塊 → 所屬面板。包裝面板時要用。 */
+	$panel_of = [];
+
+	foreach ( $tab_sections as $view => $ids ) {
+		foreach ( $ids as $id ) {
+			$panel_of[ $id ] = $view;
+		}
+	}
+
+	foreach ( $always_sections as $id ) {
+		$panel_of[ $id ] = '__always';
+	}
+
+	/*
+	 * Hero 按鈕列（串流／線上看／預告／糾錯）的錨點一律用絕對網址。
+	 *
+	 * 不可以用「子檢視才加前綴」那種寫法——JS 抽換時只換 #asd-main，
+	 * Hero 不會重新渲染。從總覽切到角色後網址已經是 /characters/，
+	 * Hero 按鈕卻還留著總覽那版的裸錨點 #asd-sec-stream，點了跳不過去
+	 * （串流區塊只在總覽渲染）。一律指向作品頁本身就沒這個問題。
+	 */
+	$anime_permalink = get_permalink( $post_id );
+
+	/* 三個子檢視的入口網址 */
+	$games_page_url = ( class_exists( 'Anime_Sync_Subview_Routing' ) && ! empty( $rel_games ) )
+		? Anime_Sync_Subview_Routing::url( $post_id, 'games' )
+		: '';
+
+	$live_page_url = ( class_exists( 'Anime_Sync_Subview_Routing' ) && ! empty( $rel_liveaction ) )
+		? Anime_Sync_Subview_Routing::url( $post_id, 'liveaction' )
+		: '';
+
+	$count_groups = static function ( array $groups ): int {
+		$n = 0;
+
+		foreach ( $groups as $g ) {
+			$n += (int) $g['count'];
 		}
 
-		$theme_seen[ $theme_key ] = true;
+		return $n;
+	};
 
-		if ( $starts_with( $theme_type, 'OP' ) ) {
-			$openings[] = $theme_item;
-		} elseif ( $starts_with( $theme_type, 'ED' ) ) {
-			$endings[] = $theme_item;
-		}
+	$rel_games_total = $count_groups( $rel_games );
+	$rel_live_total  = $count_groups( $rel_liveaction );
+
+	if ( class_exists( 'Anime_Sync_Anime_Music_Data' ) ) {
+		$music_data = Anime_Sync_Anime_Music_Data::get( $post_id );
+
+		$openings           = $music_data['openings'];
+		$endings            = $music_data['endings'];
+		$rel_albums         = $music_data['albums'];
+		$rel_albums_total   = $music_data['albums_total'];
+		$music_themes_total = $music_data['themes_total'];
+
+		/* 專輯子頁只在真的有專輯時才給連結 */
+		$music_page_url = ( $rel_albums_total > 0 && class_exists( 'Anime_Sync_Subview_Routing' ) )
+			? Anime_Sync_Subview_Routing::url( $post_id, 'music' )
+			: '';
+
+		/*
+		 * 主題曲在作品頁直接顯示,專輯只給一行入口。
+		 * 兩者任一有東西就要開這個區塊——有些作品 AnimeThemes 沒收錄
+		 * 主題曲但 Bangumi 有整套原聲集,只看主題曲會把入口一起藏掉。
+		 */
+		$has_music_section = $music_data['has_any'];
 	}
 
 	/* =========================================================
@@ -3163,7 +3341,16 @@ while ( have_posts() ) :
 		);
 	?></script>
 
-	<?php if ( $faq_schema ) : ?>
+	<?php
+	/*
+	 * FAQ schema 只在總覽輸出。
+	 *
+	 * 常見問題區塊現在每個 tab 都顯示（使用者指定），但同一份 FAQPage
+	 * 在六個網址各輸出一次是明確的重複結構化資料訊號。視覺上重複無妨，
+	 * schema 只能有一份，掛在作品頁本身。
+	 */
+	?>
+	<?php if ( $faq_schema && ! $is_subview ) : ?>
 		<script type="application/ld+json"><?php
 			echo wp_json_encode(
 				$faq_schema,
@@ -3374,6 +3561,108 @@ while ( have_posts() ) :
 				<?php endif; ?>
 			</div>
 
+			<?php
+			/*
+			 * 作品資料條的資料——放在 Hero 本體之前組好，因為要在
+			 * .asd-hero-body 裡面輸出（按鈕列下方那塊空白）。
+			 *
+			 * 原本同一批資料散在三處：Hero 側欄卡、標籤列、下方「基本資訊」
+			 * 區塊，13 個欄位有 7 個重複（集數出現三次）。現在分工是：
+			 *
+			 *   側欄評分卡下方 — 原作者／原作類型／製作公司／集數
+			 *   這條資料條     — 其餘所有文字型資料
+			 *
+			 * 狀態／類型／播出季度原本是可點的 chip（通往歸檔頁），
+			 * 併進來時把連結一起帶著，換容器不該少掉導覽功能。
+			 */
+			$allowed_link_html = [
+				'a' => [
+					'href'  => [],
+					'title' => [],
+				],
+			];
+
+			$link_or_text = static function ( $text, $url ) {
+				$text = trim( (string) $text );
+
+				if ( '' === $text ) {
+					return '';
+				}
+
+				return $url
+					? '<a href="' . esc_url( $url ) . '">' . esc_html( $text ) . '</a>'
+					: esc_html( $text );
+			};
+
+			$hero_facts = [
+				[
+					'key'  => '狀態',
+					'val'  => $link_or_text( $status_label, $hero_status_url ),
+					'html' => true,
+				],
+				[
+					'key'  => '類型',
+					'val'  => $link_or_text( $format_label, $hero_format_url ),
+					'html' => true,
+				],
+				[
+					'key'  => '播出季度',
+					'val'  => $link_or_text( $season_str, $hero_season_url ),
+					'html' => true,
+				],
+				[
+					'key' => '每集時長',
+					'val' => $duration > 0 ? $duration . ' 分鐘' : '',
+				],
+				[
+					/* 未播出作品的 startDate 是「預定」,沿用「首播日期」會讀起來像已經發生 */
+					'key' => ( 'NOT_YET_RELEASED' === $status ) ? '預定首播' : '首播日期',
+					'val' => $start_date,
+				],
+				[
+					'key' => '完結日期',
+					'val' => ( $end_date && 'FINISHED' === $status ) ? $end_date : '',
+				],
+				[ 'key' => '台灣代理', 'val' => $tw_dist_display ],
+				[ 'key' => '播出頻道', 'val' => $tw_broadcast ],
+				[
+					'key' => '配音版本',
+					'val' => ! empty( $dub_display ) ? implode( '、', $dub_display ) : '',
+				],
+				[ 'key' => '資料更新', 'val' => get_the_modified_date( 'Y-m-d' ) ],
+			];
+
+			/* 空值不輸出,不要留一格「—」佔位 */
+			$hero_facts = array_values(
+				array_filter(
+					$hero_facts,
+					static function ( $f ) {
+						return '' !== trim( (string) $f['val'] );
+					}
+				)
+			);
+
+			/*
+			 * 下一集播出倒數。
+			 *
+			 * ★ 這段原本在「基本資訊」區塊末端，2026-08-29 刪除該區塊時
+			 *   被一起帶走了。它跟基本資訊沒有關係,只是剛好寫在一起——
+			 *   移到 Hero 這裡,跟其他作品資料放在一起才合理。
+			 *
+			 * 只有連載中（RELEASING）且時間還沒到才顯示。
+			 */
+			$countdown_timestamp = is_numeric( $next_airing_raw )
+				? (int) $next_airing_raw
+				: (int) ( $airing_data['airingAt'] ?? 0 );
+
+			$countdown_episode = (int) (
+				$airing_data['episode']
+					?? ( $ep_aired > 0 ? $ep_aired + 1 : 0 )
+			);
+
+			$show_countdown = ( 'RELEASING' === $status && $countdown_timestamp > time() );
+			?>
+
 			<div class="asd-hero-body">
 
 				<div class="asd-hero-breadcrumb">
@@ -3466,165 +3755,46 @@ while ( have_posts() ) :
 					<?php endif; ?>
 				<?php endif; ?>
 
-				<div class="asd-hero-badges">
-					<?php
-					/*
-					 * 播映狀態：連到 /anime/?anime_status={slug} 的篩選檢視。
-					 * 狀態會隨時間改變，所以不做成分類法，直接查 meta（見
-					 * anime-sync-pro.php 的 anime_sync_get_status_filter_map()）。
-					 */
-					$hero_status_url  = '';
-					$status_slug_map  = function_exists( 'anime_sync_get_status_filter_map' )
-						? anime_sync_get_status_filter_map()
-						: [];
-
-					foreach ( $status_slug_map as $status_slug => $status_info ) {
-						if ( $status_info['code'] === $status ) {
-							$hero_status_url = add_query_arg(
-								'anime_status',
-								$status_slug,
-								get_post_type_archive_link( 'anime' ) ?: home_url( '/anime/' )
-							);
-							break;
-						}
-					}
-
-					$status_badge_class = 'asd-hbadge'
-						. ( $status_class ? ' asd-hbadge--' . $status_class : '' );
-					?>
-					<?php if ( $status_label ) : ?>
-						<?php if ( $hero_status_url ) : ?>
-							<a
-								href="<?php echo esc_url( $hero_status_url ); ?>"
-								class="<?php echo esc_attr( $status_badge_class ); ?> asd-hbadge--link"
-								title="<?php echo esc_attr( '查看所有' . $status_label . '的動畫' ); ?>"
-							>
-								<?php echo esc_html( $status_label ); ?>
-							</a>
-						<?php else : ?>
-							<span class="<?php echo esc_attr( $status_badge_class ); ?>">
-								<?php echo esc_html( $status_label ); ?>
-							</span>
-						<?php endif; ?>
-					<?php endif; ?>
-
-					<?php
-					/* 以下格式／季度／類型三種標籤有對應的歸檔頁，改為可點；
-					   取不到 term link 時退回 <span>，維持原本的純文字顯示。 */
-					?>
-					<?php if ( $format_label ) : ?>
-						<?php if ( $hero_format_url ) : ?>
-							<a
-								href="<?php echo esc_url( $hero_format_url ); ?>"
-								class="asd-hbadge asd-hbadge--link"
-								title="<?php echo esc_attr( '查看更多 ' . $format_label . ' 作品' ); ?>"
-							>
-								<?php echo esc_html( $format_label ); ?>
-							</a>
-						<?php else : ?>
-							<span class="asd-hbadge">
-								<?php echo esc_html( $format_label ); ?>
-							</span>
-						<?php endif; ?>
-					<?php endif; ?>
-
-					<?php if ( $season_str ) : ?>
-						<?php if ( $hero_season_url ) : ?>
-							<a
-								href="<?php echo esc_url( $hero_season_url ); ?>"
-								class="asd-hbadge asd-hbadge--link"
-								title="<?php echo esc_attr( '查看 ' . $season_str . ' 的所有作品' ); ?>"
-							>
-								<?php echo esc_html( $season_str ); ?>
-							</a>
-						<?php else : ?>
-							<span class="asd-hbadge">
-								<?php echo esc_html( $season_str ); ?>
-							</span>
-						<?php endif; ?>
-					<?php endif; ?>
-
-					<?php /* 集數不是分類維度，沒有歸檔頁可連 */ ?>
-					<?php if ( $ep_str ) : ?>
-						<span class="asd-hbadge">
-							<?php echo esc_html( $ep_str ); ?>
-						</span>
-					<?php endif; ?>
-
-					<?php
-					foreach ( array_slice( $genre_terms, 0, 3 ) as $genre_term ) :
-						$resolved_genre_url = get_term_link( $genre_term );
-						$hero_genre_url     = is_wp_error( $resolved_genre_url )
-							? ''
-							: $resolved_genre_url;
-						?>
-						<?php if ( $hero_genre_url ) : ?>
-							<a
-								href="<?php echo esc_url( $hero_genre_url ); ?>"
-								class="asd-hbadge asd-hbadge--genre asd-hbadge--link"
-								title="<?php echo esc_attr( '查看更多 ' . $genre_term->name . ' 作品' ); ?>"
-							>
-								<?php echo esc_html( $genre_term->name ); ?>
-							</a>
-						<?php else : ?>
-							<span class="asd-hbadge asd-hbadge--genre">
-								<?php echo esc_html( $genre_term->name ); ?>
-							</span>
-						<?php endif; ?>
-					<?php endforeach; ?>
-				</div>
-
-				<div class="asd-hero-scores-new">
-					<?php if ( $score_anilist ) : ?>
-						<div class="asd-score-pill asd-score-pill--al" title="AniList－國際動漫評分資料庫">
-							<span class="asd-sp-dot" aria-hidden="true"></span>
-							<span class="asd-sp-val"><?php echo esc_html( $score_anilist ); ?></span>
-							<span class="asd-sp-label">AniList</span>
-						</div>
-					<?php endif; ?>
-
-					<?php if ( $score_mal ) : ?>
-						<div class="asd-score-pill asd-score-pill--mal" title="MyAnimeList（MAL）－國際動漫評分資料庫">
-							<span class="asd-sp-dot" aria-hidden="true"></span>
-							<span class="asd-sp-val"><?php echo esc_html( $score_mal ); ?></span>
-							<span class="asd-sp-label">MAL</span>
-						</div>
-					<?php endif; ?>
-
-					<?php if ( $score_bangumi ) : ?>
-						<div class="asd-score-pill asd-score-pill--bgm" title="Bangumi（bgm.tv）－大陸地區動漫社群評分">
-							<span class="asd-sp-dot" aria-hidden="true"></span>
-							<span class="asd-sp-val"><?php echo esc_html( $score_bangumi ); ?></span>
-							<span class="asd-sp-label">Bangumi</span>
-						</div>
-					<?php endif; ?>
-
-					<div class="asd-score-pill asd-score-pill--site" title="本站會員評分">
-						<span class="asd-sp-dot" aria-hidden="true"></span>
-						<span class="asd-sp-val wacg-hero-score">
-							<?php
-							echo $site_score > 0
-								? esc_html( number_format( $site_score, 1 ) )
-								: '—';
-							?>
-						</span>
-						<span class="asd-sp-label">本站</span>
-					</div>
-				</div>
+				<?php
+				/*
+				 * 標籤列與評分 chips 已移除（2026-08-29）。
+				 *
+				 *   狀態／類型／播出季度 → 併進下方的 .asd-hero-facts 資料條
+				 *                          （連結保留，值本身就是 <a>）
+				 *   類型標籤（動作／奇幻）→ 右側欄「作品標籤」已經有一份
+				 *   評分 chips            → 右側欄「評分」卡已經有一份
+				 *
+				 * 這樣 Hero 只剩：海報／標題／系列／按鈕列／資料條，
+				 * 一份資料一個地方。
+				 */
+				?>
 
 				<div class="asd-hero-actions">
+					<?php
+					/*
+					 * 串流平台與線上看是兩件事，兩個都有就兩個都顯示。
+					 *
+					 * ★ 原本這裡是 if / elseif，串流存在時線上看永遠不會出現
+					 *   ——《無職轉生 III》就是兩者都有，但 Hero 只看得到串流。
+					 *
+					 * 主要按鈕只留一個以維持視覺層級：兩者都有時串流當主要，
+					 * 線上看退為次要；只有線上看時它就是主要。
+					 */
+					?>
 					<?php if ( $hero_has_stream ) : ?>
 						<a
-							href="#asd-sec-stream"
+							href="<?php echo esc_url( $anime_permalink ); ?>#asd-sec-stream"
 							class="asd-action-btn asd-action-btn--primary"
 							title="<?php echo esc_attr( $display_title ); ?> 合法串流平台"
 						>
 							📺 串流平台
 						</a>
-					<?php elseif ( $has_online_watch ) : ?>
+					<?php endif; ?>
+
+					<?php if ( $has_online_watch ) : ?>
 						<a
-							href="#asd-sec-online"
-							class="asd-action-btn asd-action-btn--primary"
+							href="<?php echo esc_url( $anime_permalink ); ?>#asd-sec-online"
+							class="asd-action-btn <?php echo $hero_has_stream ? 'asd-action-btn--ghost' : 'asd-action-btn--primary'; ?>"
 							title="<?php echo esc_attr( $display_title ); ?> 線上觀看"
 						>
 							▶ 線上觀看
@@ -3633,7 +3803,7 @@ while ( have_posts() ) :
 
 					<?php if ( $has_trailer ) : ?>
 						<a
-							href="#asd-sec-trailer"
+							href="<?php echo esc_url( $anime_permalink ); ?>#asd-sec-trailer"
 							class="asd-action-btn asd-action-btn--ghost"
 						>
 							▶ 觀看預告
@@ -3642,7 +3812,7 @@ while ( have_posts() ) :
 
 					<?php if ( is_user_logged_in() ) : ?>
 						<a
-							href="#asd-sec-corrections"
+							href="<?php echo esc_url( $anime_permalink ); ?>#asd-sec-corrections"
 							class="asd-action-btn asd-action-btn--ghost"
 							id="asd-hero-corr-btn"
 						>
@@ -3727,6 +3897,45 @@ while ( have_posts() ) :
 						<?php endif; ?>
 					<?php endif; ?>
 				</div>
+
+				<?php /* 下一集播出倒數：連載中才出現，擺在資料條上方最醒目 */ ?>
+				<?php if ( $show_countdown ) : ?>
+					<div class="asd-airing-bar">
+						<span>
+							<?php if ( $countdown_episode > 0 ) : ?>
+								第 <?php echo esc_html( $countdown_episode ); ?> 集播出倒數
+							<?php else : ?>
+								下一集播出倒數
+							<?php endif; ?>
+						</span>
+
+						<strong
+							class="asd-countdown"
+							data-ts="<?php echo esc_attr( $countdown_timestamp ); ?>"
+							aria-live="polite"
+						></strong>
+					</div>
+				<?php endif; ?>
+
+				<?php /* 作品資料：填滿按鈕列下方那塊空白 */ ?>
+				<?php if ( ! empty( $hero_facts ) ) : ?>
+					<dl class="asd-hero-facts">
+						<?php foreach ( $hero_facts as $fact ) : ?>
+							<div class="asd-hero-fact">
+								<dt class="asd-hero-fact__k"><?php echo esc_html( $fact['key'] ); ?></dt>
+								<dd class="asd-hero-fact__v">
+									<?php
+									if ( ! empty( $fact['html'] ) ) {
+										echo wp_kses( $fact['val'], $allowed_link_html );
+									} else {
+										echo esc_html( $fact['val'] );
+									}
+									?>
+								</dd>
+							</div>
+						<?php endforeach; ?>
+					</dl>
+				<?php endif; ?>
 
 			</div><!-- /.asd-hero-body -->
 
@@ -4067,78 +4276,70 @@ while ( have_posts() ) :
 						: esc_html( $source_label );
 				}
 
-				$hero_meta_rows = [
-					[
-						'key'  => '原作者',
-						'val'  => $author_html,
-						'html' => true,
-					],
-					[
-						'key'  => '原作類型',
-						'val'  => $source_html,
-						'html' => true,
-					],
-					[
-						'key'  => '製作公司',
-						'val'  => $studio_html,
-						'html' => true,
-					],
-					[
-						'key'  => '集數',
-						'val'  => $ep_str,
-						'html' => false,
-					],
-					[
-						'key'  => '時長',
-						'val'  => $duration > 0
-							? $duration . ' 分鐘'
-							: '',
-						'html' => false,
-					],
+				/*
+				 * 作品資料合併到 Hero 下緣的橫向資料條（.asd-hero-facts）。
+				 *
+				 * 原本同一批資料散在三個地方：Hero 側欄卡、Hero 標籤列、
+				 * 下方的「基本資訊」區塊。實測 13 個欄位裡有 7 個重複，
+				 * 集數甚至出現三次。現在只留兩處，分工明確：
+				 *
+				 *   標籤列（chips）— 狀態／類型／季度／分類，可點、通往歸檔頁，
+				 *                     是導覽不是資料，保留。
+				 *   資料條         — 所有文字型資料，一次列完。
+				 *
+				 * 側欄卡因此只剩評分，反而更聚焦。
+				 *
+				 * 用橫向 grid 而非側欄的直式清單：11 列塞進 230px 寬的側欄
+				 * 會又高又難掃，跨滿寬度分三欄只要 4 排。
+				 */
+				/*
+				 * 側欄評分卡下方：使用者指定的四個最重要欄位。
+				 * 其餘一律走下方的資料條，不重複。
+				 */
+				$hero_side_facts = [
+					[ 'key' => '原作者',   'val' => $author_html, 'html' => true ],
+					[ 'key' => '原作類型', 'val' => $source_html, 'html' => true ],
+					[ 'key' => '製作公司', 'val' => $studio_html, 'html' => true ],
+					[ 'key' => '集數',     'val' => $ep_str ],
 				];
 
-				$allowed_link_html = [
-					'a' => [
-						'href'  => [],
-						'title' => [],
-					],
-				];
+				?>
 
-				$has_hero_meta = false;
+				<?php /* 評分卡下方：四個最重要的欄位 */ ?>
+				<?php
+				$hero_side_facts = array_values(
+					array_filter(
+						$hero_side_facts,
+						static function ( $f ) {
+							return '' !== trim( (string) $f['val'] );
+						}
+					)
+				);
+				?>
 
-				foreach ( $hero_meta_rows as $row ) :
-					$val = trim( (string) $row['val'] );
-
-					if ( $val === '' ) {
-						continue;
-					}
-
-					$has_hero_meta = true;
-					?>
-					<div class="asd-hside-info-row">
-						<span class="asd-hside-info-key">
-							<?php echo esc_html( $row['key'] ); ?>
-						</span>
-						<span class="asd-hside-info-val">
-							<?php
-							if ( ! empty( $row['html'] ) ) {
-								echo wp_kses(
-									$val,
-									$allowed_link_html
-								);
-							} else {
-								echo esc_html( $val );
-							}
-							?>
-						</span>
+				<?php if ( ! empty( $hero_side_facts ) ) : ?>
+					<div class="asd-hside-facts">
+						<?php foreach ( $hero_side_facts as $sf ) : ?>
+							<div class="asd-hside-info-row">
+								<span class="asd-hside-info-key">
+									<?php echo esc_html( $sf['key'] ); ?>
+								</span>
+								<span class="asd-hside-info-val">
+									<?php
+									if ( ! empty( $sf['html'] ) ) {
+										echo wp_kses( $sf['val'], $allowed_link_html );
+									} else {
+										echo esc_html( $sf['val'] );
+									}
+									?>
+								</span>
+							</div>
+						<?php endforeach; ?>
 					</div>
-				<?php endforeach; ?>
-
-				<?php if ( ! $has_hero_meta ) : ?>
-					<p class="asd-hside-empty">暫無資料</p>
 				<?php endif; ?>
 
 			</div><!-- /.asd-hside-block -->
+
 
 		</div><!-- /.asd-hero-new -->
 
@@ -4480,192 +4681,82 @@ while ( have_posts() ) :
 	</div>
 
 		<div class="asd-tabs-wrap">
+			<?php
+			/*
+			 * 作品頁 tab 列（AniList 風格）。
+			 *
+			 * 從錨點導覽改成分頁切換：每個 tab 是一個真實網址
+			 * （/anime/{slug}/characters/ 等），伺服器端各自輸出完整 HTML，
+			 * 前端由 initMusicSwap 攔截後只抽換 #asd-main，不重載整頁。
+			 *
+			 * 沒有內容的 tab 不顯示——has_content() 與 404 判斷同一個方法，
+			 * 不會出現「看得到 tab 但點進去 404」。
+			 */
+			$asd_perma = get_permalink( $post_id );
+			?>
 			<nav
-				class="asd-tabs"
+				class="asd-tabs asd-tabs--views"
 				id="asd-tabs"
-				aria-label="本頁內容導航"
+				aria-label="作品內容分頁"
 			>
-				<a class="asd-tab" href="#asd-sec-info">📋 基本資訊</a>
-
-				<?php if ( $editorial_note ) : ?>
-					<a class="asd-tab" href="#asd-sec-editorial">✍️ 編輯短評</a>
-				<?php endif; ?>
-
-				<?php if ( $synopsis ) : ?>
-					<a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a>
-				<?php endif; ?>
-
-				<?php if ( $has_trailer ) : ?>
-					<a class="asd-tab" href="#asd-sec-trailer">🎞 預告片</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $episodes_list ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-episodes">📺 集數列表</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $staff_list ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-staff">🎬 STAFF</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $cast_to_display ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-cast">🎭 CAST</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-music">🎵 主題曲</a>
-				<?php endif; ?>
-
-				<?php if ( $has_stream_section ) : ?>
-					<a class="asd-tab" href="#asd-sec-stream">📺 串流</a>
-				<?php endif; ?>
-
-				<?php if ( $has_online_watch ) : ?>
-					<a class="asd-tab" href="#asd-sec-online">▶ 線上看</a>
-				<?php endif; ?>
-				<?php if ( $has_source_manga ) : ?>
-					<a class="asd-tab" href="#asd-sec-manga">📖 原作漫畫</a>
-				<?php endif; ?>
-
-				<?php if ( ! empty( $faq_display_items ) ) : ?>
-					<a class="asd-tab" href="#asd-sec-faq">❓ 常見問題</a>
-				<?php endif; ?>
+				<a
+					class="asd-tab<?php echo $is_subview ? '' : ' is-active'; ?>"
+					href="<?php echo esc_url( $asd_perma ); ?>"
+					<?php echo $is_subview ? '' : 'aria-current="page"'; ?>
+				>📋 總覽</a>
 
 				<?php
-				$has_external_links =
-					$official_site
-					|| $twitter_url
-					|| $wikipedia_url
-					|| $tiktok_url
-					|| $anilist_id
-					|| $mal_id
-					|| $bangumi_id;
+				if ( class_exists( 'Anime_Sync_Subview_Routing' ) ) :
+					foreach ( Anime_Sync_Subview_Routing::VIEWS as $sv_slug => $sv_info ) :
+						if ( ! Anime_Sync_Subview_Routing::has_content( $post_id, $sv_slug ) ) {
+							continue;
+						}
+
+						$sv_active = ( $subview === $sv_slug );
+						?>
+						<a
+							class="asd-tab<?php echo $sv_active ? ' is-active' : ''; ?>"
+							href="<?php echo esc_url( Anime_Sync_Subview_Routing::url( $post_id, $sv_slug ) ); ?>"
+							<?php echo $sv_active ? 'aria-current="page"' : ''; ?>
+						><?php echo esc_html( $sv_info['icon'] . ' ' . $sv_info['label'] ); ?></a>
+						<?php
+					endforeach;
+				endif;
 				?>
-
-				<?php if ( $has_external_links ) : ?>
-					<a class="asd-tab" href="#asd-sec-links">🔗 資料來源</a>
-				<?php endif; ?>
-
-				<a class="asd-tab" href="#asd-sec-reviews">📝 評論</a>
 			</nav>
 
 			<div class="asd-container asd-container--has-sidebar">
 				<main class="asd-main" id="asd-main">
+					<?php
+					/*
+					 * 各區塊留在原位，由 $show 決定這個 tab 要不要顯示。
+					 * 不把區塊剪貼到不同分支——那是一千多行的搬動，風險高，
+					 * 而且順序自然跟著檔案，不需要另外維護。
+					 */
+					?>
+					<?php if ( $is_subview ) : ?>
+						<nav class="asd-subview-crumb" aria-label="麵包屑">
+							<a href="<?php echo esc_url( get_permalink( $post_id ) ); ?>">
+								<?php echo esc_html( get_the_title( $post_id ) ); ?>
+							</a>
+							<span class="asd-subview-crumb__sep" aria-hidden="true">/</span>
+							<span class="asd-subview-crumb__here">
+								<?php echo esc_html( Anime_Sync_Subview_Routing::VIEWS[ $subview ]['label'] ); ?>
+							</span>
+						</nav>
+					<?php endif; ?>
+					<?php
+					/*
+					 * 「基本資訊」區塊已移除（2026-08-29）。
+					 *
+					 * 它的 13 個欄位裡有 7 個和 Hero 重複（集數甚至出現三次：
+					 * 側欄卡、標籤列、這裡）。所有欄位改由 Hero 下緣的
+					 * .asd-hero-facts 資料條統一顯示，一個地方一份資料。
+					 */
+					?>
 
-					<section class="asd-section" id="asd-sec-info">
-						<h2 class="asd-section-title">📋 基本資訊</h2>
-
-						<div class="asd-info-grid">
-							<?php
-							/*
-							 * 首播日欄位的標籤依狀態切換。
-							 *
-							 * AniList 的 startDate 對未播出作品是「預定首播日」，沿用
-							 * 「開始日期」會讓一個還沒到的日期讀起來像已經發生。
-							 */
-							$start_date_label = ( $status === 'NOT_YET_RELEASED' )
-								? '預定首播'
-								: '首播日期';
-
-							$info_rows = [
-								'類型'       => [ 'text' => $format_label, 'url' => $hero_format_url ],
-								'集數'       => $ep_str,
-								'狀態'       => [ 'text' => $status_label, 'url' => $hero_status_url ],
-								'播出季度'   => [ 'text' => $season_str,   'url' => $hero_season_url ],
-								'每集時長'   => $duration > 0
-									? $duration . ' 分鐘'
-									: '',
-								$start_date_label => $start_date,
-								'完結日期'   =>
-									$end_date && $status === 'FINISHED'
-										? $end_date
-										: '',
-								'原作來源'   => [ 'text' => $source_label, 'url' => $source_url ?? '' ],
-								'製作公司'   => [ 'text' => $studio,       'url' => $studio_url ?? '' ],
-								'台灣代理'   => $tw_dist_display,
-								'播出頻道'   => $tw_broadcast,
-								'配音版本'   => ! empty( $dub_display )
-									? implode( '、', $dub_display )
-									: '',
-								'資料更新日' => get_the_modified_date( 'Y-m-d' ),
-							];
-
-							foreach ( $info_rows as $info_label => $info_value ) :
-								/*
-								 * 值可以是純字串，或 [ 'text' => …, 'url' => … ]。
-								 * 後者在有網址時輸出連結；取不到網址就自動退回純文字，
-								 * 不會產生空的 href。
-								 */
-								$info_url = '';
-
-								if ( is_array( $info_value ) ) {
-									$info_url   = trim( (string) ( $info_value['url']  ?? '' ) );
-									$info_value = (string) ( $info_value['text'] ?? '' );
-								}
-
-								$info_value = trim( (string) $info_value );
-
-								if ( $info_value === '' ) {
-									continue;
-								}
-								?>
-								<div class="asd-info-row">
-									<span class="asd-info-label">
-										<?php echo esc_html( $info_label ); ?>
-									</span>
-									<span class="asd-info-val">
-										<?php if ( $info_url !== '' ) : ?>
-											<a href="<?php echo esc_url( $info_url ); ?>">
-												<?php echo esc_html( $info_value ); ?>
-											</a>
-										<?php else : ?>
-											<?php echo esc_html( $info_value ); ?>
-										<?php endif; ?>
-									</span>
-								</div>
-							<?php endforeach; ?>
-						</div>
-
-						<?php
-						$countdown_timestamp = is_numeric( $next_airing_raw )
-							? (int) $next_airing_raw
-							: (int) (
-								$airing_data['airingAt']
-									?? 0
-							);
-
-						$countdown_episode = (int) (
-							$airing_data['episode']
-								?? (
-									$ep_aired > 0
-										? $ep_aired + 1
-										: 0
-								)
-						);
-						?>
-
-						<?php if (
-							$status === 'RELEASING'
-							&& $countdown_timestamp > time()
-						) : ?>
-							<div class="asd-airing-bar">
-								<span>
-									<?php if ( $countdown_episode > 0 ) : ?>
-										第 <?php echo esc_html( $countdown_episode ); ?> 集播出倒數
-									<?php else : ?>
-										下一集播出倒數
-									<?php endif; ?>
-								</span>
-
-								<strong
-									class="asd-countdown"
-									data-ts="<?php echo esc_attr( $countdown_timestamp ); ?>"
-									aria-live="polite"
-								></strong>
-							</div>
-						<?php endif; ?>
-					</section>
-
-					<?php if ( $editorial_note ) : ?>
+					<div class="asd-panel" data-asd-panel=""<?php echo '' === $subview ? '' : ' hidden'; ?>>
+					<?php if ( ! empty( $show['editorial'] ) && ( $editorial_note ) ) : ?>
 						<section
 							class="asd-section asd-section--editorial"
 							id="asd-sec-editorial"
@@ -4702,7 +4793,7 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
-					<?php if ( $synopsis ) : ?>
+					<?php if ( ! empty( $show['synopsis'] ) && ( $synopsis ) ) : ?>
 						<section class="asd-section" id="asd-sec-synopsis">
 							<h2 class="asd-section-title">📝 劇情簡介</h2>
 							<div class="asd-synopsis">
@@ -4715,876 +4806,7 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
-					<?php
-					/*
-					 * 消息更新：上游偵測到的資料異動，經後台人工補寫說明並發布後才會出現。
-					 * 沒有已發布事件時整個區塊不輸出——絕大多數作品在累積初期都是 0 筆。
-					 *
-					 * $asd_events 已在頁首（視覺圖切換器）取過，此處沿用不重複查詢。
-					 */
-					?>
-
-					<?php if ( ! empty( $asd_events ) ) : ?>
-						<section class="asd-section" id="asd-sec-events">
-							<h2 class="asd-section-title">📰 消息更新</h2>
-
-							<ol class="asd-events">
-								<?php foreach ( $asd_events as $asd_event ) : ?>
-									<li class="asd-event">
-										<time class="asd-event-date" datetime="<?php echo esc_attr( $asd_event->event_date ); ?>">
-											<?php echo esc_html( $asd_event->event_date ); ?>
-										</time>
-
-										<div class="asd-event-body">
-											<p class="asd-event-summary"><?php echo esc_html( $asd_event->summary ); ?></p>
-
-											<?php
-											/*
-											 * 刻意不放圖：視覺圖統一在頁首的切換器呈現。
-											 * 消息列表插大圖會把時間軸拉得很長，一則消息就佔掉一個螢幕，
-											 * 反而看不出「這部作品最近發生了哪些事」。
-											 */
-											?>
-										</div>
-									</li>
-								<?php endforeach; ?>
-							</ol>
-						</section>
-					<?php endif; ?>
-
-					<?php if ( $has_trailer ) : ?>
-						<section class="asd-section" id="asd-sec-trailer">
-							<h2 class="asd-section-title">
-								🎞 預告片
-								<?php if ( count( $trailer_items ) > 1 ) : ?>
-									<span class="asd-pv-count">
-										（<?php echo esc_html( count( $trailer_items ) ); ?>）
-									</span>
-								<?php endif; ?>
-							</h2>
-
-							<div
-								class="asd-pv-box"
-								data-pv-count="<?php echo esc_attr( count( $trailer_items ) ); ?>"
-							>
-								<?php if ( count( $trailer_items ) > 1 ) : ?>
-									<div
-										class="asd-pv-tabs"
-										role="tablist"
-										aria-label="預告片切換"
-									>
-										<?php foreach ( $trailer_items as $trailer_index => $trailer_item ) : ?>
-											<button
-												type="button"
-												id="asd-pv-tab-<?php echo (int) $trailer_index; ?>"
-												class="asd-pv-tab<?php echo $trailer_index === 0 ? ' is-active' : ''; ?>"
-												role="tab"
-												aria-selected="<?php echo $trailer_index === 0 ? 'true' : 'false'; ?>"
-												aria-controls="asd-pv-panel-<?php echo (int) $trailer_index; ?>"
-												tabindex="<?php echo $trailer_index === 0 ? '0' : '-1'; ?>"
-												data-pv-index="<?php echo (int) $trailer_index; ?>"
-												data-pv-id="<?php echo esc_attr( $trailer_item['id'] ); ?>"
-											>
-												<span class="asd-pv-tab-icon" aria-hidden="true">▶</span>
-												<span class="asd-pv-tab-label">
-													<?php echo esc_html( $trailer_item['label'] ); ?>
-												</span>
-											</button>
-										<?php endforeach; ?>
-									</div>
-								<?php endif; ?>
-
-								<div class="asd-pv-panels">
-									<?php foreach ( $trailer_items as $trailer_index => $trailer_item ) : ?>
-										<div
-											class="asd-pv-panel<?php echo $trailer_index === 0 ? ' is-active' : ''; ?>"
-											id="asd-pv-panel-<?php echo (int) $trailer_index; ?>"
-											role="tabpanel"
-											aria-labelledby="asd-pv-tab-<?php echo (int) $trailer_index; ?>"
-											<?php echo $trailer_index === 0 ? '' : 'hidden'; ?>
-											data-pv-index="<?php echo (int) $trailer_index; ?>"
-											data-pv-id="<?php echo esc_attr( $trailer_item['id'] ); ?>"
-										>
-											<div class="asd-trailer-wrap">
-												<iframe
-													src="<?php echo esc_url( 'https://www.youtube-nocookie.com/embed/' . rawurlencode( $trailer_item['id'] ) ); ?>"
-													title="<?php echo esc_attr( $display_title . ' ' . $trailer_item['label'] ); ?>"
-													allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-													referrerpolicy="strict-origin-when-cross-origin"
-													allowfullscreen
-													loading="lazy"
-												></iframe>
-											</div>
-										</div>
-									<?php endforeach; ?>
-								</div>
-							</div>
-						</section>
-					<?php endif; ?>
-
-					<?php if ( ! empty( $episodes_list ) ) : ?>
-						<section class="asd-section" id="asd-sec-episodes">
-							<h2 class="asd-section-title">📺 集數列表</h2>
-
-							<div class="asd-ep-list" id="asd-ep-list">
-								<?php
-								$episode_output_index = 0;
-
-								/*
-								 * SP 沒有正規集數（Bangumi 的 ep 欄位為 0），不能沿用
-								 * 「第 N 集」的 index fallback，否則會被顯示成某一集。
-								 * 只有一個 SP 時標「SP」，多個才加編號。
-								 */
-								$sp_total = 0;
-								foreach ( $episodes_list as $sp_probe ) {
-									if ( is_array( $sp_probe ) && (int) ( $sp_probe['type'] ?? 0 ) === 1 ) {
-										$sp_total++;
-									}
-								}
-								$sp_output_index = 0;
-
-								foreach ( $episodes_list as $episode_index => $episode_item ) :
-									if ( ! is_array( $episode_item ) ) {
-										continue;
-									}
-
-									$episode_number = (float) (
-										$episode_item['ep']
-											?? 0
-									);
-
-									$episode_name_cn = trim(
-										(string) (
-											$episode_item['name_cn']
-												?? ''
-										)
-									);
-
-									$episode_name_ja = trim(
-										(string) (
-											$episode_item['name']
-												?? ''
-										)
-									);
-
-									$episode_airdate = trim(
-										(string) (
-											$episode_item['airdate']
-												?? ''
-										)
-									);
-
-									if (
-										$episode_name_cn !== ''
-										&& class_exists( 'Anime_Sync_CN_Converter' )
-									) {
-										$episode_name_cn =
-											Anime_Sync_CN_Converter::static_convert(
-												$episode_name_cn
-											);
-									}
-
-									$episode_name =
-										$episode_name_cn
-											?: $episode_name_ja;
-
-									$episode_number_display =
-										floor( $episode_number ) === $episode_number
-											? (int) $episode_number
-											: $episode_number;
-
-									$episode_type = (int) (
-										$episode_item['type']
-											?? 0
-									);
-
-									if ( $episode_type === 1 ) {
-										$sp_output_index++;
-										$episode_display = $sp_total > 1
-											? 'SP' . $sp_output_index
-											: 'SP';
-									} else {
-										$episode_display = $episode_number > 0
-											? '第' . $episode_number_display . '集'
-											: '第' . ( $episode_index + 1 ) . '集';
-									}
-									?>
-									<div class="asd-ep-row<?php echo $episode_output_index >= 3 ? ' asd-ep-hidden' : ''; ?>">
-										<span class="asd-ep-num">
-											<?php echo esc_html( $episode_display ); ?>
-										</span>
-
-										<div class="asd-ep-body">
-											<?php if ( $episode_name ) : ?>
-												<span class="asd-ep-title">
-													<?php echo esc_html( $episode_name ); ?>
-												</span>
-											<?php endif; ?>
-
-											<?php if (
-												$episode_name_ja
-												&& $episode_name_cn
-												&& $episode_name_ja !== $episode_name_cn
-											) : ?>
-												<span class="asd-ep-title-ja" lang="ja">
-													<?php echo esc_html( $episode_name_ja ); ?>
-												</span>
-											<?php endif; ?>
-										</div>
-
-										<?php if ( $episode_airdate ) : ?>
-											<time
-												class="asd-ep-date"
-												datetime="<?php echo esc_attr( $format_date( $episode_airdate ) ); ?>"
-											>
-												<?php echo esc_html( $episode_airdate ); ?>
-											</time>
-										<?php endif; ?>
-									</div>
-									<?php
-									$episode_output_index++;
-								endforeach;
-								?>
-							</div>
-
-							<?php if ( $episode_output_index > 3 ) : ?>
-								<div class="asd-toggle-wrap">
-									<button
-										class="asd-ep-toggle"
-										type="button"
-										aria-expanded="false"
-										aria-controls="asd-ep-list"
-									>
-										顯示全部 <?php echo esc_html( $episode_output_index ); ?> 集 ▼
-									</button>
-								</div>
-							<?php endif; ?>
-						</section>
-					<?php endif; ?>
-
-					<?php if ( ! empty( $staff_list ) ) : ?>
-						<section class="asd-section" id="asd-sec-staff">
-							<h2 class="asd-section-title">🎬 STAFF</h2>
-
-							<div class="asd-staff-grid-v2" id="asd-staff-grid">
-								<?php
-								$staff_output_index = 0;
-
-								foreach ( $staff_list as $staff_item ) :
-									if ( ! is_array( $staff_item ) ) {
-										continue;
-									}
-
-									$staff_id = (int) (
-										$staff_item['id']
-											?? 0
-									);
-
-									$staff_name = trim(
-										(string) (
-											$staff_item['name']
-												?? ''
-										)
-									);
-
-									$staff_native = trim(
-										(string) (
-											$staff_item['native']
-												?? ''
-										)
-									);
-
-									$staff_role_raw = trim(
-										(string) (
-											$staff_item['role']
-												?? ''
-										)
-									);
-
-									if ( $staff_name === '' ) {
-										continue;
-									}
-
-									$staff_role = function_exists( 'wxacg_staff_role' )
-										? wxacg_staff_role( $staff_role_raw )
-										: $staff_role_raw;
-
-									$staff_role = trim( (string) $staff_role );
-
-									$staff_url = $staff_id > 0
-										? $entity_url(
-											'person',
-											$staff_id,
-											$staff_name
-										)
-										: '';
-									?>
-									<div class="asd-staff-card-v2<?php echo $staff_output_index >= 10 ? ' asd-staff-hidden' : ''; ?>">
-										<div class="asd-staff-info">
-											<?php if ( $staff_role ) : ?>
-												<span class="asd-staff-role">
-													<?php echo esc_html( $staff_role ); ?>
-												</span>
-											<?php endif; ?>
-
-											<span class="asd-staff-name">
-												<?php if ( $staff_url ) : ?>
-													<a href="<?php echo esc_url( $staff_url ); ?>">
-														<?php echo esc_html( $staff_name ); ?>
-													</a>
-												<?php else : ?>
-													<?php echo esc_html( $staff_name ); ?>
-												<?php endif; ?>
-											</span>
-
-											<?php if (
-												$staff_native
-												&& $staff_native !== $staff_name
-											) : ?>
-												<span class="asd-staff-native" lang="ja">
-													<?php echo esc_html( $staff_native ); ?>
-												</span>
-											<?php endif; ?>
-										</div>
-									</div>
-									<?php
-									$staff_output_index++;
-								endforeach;
-								?>
-							</div>
-
-							<?php if ( $staff_output_index > 10 ) : ?>
-								<div class="asd-toggle-wrap">
-									<button
-										class="asd-staff-toggle"
-										id="asd-staff-toggle"
-										type="button"
-										aria-expanded="false"
-										aria-controls="asd-staff-grid"
-									>
-										顯示全部 <?php echo esc_html( $staff_output_index ); ?> 人 ▼
-									</button>
-								</div>
-							<?php endif; ?>
-						</section>
-					<?php endif; ?>
-
-					<?php if ( ! empty( $cast_to_display ) ) : ?>
-						<section class="asd-section" id="asd-sec-cast">
-							<h2 class="asd-section-title">🎭 CAST</h2>
-
-							<div class="asd-cast-grid" id="asd-cast-grid">
-								<?php
-								$cast_output_index = 0;
-
-								foreach ( $cast_to_display as $cast_item ) :
-									if ( ! is_array( $cast_item ) ) {
-										continue;
-									}
-
-									$character_id = (int) (
-										$cast_item['id']
-											?? 0
-									);
-
-									$character_name = trim(
-										(string) (
-											$cast_item['name']
-												?? ''
-										)
-									);
-
-									$character_native = trim(
-										(string) (
-											$cast_item['native']
-												?? ''
-										)
-									);
-
-									$character_image = trim(
-										(string) (
-											$cast_item['image']
-												?? ''
-										)
-									);
-
-									if ( $character_name === '' ) {
-										continue;
-									}
-
-									$voice_actors = (
-										! empty( $cast_item['voice_actors'] )
-										&& is_array( $cast_item['voice_actors'] )
-									)
-										? $cast_item['voice_actors']
-										: [];
-
-									$voice_actor = $voice_actors[0] ?? [];
-									$voice_actor = is_array( $voice_actor )
-										? $voice_actor
-										: [];
-
-									$voice_id = (int) (
-										$voice_actor['id']
-											?? 0
-									);
-
-									$voice_name = trim(
-										(string) (
-											$voice_actor['name']
-												?? ''
-										)
-									);
-
-									$voice_native = trim(
-										(string) (
-											$voice_actor['native']
-												?? ''
-										)
-									);
-
-									$character_fallback = $fallback_text(
-										$character_name,
-										2
-									);
-
-									$character_is_bangumi =
-										( $cast_item['source'] ?? '' )
-										=== 'bangumi';
-
-									$character_url = (
-										$character_is_bangumi
-										&& $character_id > 0
-									)
-										? $entity_url(
-											'character',
-											$character_id,
-											$character_name
-										)
-										: '';
-
-									$voice_url = $voice_id > 0
-										? $entity_url(
-											'person',
-											$voice_id,
-											$voice_name
-										)
-										: '';
-
-									$other_voice_actors = [];
-									foreach ( array_slice( $voice_actors, 1 ) as $other_va ) {
-										if ( ! is_array( $other_va ) ) {
-											continue;
-										}
-										$other_name = trim( (string) ( $other_va['name'] ?? '' ) );
-										if ( $other_name === '' ) {
-											continue;
-										}
-										$other_id  = (int) ( $other_va['id'] ?? 0 );
-										$other_url = $other_id > 0
-											? $entity_url( 'person', $other_id, $other_name )
-											: '';
-										$other_voice_actors[] = [
-											'name' => $other_name,
-											'url'  => $other_url,
-										];
-									}
-									?>
-									<div class="asd-cast-card<?php echo $cast_output_index >= 6 ? ' asd-cast-hidden' : ''; ?>">
-										<?php if ( $character_url ) : ?>
-											<a
-												href="<?php echo esc_url( $character_url ); ?>"
-												class="asd-cast-avatar-wrap asd-cast-avatar-wrap--link"
-												aria-label="<?php echo esc_attr( $character_name ); ?>"
-											>
-										<?php else : ?>
-											<div class="asd-cast-avatar-wrap">
-										<?php endif; ?>
-
-										<?php if ( $character_image ) : ?>
-											<img
-												src="<?php echo esc_url( $character_image ); ?>"
-												alt="<?php echo esc_attr( $character_name ); ?>"
-												loading="lazy"
-												decoding="async"
-											>
-											<div
-												class="asd-cast-avatar-fb asd-cast-avatar-fb--backup"
-												hidden
-											>
-												<span><?php echo esc_html( $character_fallback ); ?></span>
-											</div>
-										<?php else : ?>
-											<div class="asd-cast-avatar-fb">
-												<span><?php echo esc_html( $character_fallback ); ?></span>
-											</div>
-										<?php endif; ?>
-
-										<?php if ( $character_url ) : ?>
-											</a>
-										<?php else : ?>
-											</div>
-										<?php endif; ?>
-
-										<div class="asd-cast-info">
-											<span class="asd-cast-char">
-												<?php if ( $character_url ) : ?>
-													<a href="<?php echo esc_url( $character_url ); ?>">
-														<?php echo esc_html( $character_name ); ?>
-													</a>
-												<?php else : ?>
-													<?php echo esc_html( $character_name ); ?>
-												<?php endif; ?>
-											</span>
-
-											<?php if (
-												$character_native
-												&& $character_native !== $character_name
-											) : ?>
-												<span class="asd-cast-char-native" lang="ja">
-													<?php echo esc_html( $character_native ); ?>
-												</span>
-											<?php endif; ?>
-
-											<?php if ( $voice_name ) : ?>
-												<div class="asd-cast-va">
-													<div class="asd-cast-va-info">
-														<span class="asd-cast-va-name">
-															CV.
-															<?php if ( $voice_url ) : ?>
-																<a href="<?php echo esc_url( $voice_url ); ?>">
-																	<?php echo esc_html( $voice_name ); ?>
-																</a>
-															<?php else : ?>
-																<?php echo esc_html( $voice_name ); ?>
-															<?php endif; ?>
-														</span>
-
-														<?php if (
-															$voice_native
-															&& $voice_native !== $voice_name
-														) : ?>
-															<span class="asd-cast-va-native" lang="ja">
-																<?php echo esc_html( $voice_native ); ?>
-															</span>
-														<?php endif; ?>
-													</div>
-
-													<?php if ( ! empty( $other_voice_actors ) ) : ?>
-														<details class="asd-cast-va-other">
-															<summary>其他配音 (<?php echo count( $other_voice_actors ); ?>)</summary>
-															<ul>
-																<?php foreach ( $other_voice_actors as $other_va ) : ?>
-																	<li>
-																		<?php if ( $other_va['url'] ) : ?>
-																			<a href="<?php echo esc_url( $other_va['url'] ); ?>">
-																				<?php echo esc_html( $other_va['name'] ); ?>
-																			</a>
-																		<?php else : ?>
-																			<?php echo esc_html( $other_va['name'] ); ?>
-																		<?php endif; ?>
-																	</li>
-																<?php endforeach; ?>
-															</ul>
-														</details>
-													<?php endif; ?>
-												</div>
-											<?php endif; ?>
-										</div>
-									</div>
-									<?php
-									$cast_output_index++;
-								endforeach;
-								?>
-							</div>
-
-							<?php if ( $cast_output_index > 6 ) : ?>
-								<div class="asd-toggle-wrap">
-									<button
-										class="asd-cast-toggle"
-										id="asd-cast-toggle"
-										type="button"
-										aria-expanded="false"
-										aria-controls="asd-cast-grid"
-									>
-										顯示全部 <?php echo esc_html( $cast_output_index ); ?> 人 ▼
-									</button>
-								</div>
-							<?php endif; ?>
-						</section>
-					<?php endif; ?>
-
-					<?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>
-						<section class="asd-section" id="asd-sec-music">
-							<h2 class="asd-section-title">🎵 主題曲</h2>
-
-							<?php
-							$music_groups = [
-								'OP' => $openings,
-								'ED' => $endings,
-							];
-
-							foreach ( $music_groups as $music_type => $music_list ) :
-								if ( empty( $music_list ) ) {
-									continue;
-								}
-								?>
-								<div class="asd-music-group">
-									<h3 class="asd-music-group-title">
-										<?php echo $music_type === 'OP' ? '片頭曲 OP' : '片尾曲 ED'; ?>
-									</h3>
-
-									<?php foreach ( $music_list as $theme_item ) :
-										if ( ! is_array( $theme_item ) ) {
-											continue;
-										}
-
-										$theme_type = strtoupper(
-											trim(
-												(string) (
-													$theme_item['type']
-														?? ''
-												)
-											)
-										);
-
-										$theme_title = trim(
-											(string) (
-												$theme_item['title']
-													?? ''
-											)
-										);
-
-										$theme_native = trim(
-											(string) (
-												$theme_item['title_native']
-													?? ''
-											)
-										);
-
-										$theme_artists = is_array(
-											$theme_item['artists']
-												?? null
-										)
-											? $theme_item['artists']
-											: [];
-
-										$artist_names        = [];
-										$artist_romaji_names = [];
-
-										foreach ( $theme_artists as $artist_item ) {
-											if ( ! is_array( $artist_item ) ) {
-												continue;
-											}
-
-											$artist_display = trim(
-												(string) (
-													$artist_item['name_native']
-														?? $artist_item['name']
-														?? ''
-												)
-											);
-
-											$artist_romaji = trim(
-												(string) (
-													$artist_item['name']
-														?? ''
-												)
-											);
-
-											if ( $artist_display !== '' ) {
-												$artist_names[] = $artist_display;
-											}
-
-											if ( $artist_romaji !== '' ) {
-												$artist_romaji_names[] = $artist_romaji;
-											}
-										}
-
-										$artist_display = implode(
-											'、',
-											array_unique( $artist_names )
-										);
-
-										$artist_romaji = implode(
-											', ',
-											array_unique( $artist_romaji_names )
-										);
-
-										$audio_url = trim(
-											(string) (
-												$theme_item['audio_url']
-													?? ''
-											)
-										);
-
-										$video_url = trim(
-											(string) (
-												$theme_item['video_url']
-													?? ''
-											)
-										);
-
-										if (
-											$audio_url !== ''
-											&& ! wp_http_validate_url( $audio_url )
-										) {
-											$audio_url = '';
-										}
-
-										if (
-											$video_url !== ''
-											&& ! wp_http_validate_url( $video_url )
-										) {
-											$video_url = '';
-										}
-
-										$theme_episodes = trim(
-											(string) (
-												$theme_item['episodes']
-													?? ''
-											)
-										);
-
-										$open_media_url =
-											$video_url ?: $audio_url;
-
-										$music_main = $theme_native !== ''
-											? $theme_native
-											: $theme_title;
-
-										$music_sub = (
-											$theme_native !== ''
-											&& $theme_title !== ''
-											&& $theme_title !== $theme_native
-										)
-											? $theme_title
-											: '';
-
-										$music_badge_class =
-											strpos( $theme_type, 'OP' ) === 0
-												? 'asd-music-type-badge--op'
-												: 'asd-music-type-badge--ed';
-										?>
-										<div class="asd-music-card-v2">
-											<span class="asd-music-type-badge <?php echo esc_attr( $music_badge_class ); ?>">
-												<?php echo esc_html( $theme_type ); ?>
-											</span>
-
-											<div class="asd-music-body">
-												<?php if ( $music_main ) : ?>
-													<span class="asd-music-title">
-														<?php echo esc_html( $music_main ); ?>
-													</span>
-												<?php endif; ?>
-
-												<?php if ( $music_sub ) : ?>
-													<span class="asd-music-native">
-														<?php echo esc_html( $music_sub ); ?>
-													</span>
-												<?php endif; ?>
-
-												<?php if ( $artist_display ) : ?>
-													<span class="asd-music-artist">
-														by <?php echo esc_html( $artist_display ); ?>
-														<?php if (
-															$artist_romaji
-															&& $artist_romaji !== $artist_display
-														) : ?>
-															<span class="asd-music-artist-romaji">
-																(<?php echo esc_html( $artist_romaji ); ?>)
-															</span>
-														<?php endif; ?>
-													</span>
-												<?php elseif ( $artist_romaji ) : ?>
-													<span class="asd-music-artist">
-														by <?php echo esc_html( $artist_romaji ); ?>
-													</span>
-												<?php endif; ?>
-
-												<?php if ( $theme_episodes ) : ?>
-													<span class="asd-music-episodes">
-														<?php echo esc_html( $theme_episodes ); ?>
-													</span>
-												<?php endif; ?>
-											</div>
-
-											<?php if ( $video_url ) : ?>
-												<div
-													class="asd-music-thumb-slot"
-													role="button"
-													tabindex="0"
-													aria-label="播放 MV"
-												>
-													<video
-														class="asd-music-thumb-video"
-														data-src="<?php echo esc_url( $video_url ); ?>"
-														preload="none"
-														muted
-														playsinline
-													></video>
-													<span class="asd-music-thumb-play" aria-hidden="true">▶</span>
-												</div>
-											<?php endif; ?>
-
-											<?php if ( $audio_url || $video_url ) : ?>
-												<div
-													class="asd-music-player-wrap"
-													data-audio-src="<?php echo esc_url( $audio_url ); ?>"
-													data-video-src="<?php echo esc_url( $video_url ); ?>"
-												>
-													<audio class="asd-music-audio" preload="none"></audio>
-													<video
-														class="asd-music-video"
-														preload="none"
-														playsinline
-														hidden
-													></video>
-
-													<button
-														class="asd-music-play-btn"
-														type="button"
-														aria-label="播放"
-													></button>
-
-													<div
-														class="asd-music-progress-wrap"
-														role="slider"
-														aria-label="播放進度"
-														aria-valuemin="0"
-														aria-valuemax="100"
-														aria-valuenow="0"
-														tabindex="0"
-													>
-														<div class="asd-music-progress-bar"></div>
-													</div>
-
-													<span class="asd-music-time">0:00</span>
-
-													<?php if ( ! $video_url && $open_media_url ) : ?>
-														<a
-															class="asd-music-open-link"
-															href="<?php echo esc_url( $open_media_url ); ?>"
-															target="_blank"
-															rel="noopener noreferrer"
-														>
-															MV
-														</a>
-													<?php endif; ?>
-												</div>
-											<?php endif; ?>
-										</div>
-									<?php endforeach; ?>
-								</div>
-							<?php endforeach; ?>
-
-							<p class="asd-stream-disclaimer" style="margin-top:20px !important;">
-								主題曲影音由外部資料庫即時提供，載入速度依網路狀況而定，若遇到緩衝、讀取較慢或播放失敗，請耐心等候或重新點擊播放一次。
-							</p>
-						</section>
-					<?php endif; ?>
-
-					<?php if ( $has_stream_section ) : ?>
+					<?php if ( ! empty( $show['stream'] ) && ( $has_stream_section ) ) : ?>
 						<section class="asd-section" id="asd-sec-stream">
 							<h2 class="asd-section-title">📺 合法串流平台</h2>
 
@@ -5620,8 +4842,26 @@ while ( have_posts() ) :
 										<span>台港澳地區</span>
 									</div>
 
-									<div class="asd-stream-list">
-										<?php foreach ( $tw_streaming_items as $stream_item ) :
+									<?php
+									/*
+									 * 依收費模式分組顯示：免費觀看 → 月租觀看 → 單次租看。
+									 * 平台一多就是一大片方塊，使用者得一個一個看才知道哪個要錢；
+									 * 分組後最常見的需求（找免費的）兩秒內就滿足。
+									 */
+									?>
+									<?php foreach ( $tw_stream_groups as $bkey => $bitems ) : ?>
+										<div class="asd-stream-bill">
+											<div class="asd-stream-bill-head">
+												<?php
+												echo esc_html(
+													$tw_billing_labels[ $bkey ] ?? '其他'
+												);
+												?>
+												<span class="asd-stream-bill-count"><?php echo esc_html( (string) count( $bitems ) ); ?></span>
+											</div>
+
+											<div class="asd-stream-list">
+										<?php foreach ( $bitems as $stream_item ) :
 											$stream_label = trim(
 												(string) (
 													$stream_item['label']
@@ -5699,7 +4939,9 @@ while ( have_posts() ) :
 												</span>
 											<?php endif; ?>
 										<?php endforeach; ?>
-									</div>
+											</div>
+										</div>
+									<?php endforeach; ?>
 								</div>
 							<?php endif; ?>
 
@@ -5854,7 +5096,87 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
-					<?php if ( $has_online_watch ) : ?>
+					<?php
+					/*
+					 * 消息更新：上游偵測到的資料異動，經後台人工補寫說明並發布後才會出現。
+					 * 沒有已發布事件時整個區塊不輸出——絕大多數作品在累積初期都是 0 筆。
+					 *
+					 * $asd_events 已在頁首（視覺圖切換器）取過，此處沿用不重複查詢。
+					 */
+					?>
+
+
+					<?php if ( ! empty( $show['trailer'] ) && ( $has_trailer ) ) : ?>
+						<section class="asd-section" id="asd-sec-trailer">
+							<h2 class="asd-section-title">
+								🎞 預告片
+								<?php if ( count( $trailer_items ) > 1 ) : ?>
+									<span class="asd-pv-count">
+										（<?php echo esc_html( count( $trailer_items ) ); ?>）
+									</span>
+								<?php endif; ?>
+							</h2>
+
+							<div
+								class="asd-pv-box"
+								data-pv-count="<?php echo esc_attr( count( $trailer_items ) ); ?>"
+							>
+								<?php if ( count( $trailer_items ) > 1 ) : ?>
+									<div
+										class="asd-pv-tabs"
+										role="tablist"
+										aria-label="預告片切換"
+									>
+										<?php foreach ( $trailer_items as $trailer_index => $trailer_item ) : ?>
+											<button
+												type="button"
+												id="asd-pv-tab-<?php echo (int) $trailer_index; ?>"
+												class="asd-pv-tab<?php echo $trailer_index === 0 ? ' is-active' : ''; ?>"
+												role="tab"
+												aria-selected="<?php echo $trailer_index === 0 ? 'true' : 'false'; ?>"
+												aria-controls="asd-pv-panel-<?php echo (int) $trailer_index; ?>"
+												tabindex="<?php echo $trailer_index === 0 ? '0' : '-1'; ?>"
+												data-pv-index="<?php echo (int) $trailer_index; ?>"
+												data-pv-id="<?php echo esc_attr( $trailer_item['id'] ); ?>"
+											>
+												<span class="asd-pv-tab-icon" aria-hidden="true">▶</span>
+												<span class="asd-pv-tab-label">
+													<?php echo esc_html( $trailer_item['label'] ); ?>
+												</span>
+											</button>
+										<?php endforeach; ?>
+									</div>
+								<?php endif; ?>
+
+								<div class="asd-pv-panels">
+									<?php foreach ( $trailer_items as $trailer_index => $trailer_item ) : ?>
+										<div
+											class="asd-pv-panel<?php echo $trailer_index === 0 ? ' is-active' : ''; ?>"
+											id="asd-pv-panel-<?php echo (int) $trailer_index; ?>"
+											role="tabpanel"
+											aria-labelledby="asd-pv-tab-<?php echo (int) $trailer_index; ?>"
+											<?php echo $trailer_index === 0 ? '' : 'hidden'; ?>
+											data-pv-index="<?php echo (int) $trailer_index; ?>"
+											data-pv-id="<?php echo esc_attr( $trailer_item['id'] ); ?>"
+										>
+											<div class="asd-trailer-wrap">
+												<iframe
+													src="<?php echo esc_url( 'https://www.youtube-nocookie.com/embed/' . rawurlencode( $trailer_item['id'] ) ); ?>"
+													title="<?php echo esc_attr( $display_title . ' ' . $trailer_item['label'] ); ?>"
+													allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+													referrerpolicy="strict-origin-when-cross-origin"
+													allowfullscreen
+													loading="lazy"
+												></iframe>
+											</div>
+										</div>
+									<?php endforeach; ?>
+								</div>
+							</div>
+						</section>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $show['online'] ) && ( $has_online_watch ) ) : ?>
 						<section class="asd-section" id="asd-sec-online">
 							<h2 class="asd-section-title">
 								▶ 官方線上看
@@ -5936,8 +5258,676 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
+					<?php if ( ! empty( $show['music'] ) && $has_music_section ) : ?>
+						<section class="asd-section" id="asd-sec-music">
+							<h2 class="asd-section-title">🎵 主題曲</h2>
+
+							<?php include __DIR__ . '/parts/anime-music-themes.php'; ?>
+
+							<?php if ( '' !== $music_page_url ) : ?>
+								<a class="asd-music-entry" href="<?php echo esc_url( $music_page_url ); ?>">
+									<span class="asd-music-entry__main">
+										<span class="asd-music-entry__label">🎼 相關專輯</span>
+										<span class="asd-music-entry__meta">
+											<span class="asd-music-entry__stat">
+												<strong><?php echo esc_html( (string) $rel_albums_total ); ?></strong> 張
+											</span>
+										</span>
+									</span>
+
+									<span class="asd-music-entry__go" aria-hidden="true">→</span>
+								</a>
+							<?php endif; ?>
+						</section>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $show['events'] ) && ( ! empty( $asd_events ) ) ) : ?>
+						<section class="asd-section" id="asd-sec-events">
+							<h2 class="asd-section-title">📰 消息更新</h2>
+
+							<ol class="asd-events">
+								<?php foreach ( $asd_events as $asd_event ) : ?>
+									<li class="asd-event">
+										<time class="asd-event-date" datetime="<?php echo esc_attr( $asd_event->event_date ); ?>">
+											<?php echo esc_html( $asd_event->event_date ); ?>
+										</time>
+
+										<div class="asd-event-body">
+											<p class="asd-event-summary"><?php echo esc_html( $asd_event->summary ); ?></p>
+
+											<?php
+											/*
+											 * 刻意不放圖：視覺圖統一在頁首的切換器呈現。
+											 * 消息列表插大圖會把時間軸拉得很長，一則消息就佔掉一個螢幕，
+											 * 反而看不出「這部作品最近發生了哪些事」。
+											 */
+											?>
+										</div>
+									</li>
+								<?php endforeach; ?>
+							</ol>
+						</section>
+					<?php endif; ?>
+
+					</div><!-- /.asd-panel -->
+
+					<div class="asd-panel" data-asd-panel="episodes"<?php echo 'episodes' === $subview ? '' : ' hidden'; ?>>
+					<?php if ( ! empty( $show['episodes'] ) && ( ! empty( $episodes_list ) ) ) : ?>
+						<section class="asd-section" id="asd-sec-episodes">
+							<h2 class="asd-section-title">📺 集數列表</h2>
+
+							<div class="asd-ep-list" id="asd-ep-list">
+								<?php
+								$episode_output_index = 0;
+
+								/*
+								 * SP 沒有正規集數（Bangumi 的 ep 欄位為 0），不能沿用
+								 * 「第 N 集」的 index fallback，否則會被顯示成某一集。
+								 * 只有一個 SP 時標「SP」，多個才加編號。
+								 */
+								$sp_total = 0;
+								foreach ( $episodes_list as $sp_probe ) {
+									if ( is_array( $sp_probe ) && (int) ( $sp_probe['type'] ?? 0 ) === 1 ) {
+										$sp_total++;
+									}
+								}
+								$sp_output_index = 0;
+
+								foreach ( $episodes_list as $episode_index => $episode_item ) :
+									if ( ! is_array( $episode_item ) ) {
+										continue;
+									}
+
+									$episode_number = (float) (
+										$episode_item['ep']
+											?? 0
+									);
+
+									$episode_name_cn = trim(
+										(string) (
+											$episode_item['name_cn']
+												?? ''
+										)
+									);
+
+									$episode_name_ja = trim(
+										(string) (
+											$episode_item['name']
+												?? ''
+										)
+									);
+
+									$episode_airdate = trim(
+										(string) (
+											$episode_item['airdate']
+												?? ''
+										)
+									);
+
+									if (
+										$episode_name_cn !== ''
+										&& class_exists( 'Anime_Sync_CN_Converter' )
+									) {
+										$episode_name_cn =
+											Anime_Sync_CN_Converter::static_convert(
+												$episode_name_cn
+											);
+									}
+
+									$episode_name =
+										$episode_name_cn
+											?: $episode_name_ja;
+
+									$episode_number_display =
+										floor( $episode_number ) === $episode_number
+											? (int) $episode_number
+											: $episode_number;
+
+									$episode_type = (int) (
+										$episode_item['type']
+											?? 0
+									);
+
+									if ( $episode_type === 1 ) {
+										$sp_output_index++;
+										$episode_display = $sp_total > 1
+											? 'SP' . $sp_output_index
+											: 'SP';
+									} else {
+										$episode_display = $episode_number > 0
+											? '第' . $episode_number_display . '集'
+											: '第' . ( $episode_index + 1 ) . '集';
+									}
+									?>
+									<?php /* 不收合：集數是獨立 tab，點進來就是要看全部 */ ?>
+								<div class="asd-ep-row">
+										<span class="asd-ep-num">
+											<?php echo esc_html( $episode_display ); ?>
+										</span>
+
+										<div class="asd-ep-body">
+											<?php if ( $episode_name ) : ?>
+												<span class="asd-ep-title">
+													<?php echo esc_html( $episode_name ); ?>
+												</span>
+											<?php endif; ?>
+
+											<?php if (
+												$episode_name_ja
+												&& $episode_name_cn
+												&& $episode_name_ja !== $episode_name_cn
+											) : ?>
+												<span class="asd-ep-title-ja" lang="ja">
+													<?php echo esc_html( $episode_name_ja ); ?>
+												</span>
+											<?php endif; ?>
+										</div>
+
+										<?php if ( $episode_airdate ) : ?>
+											<time
+												class="asd-ep-date"
+												datetime="<?php echo esc_attr( $format_date( $episode_airdate ) ); ?>"
+											>
+												<?php echo esc_html( $episode_airdate ); ?>
+											</time>
+										<?php endif; ?>
+									</div>
+									<?php
+									$episode_output_index++;
+								endforeach;
+								?>
+							</div>
+
+							<?php /* 收合按鈕已移除——獨立 tab 直接列全部 */ ?>
+						</section>
+					<?php endif; ?>
+
+					</div><!-- /.asd-panel -->
+
+					<div class="asd-panel" data-asd-panel="staff"<?php echo 'staff' === $subview ? '' : ' hidden'; ?>>
+					<?php if ( ! empty( $show['staff'] ) && ( ! empty( $staff_list ) ) ) : ?>
+						<section class="asd-section" id="asd-sec-staff">
+							<h2 class="asd-section-title">🎬 STAFF</h2>
+
+							<div class="asd-staff-grid-v2" id="asd-staff-grid">
+								<?php
+								$staff_output_index = 0;
+
+								foreach ( $staff_list as $staff_item ) :
+									if ( ! is_array( $staff_item ) ) {
+										continue;
+									}
+
+									$staff_id = (int) (
+										$staff_item['id']
+											?? 0
+									);
+
+									$staff_name = trim(
+										(string) (
+											$staff_item['name']
+												?? ''
+										)
+									);
+
+									$staff_native = trim(
+										(string) (
+											$staff_item['native']
+												?? ''
+										)
+									);
+
+									$staff_role_raw = trim(
+										(string) (
+											$staff_item['role']
+												?? ''
+										)
+									);
+
+									if ( $staff_name === '' ) {
+										continue;
+									}
+
+									$staff_role = function_exists( 'wxacg_staff_role' )
+										? wxacg_staff_role( $staff_role_raw )
+										: $staff_role_raw;
+
+									$staff_role = trim( (string) $staff_role );
+
+									$staff_url = $staff_id > 0
+										? $entity_url(
+											'person',
+											$staff_id,
+											$staff_name
+										)
+										: '';
+
+									/*
+									 * 頭像。anime_staff_json 本來就帶 image（火影 59 筆裡 49 筆有），
+									 * 只是先前沒渲染出來。沒有圖的用姓名首字當備援，
+									 * 跟 CAST 同一套做法，版面不會因為缺圖而塌掉。
+									 */
+									$staff_image = trim(
+										(string) (
+											$staff_item['image']
+												?? ''
+										)
+									);
+
+									$staff_fallback = function_exists( 'mb_substr' )
+										? mb_substr( $staff_name, 0, 1, 'UTF-8' )
+										: substr( $staff_name, 0, 1 );
+									?>
+									<?php /* 不收合：STAFF 現在是獨立 tab，點進來就是要看全部 */ ?>
+								<div class="asd-staff-card-v2">
+										<?php if ( $staff_url ) : ?>
+											<a
+												href="<?php echo esc_url( $staff_url ); ?>"
+												class="asd-staff-avatar-wrap asd-staff-avatar-wrap--link"
+												aria-label="<?php echo esc_attr( $staff_name ); ?>"
+											>
+										<?php else : ?>
+											<div class="asd-staff-avatar-wrap">
+										<?php endif; ?>
+
+										<?php if ( $staff_image ) : ?>
+											<img
+												src="<?php echo esc_url( $staff_image ); ?>"
+												alt="<?php echo esc_attr( $staff_name ); ?>"
+												loading="lazy"
+												decoding="async"
+											>
+										<?php else : ?>
+											<div class="asd-staff-avatar-fb">
+												<span><?php echo esc_html( $staff_fallback ); ?></span>
+											</div>
+										<?php endif; ?>
+
+										<?php if ( $staff_url ) : ?>
+											</a>
+										<?php else : ?>
+											</div>
+										<?php endif; ?>
+
+										<div class="asd-staff-info">
+											<?php if ( $staff_role ) : ?>
+												<span class="asd-staff-role">
+													<?php echo esc_html( $staff_role ); ?>
+												</span>
+											<?php endif; ?>
+
+											<span class="asd-staff-name">
+												<?php if ( $staff_url ) : ?>
+													<a href="<?php echo esc_url( $staff_url ); ?>">
+														<?php echo esc_html( $staff_name ); ?>
+													</a>
+												<?php else : ?>
+													<?php echo esc_html( $staff_name ); ?>
+												<?php endif; ?>
+											</span>
+
+											<?php if (
+												$staff_native
+												&& $staff_native !== $staff_name
+											) : ?>
+												<span class="asd-staff-native" lang="ja">
+													<?php echo esc_html( $staff_native ); ?>
+												</span>
+											<?php endif; ?>
+										</div>
+									</div>
+									<?php
+									$staff_output_index++;
+								endforeach;
+								?>
+							</div>
+
+							<?php /* 收合按鈕已移除——獨立 tab 直接列全部，不需要再點一次 */ ?>
+						</section>
+					<?php endif; ?>
+
+					</div><!-- /.asd-panel -->
+
+					<div class="asd-panel" data-asd-panel="characters"<?php echo 'characters' === $subview ? '' : ' hidden'; ?>>
+					<?php if ( ! empty( $show['cast'] ) && ( ! empty( $cast_to_display ) ) ) : ?>
+						<section class="asd-section" id="asd-sec-cast">
+							<h2 class="asd-section-title">🎭 CAST</h2>
+
+							<?php
+							/*
+							 * 角色數上限。
+							 *
+							 * 所有面板現在都在同一份 HTML 裡，角色多的作品會把頁面
+							 * 撐爆——火影 337 位角色，整頁 886 KB。實測正式站 1,742 部
+							 * 裡角色 ≤60 的有 1,599 部（92%），只有 143 部超過。
+							 *
+							 * 超過的：主頁只放前 60 位 +「還有 N 位」連到 /characters/，
+							 * 那個網址本來就會輸出全部（它的面板不受上限影響）。
+							 * 60 位對搜尋覆蓋已經很足夠，剩下的多半是路人角色。
+							 */
+							$cast_limit   = ( 'characters' === $subview ) ? 0 : 60;
+							$cast_total   = count( $cast_to_display );
+							$cast_trimmed = ( $cast_limit > 0 && $cast_total > $cast_limit );
+							?>
+
+							<div class="asd-cast-grid" id="asd-cast-grid">
+								<?php
+								$cast_output_index = 0;
+
+								foreach ( $cast_to_display as $cast_item ) :
+									if ( $cast_limit > 0 && $cast_output_index >= $cast_limit ) {
+										break;
+									}
+
+									if ( ! is_array( $cast_item ) ) {
+										continue;
+									}
+
+									$character_id = (int) (
+										$cast_item['id']
+											?? 0
+									);
+
+									$character_name = trim(
+										(string) (
+											$cast_item['name']
+												?? ''
+										)
+									);
+
+									$character_native = trim(
+										(string) (
+											$cast_item['native']
+												?? ''
+										)
+									);
+
+									$character_image = trim(
+										(string) (
+											$cast_item['image']
+												?? ''
+										)
+									);
+
+									if ( $character_name === '' ) {
+										continue;
+									}
+
+									$voice_actors = (
+										! empty( $cast_item['voice_actors'] )
+										&& is_array( $cast_item['voice_actors'] )
+									)
+										? $cast_item['voice_actors']
+										: [];
+
+									$voice_actor = $voice_actors[0] ?? [];
+									$voice_actor = is_array( $voice_actor )
+										? $voice_actor
+										: [];
+
+									$voice_id = (int) (
+										$voice_actor['id']
+											?? 0
+									);
+
+									$voice_name = trim(
+										(string) (
+											$voice_actor['name']
+												?? ''
+										)
+									);
+
+									$voice_native = trim(
+										(string) (
+											$voice_actor['native']
+												?? ''
+										)
+									);
+
+									$character_fallback = $fallback_text(
+										$character_name,
+										2
+									);
+
+									$character_is_bangumi =
+										( $cast_item['source'] ?? '' )
+										=== 'bangumi';
+
+									$character_url = (
+										$character_is_bangumi
+										&& $character_id > 0
+									)
+										? $entity_url(
+											'character',
+											$character_id,
+											$character_name
+										)
+										: '';
+
+									$voice_url = $voice_id > 0
+										? $entity_url(
+											'person',
+											$voice_id,
+											$voice_name
+										)
+										: '';
+
+									$other_voice_actors = [];
+									foreach ( array_slice( $voice_actors, 1 ) as $other_va ) {
+										if ( ! is_array( $other_va ) ) {
+											continue;
+										}
+										$other_name = trim( (string) ( $other_va['name'] ?? '' ) );
+										if ( $other_name === '' ) {
+											continue;
+										}
+										$other_id  = (int) ( $other_va['id'] ?? 0 );
+										$other_url = $other_id > 0
+											? $entity_url( 'person', $other_id, $other_name )
+											: '';
+										$other_voice_actors[] = [
+											'name' => $other_name,
+											'url'  => $other_url,
+										];
+									}
+									?>
+									<?php /* 不收合：CAST 現在是獨立 tab，點進來就是要看全部 */ ?>
+								<div class="asd-cast-card">
+										<?php if ( $character_url ) : ?>
+											<a
+												href="<?php echo esc_url( $character_url ); ?>"
+												class="asd-cast-avatar-wrap asd-cast-avatar-wrap--link"
+												aria-label="<?php echo esc_attr( $character_name ); ?>"
+											>
+										<?php else : ?>
+											<div class="asd-cast-avatar-wrap">
+										<?php endif; ?>
+
+										<?php if ( $character_image ) : ?>
+											<img
+												src="<?php echo esc_url( $character_image ); ?>"
+												alt="<?php echo esc_attr( $character_name ); ?>"
+												loading="lazy"
+												decoding="async"
+											>
+											<div
+												class="asd-cast-avatar-fb asd-cast-avatar-fb--backup"
+												hidden
+											>
+												<span><?php echo esc_html( $character_fallback ); ?></span>
+											</div>
+										<?php else : ?>
+											<div class="asd-cast-avatar-fb">
+												<span><?php echo esc_html( $character_fallback ); ?></span>
+											</div>
+										<?php endif; ?>
+
+										<?php if ( $character_url ) : ?>
+											</a>
+										<?php else : ?>
+											</div>
+										<?php endif; ?>
+
+										<div class="asd-cast-info">
+											<span class="asd-cast-char">
+												<?php if ( $character_url ) : ?>
+													<a href="<?php echo esc_url( $character_url ); ?>">
+														<?php echo esc_html( $character_name ); ?>
+													</a>
+												<?php else : ?>
+													<?php echo esc_html( $character_name ); ?>
+												<?php endif; ?>
+											</span>
+
+											<?php if (
+												$character_native
+												&& $character_native !== $character_name
+											) : ?>
+												<span class="asd-cast-char-native" lang="ja">
+													<?php echo esc_html( $character_native ); ?>
+												</span>
+											<?php endif; ?>
+
+											<?php if ( $voice_name ) : ?>
+												<div class="asd-cast-va">
+													<div class="asd-cast-va-info">
+														<span class="asd-cast-va-name">
+															CV.
+															<?php if ( $voice_url ) : ?>
+																<a href="<?php echo esc_url( $voice_url ); ?>">
+																	<?php echo esc_html( $voice_name ); ?>
+																</a>
+															<?php else : ?>
+																<?php echo esc_html( $voice_name ); ?>
+															<?php endif; ?>
+														</span>
+
+														<?php if (
+															$voice_native
+															&& $voice_native !== $voice_name
+														) : ?>
+															<span class="asd-cast-va-native" lang="ja">
+																<?php echo esc_html( $voice_native ); ?>
+															</span>
+														<?php endif; ?>
+													</div>
+
+													<?php if ( ! empty( $other_voice_actors ) ) : ?>
+														<details class="asd-cast-va-other">
+															<summary>其他配音 (<?php echo count( $other_voice_actors ); ?>)</summary>
+															<ul>
+																<?php foreach ( $other_voice_actors as $other_va ) : ?>
+																	<li>
+																		<?php if ( $other_va['url'] ) : ?>
+																			<a href="<?php echo esc_url( $other_va['url'] ); ?>">
+																				<?php echo esc_html( $other_va['name'] ); ?>
+																			</a>
+																		<?php else : ?>
+																			<?php echo esc_html( $other_va['name'] ); ?>
+																		<?php endif; ?>
+																	</li>
+																<?php endforeach; ?>
+															</ul>
+														</details>
+													<?php endif; ?>
+												</div>
+											<?php endif; ?>
+										</div>
+									</div>
+									<?php
+									$cast_output_index++;
+								endforeach;
+								?>
+							</div>
+
+							<?php /* 被上限截掉時給個入口，不要讓人以為只有 60 位 */ ?>
+							<?php if ( $cast_trimmed ) : ?>
+								<a
+									class="asd-music-entry"
+									href="<?php echo esc_url( Anime_Sync_Subview_Routing::url( $post_id, 'characters' ) ); ?>"
+								>
+									<span class="asd-music-entry__main">
+										<span class="asd-music-entry__label">查看全部角色</span>
+										<span class="asd-music-entry__meta">
+											<span class="asd-music-entry__stat">
+												共 <strong><?php echo esc_html( (string) $cast_total ); ?></strong> 位
+											</span>
+										</span>
+									</span>
+
+									<span class="asd-music-entry__go" aria-hidden="true">→</span>
+								</a>
+							<?php endif; ?>
+						</section>
+					<?php endif; ?>
+
+					<?php
+					/*
+					 * 音樂：主題曲播放器留在作品頁（使用者最常找的東西，
+					 * 不該多一次點擊），量體大的相關專輯移到 /anime/{slug}/music/。
+					 *
+					 * 2026-08-29 實測孤獨搖滾：整頁區塊合計 7,107px，音樂區塊
+					 * 1,660px 是全頁最高。其中主題曲播放器 1,362px、專輯 298px；
+					 * 但專輯最多有 133 張（ONE PIECE），展開後才是真正的長。
+					 */
+					?>
+					<?php
+					/*
+					 * 【總覽】音樂：主題曲播放器（使用者指定留在總覽）。
+					 * Bangumi 的相關專輯量體大（最多 133 張），在「音樂」tab。
+					 */
+					?>
+
+					<?php /* 【音樂 tab】Bangumi 相關專輯 */ ?>
+					</div><!-- /.asd-panel -->
+
+					<div class="asd-panel" data-asd-panel="music"<?php echo 'music' === $subview ? '' : ' hidden'; ?>>
+					<?php if ( ! empty( $show['albums'] ) && ! empty( $rel_albums ) ) : ?>
+						<section class="asd-section" id="asd-sec-albums">
+							<h2 class="asd-section-title">🎼 相關專輯</h2>
+
+							<?php include __DIR__ . '/parts/anime-music-albums.php'; ?>
+						</section>
+					<?php endif; ?>
+
+					<?php /* 【相關 tab】遊戲 */ ?>
+					</div><!-- /.asd-panel -->
+
+					<div class="asd-panel" data-asd-panel="related"<?php echo 'related' === $subview ? '' : ' hidden'; ?>>
+					<?php if ( ! empty( $show['games'] ) && ! empty( $rel_games ) ) : ?>
+						<section class="asd-section" id="asd-sec-games">
+							<h2 class="asd-section-title">🎮 相關遊戲</h2>
+
+							<?php
+							$rel_groups = $rel_games;
+							$rel_source = '遊戲資料來源：Bangumi 番組計劃';
+
+							include __DIR__ . '/parts/anime-relation-groups.php';
+							?>
+						</section>
+					<?php endif; ?>
+
+					<?php /* 【相關 tab】真人版・改編 */ ?>
+					<?php if ( ! empty( $show['liveaction'] ) && ! empty( $rel_liveaction ) ) : ?>
+						<section class="asd-section" id="asd-sec-liveaction">
+							<h2 class="asd-section-title">🎬 真人版・改編</h2>
+
+							<?php
+							$rel_groups = $rel_liveaction;
+							$rel_source = '資料來源：Bangumi 番組計劃';
+
+							include __DIR__ . '/parts/anime-relation-groups.php';
+							?>
+						</section>
+					<?php endif; ?>
+
+
+
 					<?php /* 看原作漫畫（接在「線上看」之後——同樣是「去哪裡看」的延伸） */ ?>
-					<?php if ( $has_source_manga ) : ?>
+					</div><!-- /.asd-panel -->
+
+					<div class="asd-panel asd-panel--always">
+					<?php if ( ! empty( $show['manga'] ) && ( $has_source_manga ) ) : ?>
 						<section class="asd-section" id="asd-sec-manga">
 							<h2 class="asd-section-title">
 								📖 《<?php echo esc_html( $display_title ); ?>》原作漫畫哪裡看?
@@ -5971,7 +5961,7 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
-					<?php if ( ! empty( $faq_display_items ) ) : ?>
+					<?php if ( ! empty( $show['faq'] ) && ( ! empty( $faq_display_items ) ) ) : ?>
 						<section class="asd-section" id="asd-sec-faq">
 							<h2 class="asd-section-title">❓ 常見問題</h2>
 
@@ -6015,7 +6005,7 @@ while ( have_posts() ) :
 						: '';
 					?>
 
-					<?php if ( $has_external_links ) : ?>
+					<?php if ( ! empty( $show['links'] ) && ( $has_external_links ) ) : ?>
 						<section class="asd-section" id="asd-sec-links">
 							<h2 class="asd-section-title">🔗 資料來源與外部連結</h2>
 
@@ -6111,6 +6101,7 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
+					<?php if ( ! empty( $show['reviews'] ) ) : ?>
 					<section class="asd-section" id="asd-sec-reviews">
 						<h2 class="asd-section-title">📝 評論</h2>
 
@@ -6161,6 +6152,7 @@ while ( have_posts() ) :
 							<p class="asd-review-loading">評論載入中…</p>
 						</div>
 					</section>
+					<?php endif; ?>
 
 					<?php
 					/*
@@ -6171,7 +6163,8 @@ while ( have_posts() ) :
 					 */
 					?>
 
-					<?php if ( shortcode_exists( 'wxacg_correction_form' ) ) : ?>
+					<?php /* 糾錯回報只放總覽——每個 tab 都出現一個表單很吵 */ ?>
+					<?php if ( ! empty( $show['corrections'] ) && shortcode_exists( 'wxacg_correction_form' ) ) : ?>
 						<section
 							class="asd-section asd-corrections"
 							id="asd-sec-corrections"
@@ -6183,6 +6176,7 @@ while ( have_posts() ) :
 							?>
 						</section>
 					<?php endif; ?>
+					</div><!-- /.asd-panel -->
 
 				</main><!-- /.asd-main -->
 

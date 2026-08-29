@@ -25,6 +25,8 @@ function asdInit() {
     safeInit('countdown', initCountdown);
     safeInit('pv-tabs', initPvTabs);
     safeInit('ow-tabs', initOwTabs);
+    safeInit('music-swap', initMusicSwap);
+    safeInit('toc', initToc);
 
     
     window.__asdFrontendInited = true;
@@ -183,11 +185,28 @@ function initToggleExpand() {
         unit: '人'
     });
 
+    // 相關專輯：項目分在好幾個組裡（片頭曲／原聲集／角色歌…），
+    // 收合時整組被藏光的話標題也要跟著藏，否則會留下空標題。
+    bindToggle({
+        buttonSelector: '.asd-album-toggle',
+        itemSelector: '.asd-album-item',
+        hiddenClass: 'asd-album-hidden',
+        groupSelector: '.asd-album-group',
+        groupHiddenClass: 'asd-album-group-hidden',
+        visibleCount: 6,
+        unit: '張'
+    });
+
     function bindToggle(config) {
         var buttons = document.querySelectorAll(config.buttonSelector);
         if (!buttons.length) return;
 
         buttons.forEach(function (btn) {
+            // 內容被抽換後（音樂頁不跳頁切換）會再跑一次 initToggleExpand，
+            // 舊按鈕若沒標記就會被綁第二次，一次點擊觸發兩回。
+            if (btn.dataset.asdToggleBound === '1') return;
+            btn.dataset.asdToggleBound = '1';
+
             var section = btn.closest('section');
             if (!section) return;
 
@@ -201,6 +220,29 @@ function initToggleExpand() {
 
             btn.textContent = '顯示全部 ' + items.length + ' ' + config.unit + ' ▼';
 
+            // 分組容器（選用）。只有 config 有給 groupSelector 才處理，
+            // 既有的集數／Staff／Cast 不傳，行為完全不變。
+            var groups = config.groupSelector
+                ? Array.prototype.slice.call(section.querySelectorAll(config.groupSelector))
+                : [];
+
+            // 某組底下還有沒有看得見的項目
+            function syncGroups() {
+                if (!groups.length) return;
+
+                groups.forEach(function (group) {
+                    var groupItems = Array.prototype.slice.call(
+                        group.querySelectorAll(config.itemSelector)
+                    );
+
+                    var anyVisible = groupItems.some(function (item) {
+                        return !item.classList.contains(config.hiddenClass);
+                    });
+
+                    group.classList.toggle(config.groupHiddenClass, !anyVisible);
+                });
+            }
+
             btn.addEventListener('click', function () {
                 var expanded = btn.classList.contains('is-expanded');
 
@@ -212,6 +254,8 @@ function initToggleExpand() {
                             item.classList.remove(config.hiddenClass);
                         }
                     });
+
+                    syncGroups();
 
                     btn.classList.remove('is-expanded');
                     btn.textContent = '顯示全部 ' + items.length + ' ' + config.unit + ' ▼';
@@ -225,6 +269,8 @@ function initToggleExpand() {
                     items.forEach(function (item) {
                         item.classList.remove(config.hiddenClass);
                     });
+
+                    syncGroups();
 
                     btn.classList.add('is-expanded');
                     btn.textContent = '收起 ▲';
@@ -703,3 +749,411 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+
+// ========================================
+// 音樂頁不跳頁切換（/anime/{slug}/music/）
+// ----------------------------------------
+// 動畫頁 ⇄ 音樂頁互相切換時不重新載入整頁，做法接近 AniList 的
+// /anime/849/xxx/staff：網址會變、上一頁能回、但畫面不閃。
+//
+// 漸進增強——這裡做的每件事失敗都會退回瀏覽器原本的換頁行為：
+//   * 沒有 History API / fetch / DOMParser → 完全不攔截
+//   * fetch 失敗、回應不是 200、抽不到 .asd-wrap → location.href 硬轉
+// 伺服器端兩個網址本來就各自輸出完整 HTML，爬蟲與關掉 JS 的訪客
+// 拿到的東西不變，SEO 不受影響。
+// ========================================
+// ========================================
+// 作品頁分頁切換（/anime/{slug}/characters/ 等）
+// ----------------------------------------
+// 所有面板都已經在 HTML 裡（伺服器一次全部輸出），這裡只負責
+// 顯示／隱藏 + 改網址。沒有 fetch，所以切換是 0 秒。
+//
+// 為什麼不用 fetch 抽換（前一版的做法）：
+//   內容分散在 6 個網址會把 Google 權重切成 6 份互相稀釋，
+//   AI 引擎抓一個網址也只拿得到 1/6。而且實測一次 fetch 要 2 秒，
+//   得再補預抓與載入動畫去掩蓋——問題的根源是分散，不是速度。
+//
+// 漸進增強：沒有 History API 就完全不攔截，走瀏覽器原本的換頁，
+// 伺服器端每個子檢視網址都會輸出完整頁面並自動啟用對應面板。
+// ========================================
+function initMusicSwap() {
+    if (!window.history || !window.history.pushState) return;
+
+    var main = document.getElementById('asd-main');
+    if (!main) return;
+
+    if (document.body.dataset.asdPanelsInited === '1') return;
+    document.body.dataset.asdPanelsInited = '1';
+
+    var panels = Array.prototype.slice.call(main.querySelectorAll('.asd-panel[data-asd-panel]'));
+    if (!panels.length) return;
+
+    var tabs = Array.prototype.slice.call(
+        document.querySelectorAll('.asd-tabs--views a.asd-tab')
+    );
+
+    function stripHash(url) {
+        var i = url.indexOf('#');
+        return i === -1 ? url : url.slice(0, i);
+    }
+
+    // 從網址推出目前是哪個面板：/anime/{slug}/characters/ → 'characters'
+    function viewFromUrl(url) {
+        var a = document.createElement('a');
+        a.href = url;
+
+        var m = a.pathname.match(/^\/anime\/[^\/]+\/([a-z]+)\/?$/);
+
+        return m ? m[1] : '';
+    }
+
+    function activate(view, url, push) {
+        panels.forEach(function (p) {
+            p.hidden = (p.dataset.asdPanel !== view);
+        });
+
+        tabs.forEach(function (t) {
+            var on = viewFromUrl(t.href) === view;
+
+            t.classList.toggle('is-active', on);
+
+            if (on) {
+                t.setAttribute('aria-current', 'page');
+            } else {
+                t.removeAttribute('aria-current');
+            }
+        });
+
+        if (push) {
+            history.pushState({ asdPanel: view }, '', url);
+        }
+
+        // 換了面板才需要重跑的：bindToggle 直接綁按鈕（已用
+        // data-asd-toggle-bound 防重複），lazy-load 要接手新露出的圖。
+        safeInit('toggle-expand', initToggleExpand);
+        safeInit('lazy-load', initLazyLoad);
+
+        /* 面板換了，左側目錄要跟著重建 */
+        if (typeof window.asdRebuildToc === 'function') {
+            safeInit('toc-rebuild', window.asdRebuildToc);
+        }
+
+        // 捲動位置不動——tab 列是 sticky，跳回頂端很突兀。
+        // 只在 tab 列被推出畫面時才拉回來。
+        var nav = document.querySelector('.asd-tabs');
+
+        if (!nav) return;
+
+        var rect = nav.getBoundingClientRect();
+
+        if (rect.bottom > 0 && rect.top < window.innerHeight) return;
+
+        var stick = parseInt(window.getComputedStyle(nav).top, 10);
+
+        if (isNaN(stick)) stick = 0;
+
+        window.scrollTo({
+            top: Math.max(0, rect.top + window.pageYOffset - stick),
+            behavior: 'auto'
+        });
+    }
+
+    // 進站時把 history 第一筆標記起來，回上一頁才認得出是自己的
+    history.replaceState({ asdPanel: viewFromUrl(location.href) }, '', location.href);
+
+    document.addEventListener('click', function (e) {
+        // 保留 Ctrl/Cmd/中鍵開新分頁
+        if (e.defaultPrevented) return;
+        if (e.button !== 0) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+        var link = e.target.closest('a');
+        if (!link || !link.href) return;
+        if (link.target && link.target !== '_self') return;
+        if (link.hasAttribute('download')) return;
+        if (link.origin !== location.origin) return;
+
+        var isTab = link.matches('.asd-tabs--views a.asd-tab');
+
+        // Hero 按鈕列指向總覽某區塊（串流／線上看／預告／糾錯）：
+        // 那些區塊在總覽面板裡，要先切回總覽才看得到。
+        var isHeroAnchor = link.matches('.asd-hero-actions a[href*="#asd-sec-"]');
+
+        if (!isTab && !isHeroAnchor) return;
+
+        var view = viewFromUrl(link.href);
+
+        if (isHeroAnchor) {
+            if (view !== '') return; // 指向子檢視的錨點，交給瀏覽器
+
+            e.preventDefault();
+            activate('', stripHash(link.href), true);
+
+            var target = document.getElementById(link.hash.slice(1));
+
+            if (target) {
+                var nav2 = document.querySelector('.asd-tabs');
+                var off = (nav2 ? nav2.offsetHeight : 0) + 16;
+
+                window.scrollTo({
+                    top: target.getBoundingClientRect().top + window.pageYOffset - off,
+                    behavior: 'smooth'
+                });
+            }
+
+            return;
+        }
+
+        if (stripHash(link.href) === stripHash(location.href)) return;
+
+        e.preventDefault();
+        activate(view, link.href, true);
+    });
+
+    window.addEventListener('popstate', function (e) {
+        if (!e.state || typeof e.state.asdPanel === 'undefined') return;
+
+        activate(e.state.asdPanel, location.href, false);
+    });
+}
+
+// ========================================
+// 左側快速導覽（目錄）
+// ----------------------------------------
+// 從「目前可見的面板」自動生成，切 tab 會跟著重建，
+// 不必在模板裡各寫一份、也不會有漏掉的區塊。
+//
+// 只在夠寬的螢幕出現（容器 1200px，兩側各要留 ~200px），
+// 窄螢幕會擋到內容，不如不要。
+// ========================================
+function initToc() {
+    var MIN_WIDTH = 1400;
+
+    var main = document.getElementById('asd-main');
+    if (!main) return;
+
+    if (document.getElementById('asd-toc')) return;
+
+    var nav = document.createElement('nav');
+    nav.className = 'asd-toc';
+    nav.id = 'asd-toc';
+    nav.setAttribute('aria-label', '頁面目錄');
+
+    var btn = document.createElement('button');
+    btn.className = 'asd-toc__btn';
+    btn.type = 'button';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<span class="asd-toc__icon" aria-hidden="true">☰</span><span>目錄</span>';
+
+    // 隱藏鈕。放在展開的清單裡，不佔收起狀態的空間。
+    var close = document.createElement('button');
+    close.className = 'asd-toc__close';
+    close.type = 'button';
+    close.setAttribute('aria-label', '隱藏目錄');
+    close.textContent = '×';
+
+    var head = document.createElement('div');
+    head.className = 'asd-toc__head';
+    head.innerHTML = '<span>目錄</span>';
+    head.appendChild(close);
+
+    var list = document.createElement('ul');
+    list.className = 'asd-toc__list';
+
+    var panel = document.createElement('div');
+    panel.className = 'asd-toc__panel';
+    panel.appendChild(head);
+    panel.appendChild(list);
+
+    nav.appendChild(btn);
+    nav.appendChild(panel);
+    document.body.appendChild(nav);
+
+    /*
+     * 隱藏後要有辦法叫回來，否則使用者關掉就再也找不到。
+     * 左側邊緣留一個細長的把手，點了還原。
+     */
+    var restore = document.createElement('button');
+    restore.className = 'asd-toc-restore';
+    restore.type = 'button';
+    restore.setAttribute('aria-label', '顯示目錄');
+    restore.textContent = '›';
+    restore.hidden = true;
+    document.body.appendChild(restore);
+
+    var STORE_KEY = 'asd_toc_hidden';
+
+    /* localStorage 在無痕模式或封鎖 cookie 時會直接丟例外，一律包起來 */
+    function readHidden() {
+        try {
+            return localStorage.getItem(STORE_KEY) === '1';
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function writeHidden(v) {
+        try {
+            if (v) {
+                localStorage.setItem(STORE_KEY, '1');
+            } else {
+                localStorage.removeItem(STORE_KEY);
+            }
+        } catch (err) {
+            /* 存不了就算了，這輪照樣有效，只是下次不記得 */
+        }
+    }
+
+    var userHidden = readHidden();
+
+    var links = [];
+
+    // 依目前可見的面板重建清單
+    /*
+     * 目錄用固定短標籤，不從 <h2> 抓字。
+     *
+     * 區塊標題是給該區塊看的，格式各有需要：帶數量（「預告片（3）」）、
+     * 帶符號（「▶ 官方線上看」）、甚至帶整個作品名（「《無職轉生 第三季
+     * ～到了異世界就拿出真本事～》原作漫畫哪裡看?」）。那些放進目錄就是
+     * 長短不一還會折行。目錄要的是一眼掃完，所以另外給短名。
+     */
+    var LABELS = {
+        'asd-sec-synopsis':    '劇情簡介',
+        'asd-sec-stream':      '串流平台',
+        'asd-sec-trailer':     '預告片',
+        'asd-sec-online':      '線上看',
+        'asd-sec-music':       '主題曲',
+        'asd-sec-events':      '最新動態',
+        'asd-sec-editorial':   '編輯短評',
+        'asd-sec-cast':        '角色',
+        'asd-sec-staff':       '製作人員',
+        'asd-sec-episodes':    '集數',
+        'asd-sec-albums':      '相關專輯',
+        'asd-sec-games':       '相關遊戲',
+        'asd-sec-liveaction':  '真人版',
+        'asd-sec-manga':       '原作漫畫',
+        'asd-sec-faq':         '常見問題',
+        'asd-sec-links':       '資料來源',
+        'asd-sec-reviews':     '評論',
+        'asd-sec-corrections': '糾錯回報'
+    };
+
+    // 對照表沒有的（之後新增區塊忘了加）才退回標題文字
+    function fallbackLabel(sec) {
+        var h = sec.querySelector('.asd-section-title');
+        if (!h) return '';
+
+        return h.textContent
+            .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{25A0}-\u{25FF}️]/gu, '')
+            .replace(/[（(]\s*\d+\s*[）)]\s*$/, '')
+            .trim();
+    }
+
+    function build() {
+        list.innerHTML = '';
+        links = [];
+
+        var secs = Array.prototype.slice.call(
+            main.querySelectorAll('.asd-panel:not([hidden]) > section.asd-section[id]')
+        );
+
+        secs.forEach(function (sec) {
+            var text = LABELS[sec.id] || fallbackLabel(sec);
+            if (!text) return;
+
+            var li = document.createElement('li');
+            var a = document.createElement('a');
+
+            a.href = '#' + sec.id;
+            a.textContent = text;
+            a.dataset.target = sec.id;
+
+            li.appendChild(a);
+            list.appendChild(li);
+            links.push(a);
+        });
+
+        sync();
+    }
+
+    /* 三個條件決定看不看得到：使用者是否關掉、螢幕寬度、有沒有東西可列 */
+    function sync() {
+        var tooNarrow = window.innerWidth < MIN_WIDTH;
+        var nothing   = links.length < 2;
+
+        nav.hidden     = ( userHidden || tooNarrow || nothing );
+        restore.hidden = ! ( userHidden && ! tooNarrow && ! nothing );
+    }
+
+    function offset() {
+        var tabs = document.querySelector('.asd-tabs');
+        return (tabs ? tabs.offsetHeight : 0) + 24;
+    }
+
+    list.addEventListener('click', function (e) {
+        var a = e.target.closest('a');
+        if (!a) return;
+
+        var target = document.getElementById(a.dataset.target);
+        if (!target) return;
+
+        e.preventDefault();
+
+        window.scrollTo({
+            top: target.getBoundingClientRect().top + window.pageYOffset - offset(),
+            behavior: 'smooth'
+        });
+    });
+
+    btn.addEventListener('click', function () {
+        var open = nav.classList.toggle('is-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    close.addEventListener('click', function (e) {
+        e.stopPropagation();
+
+        userHidden = true;
+        writeHidden(true);
+        nav.classList.remove('is-open');
+        btn.setAttribute('aria-expanded', 'false');
+        sync();
+    });
+
+    restore.addEventListener('click', function () {
+        userHidden = false;
+        writeHidden(false);
+        sync();
+    });
+
+    // 捲到哪一段就highlight哪一段
+    function spy() {
+        if (nav.hidden || !links.length) return;
+
+        var line = offset() + 40;
+        var current = links[0];
+
+        links.forEach(function (a) {
+            var el = document.getElementById(a.dataset.target);
+            if (!el) return;
+
+            if (el.getBoundingClientRect().top <= line) current = a;
+        });
+
+        links.forEach(function (a) {
+            a.classList.toggle('is-current', a === current);
+        });
+    }
+
+    build();
+    spy();
+
+    window.addEventListener('scroll', spy, { passive: true });
+    window.addEventListener('resize', sync);
+
+    // 切 tab 之後面板變了，重建
+    window.asdRebuildToc = function () {
+        build();
+        spy();
+    };
+}
