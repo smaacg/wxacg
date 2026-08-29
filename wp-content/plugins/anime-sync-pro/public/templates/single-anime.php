@@ -4293,13 +4293,64 @@ while ( have_posts() ) :
 				 * 會又高又難掃，跨滿寬度分三欄只要 4 排。
 				 */
 				/*
-				 * 側欄評分卡下方：使用者指定的四個最重要欄位。
+				 * 監督。
+				 *
+				 * 沿用 schema 用的同一個 $is_main_director_role()——它已經排除
+				 * 作畫監督／音響監督／美術監督／助監督這類同樣含「監督」二字、
+				 * 但不是本片導演的職位，光比對字串會全部誤收。
+				 *
+				 * 総監督＋監督並列的作品不少，最多列 3 位；再多側欄那格會被
+				 * 撐成好幾行，反而蓋過旁邊的欄位。
+				 */
+				$director_html  = '';
+				$director_parts = [];
+				$director_seen  = [];
+
+				foreach ( $staff_list as $staff_item ) {
+					if ( ! is_array( $staff_item ) ) {
+						continue;
+					}
+
+					$d_name = trim( (string) ( $staff_item['name'] ?? '' ) );
+					$d_role = trim( (string) ( $staff_item['role'] ?? '' ) );
+
+					if (
+						'' === $d_name
+						|| ! $is_main_director_role( $d_role )
+						|| isset( $director_seen[ $d_name ] )
+					) {
+						continue;
+					}
+
+					$director_seen[ $d_name ] = true;
+
+					$d_id  = (int) ( $staff_item['id'] ?? 0 );
+					$d_url = $d_id > 0 ? $entity_url( 'person', $d_id, $d_name ) : '';
+
+					$director_parts[] = '' !== $d_url
+						? '<a href="' . esc_url( $d_url ) . '">' . esc_html( $d_name ) . '</a>'
+						: esc_html( $d_name );
+
+					if ( count( $director_parts ) >= 3 ) {
+						break;
+					}
+				}
+
+				if ( ! empty( $director_parts ) ) {
+					$director_html = implode( '、', $director_parts );
+				}
+
+				/*
+				 * 側欄評分卡下方：最重要的幾個欄位。
 				 * 其餘一律走下方的資料條，不重複。
+				 * 監督緊接製作公司——兩者都是「誰做的」，跟上面的原作端分開。
+				 * 值為空的列會在下面被 array_filter 濾掉，抓不到監督就不會出現空列。
 				 */
 				$hero_side_facts = [
-					[ 'key' => '原作者',   'val' => $author_html, 'html' => true ],
-					[ 'key' => '原作類型', 'val' => $source_html, 'html' => true ],
-					[ 'key' => '製作公司', 'val' => $studio_html, 'html' => true ],
+					[ 'key' => '原作者',   'val' => $author_html,   'html' => true ],
+					[ 'key' => '原作類型', 'val' => $source_html,   'html' => true ],
+					[ 'key' => '製作公司', 'val' => $studio_html,   'html' => true ],
+					[ 'key' => '監督',     'val' => $director_html, 'html' => true ],
 					[ 'key' => '集數',     'val' => $ep_str ],
 				];
 
