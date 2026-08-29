@@ -5900,7 +5900,8 @@ while ( have_posts() ) :
 
 							<?php
 							$rel_groups = $rel_games;
-							$rel_source = '遊戲資料來源：Bangumi 番組計劃';
+							/* 來源標註先不顯示（使用者指定），與相關專輯一致 */
+							$rel_source = '';
 
 							include __DIR__ . '/parts/anime-relation-groups.php';
 							?>
@@ -5914,7 +5915,8 @@ while ( have_posts() ) :
 
 							<?php
 							$rel_groups = $rel_liveaction;
-							$rel_source = '資料來源：Bangumi 番組計劃';
+							/* 來源標註先不顯示（使用者指定），與相關遊戲一致 */
+							$rel_source = '';
 
 							include __DIR__ . '/parts/anime-relation-groups.php';
 							?>
