@@ -4612,7 +4612,12 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
 	gap: 2px;
 	margin-top: 18px;
 	padding-top: 18px;
-	border-top: 1px solid rgba(255, 255, 255, .16);
+	/*
+	   28% 白。同一張卡片上方 8px 處還有一條 .wacg-rating-divider（8% 白），
+	   兩條都淡的話這裡看起來就是一片空白——這條要明確分隔「評分」與
+	   「作品資料」兩個區塊，得比那條重。
+	*/
+	border-top: 1px solid rgba(255, 255, 255, .28);
 }
 
 /* =================================================================
