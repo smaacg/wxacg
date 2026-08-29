@@ -92,35 +92,59 @@ $year_max = (int) $wpdb->get_var(
 if ( $year_min <= 0 ) $year_min = (int) $cur_ctx['year'];
 if ( $year_max <= 0 ) $year_max = (int) $cur_ctx['year'];
 
-/* 本季精選封面（取人氣前 6 部當視覺）*/
-$feat = new WP_Query( [
-	'post_type'           => 'anime',
-	'post_status'         => 'publish',
-	'posts_per_page'      => 6,
-	'no_found_rows'       => true,
-	'ignore_sticky_posts' => true,
-	'meta_query'          => [
-		'relation' => 'AND',
-		[ 'key' => 'anime_season',      'value' => $cur_ctx['season'], 'compare' => '=' ],
-		[ 'key' => 'anime_season_year', 'value' => (int) $cur_ctx['year'], 'compare' => '=', 'type' => 'NUMERIC' ],
-	],
-	'orderby'             => 'meta_value_num',
-	'meta_key'            => 'anime_popularity',
-	'order'               => 'DESC',
-] );
-$feat_items = [];
-if ( $feat->have_posts() ) {
-	foreach ( $feat->posts as $fp ) {
-		$cover = get_post_meta( $fp->ID, 'anime_cover_image', true );
-		$title = get_post_meta( $fp->ID, 'anime_title_chinese', true ) ?: $fp->post_title;
-		$feat_items[] = [
-			'url'   => get_permalink( $fp->ID ),
-			'title' => $title,
-			'cover' => $cover,
-		];
+/**
+ * 取某一季人氣前 N 部，回傳前台要用的欄位。
+ *
+ * 本季與下一季兩區塊用同一支，避免兩邊查詢寫法慢慢長歪。
+ *
+ * @param array $ctx   季度context（含 season / year）
+ * @param int   $limit 取幾部
+ * @return array
+ */
+function wxacg_bgm_index_feat( array $ctx, int $limit ): array {
+	$q = new WP_Query( [
+		'post_type'           => 'anime',
+		'post_status'         => 'publish',
+		'posts_per_page'      => $limit,
+		'no_found_rows'       => true,
+		'ignore_sticky_posts' => true,
+		'meta_query'          => [
+			'relation' => 'AND',
+			[ 'key' => 'anime_season',      'value' => $ctx['season'], 'compare' => '=' ],
+			[ 'key' => 'anime_season_year', 'value' => (int) $ctx['year'], 'compare' => '=', 'type' => 'NUMERIC' ],
+		],
+		'orderby'             => 'meta_value_num',
+		'meta_key'            => 'anime_popularity',
+		'order'               => 'DESC',
+	] );
+
+	$items = [];
+
+	if ( $q->have_posts() ) {
+		foreach ( $q->posts as $fp ) {
+			$items[] = [
+				'url'   => get_permalink( $fp->ID ),
+				'title' => get_post_meta( $fp->ID, 'anime_title_chinese', true ) ?: $fp->post_title,
+				'cover' => get_post_meta( $fp->ID, 'anime_cover_image', true ),
+			];
+		}
 	}
+
+	wp_reset_postdata();
+
+	return $items;
 }
-wp_reset_postdata();
+
+/* 本季熱門（7 部）*/
+$feat_items = wxacg_bgm_index_feat( $cur_ctx, 7 );
+
+/*
+ * 下一季期待作品（7 部）。
+ *
+ * 用的是同一個人氣欄位——下一季多半還沒播，人氣值反映的是
+ * 「宣布後累積的關注度」，正好就是「期待度」。
+ */
+$next_feat_items = wxacg_bgm_index_feat( $next_ctx, 7 );
 
 /* ============================================================
  * 2. 近年季度卡（當前年往回 2 年，共 3 年 × 4 季）
@@ -294,6 +318,32 @@ get_header();
     </div>
     <div class="bgm-index-feat-more">
       <a href="<?php echo esc_url( $cur_url ); ?>">看完整<?php echo esc_html( $cur_ctx['label'] ); ?> →</a>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <!-- ===== 下一季期待作品 ===== -->
+  <?php
+  /*
+   * 只在下一季真的有作品時才出現。季末時下一季資料還沒進來，
+   * 硬顯示會是一個空區塊。
+   */
+  ?>
+  <?php if ( $next_feat_items ) : ?>
+  <section class="bgm-index-feat bgm-index-feat--next">
+    <h2 class="bgm-index-h2"><?php echo esc_html( $next_ctx['label'] ); ?>　期待作品</h2>
+    <div class="bgm-index-feat-grid">
+      <?php foreach ( $next_feat_items as $fi ) : ?>
+        <a class="bgm-index-feat-card" href="<?php echo esc_url( $fi['url'] ); ?>" title="<?php echo esc_attr( $fi['title'] ); ?>">
+          <?php if ( $fi['cover'] ) : ?>
+            <img src="<?php echo esc_url( $fi['cover'] ); ?>" alt="<?php echo esc_attr( $fi['title'] ); ?>" loading="lazy">
+          <?php endif; ?>
+          <span class="bgm-index-feat-title"><?php echo esc_html( $fi['title'] ); ?></span>
+        </a>
+      <?php endforeach; ?>
+    </div>
+    <div class="bgm-index-feat-more">
+      <a href="<?php echo esc_url( $next_url ); ?>">看完整<?php echo esc_html( $next_ctx['label'] ); ?> →</a>
     </div>
   </section>
   <?php endif; ?>
