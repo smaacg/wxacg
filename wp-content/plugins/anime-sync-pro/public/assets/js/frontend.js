@@ -27,6 +27,7 @@ function asdInit() {
     safeInit('ow-tabs', initOwTabs);
     safeInit('music-swap', initMusicSwap);
     safeInit('toc', initToc);
+    safeInit('album-modal', initAlbumModal);
 
     
     window.__asdFrontendInited = true;
@@ -1156,4 +1157,154 @@ function initToc() {
         build();
         spy();
     };
+}
+
+// ========================================
+// 專輯詳情彈窗
+// ----------------------------------------
+// 點專輯名 → 在本頁展開封面／藝術家／發售日，不離開網站。
+//
+// 資料向 /wp-json/anime-sync/v1/bgm-subject/{id} 取（後端代理 Bangumi，
+// 見 class-bgm-subject-proxy.php）。不直接 fetch api.bgm.tv 是因為
+// 對方沒開 CORS，而且集中在後端才有快取與頻率控制。
+//
+// 只在點下去時才取一筆——全站 5,849 張專輯，預抓要 1.5~2 小時而且
+// 大半不會被點開。
+// ========================================
+function initAlbumModal() {
+    if (typeof window.fetch !== 'function') return;
+    if (document.getElementById('asd-album-modal')) return;
+
+    /*
+     * 用 localize 的 restUrl（class-frontend.php 已提供 anime-sync/v1/），
+     * 不要寫死 /wp-json/——WordPress 可能裝在子目錄，或 REST 走
+     * ?rest_route= 的形式，寫死會抓不到。
+     */
+    var API = (
+        (window.animeSyncData && window.animeSyncData.restUrl)
+            ? window.animeSyncData.restUrl
+            : '/wp-json/anime-sync/v1/'
+    ) + 'bgm-subject/';
+
+    var cache = {};
+    var lastFocus = null;
+
+    var modal = document.createElement('div');
+    modal.className = 'asd-amodal';
+    modal.id = 'asd-album-modal';
+    modal.hidden = true;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', '專輯資訊');
+
+    modal.innerHTML =
+        '<div class="asd-amodal__backdrop" data-close></div>' +
+        '<div class="asd-amodal__box">' +
+            '<button type="button" class="asd-amodal__close" aria-label="關閉" data-close>×</button>' +
+            '<div class="asd-amodal__body"></div>' +
+        '</div>';
+
+    document.body.appendChild(modal);
+
+    var body = modal.querySelector('.asd-amodal__body');
+
+    function open() {
+        lastFocus = document.activeElement;
+        modal.hidden = false;
+        document.body.classList.add('asd-amodal-open');
+        modal.querySelector('.asd-amodal__close').focus();
+    }
+
+    function close() {
+        modal.hidden = true;
+        document.body.classList.remove('asd-amodal-open');
+
+        if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function renderLoading(name) {
+        body.innerHTML =
+            '<div class="asd-amodal__head"><h3>' + esc(name) + '</h3></div>' +
+            '<div class="asd-amodal__loading">' +
+                '<div class="asd-amodal__dots"><span></span><span></span><span></span></div>' +
+                '<p>讀取專輯資料…</p>' +
+            '</div>';
+    }
+
+    function renderError(name, msg) {
+        body.innerHTML =
+            '<div class="asd-amodal__head"><h3>' + esc(name) + '</h3></div>' +
+            '<p class="asd-amodal__err">' + esc(msg) + '</p>';
+    }
+
+    function render(d) {
+        var rows = (d.info || []).map(function (r) {
+            return '<div class="asd-amodal__row">' +
+                '<dt>' + esc(r.key) + '</dt><dd>' + esc(r.value) + '</dd></div>';
+        }).join('');
+
+        body.innerHTML =
+            '<div class="asd-amodal__head">' +
+                '<h3>' + esc(d.title) + '</h3>' +
+                (d.sub ? '<p class="asd-amodal__sub">' + esc(d.sub) + '</p>' : '') +
+            '</div>' +
+            '<div class="asd-amodal__main">' +
+                (d.cover
+                    ? '<div class="asd-amodal__cover"><img src="' + esc(d.cover) +
+                      '" alt="' + esc(d.title) + '" loading="lazy" decoding="async"></div>'
+                    : '') +
+                '<dl class="asd-amodal__info">' +
+                    (d.date ? '<div class="asd-amodal__row"><dt>發售日</dt><dd>' + esc(d.date) + '</dd></div>' : '') +
+                    rows +
+                '</dl>' +
+            '</div>' +
+            /* 來源標註不顯示（使用者指定） */
+            (d.summary ? '<p class="asd-amodal__summary">' + esc(d.summary) + '</p>' : '');
+    }
+
+    function load(id, name) {
+        renderLoading(name);
+        open();
+
+        if (cache[id]) {
+            render(cache[id]);
+            return;
+        }
+
+        fetch(API + encodeURIComponent(id), { credentials: 'same-origin' })
+            .then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function (d) {
+                cache[id] = d;
+                render(d);
+            })
+            .catch(function (err) {
+                // 不吞錯：主控台留紀錄，畫面也明確告訴使用者
+                console.error('[Anime Sync Pro] album modal failed:', err);
+                renderError(name, '目前取不到這張專輯的資料，請稍後再試。');
+            });
+    }
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.asd-album-name--btn[data-bgm-id]');
+
+        if (btn) {
+            load(btn.dataset.bgmId, btn.textContent.trim());
+            return;
+        }
+
+        if (!modal.hidden && e.target.closest('[data-close]')) close();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) close();
+    });
 }

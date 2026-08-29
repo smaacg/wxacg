@@ -4984,3 +4984,245 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
 .asd-toc__panel {
 	min-width: 175px;
 }
+
+/* =================================================================
+   專輯詳情彈窗（.asd-amodal）
+   2026-08-29
+
+   點專輯名在本頁展開封面／藝術家／發售日，不離開網站。
+   資料由後端代理 Bangumi 取得（見 class-bgm-subject-proxy.php）。
+   ================================================================= */
+
+/* 可點的專輯名。用 <button> 所以要洗掉瀏覽器預設樣式 */
+.asd-album-name--btn {
+	padding: 0;
+	border: 0;
+	background: none;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	border-bottom: 1px dashed rgba(255, 255, 255, .22);
+	transition: var(--trans-smooth, color .2s ease);
+}
+
+.asd-album-name--btn:hover {
+	color: var(--asd-primary);
+	border-bottom-color: var(--asd-primary);
+}
+
+.asd-amodal[hidden] {
+	display: none;
+}
+
+.asd-amodal {
+	position: fixed;
+	inset: 0;
+	z-index: 100000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+}
+
+.asd-amodal__backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, .66);
+	backdrop-filter: blur(2px);
+}
+
+.asd-amodal__box {
+	position: relative;
+	width: 100%;
+	max-width: 480px;
+	max-height: 86vh;
+	overflow-y: auto;
+	padding: 24px;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-lg);
+	background: var(--asd-bg-card, #1b2129);
+	box-shadow: 0 18px 50px rgba(0, 0, 0, .5);
+}
+
+.asd-amodal__close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, .06);
+	color: var(--asd-text-muted);
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+	transition: var(--trans-smooth, all .15s ease);
+}
+
+.asd-amodal__close:hover {
+	background: rgba(255, 255, 255, .12);
+	color: var(--asd-text);
+}
+
+.asd-amodal__head {
+	margin-bottom: 16px;
+	padding-right: 36px;
+}
+
+.asd-amodal__head h3 {
+	margin: 0;
+	color: var(--asd-text);
+	font-size: 18px;
+	font-weight: 800;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.asd-amodal__sub {
+	margin: 5px 0 0;
+	color: var(--asd-text-dim);
+	font-size: 13px;
+	overflow-wrap: anywhere;
+}
+
+.asd-amodal__main {
+	display: flex;
+	gap: 16px;
+	align-items: flex-start;
+}
+
+.asd-amodal__cover {
+	flex-shrink: 0;
+	width: 132px;
+	border-radius: var(--asd-radius-md);
+	overflow: hidden;
+	background: #14141f;
+}
+
+.asd-amodal__cover img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.asd-amodal__info {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+}
+
+.asd-amodal__row {
+	display: flex;
+	gap: 10px;
+	padding: 6px 0;
+	border-bottom: 1px solid rgba(255, 255, 255, .05);
+}
+
+.asd-amodal__row:last-child {
+	border-bottom: 0;
+}
+
+.asd-amodal__row dt {
+	flex-shrink: 0;
+	width: 58px;
+	color: var(--asd-text-dim);
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.asd-amodal__row dd {
+	margin: 0;
+	color: var(--asd-text);
+	font-size: 13.5px;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.asd-amodal__summary {
+	margin: 16px 0 0;
+	color: var(--asd-text-muted);
+	font-size: 13px;
+	line-height: 1.65;
+	white-space: pre-wrap;
+}
+
+.asd-amodal__src {
+	margin: 16px 0 0;
+	color: var(--asd-text-dim);
+	font-size: 11.5px;
+}
+
+.asd-amodal__src a {
+	color: var(--asd-text-muted);
+}
+
+.asd-amodal__err {
+	margin: 20px 0 0;
+	color: var(--asd-text-muted);
+	font-size: 14px;
+}
+
+/* 讀取中：沿用目錄那組彈跳點的節奏，全站一致 */
+.asd-amodal__loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	padding: 30px 0;
+	color: var(--asd-text-muted);
+	font-size: 13px;
+}
+
+.asd-amodal__dots {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+	height: 20px;
+}
+
+.asd-amodal__dots span {
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	background: var(--asd-primary, #6c8cff);
+	animation: asd-amodal-hop .62s ease-in-out infinite;
+}
+
+.asd-amodal__dots span:nth-child(2) {
+	background: #f472b6;
+	animation-delay: .13s;
+}
+
+.asd-amodal__dots span:nth-child(3) {
+	background: #fbbf24;
+	animation-delay: .26s;
+}
+
+@keyframes asd-amodal-hop {
+	0%, 100% { transform: translateY(0) scale(1, .82); transform-origin: bottom; }
+	45%      { transform: translateY(-12px) scale(.92, 1.1); transform-origin: bottom; }
+}
+
+/* 彈窗開著時鎖住背景捲動 */
+body.asd-amodal-open {
+	overflow: hidden;
+}
+
+@media (max-width: 520px) {
+	.asd-amodal__main {
+		flex-direction: column;
+	}
+
+	.asd-amodal__cover {
+		width: 120px;
+		align-self: center;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.asd-amodal__dots span {
+		animation: none;
+	}
+}
