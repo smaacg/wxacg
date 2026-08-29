@@ -4529,16 +4529,22 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
    欄寬只有中間那欄，所以不用「卡片裡再放卡片」——那在窄欄位裡框線太
    密、很吵。改成細分隔線切格，安靜但一樣好掃。
 */
+/*
+   ★ 每格是獨立的卡片，不是表格。
+
+   原本用 inset 陰影畫格線做成表格外觀，但欄數是 auto-fit 隨寬度變動，
+   最後一列常常缺一兩格——空的位置沒有元素就沒有格線，看起來像表格
+   斷掉。改成每格自己有底色、彼此留間隙：缺格就只是少一張卡，
+   是自然的收尾而不是破圖。
+*/
 .asd-hero-facts {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-	gap: 0;
+	gap: 8px;
 	margin: 2px 0 0;
 	padding: 0;
-	border: 1px solid var(--asd-border);
-	border-radius: var(--asd-radius-md);
-	background: rgba(255, 255, 255, .025);
-	overflow: hidden;
+	border: 0;
+	background: none;
 }
 
 .asd-hero-fact {
@@ -4548,11 +4554,9 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
 	gap: 2px;
 	min-width: 0;
 	padding: 10px 14px;
-	/* 用 inset 陰影當格線：格數會隨寬度變動，
-	   用 border 會在最後一欄留下多餘的線 */
-	box-shadow:
-		inset 1px 0 0 rgba(255, 255, 255, .05),
-		inset 0 1px 0 rgba(255, 255, 255, .05);
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-sm);
+	background: rgba(255, 255, 255, .035);
 }
 
 .asd-hero-fact__k {
@@ -4610,14 +4614,14 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	margin-top: 18px;
-	padding-top: 18px;
 	/*
-	   28% 白。同一張卡片上方 8px 處還有一條 .wacg-rating-divider（8% 白），
-	   兩條都淡的話這裡看起來就是一片空白——這條要明確分隔「評分」與
-	   「作品資料」兩個區塊，得比那條重。
+	   不畫分隔線（評分元件結尾已經有一條 .wacg-rating-divider），
+	   所以也不需要 padding-top——那是當初為了跟線拉開距離才加的，
+	   線沒了就變成 18+18=36px 的大片空白。只留一段適度的間距。
 	*/
-	border-top: 1px solid rgba(255, 255, 255, .28);
+	margin-top: 4px;
+	padding-top: 0;
+	border-top: 0;
 }
 
 /* =================================================================
