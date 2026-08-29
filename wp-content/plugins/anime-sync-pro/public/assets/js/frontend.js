@@ -798,15 +798,67 @@ function initMusicSwap() {
         return i === -1 ? url : url.slice(0, i);
     }
 
-    // 從網址推出目前是哪個面板：/anime/{slug}/characters/ → 'characters'
-    function viewFromUrl(url) {
+    /*
+     * 從網址拆出「哪部作品、哪個面板」。
+     *
+     *   /anime/{slug}/          → { slug: slug, view: '' }（總覽）
+     *   /anime/{slug}/music/    → { slug: slug, view: 'music' }
+     *   其他                    → null
+     *
+     * slug 也要拿出來：內文入口攔截時得確認是同一部作品，否則點到
+     * 別部作品的 /music/ 會變成切本頁的面板、內容卻是錯的。
+     */
+    function parseUrl(url) {
         var a = document.createElement('a');
         a.href = url;
 
-        var m = a.pathname.match(/^\/anime\/[^\/]+\/([a-z]+)\/?$/);
+        var m = a.pathname.match(/^\/anime\/([^\/]+)(?:\/([a-z]+))?\/?$/);
 
-        return m ? m[1] : '';
+        return m ? { slug: m[1], view: m[2] || '' } : null;
     }
+
+    // 從網址推出目前是哪個面板：/anime/{slug}/characters/ → 'characters'
+    function viewFromUrl(url) {
+        var p = parseUrl(url);
+
+        return p ? p.view : '';
+    }
+
+    // 這個面板存不存在於本頁（不存在就別攔，交給瀏覽器正常導覽）
+    function hasPanel(view) {
+        return panels.some(function (p) {
+            return p.dataset.asdPanel === view;
+        });
+    }
+
+    /*
+     * 把畫面帶回內容頂端（tab 列正下方）。
+     *
+     * 不能拿 nav 自己的位置來算：它是 position:sticky，捲到深處時
+     * getBoundingClientRect().top 回的是「黏住的位置」而不是它在文件裡
+     * 的位置，算出來會等於目前的捲動量，等於沒動。改用不會黏的 #asd-main。
+     */
+    function scrollToContentTop() {
+        var nav   = document.querySelector('.asd-tabs');
+        var stick = 0;
+        var navH  = 0;
+
+        if (nav) {
+            stick = parseInt(window.getComputedStyle(nav).top, 10);
+
+            if (isNaN(stick)) stick = 0;
+
+            navH = nav.offsetHeight;
+        }
+
+        window.scrollTo({
+            top: Math.max(0, main.getBoundingClientRect().top + window.pageYOffset - stick - navH - 8),
+            behavior: 'auto'
+        });
+    }
+
+    // 目前這一頁是哪部作品（pushState 只會換 view，slug 不變）
+    var currentAnime = parseUrl(location.href);
 
     function activate(view, url, push) {
         panels.forEach(function (p) {
@@ -880,7 +932,24 @@ function initMusicSwap() {
         // 那些區塊在總覽面板裡，要先切回總覽才看得到。
         var isHeroAnchor = link.matches('.asd-hero-actions a[href*="#asd-sec-"]');
 
-        if (!isTab && !isHeroAnchor) return;
+        /*
+         * 內文裡指向子檢視的入口（「🎼 相關專輯 →」「查看全部角色 →」…）。
+         *
+         * 原本只認 tab 列和 Hero 按鈕列這兩種選擇器，這些入口不在名單裡，
+         * 點下去是整頁重載。改成看網址本身：同一部作品、而且那個面板就在
+         * 這一頁上，就當成換面板——日後再加新入口不必回來補白名單。
+         */
+        var isEntry = false;
+
+        if (!isTab && !isHeroAnchor && currentAnime && main.contains(link)) {
+            var dest = parseUrl(link.href);
+
+            isEntry = !!dest &&
+                dest.slug === currentAnime.slug &&
+                hasPanel(dest.view);
+        }
+
+        if (!isTab && !isHeroAnchor && !isEntry) return;
 
         var view = viewFromUrl(link.href);
 
@@ -909,6 +978,15 @@ function initMusicSwap() {
 
         e.preventDefault();
         activate(view, link.href, true);
+
+        /*
+         * 從頁面深處的入口切過去時要把畫面帶回內容頂端。
+         *
+         * activate() 刻意保持捲動位置——從 tab 列點的話人本來就在上面，
+         * 原地不動才自然。但入口在內文很下面，新面板通常短很多，留在
+         * 原本的高度會落在空白處。
+         */
+        if (isEntry) scrollToContentTop();
     });
 
     window.addEventListener('popstate', function (e) {
