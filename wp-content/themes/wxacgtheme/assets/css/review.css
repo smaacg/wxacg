@@ -762,3 +762,88 @@ a.asd-review-author:hover {
 .asd-review-track-btn.is-active .asd-review-track-count {
   background: rgba(255, 255, 255, .28);
 }
+
+/* =================================================================
+   評論區合併顯示（2026-08-29）
+
+   清單改成一次列出短評與長評，讀者不必切分頁。切換列因此只剩
+   「發表哪一種」的用途，移到發表表單上方。
+   ================================================================= */
+
+/* ── 發表類型（原本的軌道切換列）── */
+.asd-review-posttype {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.asd-review-posttype-label {
+	color: var(--rv-text-dim, #8a8aa0);
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.asd-review-posttype .asd-review-tabs {
+	margin-bottom: 0;
+}
+
+/* ── 卡片上的軌道標記 ── */
+/* 合併後兩種評論混在一起，要看得出「隨手一句」還是「完整心得」 */
+.asd-review-track-tag {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: 20px;
+	font-size: 11px;
+	font-weight: 700;
+	line-height: 1.7;
+}
+
+.asd-review-track-tag.is-short {
+	background: rgba(109, 174, 255, .16);
+	color: #6daeff;
+}
+
+.asd-review-track-tag.is-long {
+	background: rgba(167, 139, 250, .18);
+	color: #a78bfa;
+}
+
+/* ── 過長內容收合 ── */
+.asd-review-card-content.is-clamped {
+	position: relative;
+	max-height: 260px;
+	overflow: hidden;
+}
+
+/* 底部漸層淡出，讓「還有內容」這件事看得出來 */
+.asd-review-card-content.is-clamped::after {
+	content: '';
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	height: 72px;
+	pointer-events: none;
+	background: linear-gradient(to bottom, transparent, var(--rv-card-bg, #1b2129));
+}
+
+.asd-review-readmore {
+	display: inline-block;
+	margin-top: 8px;
+	padding: 6px 16px;
+	border: 1px solid var(--asd-border, rgba(255, 255, 255, .14));
+	border-radius: 20px;
+	background: transparent;
+	color: var(--rv-text-dim, #8a8aa0);
+	font-size: 13px;
+	font-weight: 700;
+	cursor: pointer;
+	transition: all .15s ease;
+}
+
+.asd-review-readmore:hover {
+	border-color: #6daeff;
+	color: #6daeff;
+}

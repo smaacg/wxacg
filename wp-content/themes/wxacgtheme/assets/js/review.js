@@ -317,14 +317,43 @@ function smacgInitReview() {
     const formWrap = root.querySelector('.asd-review-form-wrap');
     const listWrap = root.querySelector('.asd-review-list');
 
-    root.querySelectorAll('.asd-review-track-btn').forEach(function (btn) {
+    /*
+     * 軌道切換列改當「發表類型」，移到發表表單上方。
+     *
+     * 清單已經合併顯示兩種評論（見 loadList），讀者不必切換就看得到
+     * 全部——切換列剩下的用途只有「我要發短評還是長評」，那屬於表單，
+     * 放在標題列旁邊反而讓人以為是在篩選清單。
+     */
+    (function moveTabsToForm() {
+        const tabsEl = root.querySelector('.asd-review-tabs');
+
+        if (!tabsEl) return; // 只有一種軌道時不會有切換列
+
+        const bar = document.createElement('div');
+        bar.className = 'asd-review-posttype';
+        bar.innerHTML = '<span class="asd-review-posttype-label">發表</span>';
+
+        formWrap.parentNode.insertBefore( bar, formWrap );
+        bar.appendChild( tabsEl );
+    })();
+
+    /* 切換列已離開 root 的原位，查詢範圍用 section 涵蓋兩者 */
+    const scope = root.closest('section') || root;
+
+    /*
+     * 切軌道只重畫表單，不重讀清單。
+     *
+     * 清單已經合併顯示兩種評論，內容跟選了哪個軌道無關；重讀只會閃一次
+     * 「評論載入中…」、打兩次 API 拿回一模一樣的東西，還會把讀者已經
+     * 展開的長評收回去。
+     */
+    scope.querySelectorAll('.asd-review-track-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             currentTrack = btn.dataset.track;
-            root.querySelectorAll('.asd-review-track-btn').forEach(function (b) {
+            scope.querySelectorAll('.asd-review-track-btn').forEach(function (b) {
                 b.classList.toggle('is-active', b === btn);
             });
             renderForm();
-            loadList();
         });
     });
 
@@ -547,6 +576,17 @@ function smacgInitReview() {
         const isReply      = !!item.reply_to;
         const spoilerClass = item.spoiler ? ' is-spoiler' : '';
         const episodeTag = item.episode > 0 ? '<span class="asd-review-episode-tag">第 ' + item.episode + ' 集</span>' : '';
+
+        /*
+         * 軌道標記。清單合併之後兩種評論混在一起，讀者要看得出
+         * 「這則是隨手一句還是完整心得」，期待值不一樣。
+         * 回覆本身不標——它跟著母評論走。
+         */
+        const trackTag = ( ! isReply && trackLabels[ item.track ] )
+            ? '<span class="asd-review-track-tag is-' + item.track + '">' +
+                  ( item.track === 'long' ? '長評' : '短評' ) +
+              '</span>'
+            : '';
         const scoreTag = item.score ? '<span class="asd-review-score-tag">★ ' + item.score + '</span>' : '';
         const statusTag = item.watch_status && WATCH_STATUS_LABEL[item.watch_status]
             ? '<span class="asd-review-status-tag">' + WATCH_STATUS_LABEL[item.watch_status] + '</span>' : '';
@@ -615,7 +655,7 @@ function smacgInitReview() {
                         '<a class="asd-review-author" href="' + escapeHtml(item.author_url || '#') + '">' +
                             escapeHtml(item.author) +
                         '</a>' +
-                        episodeTag + statusTag + scoreTag + editedTag + timeTag +
+                        trackTag + episodeTag + statusTag + scoreTag + editedTag + timeTag +
                     '</div>' +
                     deleteBtn +
                 '</div>' +
@@ -646,7 +686,8 @@ function smacgInitReview() {
      */
     function refreshTrackCounts() {
         tracks.forEach(function (t) {
-            const badge = root.querySelector('[data-count-for="' + t + '"]');
+            /* 用 scope 不用 root：切換列已被搬到發表表單上方 */
+            const badge = scope.querySelector('[data-count-for="' + t + '"]');
             if (!badge) { return; }
 
             callApi('reviews/' + animeId + '?track=' + t + '&sort=new', 'GET')
@@ -663,14 +704,48 @@ function smacgInitReview() {
         });
     }
 
+    /*
+     * 讀清單：把所有軌道合併成一份。
+     *
+     * 原本一次只載入 currentTrack，讀者得自己切分頁才知道另一邊有沒有
+     * 東西——短評和長評都是對同一部作品的意見，沒有理由分開看。
+     *
+     * 後端沒有「一次回傳所有軌道」的端點，所以各打一次再合併。軌道最多
+     * 兩個，成本可接受；為了這個去改 REST 介面不划算（與 refreshTrackCounts
+     * 同樣的取捨）。
+     *
+     * 合併後排序要自己做：兩份各自排好的清單接起來不會是排好的。
+     */
     function loadList() {
         listWrap.innerHTML = '<p class="asd-review-loading">評論載入中…</p>';
         refreshTrackCounts();
-        callApi('reviews/' + animeId + '?track=' + currentTrack + '&sort=' + currentSort, 'GET').then(function (data) {
-            const items = data.items || [];
+
+        const reqs = tracks.map(function (t) {
+            return callApi('reviews/' + animeId + '?track=' + t + '&sort=' + currentSort, 'GET')
+                .then(function (d) { return (d && d.items) ? d.items : []; })
+                /* 單一軌道失敗不該讓整個清單掛掉，當成空的continue */
+                .catch(function () { return []; });
+        });
+
+        Promise.all(reqs).then(function (lists) {
+            let items = [];
+
+            lists.forEach(function (l) { items = items.concat(l); });
+
+            items.sort(function (a, b) {
+                if (currentSort === 'hot') {
+                    const av = (a.like_count || 0) - (a.dislike_count || 0);
+                    const bv = (b.like_count || 0) - (b.dislike_count || 0);
+
+                    if (av !== bv) return bv - av;
+                }
+
+                /* 熱門同分時、以及「最新」一律比時間 */
+                return new Date(b.date || 0) - new Date(a.date || 0);
+            });
+
             if (items.length === 0) {
-                const emptyNoun = currentTrack === 'long' ? '評論' : (noun || '吐槽');
-                listWrap.innerHTML = '<p class="asd-review-empty">還沒有人發表' + emptyNoun + '，來當第一個吧！</p>';
+                listWrap.innerHTML = '<p class="asd-review-empty">還沒有人發表評論，來當第一個吧！</p>';
                 return;
             }
             /*
@@ -696,8 +771,46 @@ function smacgInitReview() {
                 return renderCard(p, repliesOf[p.id]);
             }).join('');
             bindCardEvents();
+            applyReadMore();
         }).catch(function () {
             listWrap.innerHTML = '<p class="asd-review-empty">評論載入失敗，請重新整理頁面再試一次</p>';
+        });
+    }
+
+    /*
+     * 過長的內容收起來，附「展開閱讀」。
+     *
+     * 長評沒有長度上限（20000 字），一則就能把整個清單推到很下面，
+     * 後面的短評等於被埋掉。合併顯示之後這個問題更明顯，所以超過
+     * 門檻就收合。
+     *
+     * 用實際渲染高度判斷而不是字數：同樣字數的中文與英文、有沒有換行，
+     * 佔的高度差很多，字數擋不準。
+     */
+    function applyReadMore() {
+        const MAX_H = 260; // px，約 10 行
+
+        listWrap.querySelectorAll('.asd-review-card-content').forEach(function (el) {
+            if (el.dataset.rmDone === '1') return;
+            el.dataset.rmDone = '1';
+
+            if (el.scrollHeight <= MAX_H + 40) return; // 只多一點就不值得收
+
+            el.classList.add('is-clamped');
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'asd-review-readmore';
+            btn.textContent = '展開閱讀';
+
+            btn.addEventListener('click', function () {
+                const open = el.classList.toggle('is-clamped');
+
+                /* toggle 回傳的是「加上去了沒」，收合時才是 true */
+                btn.textContent = open ? '展開閱讀' : '收合';
+            });
+
+            el.insertAdjacentElement('afterend', btn);
         });
     }
 
