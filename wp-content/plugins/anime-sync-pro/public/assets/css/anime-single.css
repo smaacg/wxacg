@@ -4158,6 +4158,17 @@ nav.asd-tabs a.asd-tab.is-active::after {
 	border-top: 1px solid var(--asd-border);
 }
 
+/*
+   獨立分頁（「專輯」tab）裡它是區塊標題底下的第一個元素，上方沒有
+   主題曲播放器可分隔——那條線與 48px 上邊界會變成「兩條線夾一片空白」。
+   修飾詞原本寫在 markup 卻沒有任何規則，等於沒作用。
+*/
+.asd-album-block--standalone {
+	margin-top: 0;
+	padding-top: 0;
+	border-top: 0;
+}
+
 /* 標題旁的總數徽章 */
 .asd-album-total,
 .asd-album-count {
@@ -4209,17 +4220,32 @@ nav.asd-tabs a.asd-tab.is-active::after {
 	list-style: none;
 }
 
+/*
+   每項是一張小卡，不是用細線切開的文字列。
+   原本三種橫線疊在一起（每項的整寬細線、名稱自己的虛線底線、
+   分組標題的底線），長度各不相同，看起來很雜。卡片只留一種邊界。
+*/
 .asd-album-item {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: baseline;
 	gap: 4px 8px;
-	padding: 6px 0;
-	border-bottom: 1px solid rgba(255, 255, 255, .04);
+	margin-bottom: 6px;
+	padding: 9px 12px;
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-sm);
+	background: rgba(255, 255, 255, .035);
+	transition: var(--trans-smooth, background .2s ease, border-color .2s ease);
 }
 
 .asd-album-item:last-child {
-	border-bottom: none;
+	margin-bottom: 0;
+}
+
+/* 只有真的能點的項目才給 hover 回饋（純文字的 <span> 不給） */
+.asd-album-item:has(a, button):hover {
+	border-color: rgba(255, 255, 255, .18);
+	background: rgba(255, 255, 255, .06);
 }
 
 .asd-album-hidden {
@@ -5003,6 +5029,11 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
    ================================================================= */
 
 /* 可點的專輯名。用 <button> 所以要洗掉瀏覽器預設樣式 */
+/*
+   不畫虛線底線：<button> 是 inline-block，標題長到換行時底線會撐成
+   整條，短曲名則只有一小截，同一欄裡出現長短不一的虛線很雜。
+   可點性交給卡片本身的 hover（見 .asd-album-item:has(a, button):hover）。
+*/
 .asd-album-name--btn {
 	padding: 0;
 	border: 0;
@@ -5010,13 +5041,11 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
-	border-bottom: 1px dashed rgba(255, 255, 255, .22);
 	transition: var(--trans-smooth, color .2s ease);
 }
 
 .asd-album-name--btn:hover {
 	color: var(--asd-primary);
-	border-bottom-color: var(--asd-primary);
 }
 
 .asd-amodal[hidden] {

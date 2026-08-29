@@ -5884,7 +5884,11 @@ while ( have_posts() ) :
 					<div class="asd-panel" data-asd-panel="music"<?php echo 'music' === $subview ? '' : ' hidden'; ?>>
 					<?php if ( ! empty( $show['albums'] ) && ! empty( $rel_albums ) ) : ?>
 						<section class="asd-section" id="asd-sec-albums">
-							<h2 class="asd-section-title">🎼 相關專輯</h2>
+							<?php /* 總數放這裡：part 裡原本那個同名 h3 已移除，不再重複 */ ?>
+							<h2 class="asd-section-title">
+								🎼 相關專輯
+								<span class="asd-album-total"><?php echo esc_html( (string) $rel_albums_total ); ?></span>
+							</h2>
 
 							<?php include __DIR__ . '/parts/anime-music-albums.php'; ?>
 						</section>

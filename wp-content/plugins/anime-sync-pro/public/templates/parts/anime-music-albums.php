@@ -5,7 +5,8 @@
  * 由 single-anime.php 在音樂子頁（/anime/{slug}/music/）include。
  * 主題曲不在這裡——那個留在動畫頁，見 anime-music-themes.php。
  *
- * 需要 include 端備妥：$rel_albums、$rel_albums_total
+ * 需要 include 端備妥：$rel_albums
+ *（總數 $rel_albums_total 現在由 include 端自己印在區塊標題上，這裡不用）
  *
  * @package Anime_Sync_Pro
  */
@@ -14,15 +15,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$rel_albums       = isset( $rel_albums ) && is_array( $rel_albums ) ? $rel_albums : [];
-$rel_albums_total = isset( $rel_albums_total ) ? (int) $rel_albums_total : 0;
+$rel_albums = isset( $rel_albums ) && is_array( $rel_albums ) ? $rel_albums : [];
 ?>
 <div class="asd-album-block asd-album-block--standalone">
-									<h3 class="asd-music-group-title">
-										相關專輯
-										<span class="asd-album-total"><?php echo esc_html( (string) $rel_albums_total ); ?></span>
-									</h3>
-
+									<?php
+									/*
+									 * 這裡不再放「相關專輯」標題。
+									 *
+									 * 它是子頁時代的產物——當時專輯跟主題曲播放器同在一個
+									 * 區塊裡，需要標題把兩者分開。改成獨立分頁後上面已經有
+									 * 區塊標題（h2）寫著同樣四個字，連著出現兩次。
+									 * 總數徽章移到那個 h2 旁邊。
+									 */
+									?>
 									<?php /* 不收合：專輯是獨立 tab，點進來就是要看全部 */ ?>
 
 									<div class="asd-album-groups">
