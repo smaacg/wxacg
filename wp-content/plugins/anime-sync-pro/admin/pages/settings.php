@@ -859,7 +859,10 @@ $cron_rows = array(
                             <input type="checkbox" id="anime_sync_staff_backfill_mode"
                                    name="anime_sync_staff_backfill_mode" value="on"
                                    <?php checked( $staffbf_mode, 'on' ); ?> />
-                            <?php esc_html_e( '啟用（每 15 分鐘 8 部作品，補完自動停止）', 'anime-sync-pro' ); ?>
+                            <?php printf(
+                                esc_html__( '啟用（每 15 分鐘 %d 部作品，補完自動停止）', 'anime-sync-pro' ),
+                                (int) Anime_Sync_Staff_Backfill::BATCH
+                            ); ?>
                         </label>
 
                         <?php if ( 'on' === $staffbf_mode ) : ?>
@@ -876,7 +879,11 @@ $cron_rows = array(
                             <?php if ( $staffbf_remaining > 0 ) : ?>
                                 <?php printf(
                                     esc_html__( '（約需 %s 小時）', 'anime-sync-pro' ),
-                                    esc_html( number_format_i18n( ceil( $staffbf_remaining / 8 ) * 0.25, 1 ) )
+                                    /* 用常數算，BATCH 改了這裡才不會跟著失真 */
+                                    esc_html( number_format_i18n(
+                                        ceil( $staffbf_remaining / max( 1, (int) Anime_Sync_Staff_Backfill::BATCH ) ) * 0.25,
+                                        1
+                                    ) )
                                 ); ?>
                             <?php endif; ?>
                             <br>
@@ -892,12 +899,13 @@ $cron_rows = array(
                                     （<?php echo esc_html( (string) ( $staffbf_stat['last_run'] ?? '' ) ); ?>）
                                 <?php else : ?>
                                     <?php printf(
-                                        esc_html__( '上次：%1$s ｜ 補了 %2$s 部、共 %3$s 位 STAFF、失敗 %4$s 部、鎖定跳過 %5$s 部', 'anime-sync-pro' ),
+                                        esc_html__( '上次：%1$s ｜ 補了 %2$s 部、共 %3$s 位 STAFF ｜ 重試 %4$s 部、鎖定跳過 %5$s 部、Bangumi 無資料 %6$s 部', 'anime-sync-pro' ),
                                         esc_html( (string) ( $staffbf_stat['last_run'] ?? '—' ) ),
                                         esc_html( (string) ( $staffbf_stat['last_done'] ?? 0 ) ),
                                         esc_html( (string) ( $staffbf_stat['last_staff'] ?? 0 ) ),
                                         esc_html( (string) ( $staffbf_stat['last_fail'] ?? 0 ) ),
-                                        esc_html( (string) ( $staffbf_stat['last_lock'] ?? 0 ) )
+                                        esc_html( (string) ( $staffbf_stat['last_lock'] ?? 0 ) ),
+                                        esc_html( (string) ( $staffbf_stat['last_empty'] ?? 0 ) )
                                     ); ?>
                                 <?php endif; ?>
                             </div>

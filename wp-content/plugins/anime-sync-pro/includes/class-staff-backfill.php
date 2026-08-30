@@ -49,18 +49,44 @@ class Anime_Sync_Staff_Backfill {
 	/** 每部作品補完就記一次，避免重跑 */
 	const META_DONE = '_asp_staff_full';
 
+	/** 空結果的重試次數累計，見 MAX_RETRY */
+	const META_RETRY = '_asp_staff_retry';
+
+	/**
+	 * 拿到空結果幾次之後就放棄、標記完成。
+	 *
+	 * get_bgm_staff() 對「連線失敗」和「Bangumi 上真的沒有 staff」都回
+	 * 空陣列，分不出來。不標記完成的話後者會永遠留在待補池裡：
+	 * remaining() 不歸零 → finish() 不觸發 → 排程永遠不自動關閉，
+	 * 每 15 分鐘為了那幾部白打 Bangumi，無限期。
+	 *
+	 * 規模是量出來的，不是猜的：拿本機 896 部比對 dump 的
+	 * subject-persons.jsonlines（215 萬列），有 7 部完全沒有 staff 關聯，
+	 * 逐一問線上 API 也都回 []。0.78%，正式站 1,751 部推估約 14 部。
+	 *
+	 * 3 次是「真的沒有」與「暫時連不上」的折衷：前者三輪後收斂，
+	 * 後者仍有三次機會。額外成本 14 × 2 = 28 次呼叫，可以忽略。
+	 */
+	const MAX_RETRY = 3;
+
 	/**
 	 * 每輪幾部。
 	 *
-	 * 實測本機跑 8 部要 20 秒（每部約 2.5 秒，其中 2 秒是 SLEEP_BETWEEN
-	 * 的自我節制，真正的 API 呼叫不到 0.5 秒）。改成單一端點之後比第一版
-	 * 的 16 秒／部快了六倍以上。
+	 * 實測改成單一端點之後，8 部只要 24 秒（每部約 2.5 秒，其中 2 秒是
+	 * SLEEP_BETWEEN 的自我節制，真正的 API 呼叫不到 0.5 秒）。第一版是
+	 * 16 秒／部，快了六倍以上。
 	 *
-	 * 即使如此批量仍維持 8：2026-08 的事故是「單次進程持續 2-4 分鐘」加上
-	 * 高頻觸發造成進程堆疊，全站 1,751 部以每 15 分鐘 8 部計約 55 小時，
-	 * 這是一次性作業，晚一天補完沒有差別，進程長度才是會咬人的那個。
+	 * BATCH 原本沿用第一版的 8，那是為「12 部 191 秒」調的數字，換掉
+	 * 實作之後沒回頭重算。以每部 2.5 秒計，30 部約 75 秒：
+	 *
+	 *   8 部  → 單輪 24 秒、全站 1,751 部要 55 小時、API 0.5 次／分
+	 *   30 部 → 單輪 75 秒、全站 15 小時、API 2 次／分
+	 *
+	 * 2026-08 的事故是 entity backfill 每 5 分鐘打 60 次（12 次／分）、
+	 * 單次進程 2-4 分鐘造成堆疊。30 部是它的 1/6 頻率，75 秒也還在
+	 * 兩分鐘門檻內，另有執行鎖堵死重疊（見 run()）。
 	 */
-	const BATCH = 8;
+	const BATCH = 30;
 
 	/** 15 分鐘排程，由 Anime_Sync_Cron_Manager 註冊 */
 	const SCHEDULE = 'anime_sync_quarter_hour';
@@ -176,11 +202,11 @@ class Anime_Sync_Staff_Backfill {
 			return;
 		}
 
-		$done   = 0;
-		$failed = 0;
-		$total  = 0;
-
+		$done    = 0;
+		$failed  = 0;
+		$total   = 0;
 		$skipped = 0;
+		$empty   = 0;
 
 		foreach ( $targets as $t ) {
 			$post_id = (int) $t['post_id'];
@@ -201,14 +227,35 @@ class Anime_Sync_Staff_Backfill {
 
 			$staff = $handler->get_bgm_staff_public( $bgm );
 
+			/*
+			 * 不留 transient。
+			 *
+			 * get_bgm_staff() 內部會把結果快取 12 小時，那是為後台「重新
+			 * 同步 Bangumi」按鈕設計的——同一部可能被連按好幾次。回補路徑
+			 * 每部只讀一次，那份快取完全用不到，資料已經寫進 postmeta 了。
+			 *
+			 * 留著的代價：實測平均 39.2 KB／筆，全站跑完 wp_options 會從
+			 * 4.8 MB 撐到約 72 MB（14 倍），而真正該存的 postmeta 只有
+			 * 3.6 MB。在一台已經有負載問題的共享主機上這是白付的。
+			 */
+			delete_transient( 'anime_sync_bgm_staff_' . $bgm );
+
 			if ( empty( $staff ) ) {
 				/*
-				 * 空的分兩種：連線失敗，或這部在 Bangumi 上真的沒有 staff。
-				 * get_bgm_staff() 兩種都回空陣列，分不出來，所以不標記，
-				 * 下一輪再試。實測沒有 staff 的作品極少（抽樣 14 部裡
-				 * 最少的也有 1 筆），重試的浪費有限。
+				 * 空的分兩種：連線失敗，或這部在 Bangumi 上真的沒有 staff，
+				 * 而 get_bgm_staff() 兩種都回空陣列。累計到 MAX_RETRY 就
+				 * 標記完成，否則後者會卡住收斂（見 MAX_RETRY 的說明）。
 				 */
-				$failed++;
+				$retry = (int) get_post_meta( $post_id, self::META_RETRY, true ) + 1;
+
+				if ( $retry >= self::MAX_RETRY ) {
+					update_post_meta( $post_id, self::META_DONE, current_time( 'mysql' ) );
+					delete_post_meta( $post_id, self::META_RETRY );
+					$empty++;
+				} else {
+					update_post_meta( $post_id, self::META_RETRY, $retry );
+					$failed++;
+				}
 
 				continue;
 			}
@@ -221,6 +268,9 @@ class Anime_Sync_Staff_Backfill {
 			);
 
 			update_post_meta( $post_id, self::META_DONE, current_time( 'mysql' ) );
+
+			/* 之前失敗過的把計數清掉，不要留在 postmeta 裡 */
+			delete_post_meta( $post_id, self::META_RETRY );
 
 			$total += count( $staff );
 			$done++;
@@ -237,6 +287,7 @@ class Anime_Sync_Staff_Backfill {
 				'last_done'  => $done,
 				'last_fail'  => $failed,
 				'last_lock'  => $skipped,
+				'last_empty' => $empty,
 				'last_staff' => $total,
 				'remaining'  => self::remaining(),
 			],
