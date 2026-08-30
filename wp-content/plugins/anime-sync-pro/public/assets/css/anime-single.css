@@ -4693,11 +4693,97 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
 }
 
 .asd-hero-fact__k {
+	display: flex;
+	align-items: center;
+	gap: 4px;
 	margin: 0;
 	color: var(--asd-text-dim);
 	font-size: 11px;
 	font-weight: 700;
 	letter-spacing: .4px;
+}
+
+/* =================================================================
+   名詞提示（TV／ONA／OVA 這類圈內慣用詞的白話解釋）
+
+   純 CSS，不需要 JS：文字放在 data-hint，用 ::after 畫出來。
+
+   用 <button> 而不是 <span>：鍵盤 Tab 得到、讀螢幕軟體念得出來
+  （完整說明放在 aria-label）。
+
+   ★ 用 :focus 不用 :focus-visible。手機沒有 hover，:focus-visible 對
+   觸控點擊多半不成立，等於手機使用者永遠看不到提示。:focus 則是點一下
+   就顯示、點別處收起來，滑鼠與觸控都可用。
+   ================================================================= */
+.asd-hint {
+	position: relative;
+	flex-shrink: 0;
+	width: 14px;
+	height: 14px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, .12);
+	color: var(--asd-text-dim);
+	font-size: 9px;
+	font-weight: 800;
+	line-height: 14px;
+	text-align: center;
+	cursor: help;
+	transition: var(--trans-smooth, background .15s ease, color .15s ease);
+}
+
+.asd-hint:hover,
+.asd-hint:focus {
+	background: var(--asd-primary);
+	color: #fff;
+}
+
+.asd-hint::after {
+	content: attr(data-hint);
+
+	/*
+	   預設不顯示用 visibility 而不是 display:none——後者沒有轉場，
+	   而且 content 每次都要重新計算，在 hover 時會閃一下。
+	*/
+	position: absolute;
+	bottom: calc(100% + 8px);
+	left: 50%;
+	z-index: 40;
+	visibility: hidden;
+	opacity: 0;
+	width: max-content;
+	max-width: 260px;
+	padding: 8px 11px;
+	transform: translateX(-50%);
+	border: 1px solid var(--asd-border);
+	border-radius: var(--asd-radius-sm);
+	background: #11151c;
+	box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+	color: var(--asd-text);
+	font-size: 12px;
+	font-weight: 500;
+	letter-spacing: 0;
+	line-height: 1.6;
+	text-align: left;
+	white-space: normal;
+	pointer-events: none;
+	transition: opacity .15s ease, visibility .15s ease;
+}
+
+.asd-hint:hover::after,
+.asd-hint:focus::after {
+	visibility: visible;
+	opacity: 1;
+}
+
+/*
+   最左邊那一格的提示框往左會被卡片切掉，改成靠左對齊。
+   :first-child 指的是 .asd-hero-fact 在格線中的第一個。
+*/
+.asd-hero-fact:first-child .asd-hint::after {
+	left: 0;
+	transform: none;
 }
 
 .asd-hero-fact__v {

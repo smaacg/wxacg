@@ -3594,6 +3594,26 @@ while ( have_posts() ) :
 					: esc_html( $text );
 			};
 
+			/*
+			 * 類型的名詞解釋。
+			 *
+			 * TV／ONA／OVA 這些是圈內慣用詞，對非重度觀眾等於沒有資訊——
+			 * 尤其 ONA 與 OVA 差一個字母，意思差很多。滑過去給一句白話。
+			 *
+			 * 只收正式站實際出現的七種（實測 TV 1,240、劇場版 365、ONA 309、
+			 * 特別篇 158、OVA 143、TV短篇 79、音樂MV 3）。對不到的類型就
+			 * 不顯示提示，不硬猜。
+			 */
+			$format_hints = [
+				'TV'     => '電視動畫。在電視台定期播出，多為每週一集。',
+				'劇場版' => '動畫電影。在電影院上映，篇幅通常為一部長片。',
+				'ONA'    => '網路原創動畫（Original Net Animation）。首播平台是網路，不經電視台。',
+				'OVA'    => '原創錄影帶動畫（Original Video Animation）。直接發行影音商品，不在電視或電影院播映。',
+				'特別篇' => '特別篇。番外、總集篇或節慶特別企劃，通常不計入正篇集數。',
+				'TV短篇' => '短篇電視動畫。每集通常在 15 分鐘以內，部分僅 3～5 分鐘。',
+				'音樂MV' => '音樂錄影帶。為單曲或專輯製作的動畫影像作品。',
+			];
+
 			$hero_facts = [
 				[
 					'key'  => '狀態',
@@ -3604,6 +3624,7 @@ while ( have_posts() ) :
 					'key'  => '類型',
 					'val'  => $link_or_text( $format_label, $hero_format_url ),
 					'html' => true,
+					'hint' => $format_hints[ $format_label ] ?? '',
 				],
 				[
 					'key'  => '播出季度',
@@ -3921,8 +3942,29 @@ while ( have_posts() ) :
 				<?php if ( ! empty( $hero_facts ) ) : ?>
 					<dl class="asd-hero-facts">
 						<?php foreach ( $hero_facts as $fact ) : ?>
+							<?php
+							/*
+							 * 有名詞解釋的欄位在標籤旁加一個問號，滑過去或
+							 * 鍵盤 focus 都會顯示。純 CSS，不需要 JS。
+							 *
+							 * 提示掛在標籤而不是值上：值本身是連結（TV 連到
+							 * 類型歸檔頁），在連結上再疊一層 hover 會讓
+							 * 「這是要點還是要看」變得不清楚。
+							 */
+							$fact_hint = (string) ( $fact['hint'] ?? '' );
+							?>
 							<div class="asd-hero-fact">
-								<dt class="asd-hero-fact__k"><?php echo esc_html( $fact['key'] ); ?></dt>
+								<dt class="asd-hero-fact__k">
+									<?php echo esc_html( $fact['key'] ); ?>
+									<?php if ( '' !== $fact_hint ) : ?>
+										<button
+											type="button"
+											class="asd-hint"
+											data-hint="<?php echo esc_attr( $fact_hint ); ?>"
+											aria-label="<?php echo esc_attr( $fact['key'] . '說明：' . $fact_hint ); ?>"
+										>?</button>
+									<?php endif; ?>
+								</dt>
 								<dd class="asd-hero-fact__v">
 									<?php
 									if ( ! empty( $fact['html'] ) ) {
