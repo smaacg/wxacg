@@ -1273,7 +1273,11 @@ function initAlbumModal() {
     modal.hidden = true;
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-label', '專輯資訊');
+    /*
+     * 中性講法：同一個彈窗現在也用在相關遊戲與真人版上
+     *（見 anime-relation-groups.php），寫死「專輯資訊」會念錯。
+     */
+    modal.setAttribute('aria-label', '條目資訊');
 
     modal.innerHTML =
         '<div class="asd-amodal__backdrop" data-close></div>' +

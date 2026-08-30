@@ -32,15 +32,25 @@ class Anime_Sync_Bgm_Subject_Proxy {
 	const ROUTE_PATH = '/bgm-subject/(?P<id>\d+)';
 
 	const CACHE_TTL = 7 * DAY_IN_SECONDS;
-	const CACHE_VER = 'v1';
+	const CACHE_VER = 'v2';
 
 	/* 失敗也要快取一小段，否則壞掉的 id 會被反覆重打 */
 	const FAIL_TTL = 6 * HOUR_IN_SECONDS;
 
 	const API_BASE = 'https://api.bgm.tv/v0/subjects/';
 
-	/* infobox 只挑對使用者有意義的，其餘不輸出 */
+	/*
+	 * infobox 只挑對使用者有意義的，其餘不輸出。
+	 *
+	 * 三種條目型別的 key 完全不重疊——音樂是艺术家/作曲/厂牌，遊戲是
+	 * 平台/开发/发行，三次元是上映日/导演/主演。同一張表放三組，
+	 * 對不到的 key 本來就不會輸出，所以不必依型別分表。
+	 *
+	 * 三次元實測有 38 個欄位（連照明、裝飾、錄音都有），這裡只收 8 個：
+	 * 彈窗是「這是什麼東西」的快速一瞥，不是劇組名單。
+	 */
 	const INFO_KEYS = [
+		/* 音樂 */
 		'艺术家'   => '藝術家',
 		'作曲'     => '作曲',
 		'编曲'     => '編曲',
@@ -50,6 +60,25 @@ class Anime_Sync_Bgm_Subject_Proxy {
 		'价格'     => '價格',
 		'碟片数'   => '碟片數',
 		'播放格式' => '格式',
+
+		/* 遊戲 */
+		'平台'     => '平台',
+		'游戏类型' => '類型',
+		'发行日期' => '發行日',
+		'售价'     => '售價',
+		'开发'     => '開發',
+		'发行'     => '發行',
+		'游玩人数' => '遊玩人數',
+
+		/* 三次元（真人版／電影／舞台劇） */
+		'上映日'    => '上映日',
+		'片长'      => '片長',
+		'类型'      => '類型',
+		'国家/地区' => '國家／地區',
+		'导演'      => '導演',
+		'编剧'      => '編劇',
+		'主演'      => '主演',
+		'制作公司'  => '製作公司',
 	];
 
 	public static function init() {
@@ -212,12 +241,38 @@ class Anime_Sync_Bgm_Subject_Proxy {
 			$summary = Anime_Sync_CN_Converter::static_convert( $summary );
 		}
 
+		/*
+		 * 日期不要出現兩次。
+		 *
+		 * 頂層 date 與 infobox 的「發售日／發行日／上映日」是同一個日子，
+		 * 兩邊都輸出的話彈窗會連續印兩行一模一樣的東西。
+		 *
+		 * 留 infobox 那個、拿掉頂層 date：infobox 的標籤有講清楚是哪一種
+		 * 日期（專輯是發售日、遊戲是發行日、電影是上映日），頂層 date
+		 * 只是個沒有名字的日期。
+		 *
+		 * 只在「真的重複」時才拿掉——infobox 沒有日期欄位的條目仍然需要
+		 * 頂層 date，否則反而少一項資訊。
+		 */
+		$date       = trim( (string) ( $d['date'] ?? '' ) );
+		$date_dupes = false;
+
+		if ( '' !== $date ) {
+			foreach ( $info as $row ) {
+				/* 值可能寫成 2026-07-27 或 2026年7月27日，比數字就夠 */
+				if ( preg_replace( '/\D/', '', $row['value'] ) === preg_replace( '/\D/', '', $date ) ) {
+					$date_dupes = true;
+					break;
+				}
+			}
+		}
+
 		return [
 			'id'      => $id,
 			'title'   => '' !== $name_cn ? $name_cn : $name,
 			'sub'     => ( '' !== $name_cn && $name_cn !== $name ) ? $name : '',
 			'cover'   => $cover,
-			'date'    => trim( (string) ( $d['date'] ?? '' ) ),
+			'date'    => $date_dupes ? '' : $date,
 			'summary' => $summary,
 			'info'    => $info,
 			'source'  => 'https://bgm.tv/subject/' . $id,
