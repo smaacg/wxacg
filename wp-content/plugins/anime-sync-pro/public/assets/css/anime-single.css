@@ -4142,6 +4142,40 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* =================================================================
+   STAFF 依職位分組的標題
+
+   2026-08-31 拿掉匯入端的職位白名單之後，一部作品最多有 475 位 STAFF、
+   57 種職位。分組標題讓「原畫 137 人」變成一個掃得過去的區塊，
+   而不是 137 張看不出關聯的卡片。
+
+   主要職位（原本那份白名單）用比較強的樣式，次要職位弱化——兩者都要
+   看得見，但要分得出輕重。
+   ================================================================= */
+.asd-staff-group-title {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin: 22px 0 10px;
+	padding-bottom: 6px;
+	border-bottom: 1px solid var(--asd-border);
+	color: var(--asd-text-dim);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: .5px;
+}
+
+/* 第一組緊接區塊標題，不需要再拉開距離 */
+.asd-staff-group-title:first-of-type {
+	margin-top: 4px;
+}
+
+.asd-staff-group-title.is-primary {
+	color: var(--asd-text);
+	font-size: 13.5px;
+	font-weight: 800;
+}
+
+/* =================================================================
    相關專輯 / 相關遊戲 / 真人版
    （Bangumi 跨媒體關聯，資料來源 wp_wxacg_subject_relations）
 

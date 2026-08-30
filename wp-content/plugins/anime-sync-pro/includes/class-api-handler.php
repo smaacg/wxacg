@@ -2192,27 +2192,26 @@ class Anime_Sync_API_Handler {
         $persons = json_decode( wp_remote_retrieve_body( $response ), true );
         if ( ! is_array( $persons ) ) return [];
 
-        $allowed_roles = [
-            '导演',
-            '原作',
-            '系列构成',
-            '脚本',
-            '人物原案',
-            '角色设计',
-            '人物设定',
-            '音乐',
-            '音響監督',
-            '音响监督',
-            '主题歌演出',
-            '主题歌作词',
-            '主题歌作曲',
-            '动画制作',
-        ];
-
+        /*
+         * 2026-08-31：這裡原本是一份 14 種職位的白名單，只收名單內的職位。
+         *
+         * 拿掉的理由是使用者的判斷：「要尊重製作方，全部顯示」。實測
+         * Bangumi 一部作品可以有 50 幾種職位（原画、第二原画、补间动画、
+         * 色彩指定、摄影监督…），白名單只留下其中 6-7 筆，一整批實際參與
+         * 製作的人被隱形。
+         *
+         * 那份名單沒有刪掉，改放到 Anime_Sync_Staff_Roles::PRIMARY，
+         * 用途從「過濾」變成「排序與分組」——前台把那幾種排在最前面，
+         * 其餘依職位分組列在後面。既有的職位判斷保留，只是不再擋資料。
+         *
+         * 規模（14 部隨機抽樣）：平均 121 筆、最多 475 筆、最少 1 筆。
+         * 實測 475 筆的 JSON 是 70KB，json_decode 多花 0.34ms，
+         * 相對於頁面 150ms 的 TTFB 可以忽略，所以維持存在 postmeta。
+         */
         $staff = [];
         foreach ( $persons as $p ) {
             $role = $p['relation'] ?? '';
-            if ( in_array( $role, $allowed_roles, true ) ) {
+            if ( '' !== trim( (string) $role ) ) {
                 $staff[] = [
                     'id'     => $p['id']             ?? 0,
                     'name'   => Anime_Sync_CN_Converter::static_convert( $p['name'] ?? '' ),

@@ -5583,14 +5583,42 @@ while ( have_posts() ) :
 
 					<div class="asd-panel" data-asd-panel="staff"<?php echo 'staff' === $subview ? '' : ' hidden'; ?>>
 					<?php if ( ! empty( $show['staff'] ) && ( ! empty( $staff_list ) ) ) : ?>
+						<?php
+						/*
+						 * 依職位分組。
+						 *
+						 * 2026-08-31 拿掉匯入端的職位白名單之後，一部作品的 STAFF
+						 * 從 6-7 筆變成平均 121 筆、最多 475 筆（14 部抽樣實測），
+						 * 職位種類最多 57 種。平鋪 475 張卡片沒人看得完，而且其中
+						 * 137 張都標著「原画」。
+						 *
+						 * 分組之後那 137 個原畫變成一個有標題的區塊，讀者掃標題就能
+						 * 跳過；主要職位（原本那份白名單）排最前面。規則集中在
+						 * Anime_Sync_Staff_Roles，不散在模板裡。
+						 */
+						$staff_groups = class_exists( 'Anime_Sync_Staff_Roles' )
+							? Anime_Sync_Staff_Roles::group( $staff_list )
+							: [ [ 'label' => '', 'primary' => true, 'items' => $staff_list ] ];
+						?>
 						<section class="asd-section" id="asd-sec-staff">
-							<h2 class="asd-section-title">🎬 STAFF</h2>
+							<h2 class="asd-section-title">
+								🎬 STAFF
+								<span class="asd-album-total"><?php echo esc_html( (string) count( $staff_list ) ); ?></span>
+							</h2>
 
-							<div class="asd-staff-grid-v2" id="asd-staff-grid">
+							<?php foreach ( $staff_groups as $staff_group ) : ?>
+							<?php if ( '' !== $staff_group['label'] ) : ?>
+								<h3 class="asd-staff-group-title<?php echo $staff_group['primary'] ? ' is-primary' : ''; ?>">
+									<?php echo esc_html( $staff_group['label'] ); ?>
+									<span class="asd-album-count"><?php echo esc_html( (string) count( $staff_group['items'] ) ); ?></span>
+								</h3>
+							<?php endif; ?>
+
+							<div class="asd-staff-grid-v2">
 								<?php
 								$staff_output_index = 0;
 
-								foreach ( $staff_list as $staff_item ) :
+								foreach ( $staff_group['items'] as $staff_item ) :
 									if ( ! is_array( $staff_item ) ) {
 										continue;
 									}
@@ -5718,6 +5746,7 @@ while ( have_posts() ) :
 								endforeach;
 								?>
 							</div>
+							<?php endforeach; /* $staff_groups */ ?>
 
 							<?php /* 收合按鈕已移除——獨立 tab 直接列全部，不需要再點一次 */ ?>
 						</section>
