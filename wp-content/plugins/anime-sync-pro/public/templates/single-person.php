@@ -820,21 +820,32 @@ get_header();
                                     <span class="asa-work-title"><?php echo esc_html( $w_title ); ?></span>
                                 </a>
 
-                                <?php if ( ! empty( $w['character_name'] ) || trim( (string) $w['role'] ) !== '' ) : ?>
+                                <?php
+                                /*
+                                 * roles / characters 由 merge_works_by_anime() 合併而來：
+                                 * 同一部作品只出一張卡，這個人在裡面掛的所有職位與飾演的
+                                 * 所有角色都列在同一張卡下（例：MAPPA 在《全修。》同時是
+                                 * 動畫製作與原作，以前會出現兩張一樣的卡）。
+                                 */
+                                $w_roles = ! empty( $w['roles'] ) ? (array) $w['roles'] : [];
+                                $w_chars = ! empty( $w['characters'] ) ? (array) $w['characters'] : [];
+                                ?>
+                                <?php if ( $w_chars || $w_roles ) : ?>
                                     <p class="asa-work-character">
-                                        <?php if ( ! empty( $w['character_name'] ) ) : ?>
-                                            <?php if ( (int) $w['character_bgm_id'] > 0 ) : ?>
-                                                飾
-                                                <a href="<?php echo esc_url( $repo->get_character( (int) $w['character_bgm_id'] )['url'] ?? '#' ); ?>">
-                                                    <?php echo esc_html( $w['character_name'] ); ?>
-                                                </a>
-                                            <?php else : ?>
-                                                飾 <?php echo esc_html( $w['character_name'] ); ?>
-                                            <?php endif; ?>
+                                        <?php if ( $w_chars ) : ?>
+                                            飾
+                                            <?php foreach ( $w_chars as $ci => $wc ) : ?>
+                                                <?php echo $ci > 0 ? '、' : ''; ?>
+                                                <?php if ( (int) $wc['bgm_id'] > 0 && '' !== $wc['url'] ) : ?>
+                                                    <a href="<?php echo esc_url( $wc['url'] ); ?>"><?php echo esc_html( $wc['name'] ); ?></a>
+                                                <?php else : ?>
+                                                    <?php echo esc_html( $wc['name'] ); ?>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
                                         <?php endif; ?>
-                                        <?php if ( trim( (string) $w['role'] ) !== '' ) : ?>
-                                            <span class="asa-role-badge"><?php echo esc_html( trim( $w['role'] ) ); ?></span>
-                                        <?php endif; ?>
+                                        <?php foreach ( $w_roles as $wr ) : ?>
+                                            <span class="asa-role-badge"><?php echo esc_html( $wr ); ?></span>
+                                        <?php endforeach; ?>
                                     </p>
                                 <?php endif; ?>
                             </li>

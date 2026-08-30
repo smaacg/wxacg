@@ -3,6 +3,16 @@
  * Entity Repository — 角色/聲優/製作人員 的唯讀查詢層。
  *
  * Changelog:
+ *   1.8.0 (2026-08-31)
+ *     - [修正] 人物頁同一部作品出現多張重複卡片：關聯表一個職位一列，
+ *              hydrate_works() 一列一筆。新增 merge_works_by_anime()
+ *              依 anime_id 合併，職位與飾演角色併成 roles/characters
+ *              陣列。實測正式站 4,298 組（同一人同一部掛多職位）。
+ *     - [修正] clean_role() 加查表正規化，不讓簡體職位漏到畫面上
+ *              （动画制作→動畫製作、导演→監督、闲角→閒角…）。
+ *              純陣列查表每次 0.000034 ms，等於免費。
+ *              簡繁歸一後也順帶讓「同職位簡繁兩版」的重複卡片消失。
+ *     - CACHE_VER v5→v6（回傳結構多了 roles/characters）。
  *   1.7.0 (2026-07-30)
  *     - [新增] get_person() 回傳 height / aliases / infobox。比照 get_character:
  *       SQL 加讀 height / aliases_json / infobox_json;aliases 由
@@ -35,7 +45,7 @@ class Anime_Sync_Entity_Repository {
 	private $t_char_rel;
 
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
-	const CACHE_VER = 'v5';
+	const CACHE_VER = 'v6';
 
 	const META_TITLE_ZH     = 'anime_title_chinese';
 	const META_TITLE_ROMAJI = 'anime_title_romaji';
@@ -141,8 +151,70 @@ class Anime_Sync_Entity_Repository {
 			}
 		);
 
+		$works = $this->merge_works_by_anime( $works );
+
 		set_transient( $cache_key, $works, self::CACHE_TTL );
 		return $works;
+	}
+
+	/**
+	 * 同一部作品合併成一筆。
+	 *
+	 * 關聯表是一個職位一列，所以同一個人在同一部作品掛兩個職位就有兩列，
+	 * hydrate_works() 一列一筆，人物頁就會出現兩張一模一樣的卡片。
+	 * MAPPA 在《全修。》同時是「動畫製作」與「原作」就是這種情況，
+	 * 實測正式站有 4,298 組（同一人同一部作品掛多個職位）。
+	 *
+	 * 合併之後每部作品一張卡，職位與飾演角色併成陣列。單一職位的情況
+	 * roles 就只有一個元素，模板不必分兩種寫法。
+	 *
+	 * 注意這裡不處理「同一職位的簡繁兩版」那種真重複——那是資料問題，
+	 * 已在 class-entity-migrator.php 的寫入端轉繁堵掉。這支只負責把
+	 * 本來就不同的職位收攏成一張卡。
+	 *
+	 * @param array[] $works hydrate_works() 的輸出，已依職位權重與年份排序
+	 * @return array[] 每部作品一筆，多出 roles / characters 兩個欄位
+	 */
+	private function merge_works_by_anime( array $works ): array {
+		$merged = [];
+
+		foreach ( $works as $w ) {
+			$aid = (int) ( $w['anime_id'] ?? 0 );
+
+			if ( ! isset( $merged[ $aid ] ) ) {
+				$w['roles']      = [];
+				$w['characters'] = [];
+				$merged[ $aid ]  = $w;
+			}
+
+			$role = trim( (string) ( $w['role'] ?? '' ) );
+
+			if ( '' !== $role && ! in_array( $role, $merged[ $aid ]['roles'], true ) ) {
+				$merged[ $aid ]['roles'][] = $role;
+			}
+
+			$char_name = trim( (string) ( $w['character_name'] ?? '' ) );
+
+			if ( '' !== $char_name ) {
+				$char_id = (int) ( $w['character_bgm_id'] ?? 0 );
+				$key     = $char_id > 0 ? 'id:' . $char_id : 'nm:' . $char_name;
+
+				/* 同一個角色可能因為多列而重覆出現，用 key 去重 */
+				$merged[ $aid ]['characters'][ $key ] = [
+					'bgm_id' => $char_id,
+					'name'   => $char_name,
+					'url'    => (string) ( $w['character_url'] ?? '' ),
+				];
+			}
+		}
+
+		/* 收尾：characters 的去重 key 不需要留給模板 */
+		foreach ( $merged as &$m ) {
+			$m['characters'] = array_values( $m['characters'] );
+		}
+		unset( $m );
+
+		return array_values( $merged );
 	}
 
 	/* =====================================================================
@@ -611,10 +683,46 @@ class Anime_Sync_Entity_Repository {
 		return $map[ $role ] ?? 3;
 	}
 
+	/**
+	 * 顯示層的職位名稱正規化：不讓簡體漏到畫面上。
+	 *
+	 * 正本清源是在寫入端（class-entity-migrator.php 寫關聯前就轉繁）
+	 * 加上既有資料的一次性修正。這裡是第三道保險——查表而已，實測每次
+	 * 0.000034 ms（CN_Converter 是 0.39 ms，差一萬倍），等於免費，
+	 * 卻能保證任何漏網的匯入路徑都不會把簡體端到使用者面前。
+	 *
+	 * CAST_ROLES 補的是 Staff_Roles::LABELS 沒收的三個：LABELS 是製作
+	 * 職位對照表，「闲角」是角色定位不屬於它；「声库」「副導演」則是
+	 * 冷門到沒被收進去（正式站各 5 列、1 列）。
+	 */
+	private const CAST_ROLES = [
+		'闲角'   => '閒角',
+		'声库'   => '聲庫',
+		'副導演' => '副監督',
+	];
+
 	private function clean_role( ?string $role ): string {
 		$role = trim( (string) $role );
 		$role = str_replace( [ "\xE3\x80\x80", "\xC2\xA0" ], '', $role );
-		return trim( $role );
+		$role = trim( $role );
+
+		if ( '' === $role ) {
+			return $role;
+		}
+
+		if ( isset( self::CAST_ROLES[ $role ] ) ) {
+			return self::CAST_ROLES[ $role ];
+		}
+
+		if ( class_exists( 'Anime_Sync_Staff_Roles' ) ) {
+			$labels = Anime_Sync_Staff_Roles::LABELS;
+
+			if ( isset( $labels[ $role ] ) ) {
+				return $labels[ $role ];
+			}
+		}
+
+		return $role;
 	}
 
 	private function fallback_name( ?string $name, ?string $original ): string {

@@ -182,7 +182,17 @@ class Anime_Sync_Entity_Migrator {
 			$char_bgm = $char_is_bgm ? (int) ( $c['id'] ?? 0 ) : 0;
 			$char_nm  = trim( (string) ( $c['name'] ?? '' ) );
 			$char_img = (string) ( $c['image'] ?? '' );
-			$role     = trim( (string) ( $c['role'] ?? '' ) );
+
+			/*
+			 * 同 staff：角色定位也要轉繁，否則「闲角」與「閒角」並存
+			 * （實測 4,103 列簡體、244 列繁體）。這裡不走 Staff_Roles，
+			 * 那份 LABELS 是製作職位用的，跟角色定位無關。
+			 */
+			$role = trim( (string) ( $c['role'] ?? '' ) );
+
+			if ( '' !== $role && class_exists( 'Anime_Sync_CN_Converter' ) ) {
+				$role = Anime_Sync_CN_Converter::static_convert( $role );
+			}
 
 			if ( $char_bgm > 0 ) {
 				if ( ! $dry_run ) {
@@ -245,7 +255,24 @@ class Anime_Sync_Entity_Migrator {
 			$p_bgm = (int) ( $s['id'] ?? 0 );
 			$p_nm  = trim( (string) ( $s['name'] ?? '' ) );
 			$p_img = (string) ( $s['image'] ?? '' );
-			$role  = trim( (string) ( $s['role'] ?? '' ) );
+
+			/*
+			 * 職位名稱一律轉繁再寫進關聯表。
+			 *
+			 * 不轉的話同一個職位會以簡繁兩種寫法並存（實測正式站 staff
+			 * 關聯 23,685 列裡有 5,460 列是簡體，佔 23.1%，共 11 種字）。
+			 * 而 uniq_rel 唯一索引把 role 也算進 key，於是「動畫製作」與
+			 * 「动画制作」是兩把不同的鑰匙，同一部作品會插進兩列——人物頁
+			 * 的參與作品就出現重複卡片（實測 202 組、229 列）。
+			 *
+			 * 用 Staff_Roles::normalize()：LABELS 優先（导演→監督 這種
+			 * 用語差異轉換器做不到），對不到才交給 CN_Converter。
+			 */
+			$role = trim( (string) ( $s['role'] ?? '' ) );
+
+			if ( '' !== $role && class_exists( 'Anime_Sync_Staff_Roles' ) ) {
+				$role = Anime_Sync_Staff_Roles::normalize( $role );
+			}
 
 			if ( $p_bgm <= 0 ) {
 				$stats['skipped']++;
