@@ -254,7 +254,17 @@ class Anime_Sync_CN_Converter {
 
     private static function protect_segments( string $text, array &$tokens ): string {
         $patterns = [
-            '/https?:\/\/[^\s"\'<>]+/u',
+            /*
+             * 網址的字元集一定要排除 [ 與 ]。
+             *
+             * Bangumi 的簡介用 BBCode 寫連結：
+             *   [url=https://bgm.tv/person/123]丸山正雄[/url]
+             * 少了 ] 的話這個樣式會從 https:// 一路吃到下一個空白，把
+             * 「]丸山正雄[/url]从[url=...」整段都吞進同一個 token，
+             * 連結文字與結束標籤就此消失，畫面上只剩半截 [url=__ASCNPROTECT_0__。
+             * 實測正式站 27 筆人物／角色簡介被這樣吃掉。
+             */
+            '/https?:\/\/[^\s"\'<>\[\]]+/u',
             '/\[[^\]]+\]/u',
             '/<code\b[^>]*>.*?<\/code>/uis',
             '/<pre\b[^>]*>.*?<\/pre>/uis',
@@ -280,7 +290,28 @@ class Anime_Sync_CN_Converter {
             return $text;
         }
 
-        return strtr( $text, $tokens );
+        /*
+         * 要重複還原到沒有 token 為止，不能只跑一次。
+         *
+         * 樣式是一個接一個套用的，後面的樣式可能把前面產生的 token 一起
+         * 包進自己的內容裡（例如 [ ] 樣式吃掉一段含網址 token 的文字）。
+         * strtr() 不會回頭掃自己剛換進去的內容，單跑一次的話巢狀的那個
+         * token 就永遠留在文字裡——正式站看到的半截
+         * 「[url=__ASCNPROTECT_0__」就是這樣來的。
+         *
+         * 上限 5 圈純粹是防呆：樣式只有 4 個，巢狀深度不可能超過那麼多。
+         * 萬一真的還有殘留也不要無限迴圈，寧可留著讓人看得出來有問題。
+         */
+        for ( $i = 0; $i < 5; $i++ ) {
+            $before = $text;
+            $text   = strtr( $text, $tokens );
+
+            if ( $text === $before ) {
+                break;
+            }
+        }
+
+        return $text;
     }
 
     // =========================================================================
