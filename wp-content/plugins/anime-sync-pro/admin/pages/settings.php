@@ -882,7 +882,7 @@ $cron_rows = array(
                             <br>
                             <?php esc_html_e( '匯入端的職位白名單已移除，新匯入與手動「重新同步 Bangumi」的作品自動就是完整名單；這裡只用於補既有作品。', 'anime-sync-pro' ); ?>
                             <br>
-                            <?php esc_html_e( '尊重欄位鎖：勾了「不自動更新」的作品不會被覆蓋。', 'anime-sync-pro' ); ?>
+                            <?php esc_html_e( '只寫「工作人員」一個欄位，不會動到中文標題、簡介、封面、評分、角色、集數。勾了「不自動更新」工作人員的作品也會跳過。', 'anime-sync-pro' ); ?>
                         </p>
 
                         <?php if ( ! empty( $staffbf_stat ) ) : ?>
@@ -892,11 +892,12 @@ $cron_rows = array(
                                     （<?php echo esc_html( (string) ( $staffbf_stat['last_run'] ?? '' ) ); ?>）
                                 <?php else : ?>
                                     <?php printf(
-                                        esc_html__( '上次：%1$s ｜ 補了 %2$s 部、共 %3$s 位 STAFF、失敗 %4$s 部', 'anime-sync-pro' ),
+                                        esc_html__( '上次：%1$s ｜ 補了 %2$s 部、共 %3$s 位 STAFF、失敗 %4$s 部、鎖定跳過 %5$s 部', 'anime-sync-pro' ),
                                         esc_html( (string) ( $staffbf_stat['last_run'] ?? '—' ) ),
                                         esc_html( (string) ( $staffbf_stat['last_done'] ?? 0 ) ),
                                         esc_html( (string) ( $staffbf_stat['last_staff'] ?? 0 ) ),
-                                        esc_html( (string) ( $staffbf_stat['last_fail'] ?? 0 ) )
+                                        esc_html( (string) ( $staffbf_stat['last_fail'] ?? 0 ) ),
+                                        esc_html( (string) ( $staffbf_stat['last_lock'] ?? 0 ) )
                                     ); ?>
                                 <?php endif; ?>
                             </div>

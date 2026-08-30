@@ -2210,7 +2210,15 @@ class Anime_Sync_API_Handler {
          */
         $staff = [];
         foreach ( $persons as $p ) {
-            $role = $p['relation'] ?? '';
+            /*
+             * 職位名稱在這裡就正規化好存下去，前台只查表不轉換。
+             * Bangumi 回的是簡體（导演、企画协力、总制片人），280 種裡
+             * LABELS 只蓋到 66 種，其餘交給 CN_Converter。詳見 normalize()。
+             */
+            $role = class_exists( 'Anime_Sync_Staff_Roles' )
+                ? Anime_Sync_Staff_Roles::normalize( (string) ( $p['relation'] ?? '' ) )
+                : ( $p['relation'] ?? '' );
+
             if ( '' !== trim( (string) $role ) ) {
                 $staff[] = [
                     'id'     => $p['id']             ?? 0,

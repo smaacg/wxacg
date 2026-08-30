@@ -149,11 +149,49 @@ class Anime_Sync_Staff_Roles {
 
 	/**
 	 * 顯示用的職位名稱。對不到就原樣回傳，不硬猜。
+	 *
+	 * 純查表，故意不做簡繁轉換——這支會在前台每個職位群組跑一次，實測
+	 * 一部作品可以有 69 個群組，靠 CN_Converter 補會多花 27ms，佔頁面
+	 * TTFB 的 18%。轉換改在匯入端做一次（見 normalize()）。
 	 */
 	public static function label( string $role ): string {
 		$role = trim( $role );
 
 		return self::LABELS[ $role ] ?? $role;
+	}
+
+	/**
+	 * 匯入端用的職位名稱正規化。存進 anime_staff_json 之前跑一次。
+	 *
+	 * 拿掉白名單之後職位種類從 14 種變成站上實測 280 種，LABELS 這份
+	 * 手寫對照表只蓋到 66 種，其餘 214 種原樣存下去，前台就會出現
+	 * 「3DCG 导演」「企画协力」「总制片人」這種簡體職位名。
+	 *
+	 * 兩段式：LABELS 優先（手寫的是策展結果，像「导演」→「監督」這種
+	 * 用語差異不是簡繁轉換做得到的），對不到才交給 CN_Converter。實測
+	 * 214 種對不到的裡面，轉換器能修好 61 種（企画协力→企畫協力、
+	 * 总制片人→總製片人、CG 导演→CG 監督），其餘 153 種本來就是繁體
+	 * 或純英數。
+	 *
+	 * 放在匯入端而不是前台，是因為每次轉換 0.39ms——匯入時一部作品
+	 * 幾百筆只跑一次，前台則是每次瀏覽都要重跑。
+	 */
+	public static function normalize( string $role ): string {
+		$role = trim( $role );
+
+		if ( '' === $role ) {
+			return $role;
+		}
+
+		if ( isset( self::LABELS[ $role ] ) ) {
+			return self::LABELS[ $role ];
+		}
+
+		if ( class_exists( 'Anime_Sync_CN_Converter' ) ) {
+			return Anime_Sync_CN_Converter::static_convert( $role );
+		}
+
+		return $role;
 	}
 
 	/**

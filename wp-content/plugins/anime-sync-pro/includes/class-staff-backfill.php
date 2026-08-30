@@ -6,19 +6,29 @@
  * get_bgm_staff），新匯入與手動重新同步的作品會拿到完整名單，但既有
  * 1,751 部仍然只有白名單那 6-7 筆。這支負責把它們補齊。
  *
- * 直接驅動既有的 ajax_resync_bangumi()，不另寫抓取邏輯：那個方法本來就
- * 是「重新同步 Bangumi」按鈕在用的，會更新 staff 並尊重 anime_locked_fields
- * 的欄位鎖。重寫一份等於多一條會慢慢長歪的路徑。
+ * ★ 只寫 anime_staff_json 一個欄位，絕不驅動整包重新同步。
  *
- * 節制：每 15 分鐘 8 部，跑完自動停。1,751 部約 55 小時。
+ * 第一版是直接呼叫 ajax_resync_bangumi()，因為它「本來就是重新同步按鈕
+ * 在用的、而且尊重欄位鎖」。那是錯的，而且會造成不可逆的損失：
  *
- * 比封面回補的 20 部保守很多，因為單部成本高得多——實測每部約 16 秒
- *（ajax_resync_bangumi 每部要打好幾次 Bangumi，加上速率限制的等待），
- * 12 部一輪要 191 秒。8 部讓單輪落在兩分鐘以內。
+ *   它更新的是七組欄位——中文標題（繁＋簡）、中文簡介、封面圖、
+ *   Bangumi 評分、工作人員、角色、集數——沒上鎖的一律覆蓋。
+ *   實測正式站 1,760 部已發佈作品裡，只有 26 部鎖了中文標題。
+ *   而站上 1,740 部裡有 994 部的標題與「Bangumi name_cn 經簡繁轉換」
+ *   的結果不同，因為用的是台灣官方譯名：
+ *     魔法帽的工作室 ← 尖帽子的魔法工房
+ *     Dr.STONE 新石紀 ← 石紀元 科學與未來
+ *     海盜戰記 ← 冰海戰記
+ *     咒術迴戰 ← 咒術回戰
+ *   跑下去等於用中國譯名覆蓋掉 1,700 多部的策展成果，而且沒有備份。
  *
- * 那個取捨是刻意的：2026-08 的事故是「單次進程持續 2-4 分鐘」加上每 5
- * 分鐘觸發造成進程堆疊。補完的總時間晚一天沒差，進程長度才是會咬人的。
- * 另外加了執行鎖，堵死重疊的可能（見 run()）。
+ * 「有鎖機制」不等於「實際有鎖」。改成只呼叫 get_bgm_staff_public()，
+ * 那支只打 /persons 一個端點，其餘六組欄位完全不碰。
+ *
+ * 節制：每 15 分鐘 8 部，跑完自動停。
+ * 改成單一端點之後每部只剩一次 API 呼叫，比第一版快得多，
+ * 但批量維持 8 部——2026-08 的事故是「單次進程持續 2-4 分鐘」加上高頻
+ * 觸發造成進程堆疊，寧可慢一點。另有執行鎖堵死重疊（見 run()）。
  *
  * Changelog:
  *   1.0.0 (2026-08-31) — 初版。
@@ -42,12 +52,13 @@ class Anime_Sync_Staff_Backfill {
 	/**
 	 * 每輪幾部。
 	 *
-	 * 實測 12 部要 191 秒（每部約 16 秒——ajax_resync_bangumi 每部要打
-	 * 好幾次 Bangumi，加上速率限制的等待）。降到 8 部讓單輪落在兩分鐘
-	 * 以內，代價是全站補完從 36 小時變成 55 小時。
+	 * 實測本機跑 8 部要 20 秒（每部約 2.5 秒，其中 2 秒是 SLEEP_BETWEEN
+	 * 的自我節制，真正的 API 呼叫不到 0.5 秒）。改成單一端點之後比第一版
+	 * 的 16 秒／部快了六倍以上。
 	 *
-	 * 這個取捨是刻意的：2026-08 的事故就是「單次進程持續 2-4 分鐘」，
-	 * 補完的總時間晚一天沒有差別，進程長度才是會咬人的那個。
+	 * 即使如此批量仍維持 8：2026-08 的事故是「單次進程持續 2-4 分鐘」加上
+	 * 高頻觸發造成進程堆疊，全站 1,751 部以每 15 分鐘 8 部計約 55 小時，
+	 * 這是一次性作業，晚一天補完沒有差別，進程長度才是會咬人的那個。
 	 */
 	const BATCH = 8;
 
@@ -104,10 +115,9 @@ class Anime_Sync_Staff_Backfill {
 		/*
 		 * 執行鎖。
 		 *
-		 * 實測單輪 12 部要 191 秒——ajax_resync_bangumi() 每部要打好幾次
-		 * Bangumi（subject／persons／characters／episodes），加上速率限制的
-		 * 等待。15 分鐘的間隔不會重疊，但網路慢的時候有可能拖過去，
-		 * 那就會變成兩個進程同時在打同一批作品。
+		 * 單輪只要 20 秒，15 分鐘的間隔照理不可能重疊。但 Bangumi 逾時
+		 * 或速率限制排隊的時候單輪可能拖很久，那就會變成兩個進程同時在
+		 * 打同一批作品。
 		 *
 		 * 2026-08 的事故正是「單次進程持續 2-4 分鐘」加上高頻觸發造成的
 		 * 進程堆疊。間隔已經拉到 15 分鐘，再加一道鎖就堵死重疊的可能。
@@ -170,32 +180,49 @@ class Anime_Sync_Staff_Backfill {
 		$failed = 0;
 		$total  = 0;
 
+		$skipped = 0;
+
 		foreach ( $targets as $t ) {
 			$post_id = (int) $t['post_id'];
 			$bgm     = (int) $t['bgm'];
 
-			$result = $handler->ajax_resync_bangumi( $post_id, $bgm );
+			/*
+			 * 欄位鎖：作者勾了「不自動更新」就跳過，並且標記成處理過——
+			 * 那是明確的意思表示，不該每輪再問一次 Bangumi。
+			 */
+			$locked = (array) get_post_meta( $post_id, 'anime_locked_fields', true );
 
-			if ( is_wp_error( $result ) ) {
-				/*
-				 * 失敗不標記，下一輪會再排到。不像「查無資料」那種需要
-				 * 永久跳過——這裡每一部在 Bangumi 上都存在，失敗多半是
-				 * 連線問題，重試會成功。
-				 */
-				$failed++;
-
-				error_log(
-					'[anime-sync-pro] staff 回補失敗 post=' . $post_id
-					. ' bgm=' . $bgm . ': ' . $result->get_error_message()
-				);
+			if ( in_array( 'anime_staff_json', $locked, true ) ) {
+				update_post_meta( $post_id, self::META_DONE, current_time( 'mysql' ) );
+				$skipped++;
 
 				continue;
 			}
 
+			$staff = $handler->get_bgm_staff_public( $bgm );
+
+			if ( empty( $staff ) ) {
+				/*
+				 * 空的分兩種：連線失敗，或這部在 Bangumi 上真的沒有 staff。
+				 * get_bgm_staff() 兩種都回空陣列，分不出來，所以不標記，
+				 * 下一輪再試。實測沒有 staff 的作品極少（抽樣 14 部裡
+				 * 最少的也有 1 筆），重試的浪費有限。
+				 */
+				$failed++;
+
+				continue;
+			}
+
+			update_post_meta(
+				$post_id,
+				'anime_staff_json',
+				/* wp_slash：update_post_meta 內部會 wp_unslash，不補會吃掉 JSON 的引號跳脫 */
+				wp_slash( wp_json_encode( $staff, JSON_UNESCAPED_UNICODE ) )
+			);
+
 			update_post_meta( $post_id, self::META_DONE, current_time( 'mysql' ) );
 
-			$staff = json_decode( (string) get_post_meta( $post_id, 'anime_staff_json', true ), true );
-			$total += is_array( $staff ) ? count( $staff ) : 0;
+			$total += count( $staff );
 			$done++;
 
 			if ( self::SLEEP_BETWEEN > 0 ) {
@@ -209,6 +236,7 @@ class Anime_Sync_Staff_Backfill {
 				'last_run'   => current_time( 'mysql' ),
 				'last_done'  => $done,
 				'last_fail'  => $failed,
+				'last_lock'  => $skipped,
 				'last_staff' => $total,
 				'remaining'  => self::remaining(),
 			],
