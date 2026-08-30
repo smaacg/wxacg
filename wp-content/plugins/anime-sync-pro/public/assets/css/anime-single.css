@@ -4188,10 +4188,16 @@ nav.asd-tabs a.asd-tab.is-active::after {
    auto-fill 會保留空的軌道，內容擠在最左邊、右邊空 3/4 版面；
    auto-fit 會把空軌道收掉，讓單組撐滿寬度。
 */
+/*
+   每一組各佔一整行。
+
+   原本是「兩欄放兩組」，那在純文字清單時很省空間；改成封面牆之後
+   每組自己就要一排封面的寬度，再擠成兩欄會讓每排只放得下兩張。
+*/
 .asd-album-groups {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-	gap: 18px 22px;
+	grid-template-columns: 1fr;
+	gap: 22px;
 	align-items: start;
 }
 
@@ -4214,50 +4220,110 @@ nav.asd-tabs a.asd-tab.is-active::after {
 	letter-spacing: .5px;
 }
 
+/*
+   封面牆。
+
+   auto-fill 而不是 auto-fit：只有一張專輯的組（例如「片尾曲 1」）用
+   auto-fit 會把那張封面拉成整列寬的巨幅橫幅。封面該維持封面的大小，
+   空軌道留著才對——這跟上面 .asd-album-groups 的取捨剛好相反，
+   因為那裡的內容本來就該撐滿寬度。
+*/
 .asd-album-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 18px 14px;
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-/*
-   每項是一張小卡，不是用細線切開的文字列。
-   原本三種橫線疊在一起（每項的整寬細線、名稱自己的虛線底線、
-   分組標題的底線），長度各不相同，看起來很雜。卡片只留一種邊界。
-*/
+/* 封面在上、名稱在下。整格就是一張卡，不再另外畫外框 */
 .asd-album-item {
+	position: relative; /* 類型標籤要貼在封面左上角 */
 	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 4px 8px;
-	margin-bottom: 6px;
-	padding: 9px 12px;
-	border: 1px solid var(--asd-border);
-	border-radius: var(--asd-radius-sm);
-	background: rgba(255, 255, 255, .035);
-	transition: var(--trans-smooth, background .2s ease, border-color .2s ease);
+	flex-direction: column;
+	gap: 7px;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
 }
 
-.asd-album-item:last-child {
-	margin-bottom: 0;
+/*
+   封面。圖片來自 Bangumi CDN（cover_url 存的是網址不是檔案，
+   實測兩邊速度相同，見 class-relation-cover-backfill.php 檔頭）。
+
+   aspect-ratio: 1 + object-fit: cover：專輯封面多半是正方形，但單曲
+   偶爾是長方形，不統一裁切的話整排高度會參差。
+*/
+.asd-album-thumb {
+	width: 100%;
+	/*
+	   height: auto 不能省。
+	   markup 帶 width="400" height="400"（讓瀏覽器在 CSS 生效前就知道
+	   比例，避免載入時整排跳動），而 height 屬性會變成 height:400px 的
+	   樣式提示。aspect-ratio 只負責補「缺少的那一邊」——寬高都有值時
+	   它會被忽略，封面就變成 122×400 的直條。
+	*/
+	height: auto;
+	aspect-ratio: 1;
+	border-radius: var(--asd-radius-md);
+	border: 1px solid var(--asd-border);
+	object-fit: cover;
+	background: rgba(255, 255, 255, .05);
+	transition: var(--trans-smooth, transform .2s ease, border-color .2s ease);
 }
 
 /* 只有真的能點的項目才給 hover 回饋（純文字的 <span> 不給） */
-.asd-album-item:has(a, button):hover {
-	border-color: rgba(255, 255, 255, .18);
-	background: rgba(255, 255, 255, .06);
+.asd-album-item:has(a, button):hover .asd-album-thumb {
+	border-color: var(--asd-primary);
+	transform: translateY(-2px);
+}
+
+/* 沒有封面時的佔位。留空會讓同一欄的卡片一高一矮，比沒圖更難看 */
+/*
+   沒有封面時的佔位。
+
+   一定要跟有封面的格子同樣大小——空著會讓整排高低不齊，比沒有圖
+   更難看。回補還沒跑到、以及 Bangumi 本來就沒有這張圖，都走這裡。
+*/
+.asd-album-thumb--empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 26px;
+	opacity: .3;
+}
+
+/* 文字區：min-width:0 才能讓長標題正常斷行而不是把格子撐爆 */
+.asd-album-main {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
 }
 
 .asd-album-hidden {
 	display: none !important;
 }
 
-/* 站內有對應文章時是 <a>，沒有時是 <span>，兩者外觀一致 */
+/*
+   站內有對應文章時是 <a>，沒有時是 <span>，兩者外觀一致。
+
+   封面牆的格子只有 116px 寬，長標題（『無職転生Ⅲ ～異世界行ったら
+   本気だす～』オリジナル・サウンドトラック）會拉成十幾行把整排撐歪，
+   所以限 3 行後截斷；完整名稱點進彈窗看得到。
+*/
 .asd-album-name {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
 	color: var(--asd-text);
-	font-size: 13.5px;
+	font-size: 12.5px;
 	font-weight: 600;
-	line-height: 1.45;
+	line-height: 1.4;
 	overflow-wrap: anywhere;
 }
 
@@ -4271,11 +4337,47 @@ a.asd-album-name:hover {
 }
 
 /* 原文名（中文名之外還有日文原名時才出現） */
+/*
+   類型標籤（片頭曲／原聲集／電影…）。
+   只在攤平模式出現——分組模式上面的組標題已經寫了，再標一次是廢話。
+
+   貼在封面左上角，不跟著名稱走：名稱長度 1~3 行不等，標籤接在後面的話
+   每張的位置都不一樣，一整排看起來是歪的。絕對定位跟文字長度脫鉤，
+   八張全部對齊同一個位置。
+
+   DOM 順序刻意不動（標籤仍在 .asd-album-main 裡，排在名稱之後）——
+   絕對定位不看 DOM 順序，讀螢幕軟體維持「名稱 → 類型」的閱讀順序。
+
+   一定要有半透明底＋模糊：封面什麼顏色都有（全白的雪景、全黑的夜景
+   都實際出現過），純文字疊上去一定有幾張看不見。
+*/
+.asd-album-tag {
+	position: absolute;
+	top: 7px;
+	left: 7px;
+	z-index: 1;
+	padding: 2px 8px;
+	border-radius: var(--asd-radius-pill, 20px);
+	background: rgba(0, 0, 0, .62);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	color: #fff;
+	font-size: 10.5px;
+	font-weight: 700;
+	line-height: 1.7;
+	white-space: nowrap;
+	pointer-events: none; /* 蓋在封面上，別擋住點擊 */
+}
+
+/* 原文名。跟主標同樣理由要截斷，但只給 2 行——它是輔助資訊 */
 .asd-album-sub {
-	flex-basis: 100%;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
 	color: var(--asd-text-dim);
-	font-size: 11.5px;
-	line-height: 1.4;
+	font-size: 11px;
+	line-height: 1.35;
 	overflow-wrap: anywhere;
 }
 

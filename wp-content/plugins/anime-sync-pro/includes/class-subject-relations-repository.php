@@ -33,7 +33,20 @@ class Anime_Sync_Subject_Relations_Repository {
 	private $table;
 
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
-	const CACHE_VER = 'v1';
+	const CACHE_VER = 'v3';
+
+	/**
+	 * 總數不超過這個值就攤平成單一面封面牆，不分組。
+	 *
+	 * 分組在數量少時只會製造破洞：實測正式站分布，80% 的作品專輯總數
+	 * 不到 6 張，再切成原聲集／片頭曲／片尾曲／插入歌四組，每組永遠
+	 * 是 1-2 張，每一排右邊都空一大截，看起來是四排零星小圖而不是一面牆。
+	 *
+	 * 12 這個門檻讓 93% 的作品（1-12 張）走單一面牆；13 張以上一組通常
+	 * 已經填得滿一行，分組才真的在整理東西。
+	 * 攤平時類型改由每張自己的 'group' 標示，資訊不會少。
+	 */
+	const FLAT_MAX = 12;
 
 	/* Bangumi subject_type */
 	const TYPE_BOOK   = 1;
@@ -146,15 +159,31 @@ class Anime_Sync_Subject_Relations_Repository {
 			$buckets[ $bucket ][] = $this->format_item( $row, $subject_type );
 		}
 
-		/* 依 $labels 宣告順序輸出,「其他」永遠墊底 */
+		/*
+		 * 依 $labels 宣告順序輸出,「其他」永遠墊底。
+		 *
+		 * 每個項目順便帶上自己所屬的組名（'group'）。前台在數量少的時候
+		 * 會攤平成單一面封面牆不分組（見 FLAT_MAX），那時類型要由項目
+		 * 自己標示——沒有這個欄位，攤平後就看不出哪張是片頭曲。
+		 */
 		$out = [];
+
+		$with_group = static function ( array $items, string $label ): array {
+			foreach ( $items as &$item ) {
+				$item['group'] = $label;
+			}
+
+			unset( $item );
+
+			return $items;
+		};
 
 		foreach ( array_keys( $labels ) as $key ) {
 			if ( ! empty( $buckets[ $key ] ) ) {
 				$out[] = [
 					'label' => $labels[ $key ],
 					'count' => count( $buckets[ $key ] ),
-					'items' => $buckets[ $key ],
+					'items' => $with_group( $buckets[ $key ], $labels[ $key ] ),
 				];
 			}
 		}
@@ -163,7 +192,7 @@ class Anime_Sync_Subject_Relations_Repository {
 			$out[] = [
 				'label' => '其他',
 				'count' => count( $buckets['__other'] ),
-				'items' => $buckets['__other'],
+				'items' => $with_group( $buckets['__other'], '其他' ),
 			];
 		}
 
@@ -207,7 +236,7 @@ class Anime_Sync_Subject_Relations_Repository {
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT bgm_id, relation_type, platform, name, name_cn, local_post_id
+				"SELECT bgm_id, relation_type, platform, name, name_cn, local_post_id, cover_url
 				 FROM {$this->table}
 				 WHERE post_id = %d AND subject_type = %d
 				 ORDER BY relation_type ASC, id ASC",
@@ -282,6 +311,12 @@ class Anime_Sync_Subject_Relations_Repository {
 			'sub'     => $sub,
 			'badge'   => $badge,
 			'bgm_id'  => (int) $row['bgm_id'],
+			/*
+			 * 封面網址（Bangumi CDN，不是本站檔案）。
+			 * NULL 代表回補還沒跑到，'' 代表對方沒有這張圖——前台兩者
+			 * 都當成「沒封面」顯示佔位，差別只對回補程式有意義。
+			 */
+			'cover'   => (string) ( $row['cover_url'] ?? '' ),
 			/* 站內有文章才給連結,理由見檔頭註解 3 */
 			'url'     => ( $post > 0 && 'publish' === get_post_status( $post ) )
 				? get_permalink( $post )

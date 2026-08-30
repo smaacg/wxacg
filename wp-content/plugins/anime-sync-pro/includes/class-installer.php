@@ -50,6 +50,12 @@ class Anime_Sync_Installer {
 	 * dashboard 系統資訊即可正確顯示，不再 fallback 成「—」。
 	 */
 	/*
+	 * 1.7 — wxacg_subject_relations 納入本安裝器管理，並新增 cover_url。
+	 *       該表原由 scratchpad/bgm/relations.php 在外部建立，不受版本控管；
+	 *       要加欄位就得先把定義搬進來。既有資料不受影響（dbDelta 只增不減）。
+	 *       封面網址存字串不存檔案——實測 lain.bgm.tv 與本站 Cloudflare 邊緣
+	 *       速度相同（TTFB 51ms vs 52ms），下載 43,344 張圖換不到速度。
+	 *
 	 * 1.6 — 新增 wxacg_entity_favorites（角色／聲優收藏）。
 	 *       角色與聲優不是 WordPress 文章，而是 anime_characters（25,770 列）
 	 *       與 anime_persons（10,410 列）的資料列，無法沿用 postmeta；
@@ -67,7 +73,7 @@ class Anime_Sync_Installer {
 	 * 1.3 — anime_user_status_stats 新增 paused_count（暫停狀態）。
 	 *       主表 anime_user_status 不需異動：status 是 tinyint，新增值 4 即可。
 	 */
-	private const DB_VERSION = '1.6';
+	private const DB_VERSION = '1.7';
 
 	/**
 	 * 季度 seed：往前 N 年 + 當年 + 當年+1 的範圍
@@ -659,6 +665,46 @@ class Anime_Sync_Installer {
 			KEY entity (entity_type, entity_id)
 		) {$charset_collate};";
 		dbDelta( $fav_sql );
+
+		// =====================================================================
+		// v1.7 納管：Bangumi 跨媒體關聯（音樂／遊戲／三次元）
+		//
+		// 這張表原本由 scratchpad/bgm/relations.php 在外部建立，不在本安裝器
+		// 管理範圍內。要加 cover_url 欄位，就得先把定義搬進來，之後 dbDelta
+		// 會負責補欄位——它只增不減，既有資料不受影響。
+		//
+		// 欄位定義刻意與正式站現況逐字對齊（int(10) / tinyint(3) / smallint(5)），
+		// 有出入的話 dbDelta 每次都會產生多餘的 ALTER。
+		//
+		// cover_url 三態，這個區分是回補能不能收斂的關鍵：
+		//   NULL  還沒問過 Bangumi  → 排進回補佇列
+		//   ''    問過了，對方沒有圖 → 不再問
+		//   網址   有圖
+		// 少了 NULL/'' 的區分，沒有封面的條目會被每一輪 cron 反覆重問。
+		// =====================================================================
+		$subj_rel_table = $wpdb->prefix . 'wxacg_subject_relations';
+		$subj_rel_sql   = "CREATE TABLE {$subj_rel_table} (
+			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			post_id       BIGINT(20) UNSIGNED NOT NULL,
+			source_bgm_id INT(10) UNSIGNED NOT NULL,
+			bgm_id        INT(10) UNSIGNED NOT NULL,
+			subject_type  TINYINT(3) UNSIGNED NOT NULL DEFAULT 0,
+			relation_type SMALLINT(5) UNSIGNED NOT NULL DEFAULT 0,
+			platform      SMALLINT(5) UNSIGNED NOT NULL DEFAULT 0,
+			name          VARCHAR(255) NOT NULL DEFAULT '',
+			name_cn       VARCHAR(255) NOT NULL DEFAULT '',
+			local_post_id BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			cover_url     VARCHAR(255) DEFAULT NULL,
+			synced_at     DATETIME DEFAULT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY uniq_edge (post_id, bgm_id),
+			KEY idx_bgm (bgm_id),
+			KEY idx_type (subject_type),
+			KEY idx_rel (relation_type),
+			KEY idx_post (post_id),
+			KEY idx_cover_todo (subject_type, cover_url)
+		) {$charset_collate};";
+		dbDelta( $subj_rel_sql );
 	}
 
 	public function is_table_missing( string $table_name_without_prefix ): bool {

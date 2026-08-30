@@ -4341,16 +4341,15 @@ while ( have_posts() ) :
 				}
 
 				/*
-				 * 側欄評分卡下方：最重要的幾個欄位。
+				 * 側欄評分卡下方：最重要的幾個欄位（順序由使用者指定）。
 				 * 其餘一律走下方的資料條，不重複。
-				 * 監督緊接製作公司——兩者都是「誰做的」，跟上面的原作端分開。
 				 * 值為空的列會在下面被 array_filter 濾掉，抓不到監督就不會出現空列。
 				 */
 				$hero_side_facts = [
+					[ 'key' => '監督',     'val' => $director_html, 'html' => true ],
 					[ 'key' => '原作者',   'val' => $author_html,   'html' => true ],
 					[ 'key' => '原作類型', 'val' => $source_html,   'html' => true ],
 					[ 'key' => '製作公司', 'val' => $studio_html,   'html' => true ],
-					[ 'key' => '監督',     'val' => $director_html, 'html' => true ],
 					[ 'key' => '集數',     'val' => $ep_str ],
 				];
 

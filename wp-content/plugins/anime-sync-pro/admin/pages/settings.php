@@ -152,6 +152,27 @@ if (
     update_option( 'anime_sync_entity_backfill_mode',  $new_backfill_mode );
     update_option( 'anime_sync_entity_backfill_batch', $new_backfill_batch );
 
+    /*
+     * 關聯封面回補（v1.7.8）。
+     *
+     * 開關同時要動排程，不能只寫 option——排程沒掛上去的話開了也不會跑。
+     * 關閉時反過來把排程清掉，避免「已關閉但每 15 分鐘還在觸發空跑」。
+     * 補完時 Anime_Sync_Relation_Cover_Backfill::finish() 會自己做同一件事。
+     */
+    if ( class_exists( 'Anime_Sync_Relation_Cover_Backfill' ) ) {
+        $new_relcover_mode = ( isset( $_POST['anime_sync_relcover_mode'] )
+            && 'on' === sanitize_key( wp_unslash( $_POST['anime_sync_relcover_mode'] ) ) )
+            ? 'on' : 'off';
+
+        update_option( Anime_Sync_Relation_Cover_Backfill::OPTION_MODE, $new_relcover_mode );
+
+        if ( 'on' === $new_relcover_mode ) {
+            Anime_Sync_Relation_Cover_Backfill::schedule();
+        } else {
+            Anime_Sync_Relation_Cover_Backfill::unschedule();
+        }
+    }
+
     if ( $new_daily_hour_utc !== $old_daily_hour_utc ) {
         $daily_hook  = 'anime_sync_daily_score_update';
         $today_utc   = strtotime( gmdate( "Y-m-d {$new_daily_hour_utc}:00:00" ) );
@@ -196,6 +217,25 @@ if ( $backfill_batch <= 0 ) {
     $backfill_batch = 60;
 }
 $backfill_last  = (string) get_option( 'anime_sync_last_entity_backfill', '' );
+
+/*
+ * 關聯封面回補（v1.7.8）目前狀態。
+ * remaining() 是一次 COUNT(DISTINCT post_id)，只在後台這一頁算，不進前台。
+ */
+$relcover_mode      = 'off';
+$relcover_remaining = 0;
+$relcover_stat      = array();
+$relcover_next      = false;
+
+if ( class_exists( 'Anime_Sync_Relation_Cover_Backfill' ) ) {
+    $relcover_mode = 'on' === get_option( Anime_Sync_Relation_Cover_Backfill::OPTION_MODE, 'off' )
+        ? 'on' : 'off';
+
+    $relcover_remaining = ( new Anime_Sync_Relation_Cover_Backfill() )->remaining();
+
+    $relcover_stat = (array) get_option( Anime_Sync_Relation_Cover_Backfill::OPTION_STAT, array() );
+    $relcover_next = wp_next_scheduled( Anime_Sync_Relation_Cover_Backfill::HOOK );
+}
 
 $backfill_skip_chars   = get_option( 'anime_sync_backfill_skip_chars', array() );
 $backfill_skip_persons = get_option( 'anime_sync_backfill_skip_persons', array() );
@@ -688,6 +728,83 @@ $cron_rows = array(
                         </p>
                     </td>
                 </tr>
+
+                <?php
+                /*
+                 * 關聯封面回補（v1.7.8）。
+                 *
+                 * 跟上面的角色/聲優回補放同一張表，因為性質一樣（都是向 Bangumi
+                 * 補資料的一次性作業），使用者不必到別頁找。
+                 *
+                 * 沒有「每批筆數」欄位是刻意的：批量寫死 20、間隔 15 分鐘。
+                 * 上面那支開放調到 200 的結果是 2026-08 把正式站 load 推到 22.7、
+                 * Cloudflare 開始回 522/525。這支不給調，就不會被調壞。
+                 */
+                ?>
+                <?php if ( class_exists( 'Anime_Sync_Relation_Cover_Backfill' ) ) : ?>
+                <tr>
+                    <th scope="row">
+                        <label for="anime_sync_relcover_mode"><?php esc_html_e( '關聯封面回補', 'anime-sync-pro' ); ?></label>
+                    </th>
+                    <td>
+                        <label>
+                            <input type="checkbox" id="anime_sync_relcover_mode"
+                                   name="anime_sync_relcover_mode" value="on"
+                                   <?php checked( $relcover_mode, 'on' ); ?> />
+                            <?php esc_html_e( '啟用（每 15 分鐘 20 部作品，補完自動停止）', 'anime-sync-pro' ); ?>
+                        </label>
+
+                        <?php if ( 'on' === $relcover_mode ) : ?>
+                            <span class="asc-text-ok" style="margin-left:6px;">● <?php esc_html_e( '執行中', 'anime-sync-pro' ); ?></span>
+                        <?php else : ?>
+                            <span style="color:#999;margin-left:6px;">○ <?php esc_html_e( '已關閉', 'anime-sync-pro' ); ?></span>
+                        <?php endif; ?>
+
+                        <p class="description">
+                            <?php printf(
+                                esc_html__( '待補作品：%s 部', 'anime-sync-pro' ),
+                                '<strong>' . esc_html( number_format_i18n( $relcover_remaining ) ) . '</strong>'
+                            ); ?>
+                            <?php if ( $relcover_remaining > 0 ) : ?>
+                                <?php printf(
+                                    esc_html__( '（約需 %s 小時）', 'anime-sync-pro' ),
+                                    esc_html( number_format_i18n( ceil( $relcover_remaining / 20 ) * 0.25, 1 ) )
+                                ); ?>
+                            <?php endif; ?>
+                            <br>
+                            <?php esc_html_e( '取 Bangumi 的封面「網址」存進關聯表，圖片本身仍由對方 CDN 提供，本站不存檔。', 'anime-sync-pro' ); ?>
+                            <br>
+                            <?php esc_html_e( '一部作品一次 API 呼叫，音樂／遊戲／真人版的封面會一起補齊。', 'anime-sync-pro' ); ?>
+                        </p>
+
+                        <?php if ( ! empty( $relcover_stat ) ) : ?>
+                            <div class="asc-db-log-info" style="margin-top:8px;">
+                                <?php if ( ! empty( $relcover_stat['finished'] ) ) : ?>
+                                    <?php esc_html_e( '✅ 已全部補完', 'anime-sync-pro' ); ?>
+                                    （<?php echo esc_html( (string) ( $relcover_stat['last_run'] ?? '' ) ); ?>）
+                                <?php else : ?>
+                                    <?php printf(
+                                        esc_html__( '上次：%1$s ｜ 處理 %2$s 部、寫入封面 %3$s 張、失敗 %4$s 部', 'anime-sync-pro' ),
+                                        esc_html( (string) ( $relcover_stat['last_run'] ?? '—' ) ),
+                                        esc_html( (string) ( $relcover_stat['last_done'] ?? 0 ) ),
+                                        esc_html( (string) ( $relcover_stat['last_fill'] ?? 0 ) ),
+                                        esc_html( (string) ( $relcover_stat['last_fail'] ?? 0 ) )
+                                    ); ?>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ( $relcover_next ) : ?>
+                            <p class="description">
+                                <?php printf(
+                                    esc_html__( '下次執行：%s', 'anime-sync-pro' ),
+                                    esc_html( wp_date( 'Y-m-d H:i', $relcover_next ) )
+                                ); ?>
+                            </p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endif; ?>
             </table>
         </div>
 
