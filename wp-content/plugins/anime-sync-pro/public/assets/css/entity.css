@@ -1030,10 +1030,26 @@ body:has(.asa-entity-page) .ct-section-inner-container {
    16. [v1.5.1] 其他資料 — 可點連結樣式
    ================================================================ */
 .asa-infolist-link {
+    display: block;
     color: var(--asa-primary);
     font-weight: 600;
-    word-break: break-all;
+    /* 顯示文字已在 PHP 端縮短成「主機名＋截短路徑」，不需要 break-all
+       從網址中間硬斷；改用 anywhere 只在真的排不下時才斷 */
+    overflow-wrap: anywhere;
     transition: var(--trans-smooth);
+}
+
+/* 同一格有多個網址時逐條排開，彼此留一點間距 */
+.asa-infolist-link + .asa-infolist-link,
+.asa-infolist-link + .asa-infolist-link-plain,
+.asa-infolist-link-plain + .asa-infolist-link {
+    margin-top: 4px;
+}
+
+/* 認不出是連結的片段（例：@劉琮729 (https://…)）原樣顯示 */
+.asa-infolist-link-plain {
+    display: block;
+    overflow-wrap: anywhere;
 }
 
 .asa-infolist-link:hover {

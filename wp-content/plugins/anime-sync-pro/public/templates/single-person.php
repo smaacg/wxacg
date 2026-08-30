@@ -4,6 +4,14 @@
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-person.php
  *
  * Changelog:
+ *   1.5.5 (2026-08-31)
+ *     - [修正] 「其他資料」一格含多個網址時，整串被當成一個網址：
+ *              href 長成 "http://a.com/、https://b.com/、…" 點了沒用。
+ *              實測正式站 3,215 個含網址欄位裡有 560 個是這種（17%）。
+ *              新增 asa_infobox_links() 用「、」切段後逐段套既有邏輯，
+ *              完整網址／@handle／裸網域三種格式都保得住。
+ *     - [新增] asa_link_text()：顯示文字縮短成「主機名＋截短路徑」，
+ *              解決窄側欄從網址中間硬斷行的問題。
  *   1.5.4 (2026-08-16)
  *     - [修正] 簡介顯示 Bangumi BBCode 原始碼（[b]/[url=]標籤未轉換）:
  *              新增 asa_render_bgm_bbcode()，把 [b]、[url=]/[url]、[mask]
@@ -120,6 +128,110 @@ if ( ! function_exists( 'asa_infobox_link' ) ) {
             return [ 'https://' . $value, $value ];
         }
         return null;
+    }
+}
+
+/* ── 連結顯示文字：縮短成「主機名＋截短路徑」 ──
+ * 側欄只有約 200px 寬，直接印完整網址會被 CSS 的 word-break: break-all
+ * 從網址中間硬斷（例：youtube.com/chann / el/UCjfAEJZ…）。
+ * 去掉 scheme 與 www.，路徑超過 20 字就截斷，讓一條連結能排進一行。
+ */
+if ( ! function_exists( 'asa_link_text' ) ) {
+    function asa_link_text( string $url ): string {
+        $short = preg_replace( '#^https?://(www\.)?#i', '', $url );
+        $short = rtrim( $short, '/' );
+
+        $slash = strpos( $short, '/' );
+        if ( false === $slash ) {
+            return $short;
+        }
+
+        $host = substr( $short, 0, $slash );
+        $path = substr( $short, $slash );
+
+        if ( mb_strlen( $path ) > 20 ) {
+            $path = mb_substr( $path, 0, 19 ) . '…';
+        }
+
+        return $host . $path;
+    }
+}
+
+/* ── 一格 infobox 值 → 多筆連結 ──
+ *
+ * Bangumi 的 infobox 一個 key 可以有多個值，匯入時串成一格。實測正式站
+ * 3,202 個含網址的欄位裡有 560 個是這種（17%），最多的一筆有 7 個網址
+ * （堀江由衣）。原本的 asa_infobox_link() 只要看到開頭是 http 就把整串
+ * 當成一個網址，於是 href 會長成
+ *   "http://www.mappa.co.jp/、https://x.com/MAPPA_Info、https://…"
+ * 這種點了沒用的東西。
+ *
+ * 為什麼用「切」不用「抽」：
+ *   直覺是 preg_match_all('#https?://\S+#') 把網址抽出來，但實測有 6 筆
+ *   的第一個值是裸網域（claris-room.com、www.kyotoanimation.co.jp），
+ *   抽取法會把主要官網無聲丟掉；另有 1 筆網址本身含逗號
+ *   （…/developerId,697020/），字元集會把它切斷。
+ *   改成用分隔符切段、每段交給既有的 asa_infobox_link()，完整網址／
+ *   @handle／裸網域三種格式都保得住，邏輯也不必重寫一遍。
+ *
+ * 分隔符實測：560 筆裡 559 筆用「、」，1 筆用半形空白。
+ *
+ * 切不出連結的片段不會被丟掉，改以純文字保留（實測有 3 筆長成
+ * 「@劉琮729 (https://weibo.com/u/1915021565)」這種，既有邏輯認不出來，
+ * 但那是使用者看得到的資訊，寧可原樣顯示也不能無聲消失）。
+ *
+ * @return array[] 每筆 [ 'url' => string|'', 'text' => string ]，url 為空代表純文字
+ */
+if ( ! function_exists( 'asa_infobox_links' ) ) {
+    function asa_infobox_links( string $label, string $value ): array {
+        $parts = preg_split( '/[、，]+/u', $value );
+
+        if ( ! is_array( $parts ) ) {
+            $parts = [ $value ];
+        }
+
+        $out = [];
+
+        foreach ( $parts as $part ) {
+            $part = trim( $part );
+
+            if ( '' === $part ) {
+                continue;
+            }
+
+            /*
+             * 尾註：「https://tyo-animation.com (已失效)」這種在網址後面
+             * 補說明的寫法。空白之後的部分不能進 href，但也不該丟掉——
+             * 「已失效」是有用的資訊，留在顯示文字後面。
+             */
+            $note = '';
+            $url_part = $part;
+
+            if ( preg_match( '#^(https?://\S+)\s+(.+)$#u', $part, $m ) ) {
+                $url_part = $m[1];
+                $note     = ' ' . $m[2];
+            }
+
+            $link = asa_infobox_link( $label, $url_part );
+
+            if ( null === $link ) {
+                /* 認不出來就原樣留著，不要讓資訊消失 */
+                $out[] = [ 'url' => '', 'text' => $part ];
+
+                continue;
+            }
+
+            /*
+             * asa_infobox_link() 對 @handle 會回傳整理過的文字（'@xxx'），
+             * 那比機械縮短的好，優先沿用；只有「文字就是原網址」的情況
+             * 才需要自己縮短。
+             */
+            $text = ( $link[1] !== $link[0] ) ? $link[1] : asa_link_text( $link[0] );
+
+            $out[] = [ 'url' => $link[0], 'text' => $text . $note ];
+        }
+
+        return $out;
     }
 }
 
@@ -269,9 +381,23 @@ foreach ( $infobox_all as $item ) {
     $i_value = isset( $item['value'] ) ? trim( (string) $item['value'] ) : '';
     if ( $i_value === '' || $i_label === '' ) continue;
     if ( in_array( $i_label, $infobox_skip, true ) ) continue;
-    // 判斷是否為連結
-    $link = asa_infobox_link( $i_label, $i_value );
-    $extra_info_rows[] = [ 'label' => $i_label, 'value' => $i_value, 'link' => $link ];
+    /*
+     * 一格可能含多個網址（Bangumi 用「、」串），拆成多筆分別輸出。
+     * 拆不出任何連結時回空陣列，模板退回純文字顯示。
+     */
+    $links = asa_infobox_links( $i_label, $i_value );
+
+    /* 全部都是純文字片段就當作沒有連結，走原本的純文字分支 */
+    $has_link = false;
+    foreach ( $links as $l ) {
+        if ( '' !== $l['url'] ) { $has_link = true; break; }
+    }
+
+    $extra_info_rows[] = [
+        'label' => $i_label,
+        'value' => $i_value,
+        'links' => $has_link ? $links : [],
+    ];
 }
 
 $person_summary_raw = isset( $person['summary'] ) ? trim( (string) $person['summary'] ) : '';
@@ -436,10 +562,16 @@ get_header();
                             <div class="asa-infolist-row">
                                 <span class="asa-infolist-label"><?php echo esc_html( $row['label'] ); ?></span>
                                 <span class="asa-infolist-val">
-                                    <?php if ( is_array( $row['link'] ) ) : ?>
-                                        <a href="<?php echo esc_url( $row['link'][0] ); ?>"
-                                           target="_blank" rel="noopener noreferrer"
-                                           class="asa-infolist-link"><?php echo esc_html( $row['link'][1] ); ?></a>
+                                    <?php if ( ! empty( $row['links'] ) ) : ?>
+                                        <?php foreach ( $row['links'] as $lnk ) : ?>
+                                            <?php if ( '' !== $lnk['url'] ) : ?>
+                                                <a href="<?php echo esc_url( $lnk['url'] ); ?>"
+                                                   target="_blank" rel="noopener noreferrer"
+                                                   class="asa-infolist-link"><?php echo esc_html( $lnk['text'] ); ?></a>
+                                            <?php else : ?>
+                                                <span class="asa-infolist-link-plain"><?php echo esc_html( $lnk['text'] ); ?></span>
+                                            <?php endif; ?>
+                                        <?php endforeach; ?>
                                     <?php else : ?>
                                         <?php echo esc_html( $row['value'] ); ?>
                                     <?php endif; ?>
