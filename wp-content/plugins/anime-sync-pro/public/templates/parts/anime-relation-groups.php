@@ -48,19 +48,36 @@ $rel_sections = $rel_is_grouped
 			<ul class="asd-album-list">
 				<?php foreach ( $rel_group['items'] as $rel_item ) : ?>
 					<li class="asd-album-item">
-						<?php /* 封面與專輯同一套：網址存本地，圖片走 Bangumi CDN */ ?>
+						<?php
+						/*
+						 * 封面與專輯同一套：網址存本地、圖片走 Bangumi CDN，
+						 * 且封面本身也能點開彈窗（data-bgm-id 由委派處理器認）。
+						 */
+						$rel_modal_id = ( '' === $rel_item['url'] && $rel_item['bgm_id'] > 0 )
+							? (string) $rel_item['bgm_id']
+							: '';
+						?>
 						<?php if ( ! empty( $rel_item['cover'] ) ) : ?>
 							<img
-								class="asd-album-thumb"
+								class="asd-album-thumb<?php echo '' !== $rel_modal_id ? ' is-clickable' : ''; ?>"
 								src="<?php echo esc_url( $rel_item['cover'] ); ?>"
 								alt=""
 								loading="lazy"
 								decoding="async"
 								width="400"
 								height="400"
+								<?php if ( '' !== $rel_modal_id ) : ?>
+									data-bgm-id="<?php echo esc_attr( $rel_modal_id ); ?>"
+								<?php endif; ?>
 							>
 						<?php else : ?>
-							<span class="asd-album-thumb asd-album-thumb--empty" aria-hidden="true">🎬</span>
+							<span
+								class="asd-album-thumb asd-album-thumb--empty<?php echo '' !== $rel_modal_id ? ' is-clickable' : ''; ?>"
+								<?php if ( '' !== $rel_modal_id ) : ?>
+									data-bgm-id="<?php echo esc_attr( $rel_modal_id ); ?>"
+								<?php endif; ?>
+								aria-hidden="true"
+							>🎬</span>
 						<?php endif; ?>
 
 						<span class="asd-album-main">

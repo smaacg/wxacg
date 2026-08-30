@@ -4281,6 +4281,11 @@ nav.asd-tabs a.asd-tab.is-active::after {
 	transform: translateY(-2px);
 }
 
+/* 封面自己也能點開彈窗時要有游標提示，否則看不出來可以點 */
+.asd-album-thumb.is-clickable {
+	cursor: pointer;
+}
+
 /* 沒有封面時的佔位。留空會讓同一欄的卡片一高一矮，比沒圖更難看 */
 /*
    沒有封面時的佔位。

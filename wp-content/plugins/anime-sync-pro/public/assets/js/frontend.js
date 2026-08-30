@@ -1376,10 +1376,28 @@ function initAlbumModal() {
     }
 
     document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.asd-album-name--btn[data-bgm-id]');
+        /*
+         * 名稱和封面都能開彈窗。
+         *
+         * 選擇器改成認 data-bgm-id 而不是認名稱那個 class——封面是這張卡
+         * 最大的目標，使用者的直覺是點圖不是點字。模板在封面上也放了同一個
+         * 屬性，這裡就不必為封面另綁一組事件。
+         *
+         * 限定在 .asd-album-item 之內：data-bgm-id 這種通用屬性日後可能被
+         * 別的地方用到，不先框住範圍的話會誤攔。
+         */
+        var hit = e.target.closest('[data-bgm-id]');
+        var card = hit && hit.closest('.asd-album-item');
 
-        if (btn) {
-            load(btn.dataset.bgmId, btn.textContent.trim());
+        if (hit && card) {
+            /*
+             * 標題一律從卡片上的名稱取，不要用 hit.textContent——
+             * 點封面時那是空字串（<img>）或一個音符（佔位符）。
+             */
+            var nameEl = card.querySelector('.asd-album-name');
+
+            load(hit.dataset.bgmId, nameEl ? nameEl.textContent.trim() : '');
+
             return;
         }
 

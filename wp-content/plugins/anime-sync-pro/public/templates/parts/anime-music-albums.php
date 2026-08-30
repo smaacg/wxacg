@@ -70,6 +70,23 @@ $album_sections = $album_is_grouped
 														<li class="asd-album-item">
 															<?php
 															/*
+															 * 封面也要能點開彈窗——它是這張卡最大的目標，
+															 * 使用者的直覺是點圖不是點字。
+															 *
+															 * 做法是把 data-bgm-id 也放到封面上，前端那支委派
+															 * 處理器認的就是這個屬性（見 initAlbumModal），
+															 * 不必為封面另綁一組事件。
+															 *
+															 * 站內有對應文章時不給這個屬性——那種情況名稱是
+															 * <a>，點封面應該跟著連過去而不是開彈窗。
+															 * （目前全站 local_post_id 都是 0，實務上碰不到。）
+															 */
+															$album_modal_id = ( '' === $album['url'] && $album['bgm_id'] > 0 )
+																? (string) $album['bgm_id']
+																: '';
+															?>
+															<?php
+															/*
 															 * 封面。網址由回補 cron 寫進 cover_url，圖片本身仍由
 															 * Bangumi CDN 送（本站不存檔，理由見回補類別的檔頭）。
 															 *
@@ -83,16 +100,25 @@ $album_sections = $album_is_grouped
 															?>
 															<?php if ( ! empty( $album['cover'] ) ) : ?>
 																<img
-																	class="asd-album-thumb"
+																	class="asd-album-thumb<?php echo '' !== $album_modal_id ? ' is-clickable' : ''; ?>"
 																	src="<?php echo esc_url( $album['cover'] ); ?>"
 																	alt=""
 																	loading="lazy"
 																	decoding="async"
 																	width="400"
 																	height="400"
+																	<?php if ( '' !== $album_modal_id ) : ?>
+																		data-bgm-id="<?php echo esc_attr( $album_modal_id ); ?>"
+																	<?php endif; ?>
 																>
 															<?php else : ?>
-																<span class="asd-album-thumb asd-album-thumb--empty" aria-hidden="true">🎵</span>
+																<span
+																	class="asd-album-thumb asd-album-thumb--empty<?php echo '' !== $album_modal_id ? ' is-clickable' : ''; ?>"
+																	<?php if ( '' !== $album_modal_id ) : ?>
+																		data-bgm-id="<?php echo esc_attr( $album_modal_id ); ?>"
+																	<?php endif; ?>
+																	aria-hidden="true"
+																>🎵</span>
 															<?php endif; ?>
 
 															<span class="asd-album-main">
