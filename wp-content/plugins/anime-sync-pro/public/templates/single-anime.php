@@ -4252,6 +4252,24 @@ while ( have_posts() ) :
 					$author_html = esc_html( $original_author );
 				}
 
+				/*
+				 * 製作公司名稱的比對鍵。
+				 *
+				 * 兩邊的編碼不一致：postmeta 存原始字元
+				 *「Shogakukan Music & Digital Entertainment」，
+				 * 分類詞彙名稱卻存成 HTML 實體
+				 *「Shogakukan Music &amp; Digital Entertainment」。
+				 * 直接比字串永遠不相等，那些作品的製作公司就變成不能點的純文字。
+				 * 實測正式站 388 個詞彙裡有 3 個含實體，影響 11 部作品
+				 *（E&H Production、Heart & Soul Animation…）。
+				 *
+				 * 解碼後再比，兩邊就對得起來。顯示仍用各自的原始字串，
+				 * 這個鍵只用於配對。
+				 */
+				$studio_key = static function ( string $name ): string {
+					return trim( html_entity_decode( $name, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+				};
+
 				$studio_html = '';
 
 				if ( $studio !== '' ) {
@@ -4296,7 +4314,7 @@ while ( have_posts() ) :
 								$resolved_studio_url = get_term_link( $studio_tax_term );
 
 								if ( ! is_wp_error( $resolved_studio_url ) ) {
-									$studio_term_urls[ trim( $studio_tax_term->name ) ] = $resolved_studio_url;
+									$studio_term_urls[ $studio_key( $studio_tax_term->name ) ] = $resolved_studio_url;
 								}
 							}
 						}
@@ -4310,8 +4328,10 @@ while ( have_posts() ) :
 								continue;
 							}
 
-							$studio_parts[] = isset( $studio_term_urls[ $studio_one ] )
-								? '<a href="' . esc_url( $studio_term_urls[ $studio_one ] ) . '">'
+							$studio_one_key = $studio_key( $studio_one );
+
+							$studio_parts[] = isset( $studio_term_urls[ $studio_one_key ] )
+								? '<a href="' . esc_url( $studio_term_urls[ $studio_one_key ] ) . '">'
 									. esc_html( $studio_one )
 									. '</a>'
 								: esc_html( $studio_one );
@@ -6343,7 +6363,8 @@ while ( have_posts() ) :
 											$resolved_studio_url = get_term_link( $studio_tag_term );
 
 											if ( ! is_wp_error( $resolved_studio_url ) ) {
-												$studio_tag_urls[ trim( $studio_tag_term->name ) ] = $resolved_studio_url;
+												/* 比對鍵要解碼 HTML 實體，理由見上方 $studio_key 的說明 */
+												$studio_tag_urls[ $studio_key( $studio_tag_term->name ) ] = $resolved_studio_url;
 											}
 										}
 									}
@@ -6356,10 +6377,12 @@ while ( have_posts() ) :
 										if ( '' === $studio_one ) {
 											continue;
 										}
+
+										$studio_one_key = $studio_key( $studio_one );
 										?>
-										<?php if ( isset( $studio_tag_urls[ $studio_one ] ) ) : ?>
+										<?php if ( isset( $studio_tag_urls[ $studio_one_key ] ) ) : ?>
 											<a
-												href="<?php echo esc_url( $studio_tag_urls[ $studio_one ] ); ?>"
+												href="<?php echo esc_url( $studio_tag_urls[ $studio_one_key ] ); ?>"
 												class="asd-tag-item asd-tag-item--studio"
 											>
 												🎬 <?php echo esc_html( $studio_one ); ?>
