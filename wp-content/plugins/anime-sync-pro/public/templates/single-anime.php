@@ -4226,32 +4226,57 @@ while ( have_posts() ) :
 					 * 多數作品配不到就變純文字。退回 anime_studio_tax 的歸檔頁，
 					 * 與側欄標籤區連的是同一個地方。
 					 */
-					if ( $studio_url === '' ) {
+					if ( $studio_url !== '' ) {
+						$studio_html = '<a href="' . esc_url( $studio_url ) . '">'
+							. esc_html( $studio )
+							. '</a>';
+					} else {
+						/*
+						 * 一部作品可能有多間製作公司，而兩邊的存法不一樣：
+						 *   anime_studios（postmeta）「Hayabusa Film, Passione」一個字串
+						 *   anime_studio_tax（分類）  #459 Hayabusa Film、#460 Passione
+						 *
+						 * 原本拿整個字串去比對詞彙名稱，多間的作品永遠比不中
+						 *（沒有一個詞彙叫「Hayabusa Film, Passione」），於是整格變成
+						 * 純文字。實測正式站 1,604 部有製作公司，其中 126 部是多間，
+						 * 全部都點不動。
+						 *
+						 * 改成先用逗號拆開，每一段各自去配詞彙、各自給連結——
+						 * 跟上面原作者的做法一致（那邊本來就正確處理了多筆）。
+						 *
+						 * 仍然只認名稱完全相同者：連錯製作公司比不能點更糟。
+						 */
 						$studio_tax_terms = get_the_terms( $post_id, 'anime_studio_tax' );
+						$studio_term_urls = [];
 
 						if ( is_array( $studio_tax_terms ) ) {
 							foreach ( $studio_tax_terms as $studio_tax_term ) {
-								// 只認名稱相同者：連錯製作公司比不能點更糟。
-								if ( trim( $studio_tax_term->name ) !== trim( $studio ) ) {
-									continue;
-								}
-
 								$resolved_studio_url = get_term_link( $studio_tax_term );
 
 								if ( ! is_wp_error( $resolved_studio_url ) ) {
-									$studio_url = $resolved_studio_url;
+									$studio_term_urls[ trim( $studio_tax_term->name ) ] = $resolved_studio_url;
 								}
-
-								break;
 							}
 						}
-					}
 
-					$studio_html = $studio_url !== ''
-						? '<a href="' . esc_url( $studio_url ) . '">'
-							. esc_html( $studio )
-							. '</a>'
-						: esc_html( $studio );
+						$studio_parts = [];
+
+						foreach ( explode( ',', $studio ) as $studio_one ) {
+							$studio_one = trim( $studio_one );
+
+							if ( '' === $studio_one ) {
+								continue;
+							}
+
+							$studio_parts[] = isset( $studio_term_urls[ $studio_one ] )
+								? '<a href="' . esc_url( $studio_term_urls[ $studio_one ] ) . '">'
+									. esc_html( $studio_one )
+									. '</a>'
+								: esc_html( $studio_one );
+						}
+
+						$studio_html = implode( '、', $studio_parts );
+					}
 				}
 
 				/* 原作類型 → anime_source_tax 歸檔頁 */
