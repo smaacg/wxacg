@@ -1315,7 +1315,7 @@ function initAlbumModal() {
             '<div class="asd-amodal__head"><h3>' + esc(name) + '</h3></div>' +
             '<div class="asd-amodal__loading">' +
                 '<div class="asd-amodal__dots"><span></span><span></span><span></span></div>' +
-                '<p>讀取專輯資料…</p>' +
+                '<p>讀取資料…</p>' +
             '</div>';
     }
 
@@ -1371,7 +1371,7 @@ function initAlbumModal() {
             .catch(function (err) {
                 // 不吞錯：主控台留紀錄，畫面也明確告訴使用者
                 console.error('[Anime Sync Pro] album modal failed:', err);
-                renderError(name, '目前取不到這張專輯的資料，請稍後再試。');
+                renderError(name, '目前取不到這個條目的資料，請稍後再試。');
             });
     }
 

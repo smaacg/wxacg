@@ -32,7 +32,7 @@ class Anime_Sync_Bgm_Subject_Proxy {
 	const ROUTE_PATH = '/bgm-subject/(?P<id>\d+)';
 
 	const CACHE_TTL = 7 * DAY_IN_SECONDS;
-	const CACHE_VER = 'v2';
+	const CACHE_VER = 'v4';
 
 	/* 失敗也要快取一小段，否則壞掉的 id 會被反覆重打 */
 	const FAIL_TTL = 6 * HOUR_IN_SECONDS;
@@ -120,7 +120,7 @@ class Anime_Sync_Bgm_Subject_Proxy {
 			if ( ! empty( $cached['__failed'] ) ) {
 				return new WP_Error(
 					'asp_bgm_unavailable',
-					'目前取不到這張專輯的資料',
+					'目前取不到這個條目的資料',
 					[ 'status' => 502 ]
 				);
 			}
@@ -177,6 +177,55 @@ class Anime_Sync_Bgm_Subject_Proxy {
 	}
 
 	/**
+	 * 簡體轉繁體，但避開日文。
+	 *
+	 * infobox 的值跟 name_cn／summary 不一樣：後兩者按定義就是簡體中文，
+	 * 直接轉沒問題；infobox 的值卻是混語言的——遊戲的「開發／發行」大量
+	 * 是日本公司名。轉換器分不出日文和簡體，會把
+	 * 「アソビモ株式会社」轉成「アソビモ株式會社」，日文的 会社 被改成
+	 * 中文的 會社，那是錯的。
+	 *
+	 * 判別方式：含假名（平假名／片假名）就是日文，整段不轉。
+	 *
+	 * 已知限制——純漢字的日文名（例如 東宝）仍會被轉成 東寶。要根治得做
+	 * 語言判定，成本遠高於效益；這個啟發式擋掉了絕大多數實際案例，
+	 * 因為日本公司名多半帶片假名。
+	 */
+	private static function to_traditional( string $s ): string {
+		if ( '' === $s || ! class_exists( 'Anime_Sync_CN_Converter' ) ) {
+			return $s;
+		}
+
+		/* \x{3040}-\x{309F} 平假名，\x{30A0}-\x{30FF} 片假名 */
+		if ( preg_match( '/[\x{3040}-\x{309F}\x{30A0}-\x{30FF}]/u', $s ) ) {
+			return $s;
+		}
+
+		return Anime_Sync_CN_Converter::static_convert( $s );
+	}
+
+	/**
+	 * 把日期正規化成 Y-m-d，用來比對兩個欄位是不是同一天。
+	 *
+	 * 不能只是「去掉非數字再比」——Bangumi 兩種寫法的補零方式不一樣：
+	 *   2024-04-18   → 去掉非數字得 20240418
+	 *   2024年4月18日 → 去掉非數字得 2024418
+	 * 兩者其實是同一天，卻比不出相等，日期就會在彈窗裡出現兩次
+	 *（實測遊戲條目 星之翼 同時有「發售日 2024-04-18」與
+	 *  「發行日 2024年4月18日」）。取前三組數字再補零才對得起來。
+	 *
+	 * @return string 對不出日期就回空字串（呼叫端要當成「不比對」處理，
+	 *                不能讓兩個空字串互相判定為重複）。
+	 */
+	private static function date_key( string $s ): string {
+		if ( ! preg_match_all( '/\d+/', $s, $m ) || count( $m[0] ) < 3 ) {
+			return '';
+		}
+
+		return sprintf( '%04d-%02d-%02d', (int) $m[0][0], (int) $m[0][1], (int) $m[0][2] );
+	}
+
+	/**
 	 * 只回前台會用到的欄位，不把整包原始資料丟出去。
 	 */
 	private static function shape( array $d, int $id ): array {
@@ -220,6 +269,8 @@ class Anime_Sync_Bgm_Subject_Proxy {
 					continue;
 				}
 
+				$v = self::to_traditional( $v );
+
 				$info[] = [
 					'key'   => self::INFO_KEYS[ $k ],
 					'value' => $v,
@@ -256,11 +307,11 @@ class Anime_Sync_Bgm_Subject_Proxy {
 		 */
 		$date       = trim( (string) ( $d['date'] ?? '' ) );
 		$date_dupes = false;
+		$date_key   = self::date_key( $date );
 
-		if ( '' !== $date ) {
+		if ( '' !== $date_key ) {
 			foreach ( $info as $row ) {
-				/* 值可能寫成 2026-07-27 或 2026年7月27日，比數字就夠 */
-				if ( preg_replace( '/\D/', '', $row['value'] ) === preg_replace( '/\D/', '', $date ) ) {
+				if ( self::date_key( $row['value'] ) === $date_key ) {
 					$date_dupes = true;
 					break;
 				}
