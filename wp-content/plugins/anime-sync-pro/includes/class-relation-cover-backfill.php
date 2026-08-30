@@ -1,6 +1,16 @@
 <?php
 /**
- * 關聯封面回補 — 把 Bangumi 的封面「網址」寫進 wp_wxacg_subject_relations。
+ * 關聯回補 — 把 Bangumi 的跨媒體關聯與封面網址寫進 wp_wxacg_subject_relations。
+ *
+ * 做兩件事，因為資料來自同一次 API 回應：
+ *   1. 補封面網址（既有列的 cover_url 是 NULL）
+ *   2. 補整組關聯列（表裡一列都沒有的作品）
+ *
+ * 為什麼會有「一列都沒有」的作品：那張表原本只有外部腳本
+ * scratchpad/bgm/relations.php 會寫，匯入流程完全沒碰它，所以腳本跑過
+ * 之後才進站的作品從頭到尾沒有任何一列（實測正式站 162 部）。
+ * 這支就是來治這個根的——新作品由 save_post_anime 觀察者自動排程補齊，
+ * 匯入流程一行都不用改。
  *
  * 存網址不存檔案。實測（2026-08-30，正式站主機與本機各量一輪）：
  *   lain.bgm.tv   TTFB 48–57ms
@@ -22,12 +32,17 @@
  *  （id/type/name/name_cn/infobox/platform/summary/nsfw/date/favorite/
  *    series/tags/score/score_details/rank/meta_tags）。
  *
- * 節制：每 15 分鐘 20 部，約 1,900 次/天，64 輪（約 16 小時）跑完後
- * **自動停止**。這是刻意設計——2026-08 的實體回補 cron 是每 5 分鐘 60 次
- *（約 17,000 次/天）且常駐，把正式站 load average 推到 22.7、Cloudflare
- * 開始回 522/525，最後只能緊急關閉。這支是它的 1/9，而且會收斂。
+ * 節制：每 15 分鐘 20 部，約 1,900 次/天，跑完後**自動停止**。這是刻意
+ * 設計——2026-08 的實體回補 cron 是每 5 分鐘 60 次（約 17,000 次/天）
+ * 且常駐，把正式站 load average 推到 22.7、Cloudflare 開始回 522/525，
+ * 最後只能緊急關閉。這支是它的 1/9，而且會收斂。
+ *
+ * 批次能停掉，是因為日常維護交給觀察者而不是輪詢：新作品存檔後排一個
+ * 單次事件，沒有新東西就完全不會執行。改成常駐掃描等於把上面那個
+ * 「會停」的設計拆掉。
  *
  * Changelog:
+ *   1.1.0 (2026-08-30) — 補關聯列（原本只補封面）；新增 save_post 觀察者。
  *   1.0.0 (2026-08-30) — 初版。
  *
  * @package Anime_Sync_Pro
@@ -49,13 +64,131 @@ class Anime_Sync_Relation_Cover_Backfill {
 	/** 15 分鐘排程，由 Anime_Sync_Cron_Manager 註冊，這裡直接用 */
 	const SCHEDULE = 'anime_sync_quarter_hour';
 
-	const API_TMPL = 'https://api.bgm.tv/v0/subjects/%d/subjects';
+	const API_TMPL     = 'https://api.bgm.tv/v0/subjects/%d/subjects';
+	const SUBJECT_TMPL = 'https://api.bgm.tv/v0/subjects/';
+
+	/* 新作品存檔後補這一部（單次事件，見 watch_save） */
+	const HOOK_ONE = 'anime_sync_relcover_one';
+
+	/*
+	 * 「這部已經問過 Bangumi 了」的標記。
+	 *
+	 * 少了它回補就不會收斂：Bangumi 上真的沒有任何關聯的作品，處理完
+	 * 仍然是零列，下一輪又會被「找沒有關聯列的作品」撈出來，永遠跑不完。
+	 * 跟 cover_url 的 NULL／'' 是同一個道理——要分得出「還沒問」和
+	 * 「問過了，對方就是沒有」。
+	 */
+	const META_DONE = '_asp_relcover_done';
+
+	/*
+	 * 需要額外取 platform 的型別：遊戲(4) 與三次元(6)。
+	 *
+	 * 這兩種的分組靠 platform（4001 遊戲／4005 桌遊、6002 電影／6003
+	 * 舞台劇），但關聯端點沒有這個欄位，只能對每筆再打一次
+	 * /v0/subjects/{id}。其他型別不需要，也就不多花那次呼叫。
+	 *
+	 * 附帶一提：回應裡**每一種**型別都會寫進表裡，不只前台在讀的三種。
+	 * 既有資料裡書籍(1) 2,413 列、動畫(2) 2,745 列都在（外部腳本灌的），
+	 * 新作品只寫三種會讓同一張表出現兩種形狀，日後很難追。
+	 */
+	const PLATFORM_TYPES = [ 4, 6 ];
 
 	/* 同一輪內每部作品之間的間隔秒數，別讓 20 次呼叫擠在同一秒 */
 	const SLEEP_BETWEEN = 1;
 
 	public function __construct() {
 		add_action( self::HOOK, [ $this, 'run' ] );
+
+		/*
+		 * 新作品自動補齊，不必等人手動開回補。
+		 *
+		 * 掛 save_post 是觀察者，匯入流程一行都不用改——匯入用的是
+		 * wp_insert_post / wp_update_post（class-import-manager.php:202-204），
+		 * 所以一定會觸發。
+		 */
+		add_action( 'save_post_anime', [ $this, 'watch_save' ], 20, 3 );
+		add_action( self::HOOK_ONE, [ $this, 'run_one' ] );
+	}
+
+	/**
+	 * 作品存檔 → 缺資料的話排一個單次事件補它。
+	 *
+	 * 為什麼是「延遲執行」而不是當場補：
+	 *
+	 *   1. save_post 觸發時 anime_bangumi_id 這個 postmeta 可能還沒寫入。
+	 *      匯入器是 wp_insert_post() 之後才 update_post_meta()
+	 *     （class-import-manager.php:215/234/235），連 wp_after_insert_post
+	 *      都還是太早。延遲執行就繞開這個順序問題，不必去猜對方的寫入順序。
+	 *   2. 匯入當下打外部 API 會拖慢匯入，失敗還要處理重試。
+	 *   3. 一次匯入幾百部時，隨機分散避免瞬間幾百次 API。
+	 *
+	 * 相同 hook + 參數 WP 本來就會去重，不必自己防重複排程。
+	 */
+	public function watch_save( $post_id, $post, $update ): void {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+
+		if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+			return;
+		}
+
+		/*
+		 * 檢查放在這裡而不是處理器裡：已經補齊的作品重新編輯時連事件
+		 * 都不產生，省下整條 cron 路徑。
+		 */
+		if ( ! $this->needs_backfill( (int) $post_id ) ) {
+			return;
+		}
+
+		wp_schedule_single_event(
+			time() + 60 + wp_rand( 0, 540 ),
+			self::HOOK_ONE,
+			[ (int) $post_id ]
+		);
+	}
+
+	/**
+	 * 這部作品還需不需要補。
+	 *
+	 * 兩種需要：一列都沒有（且沒問過），或有列但封面還是 NULL。
+	 */
+	private function needs_backfill( int $post_id ): bool {
+		global $wpdb;
+
+		$table = $this->table();
+
+		$stat = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT COUNT(*) AS total, SUM(cover_url IS NULL) AS pending
+				 FROM {$table} WHERE post_id = %d",
+				$post_id
+			),
+			ARRAY_A
+		);
+
+		$total   = (int) ( $stat['total'] ?? 0 );
+		$pending = (int) ( $stat['pending'] ?? 0 );
+
+		if ( 0 === $total ) {
+			/* 沒問過才要排；問過了但對方就是沒有關聯，不再重試 */
+			return '' === (string) get_post_meta( $post_id, self::META_DONE, true );
+		}
+
+		return $pending > 0;
+	}
+
+	/**
+	 * 單次事件的處理器。
+	 */
+	public function run_one( $post_id ): void {
+		$post_id = (int) $post_id;
+
+		if ( $post_id <= 0 ) {
+			return;
+		}
+
+		$this->backfill_post( $post_id );
 	}
 
 	public static function schedule(): void {
@@ -88,11 +221,32 @@ class Anime_Sync_Relation_Cover_Backfill {
 
 		$table = $this->table();
 
-		return (int) $wpdb->get_var(
+		/*
+		 * 兩種待補：① 有關聯列但封面還沒補 ② 一列都沒有（外部腳本跑過
+		 * 之後才進站的作品）。② 在表裡查不到，只能從 wp_posts 那邊找。
+		 */
+		$no_cover = (int) $wpdb->get_var(
 			"SELECT COUNT(DISTINCT post_id)
 			 FROM {$table}
 			 WHERE cover_url IS NULL AND source_bgm_id > 0"
 		);
+
+		$no_rows = (int) $wpdb->get_var(
+			"SELECT COUNT(*)
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} m
+			     ON m.post_id = p.ID AND m.meta_key = 'anime_bangumi_id' AND m.meta_value > 0
+			 WHERE p.post_type = 'anime' AND p.post_status = 'publish'
+			   AND NOT EXISTS (
+			       SELECT 1 FROM {$table} r WHERE r.post_id = p.ID
+			   )
+			   AND NOT EXISTS (
+			       SELECT 1 FROM {$wpdb->postmeta} d
+			       WHERE d.post_id = p.ID AND d.meta_key = '_asp_relcover_done'
+			   )"
+		);
+
+		return $no_cover + $no_rows;
 	}
 
 	public function run(): void {
@@ -120,6 +274,40 @@ class Anime_Sync_Relation_Cover_Backfill {
 			),
 			ARRAY_A
 		);
+
+		/*
+		 * 補完「有列缺封面」的之後，才輪到「一列都沒有」的。
+		 *
+		 * 分兩段查而不是 UNION：前者只掃關聯表（有索引、很快），後者要
+		 * JOIN wp_posts + postmeta。先做便宜的，等它清空了那個貴的查詢
+		 * 一輪也只跑一次。
+		 */
+		if ( count( $targets ) < self::BATCH ) {
+			$need = self::BATCH - count( $targets );
+
+			$orphans = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT p.ID AS post_id, m.meta_value AS bgm
+					 FROM {$wpdb->posts} p
+					 INNER JOIN {$wpdb->postmeta} m
+					     ON m.post_id = p.ID AND m.meta_key = 'anime_bangumi_id' AND m.meta_value > 0
+					 WHERE p.post_type = 'anime' AND p.post_status = 'publish'
+					   AND NOT EXISTS (
+					       SELECT 1 FROM {$table} r WHERE r.post_id = p.ID
+					   )
+					   AND NOT EXISTS (
+					       SELECT 1 FROM {$wpdb->postmeta} d
+					       WHERE d.post_id = p.ID AND d.meta_key = '_asp_relcover_done'
+					   )
+					 ORDER BY p.ID ASC
+					 LIMIT %d",
+					$need
+				),
+				ARRAY_A
+			);
+
+			$targets = array_merge( $targets, $orphans );
+		}
 
 		if ( empty( $targets ) ) {
 			$this->finish();
@@ -173,6 +361,7 @@ class Anime_Sync_Relation_Cover_Backfill {
 		global $wpdb;
 
 		$table = $this->table();
+		$fail  = [ 'ok' => false, 'filled' => 0, 'rows' => 0, 'added' => 0 ];
 
 		if ( $bgm_id <= 0 ) {
 			$bgm_id = (int) $wpdb->get_var(
@@ -183,30 +372,45 @@ class Anime_Sync_Relation_Cover_Backfill {
 			);
 		}
 
+		/*
+		 * 表裡一列都沒有的作品（實測正式站 162 部）自然也沒有 source_bgm_id，
+		 * 退回 postmeta 找。這正是要治的根：關聯資料只有外部腳本會寫，
+		 * 腳本跑過之後才進站的作品從頭到尾沒有任何一列。
+		 */
 		if ( $bgm_id <= 0 ) {
-			return [ 'ok' => false, 'filled' => 0, 'rows' => 0 ];
+			$bgm_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
 		}
 
-		$map = $this->fetch_cover_map( $bgm_id );
+		if ( $bgm_id <= 0 ) {
+			return $fail;
+		}
+
+		$items = $this->fetch_relations( $bgm_id );
 
 		/*
 		 * 取不到就什麼都不寫——這一部下一輪會再排到。
 		 * 不寫 '' 的理由：'' 的語意是「Bangumi 說沒有這張圖」，
 		 * 拿它來標記「這次連線失敗」會讓本來有圖的條目被永久誤判成無圖。
 		 */
-		if ( null === $map ) {
-			return [ 'ok' => false, 'filled' => 0, 'rows' => 0 ];
+		if ( null === $items ) {
+			return $fail;
 		}
 
-		return [ 'ok' => true ] + $this->apply_map( $post_id, $map );
+		$result = $this->apply_map( $post_id, $bgm_id, $items );
+
+		/* 問過了就記下來——包括「對方回空陣列」的情況，否則永遠重排 */
+		update_post_meta( $post_id, self::META_DONE, current_time( 'mysql' ) );
+
+		return [ 'ok' => true ] + $result;
 	}
 
 	/**
-	 * 取某作品的關聯，整理成 bgm_id => 封面網址。
+	 * 取某作品的關聯原始清單。
 	 *
-	 * @return array<int,string>|null null 代表這次取失敗（不是「沒有封面」）
+	 * @return array<int,array>|null 以 bgm_id 為鍵；null 代表這次取失敗
+	 *                               （不是「沒有關聯」——那是空陣列）
 	 */
-	private function fetch_cover_map( int $bgm_id ): ?array {
+	private function fetch_relations( int $bgm_id ): ?array {
 		$res = wp_remote_get(
 			sprintf( self::API_TMPL, $bgm_id ),
 			[
@@ -244,7 +448,7 @@ class Anime_Sync_Relation_Cover_Backfill {
 			return null;
 		}
 
-		$map = [];
+		$out = [];
 
 		foreach ( $data as $row ) {
 			if ( ! is_array( $row ) || empty( $row['id'] ) ) {
@@ -252,34 +456,78 @@ class Anime_Sync_Relation_Cover_Backfill {
 			}
 
 			/*
-			 * 取 common（/r/400/，實測 29KB）。
+			 * 封面取 common（/r/400/，實測 29KB）。
 			 * 另外兩個尺寸：/r/100/ 3.7KB、原圖 73KB。
-			 * 400px 對之後要做的封面牆剛好，當 48px 縮圖略大但可接受；
-			 * 存原圖再由前端自己拼 /r/400/ 會依賴對方的網址規則，不划算。
+			 * 400px 對封面牆剛好；存原圖再由前端自己拼 /r/400/ 會依賴
+			 * 對方的網址規則，不划算。
 			 */
-			$map[ (int) $row['id'] ] = isset( $row['images'] ) && is_array( $row['images'] )
+			$cover = isset( $row['images'] ) && is_array( $row['images'] )
 				? (string) ( $row['images']['common'] ?? $row['images']['large'] ?? '' )
 				: '';
+
+			$out[ (int) $row['id'] ] = [
+				'bgm_id'   => (int) $row['id'],
+				'type'     => (int) ( $row['type'] ?? 0 ),
+				'relation' => (string) ( $row['relation'] ?? '' ),
+				'name'     => (string) ( $row['name'] ?? '' ),
+				'name_cn'  => (string) ( $row['name_cn'] ?? '' ),
+				'cover'    => $cover,
+			];
 		}
 
-		return $map;
+		return $out;
 	}
 
 	/**
-	 * 把封面寫回該作品的所有關聯列。
+	 * 取單一條目的 platform 字串（"游戏"／"电影"／"舞台剧"…）。
 	 *
-	 * 回應裡沒出現的 bgm_id 一律寫 ''（不是留 NULL）——那代表 Bangumi 這邊
-	 * 已經沒有這筆關聯或它沒有圖，留 NULL 會讓這一部永遠排在待補佇列裡，
-	 * 回補就收斂不了。
+	 * 關聯端點沒有這個欄位，只能對每筆遊戲／三次元多打一次。
+	 * 一部作品通常只有 0-2 筆這種條目，成本可接受；其餘型別不呼叫。
 	 *
-	 * @param array<int,string> $map
-	 * @return array{filled:int, rows:int}
+	 * @return string 取不到就空字串——分組會歸「其他」，不猜。
 	 */
-	private function apply_map( int $post_id, array $map ): array {
+	private function fetch_platform( int $bgm_id ): string {
+		$res = wp_remote_get(
+			self::SUBJECT_TMPL . $bgm_id,
+			[
+				'timeout' => 15,
+				'headers' => [
+					'User-Agent' => 'weixiaoacg/1.0 (+https://weixiaoacg.com)',
+					'Accept'     => 'application/json',
+				],
+			]
+		);
+
+		if ( is_wp_error( $res ) || 200 !== (int) wp_remote_retrieve_response_code( $res ) ) {
+			/* 拿不到 platform 不算致命，關聯列照樣建立 */
+			return '';
+		}
+
+		$d = json_decode( wp_remote_retrieve_body( $res ), true );
+
+		return is_array( $d ) ? trim( (string) ( $d['platform'] ?? '' ) ) : '';
+	}
+
+	/**
+	 * 把回應寫回資料庫：既有列補封面，缺少的列補建。
+	 *
+	 * 兩件事一起做而不是分開，因為資料來源是同一次回應。原本這張表只有
+	 * 外部腳本 scratchpad/bgm/relations.php 會寫，匯入流程完全沒碰，
+	 * 所以腳本跑過之後才進站的作品連一列都沒有（實測正式站 162 部）。
+	 *
+	 * 既有列沒出現在回應裡的，cover_url 寫 ''（不是留 NULL）——那代表
+	 * Bangumi 這邊已經沒有這筆關聯或它沒有圖，留 NULL 會讓這一部永遠
+	 * 排在待補佇列裡，回補就收斂不了。
+	 *
+	 * @param array<int,array> $items fetch_relations() 的回傳
+	 * @return array{filled:int, rows:int, added:int}
+	 */
+	private function apply_map( int $post_id, int $source_bgm_id, array $items ): array {
 		global $wpdb;
 
 		$table = $this->table();
 
+		/* ── 1. 既有列：補封面 ── */
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT id, bgm_id FROM {$table} WHERE post_id = %d AND cover_url IS NULL",
@@ -291,7 +539,7 @@ class Anime_Sync_Relation_Cover_Backfill {
 		$filled = 0;
 
 		foreach ( $rows as $row ) {
-			$url = $map[ (int) $row['bgm_id'] ] ?? '';
+			$url = $items[ (int) $row['bgm_id'] ]['cover'] ?? '';
 
 			$wpdb->update(
 				$table,
@@ -306,7 +554,103 @@ class Anime_Sync_Relation_Cover_Backfill {
 			}
 		}
 
-		return [ 'filled' => $filled, 'rows' => count( $rows ) ];
+		/* ── 2. 缺少的列：補建 ── */
+		$existing = $wpdb->get_col(
+			$wpdb->prepare( "SELECT bgm_id FROM {$table} WHERE post_id = %d", $post_id )
+		);
+
+		$existing = array_flip( array_map( 'intval', (array) $existing ) );
+		$added    = 0;
+
+		foreach ( $items as $bgm_id => $item ) {
+			if ( isset( $existing[ $bgm_id ] ) ) {
+				continue;
+			}
+
+			/*
+			 * relation 是中文字串（"片头曲"），platform 整個欄位不在關聯
+			 * 端點裡。兩者都靠 repository 的既有標籤表反查，不另寫對照表。
+			 * 對不到就 0，顯示時歸「其他」——不猜一個意思不對的代碼。
+			 *
+			 * 用 method_exists 而不是 class_exists：部署不是原子操作，
+			 * 這支的新版可能先落地、repository 還是舊版，那時類別存在
+			 * 但方法不存在，class_exists 擋不住，會直接 Fatal。
+			 * 擋掉的話最多是代碼填 0（歸「其他」），不會炸掉整個 cron。
+			 */
+			$can_map = method_exists(
+				'Anime_Sync_Subject_Relations_Repository',
+				'relation_code'
+			);
+
+			$relation_type = $can_map
+				? Anime_Sync_Subject_Relations_Repository::relation_code( $item['relation'], $item['type'] )
+				: 0;
+
+			$platform = 0;
+
+			if ( $can_map && in_array( $item['type'], self::PLATFORM_TYPES, true ) ) {
+				$platform = Anime_Sync_Subject_Relations_Repository::platform_code(
+					$this->fetch_platform( $bgm_id ),
+					$item['type']
+				);
+			}
+
+			$wpdb->insert(
+				$table,
+				[
+					'post_id'       => $post_id,
+					'source_bgm_id' => $source_bgm_id,
+					'bgm_id'        => $bgm_id,
+					'subject_type'  => $item['type'],
+					'relation_type' => $relation_type,
+					'platform'      => $platform,
+					'name'          => $item['name'],
+					'name_cn'       => $item['name_cn'],
+					'local_post_id' => 0,
+					'cover_url'     => $item['cover'],
+					'synced_at'     => current_time( 'mysql' ),
+				],
+				[ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%s', '%s' ]
+			);
+
+			if ( $wpdb->rows_affected > 0 ) {
+				$added++;
+
+				if ( '' !== $item['cover'] ) {
+					$filled++;
+				}
+			}
+		}
+
+		if ( $added > 0 ) {
+			/* 新增了列，前台的分組快取要失效，否則 6 小時內看不到 */
+			$this->flush_cache( $post_id );
+		}
+
+		return [
+			'filled' => $filled,
+			'rows'   => count( $rows ),
+			'added'  => $added,
+		];
+	}
+
+	/**
+	 * 清掉某作品的關聯查詢快取。
+	 *
+	 * repository 以 post_id + subject_type 為單位存 6 小時 transient，
+	 * 補完不清的話使用者最多要等 6 小時才看得到——新作品剛匯入就查看的
+	 * 情況下，那等於「補了跟沒補一樣」。
+	 */
+	private function flush_cache( int $post_id ): void {
+		if ( ! defined( 'Anime_Sync_Subject_Relations_Repository::CACHE_VER' ) ) {
+			return;
+		}
+
+		$ver = Anime_Sync_Subject_Relations_Repository::CACHE_VER;
+
+		foreach ( [ 1, 2, 3, 4, 6 ] as $type ) {
+			delete_transient( sprintf( 'asp_subjrel_%s_%d_%d', $ver, $post_id, $type ) );
+		}
 	}
 
 	/**

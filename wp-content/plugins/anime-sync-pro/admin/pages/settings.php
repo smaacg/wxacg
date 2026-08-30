@@ -772,9 +772,11 @@ $cron_rows = array(
                                 ); ?>
                             <?php endif; ?>
                             <br>
-                            <?php esc_html_e( '取 Bangumi 的封面「網址」存進關聯表，圖片本身仍由對方 CDN 提供，本站不存檔。', 'anime-sync-pro' ); ?>
+                            <?php esc_html_e( '一部作品一次 API 呼叫，同時補齊缺少的關聯資料與封面網址；音樂／遊戲／真人版一起處理。', 'anime-sync-pro' ); ?>
                             <br>
-                            <?php esc_html_e( '一部作品一次 API 呼叫，音樂／遊戲／真人版的封面會一起補齊。', 'anime-sync-pro' ); ?>
+                            <?php esc_html_e( '封面存的是網址，圖片仍由 Bangumi CDN 提供，本站不存檔。', 'anime-sync-pro' ); ?>
+                            <br>
+                            <?php esc_html_e( '新匯入的作品會自動排程補齊，不需要再開這個開關；這裡只用於一次性的追趕。', 'anime-sync-pro' ); ?>
                         </p>
 
                         <?php if ( ! empty( $relcover_stat ) ) : ?>

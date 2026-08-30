@@ -1222,17 +1222,23 @@ add_action( 'plugins_loaded', function (): void {
 
 	// ------------------------------------------------------
 	// 關聯封面回補（v1.7.8 新增）
-	// 把 Bangumi 封面「網址」寫進 wp_wxacg_subject_relations，前台就不必
-	// 為了顯示封面而打 API。一次性作業，補完自己關掉排程。
+	// 把 Bangumi 的關聯與封面「網址」寫進 wp_wxacg_subject_relations，
+	// 前台就不必為了顯示而打 API。批次回補補完自動停；新作品由
+	// save_post_anime 觀察者排單次事件補齊，不必人工介入。
 	//
-	// 掛在 DOING_CRON / WP-CLI / 後台三種情境——前台不需要它，
-	// 但 wp-cron 是由前台請求觸發的，所以 DOING_CRON 一定要涵蓋。
+	// 四種情境都要掛：
+	//   is_admin()   後台編輯與匯入
+	//   DOING_CRON   wp-cron（由前台請求觸發，所以一定要有）
+	//   WP_CLI       指令列匯入
+	//   REST_REQUEST 區塊編輯器存檔走 REST，那時 is_admin() 是 false
+	// 純前台瀏覽不需要，也就不載入。
 	// ------------------------------------------------------
 	if (
 		class_exists( 'Anime_Sync_Relation_Cover_Backfill' )
 		&& ( is_admin()
 			|| ( defined( 'DOING_CRON' ) && DOING_CRON )
-			|| ( defined( 'WP_CLI' ) && WP_CLI ) )
+			|| ( defined( 'WP_CLI' ) && WP_CLI )
+			|| ( defined( 'REST_REQUEST' ) && REST_REQUEST ) )
 	) {
 		new Anime_Sync_Relation_Cover_Backfill();
 	}

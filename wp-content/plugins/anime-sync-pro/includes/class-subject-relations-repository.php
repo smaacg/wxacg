@@ -120,6 +120,87 @@ class Anime_Sync_Subject_Relations_Repository {
 		$this->table = $wpdb->prefix . 'wxacg_subject_relations';
 	}
 
+	/* =====================================================================
+	 * 標籤 → 代碼（給回補用）
+	 *
+	 * Bangumi 的 /v0/subjects/{id}/subjects 只回中文字串（"片头曲"、
+	 * "不同演绎"），不回數字代碼；platform 更是整個欄位都沒有。但本表存的
+	 * 是數字，所以要反查。
+	 *
+	 * 不另寫一份簡體對照表——站上已有的 CN_Converter 加上下面四張既有的
+	 * 標籤表就對得出來。實測 22 個測 20 個中，剩兩個見下方說明。
+	 * 多一份手寫表就是多一份要跟著維護的東西。
+	 * ===================================================================== */
+
+	/**
+	 * 比對用的正規化。
+	 *
+	 * 一定要做臺／台轉換：CN_Converter 會把「舞台剧」轉成「舞臺劇」，
+	 * 但 REAL_PLATFORMS 裡寫的是「舞台劇」，不統一就永遠對不到。
+	 * 兩邊都壓成「台」再比。
+	 */
+	private static function normalize_label( string $s ): string {
+		$s = trim( $s );
+
+		if ( '' === $s ) {
+			return '';
+		}
+
+		if ( class_exists( 'Anime_Sync_CN_Converter' ) ) {
+			$s = Anime_Sync_CN_Converter::static_convert( $s );
+		}
+
+		return str_replace( '臺', '台', $s );
+	}
+
+	private static function lookup( string $label, array $map ): int {
+		$label = self::normalize_label( $label );
+
+		if ( '' === $label ) {
+			return 0;
+		}
+
+		foreach ( $map as $code => $name ) {
+			if ( self::normalize_label( (string) $name ) === $label ) {
+				return (int) $code;
+			}
+		}
+
+		return 0;
+	}
+
+	/**
+	 * 關聯類型字串 → 代碼。對不到回 0（顯示時歸「其他」，不猜）。
+	 *
+	 * 音樂用 MUSIC_LABELS（原聲集／片頭曲…），其餘用 REL_BADGES
+	 *（改編／續集／衍生…）。「书籍」這種 REL_BADGES 沒收的字串會回 0，
+	 * 那是正確行為——寧可歸「其他」，也不要硬塞一個意思不對的代碼。
+	 */
+	public static function relation_code( string $relation, int $subject_type ): int {
+		return self::lookup(
+			$relation,
+			self::TYPE_MUSIC === $subject_type ? self::MUSIC_LABELS : self::REL_BADGES
+		);
+	}
+
+	/**
+	 * 平台字串 → 代碼。只有遊戲與三次元用得到。
+	 *
+	 * 這個值不在關聯端點裡，要另外向 /v0/subjects/{id} 取（那裡的
+	 * platform 也是字串，例如「游戏」「电影」）。
+	 */
+	public static function platform_code( string $platform, int $subject_type ): int {
+		if ( self::TYPE_GAME === $subject_type ) {
+			return self::lookup( $platform, self::GAME_PLATFORMS );
+		}
+
+		if ( self::TYPE_REAL === $subject_type ) {
+			return self::lookup( $platform, self::REAL_PLATFORMS );
+		}
+
+		return 0;
+	}
+
 	/**
 	 * 取某作品某類型的關聯，已依顯示順序分組。
 	 *
