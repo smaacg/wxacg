@@ -53,10 +53,17 @@ class Anime_Sync_Entity_Fill {
 	const HOOK = 'anime_sync_entity_fill_run';
 
 	/**
-	 * 目前要跑的資料檔。日後再產新的就往這裡加一行，舊的紀錄不會擋住它。
+	 * 要跑的資料檔與模式。日後再產新的就往這裡加一行，舊的紀錄不會擋住它。
+	 *
+	 *   fill   只填空欄位，絕不覆蓋（大多數情況用這個）
+	 *   repair 覆蓋既有值——只用在「既有值本身是壞的」的修復，
+	 *          例如簡繁轉換的保護片段沒還原（summary 含 __ASCNPROTECT_n__）、
+	 *          或日文原名被當成簡體轉成中文（株式会社→株式會社）。
+	 *          那些值不是空的，fill 模式碰不到。
 	 */
 	const FILES = [
-		'entity-fill-2026-08-30.jsonl',
+		'entity-fill-2026-08-30.jsonl'   => 'fill',
+		'entity-repair-2026-08-30.jsonl' => 'repair',
 	];
 
 	public static function init(): void {
@@ -69,7 +76,7 @@ class Anime_Sync_Entity_Fill {
 	public static function pending(): array {
 		$done = (array) get_option( self::OPTION_DONE, [] );
 
-		return array_values( array_diff( self::FILES, array_keys( $done ) ) );
+		return array_diff_key( self::FILES, $done );
 	}
 
 	/**
@@ -95,19 +102,20 @@ class Anime_Sync_Entity_Fill {
 	 * 單次事件的處理器：把還沒跑的資料檔一次跑完。
 	 */
 	public static function run_pending(): void {
-		foreach ( self::pending() as $file ) {
-			self::run( $file );
+		foreach ( self::pending() as $file => $mode ) {
+			self::run( $file, false, $mode );
 		}
 	}
 
 	/**
 	 * 跑一份資料檔。
 	 *
-	 * @param string $file 檔名（相對於外掛的 data/ 目錄）
+	 * @param string $file  檔名（相對於外掛的 data/ 目錄）
 	 * @param bool   $force 忽略「跑過了」的紀錄，重跑一次
+	 * @param string $mode  fill＝只填空欄位；repair＝覆蓋既有值
 	 * @return array{ok:bool, msg:string, rows:int, filled:int, skipped:int}
 	 */
-	public static function run( string $file, bool $force = false ): array {
+	public static function run( string $file, bool $force = false, string $mode = 'fill' ): array {
 		$fail = [ 'ok' => false, 'msg' => '', 'rows' => 0, 'filled' => 0, 'skipped' => 0 ];
 
 		/* 檔名只允許這個目錄下的檔案，不接受路徑 */
@@ -161,11 +169,13 @@ class Anime_Sync_Entity_Fill {
 			'P' => [
 				'ib' => 'infobox_json',
 				'sm' => 'summary',
+				'no' => 'name_original',
 			],
 			'C' => [
 				'ib' => 'infobox_json',
 				'sm' => 'summary',
 				'nc' => 'name_cn',
+				'no' => 'name_original',
 			],
 		];
 
@@ -222,11 +232,13 @@ class Anime_Sync_Entity_Fill {
 				}
 
 				/*
-				 * 只填空欄位。這裡重新查而不是相信產檔當下的狀態——產檔到
-				 * 執行之間可能隔了幾天，中間可能已被別的途徑補上，不該覆蓋。
-				 * NULL 與空字串都算空。
+				 * fill 模式只填空欄位。這裡重新查而不是相信產檔當下的狀態
+				 * ——產檔到執行之間可能隔了幾天，中間可能已被別的途徑補上，
+				 * 不該覆蓋。NULL 與空字串都算空。
+				 *
+				 * repair 模式相反：既有值本身就是壞的，非覆蓋不可。
 				 */
-				if ( '' !== trim( (string) $row[ $column ] ) ) {
+				if ( 'repair' !== $mode && '' !== trim( (string) $row[ $column ] ) ) {
 					$stat['skipped']++;
 
 					continue;

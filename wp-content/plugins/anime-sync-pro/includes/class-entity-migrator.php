@@ -492,16 +492,34 @@ class Anime_Sync_Entity_Migrator {
 			if ( $key === '别名' || $key === '別名' ) {
 				if ( is_array( $value ) ) {
 					foreach ( $value as $alias ) {
-						$k = $convert( (string) ( $alias['k'] ?? '' ) );
-						$v = $convert( (string) ( $alias['v'] ?? '' ) );
-						if ( $v === '' ) {
+						$k   = $convert( (string) ( $alias['k'] ?? '' ) );
+						$raw = trim( (string) ( $alias['v'] ?? '' ) );
+
+						if ( $raw === '' ) {
 							continue;
 						}
+
 						if ( $k === '' ) {
 							$k = '別名' . ( count( $aliases ) + 1 );
 						}
+
+						/*
+						 * 日文名不做簡繁轉換。
+						 *
+						 * 那個欄位按定義就是日文，而轉換器分不出日文和簡體，
+						 * 會把「株式会社」改成「株式會社」——日文的 会社 變成
+						 * 中文的 會社，那是錯的。
+						 *
+						 * 檔頭 1.8.2 的說明本來就寫著 name_original「不經簡繁
+						 * 轉換」，但程式碼一直是轉過才用，兩者不符。實測正式站
+						 * 164 筆 name_original 全部中招，正確的「会社」一筆都沒有。
+						 */
+						$is_ja = ( $k === '日文名' || $k === '日文名稱' );
+						$v     = $is_ja ? $raw : $convert( $raw );
+
 						$aliases[ $k ] = $v;
-						if ( ( $k === '日文名' || $k === '日文名稱' ) && $name_ja === '' ) {
+
+						if ( $is_ja && $name_ja === '' ) {
 							$name_ja = $v;
 						}
 					}
@@ -1211,16 +1229,34 @@ class Anime_Sync_Entity_Migrator {
 			if ( $key === '别名' || $key === '別名' ) {
 				if ( is_array( $value ) ) {
 					foreach ( $value as $alias ) {
-						$k = $convert( (string) ( $alias['k'] ?? '' ) );
-						$v = $convert( (string) ( $alias['v'] ?? '' ) );
-						if ( $v === '' ) {
+						$k   = $convert( (string) ( $alias['k'] ?? '' ) );
+						$raw = trim( (string) ( $alias['v'] ?? '' ) );
+
+						if ( $raw === '' ) {
 							continue;
 						}
+
 						if ( $k === '' ) {
 							$k = '別名' . ( count( $aliases ) + 1 );
 						}
+
+						/*
+						 * 日文名不做簡繁轉換。
+						 *
+						 * 那個欄位按定義就是日文，而轉換器分不出日文和簡體，
+						 * 會把「株式会社」改成「株式會社」——日文的 会社 變成
+						 * 中文的 會社，那是錯的。
+						 *
+						 * 檔頭 1.8.2 的說明本來就寫著 name_original「不經簡繁
+						 * 轉換」，但程式碼一直是轉過才用，兩者不符。實測正式站
+						 * 164 筆 name_original 全部中招，正確的「会社」一筆都沒有。
+						 */
+						$is_ja = ( $k === '日文名' || $k === '日文名稱' );
+						$v     = $is_ja ? $raw : $convert( $raw );
+
 						$aliases[ $k ] = $v;
-						if ( ( $k === '日文名' || $k === '日文名稱' ) && $name_ja === '' ) {
+
+						if ( $is_ja && $name_ja === '' ) {
 							$name_ja = $v;
 						}
 					}
