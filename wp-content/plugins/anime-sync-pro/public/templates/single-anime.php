@@ -6318,44 +6318,58 @@ while ( have_posts() ) :
 							</div>
 
 							<div class="asd-tags-wrap">
-								<?php if ( $studio ) :
-									$studio_terms = get_terms(
-										[
-											'taxonomy'   => 'anime_studio_tax',
-											'name'       => $studio,
-											'hide_empty' => false,
-											'number'     => 1,
-										]
-									);
+								<?php if ( $studio ) : ?>
+									<?php
+									/*
+									 * 一部作品可能有多間製作公司，兩邊的存法不一樣：
+									 *   anime_studios（postmeta）「Hayabusa Film, Passione」一個字串
+									 *   anime_studio_tax（分類）  兩個獨立詞彙
+									 *
+									 * 原本拿整個字串去 get_terms( 'name' => $studio )，
+									 * 找一個叫「Hayabusa Film, Passione」的詞彙——不存在，
+									 * 於是整個標籤退化成不能點的 <span>。
+									 * 側欄的製作公司欄位是同一個病，已在上面修掉。
+									 *
+									 * 這裡拆成每間一個標籤：跟旁邊的季度、類型一致
+									 *（一個標籤＝一個詞彙＝一個連結），而不是把兩間塞進
+									 * 同一顆膠囊裡。配不到詞彙的那間仍然是 <span>，
+									 * 不會連錯地方。
+									 */
+									$studio_tag_terms = get_the_terms( $post_id, 'anime_studio_tax' );
+									$studio_tag_urls  = [];
 
-									$studio_term_url = '';
+									if ( is_array( $studio_tag_terms ) ) {
+										foreach ( $studio_tag_terms as $studio_tag_term ) {
+											$resolved_studio_url = get_term_link( $studio_tag_term );
 
-									if (
-										! is_wp_error( $studio_terms )
-										&& ! empty( $studio_terms )
-									) {
-										$resolved_studio_url = get_term_link(
-											$studio_terms[0]
-										);
-
-										if ( ! is_wp_error( $resolved_studio_url ) ) {
-											$studio_term_url = $resolved_studio_url;
+											if ( ! is_wp_error( $resolved_studio_url ) ) {
+												$studio_tag_urls[ trim( $studio_tag_term->name ) ] = $resolved_studio_url;
+											}
 										}
 									}
 									?>
 
-									<?php if ( $studio_term_url ) : ?>
-										<a
-											href="<?php echo esc_url( $studio_term_url ); ?>"
-											class="asd-tag-item asd-tag-item--studio"
-										>
-											🎬 <?php echo esc_html( $studio ); ?>
-										</a>
-									<?php else : ?>
-										<span class="asd-tag-item asd-tag-item--studio">
-											🎬 <?php echo esc_html( $studio ); ?>
-										</span>
-									<?php endif; ?>
+									<?php foreach ( explode( ',', $studio ) as $studio_one ) : ?>
+										<?php
+										$studio_one = trim( $studio_one );
+
+										if ( '' === $studio_one ) {
+											continue;
+										}
+										?>
+										<?php if ( isset( $studio_tag_urls[ $studio_one ] ) ) : ?>
+											<a
+												href="<?php echo esc_url( $studio_tag_urls[ $studio_one ] ); ?>"
+												class="asd-tag-item asd-tag-item--studio"
+											>
+												🎬 <?php echo esc_html( $studio_one ); ?>
+											</a>
+										<?php else : ?>
+											<span class="asd-tag-item asd-tag-item--studio">
+												🎬 <?php echo esc_html( $studio_one ); ?>
+											</span>
+										<?php endif; ?>
+									<?php endforeach; ?>
 								<?php endif; ?>
 
 								<?php foreach ( $season_child_terms as $season_term ) :
