@@ -96,6 +96,16 @@ class Anime_Sync_Relation_Cover_Backfill {
 	/* 同一輪內每部作品之間的間隔秒數，別讓 20 次呼叫擠在同一秒 */
 	const SLEEP_BETWEEN = 1;
 
+	/*
+	 * 單次補的執行鎖存活秒數。
+	 *
+	 * 一次單次補最壞情況是 1 次關聯呼叫 + 幾次 platform 呼叫，抓 30 秒
+	 * 綽綽有餘。設太長會讓正常的「一部一部匯入」被誤判成擁塞而丟給批次
+	 *（結果還是會補到，只是慢一點）；設太短則擋不住 WP-Cron 一次跑完
+	 * 上百個事件的情況。
+	 */
+	const LOCK_TTL = 30;
+
 	public function __construct() {
 		add_action( self::HOOK, [ $this, 'run' ] );
 
@@ -180,6 +190,18 @@ class Anime_Sync_Relation_Cover_Backfill {
 
 	/**
 	 * 單次事件的處理器。
+	 *
+	 * 有一道擁塞閘：同一時間只讓一個單次補實際執行，擠在一起的那些
+	 * 改成打開批次回補，由它以每 15 分鐘 20 部的速度慢慢消化。
+	 *
+	 * 為什麼需要這道閘——WP-Cron 會在**一次請求裡跑完所有到期的事件**。
+	 * 一次發佈幾百部草稿（站上實測有 556 部 anime 草稿，519 部有 bgm_id
+	 * 且全部沒有關聯列），就會有上百個事件在同一個窗口到期，變成單一個
+	 * PHP 進程連續打上百次 Bangumi API。那正是 2026-08 事故的形狀。
+	 *
+	 * 擠不進來的不重排也不丟掉：批次回補的佇列條件本來就涵蓋它們
+	 *（沒有關聯列 或 cover_url IS NULL），下一輪自然會輪到。
+	 * 重排幾百個事件只會製造大量沒有意義的 option 寫入。
 	 */
 	public function run_one( $post_id ): void {
 		$post_id = (int) $post_id;
@@ -188,7 +210,62 @@ class Anime_Sync_Relation_Cover_Backfill {
 			return;
 		}
 
+		/* 短鎖：拿不到就代表這一波不只一部，走批次 */
+		if ( ! $this->acquire_lock() ) {
+			$this->switch_to_batch();
+
+			return;
+		}
+
 		$this->backfill_post( $post_id );
+	}
+
+	/**
+	 * 取得單次補的執行鎖。
+	 *
+	 * 用 add_option 的原子性做鎖（autoload=no）。transient 在有物件快取
+	 * 的環境下 set 不是原子的，兩個同時到期的事件可能都拿到鎖。
+	 */
+	private function acquire_lock(): bool {
+		$key = 'anime_sync_relcover_lock';
+		$now = time();
+
+		/* 過期的鎖要能被搶走，否則一次逾時就永遠卡住 */
+		$held = (int) get_option( $key, 0 );
+
+		if ( $held > 0 && ( $now - $held ) < self::LOCK_TTL ) {
+			return false;
+		}
+
+		if ( $held > 0 ) {
+			update_option( $key, $now, false );
+
+			return true;
+		}
+
+		return add_option( $key, $now, '', false );
+	}
+
+	/**
+	 * 大量待補時改走批次回補。
+	 *
+	 * 批次本來就是為這種量設計的（每 15 分鐘 20 部、補完自動停），
+	 * 不必另外寫一套限流。
+	 */
+	private function switch_to_batch(): void {
+		if ( 'on' === get_option( self::OPTION_MODE, 'off' ) ) {
+			return;
+		}
+
+		update_option( self::OPTION_MODE, 'on' );
+
+		self::schedule();
+
+		if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+			Anime_Sync_Error_Logger::info(
+				'單次補擁塞，已自動開啟批次關聯回補'
+			);
+		}
 	}
 
 	public static function schedule(): void {
