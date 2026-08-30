@@ -2304,9 +2304,19 @@ class Anime_Sync_API_Handler {
 
         $staff = [];
         foreach ( $persons as $p ) {
-            $role = $p['relation'] ?? '';
-            $name = $p['name']     ?? '';
+            $role = trim( (string) ( $p['relation'] ?? '' ) );
+            $name = $p['name'] ?? '';
             if ( $role === '' || $name === '' ) continue;
+
+            /*
+             * 職位名稱轉繁。動畫那邊走 Staff_Roles::normalize()（多一層
+             * 製作職位對照表，处理 导演→監督 這種用語差異），漫畫用不到
+             * 那份表——實際出現的是 连载杂志／译者／插图／作画 這類，
+             * 純簡繁轉換就夠，所以直接用 CN_Converter。
+             */
+            if ( class_exists( 'Anime_Sync_CN_Converter' ) ) {
+                $role = Anime_Sync_CN_Converter::static_convert( $role );
+            }
 
             $staff[] = [
                 'id'     => $p['id']             ?? 0,
