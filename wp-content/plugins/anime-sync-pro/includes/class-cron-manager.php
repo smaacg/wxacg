@@ -1648,9 +1648,31 @@ class Anime_Sync_Cron_Manager {
          *   而跑完一輪全部待補資料只需約 5 小時（每 5 分鐘 60 筆），
          *   7 天足夠涵蓋，又不至於頻繁重試浪費 Bangumi API。
          */
-        $cooldown_days = (int) apply_filters( 'anime_sync_entity_backfill_cooldown_days', 7 );
+        /*
+         * ✅ [2026-08-30] 冷卻期 7 天 → 90 天
+         *
+         * 上面那段「7 天」的推論是對的，但前提已經不成立了。當時假設待補的
+         * 資料多半是「還沒抓到」，所以要快點重試；把整份 Bangumi Archive dump
+         * 撈過一遍之後才知道不是這樣：
+         *
+         *   正式站 14,325 筆待補實體，dump 裡真正有資料的只有 219 筆，
+         *   其餘 13,514 筆在 Bangumi 上本身就是空的——多半是配角、單集角色、
+         *   小牌工作人員，條目只有名字。抽樣以 API 交叉驗證，dump 與 API
+         *   結果完全一致（bgm person 26907 金澤慎太郎、character 165282
+         *   大喜の母，兩邊 summary 皆 0 bytes）。
+         *
+         * 那 219 筆已經用 class-entity-fill.php 的資料檔補完，所以現在開著
+         * 回補，每 7 天就是對著 13,514 筆永遠空的條目重打一輪 API——那正是
+         * 2026-08 事故的成因（load average 22.7、Cloudflare 回 522/525）。
+         *
+         * 不改成永久跳過，是為了保留上面註解說的那個好處：Bangumi 日後補齊
+         * 資料仍抓得到。只是把重試頻率從「每週」拉到「每季」，futile 的
+         * 呼叫量少 13 倍，而真的有新資料時最多晚三個月抓到——對這種
+         * 冷門條目完全可以接受。
+         */
+        $cooldown_days = (int) apply_filters( 'anime_sync_entity_backfill_cooldown_days', 90 );
         if ( $cooldown_days < 1 ) {
-            $cooldown_days = 7;
+            $cooldown_days = 90;
         }
 
         // $table / $where_missing / $not_in 皆為內部組成（skip 已 intval），無外部輸入。
