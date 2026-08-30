@@ -66,8 +66,78 @@ class Anime_Sync_Entity_Fill {
 		'entity-repair-2026-08-30.jsonl' => 'repair',
 	];
 
+	/**
+	 * 既有簡介裡要就地更正的詞。
+	 *
+	 * 只放「同一個東西被寫成兩種寫法」的情況，不是譯名偏好。
+	 *
+	 * 咒術回戰／咒術迴戰：簡體的「回」對應繁體的回與迴，OpenCC 逐字轉只能
+	 * 給出「回戰」。字典已補上條目（cn-tw-dict.json），之後轉換不會再錯，
+	 * 但已經寫進資料庫的文字不會自己更新——實測正式站 7 筆人物簡介中招。
+	 *
+	 * 刻意不做「把內文作品名全部換成站上譯名」那種大範圍替換：那會讓內容
+	 * 偏離 Bangumi 原文（冰海战记→海盜戰記之類），是另一個層級的決定。
+	 * 這裡只修寫法，不動譯名。
+	 */
+	const TEXT_FIX = [
+		'text-fix-2026-08-31' => [
+			'咒術回戰' => '咒術迴戰',
+		],
+	];
+
 	public static function init(): void {
 		add_action( self::HOOK, [ __CLASS__, 'run_pending' ] );
+	}
+
+	/**
+	 * 就地更正既有簡介裡的錯誤寫法。
+	 *
+	 * 用 SQL 的 REPLACE 而不是逐列讀出再寫回：只有幾筆也不值得繞一圈，
+	 * 而且 WHERE LIKE 會讓沒有中招的列完全不被寫入。
+	 */
+	public static function run_text_fix( string $key ): array {
+		global $wpdb;
+
+		$done = (array) get_option( self::OPTION_DONE, [] );
+
+		if ( isset( $done[ $key ] ) ) {
+			return [ 'ok' => true, 'msg' => '已於 ' . $done[ $key ] . ' 執行過，略過', 'rows' => 0 ];
+		}
+
+		$pairs = self::TEXT_FIX[ $key ] ?? [];
+
+		if ( ! $pairs ) {
+			return [ 'ok' => false, 'msg' => '找不到更正清單：' . $key, 'rows' => 0 ];
+		}
+
+		$rows = 0;
+
+		foreach ( [ 'anime_persons', 'anime_characters' ] as $t ) {
+			$table = $wpdb->prefix . $t;
+
+			foreach ( $pairs as $from => $to ) {
+				$n = $wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table} SET summary = REPLACE( summary, %s, %s ) WHERE summary LIKE %s",
+						$from,
+						$to,
+						'%' . $wpdb->esc_like( $from ) . '%'
+					)
+				);
+
+				$rows += max( 0, (int) $n );
+			}
+		}
+
+		$done[ $key ] = current_time( 'mysql' );
+
+		update_option( self::OPTION_DONE, $done, false );
+
+		return [
+			'ok'   => true,
+			'msg'  => sprintf( '更正 %s 列', number_format_i18n( $rows ) ),
+			'rows' => $rows,
+		];
 	}
 
 	/**
@@ -80,6 +150,15 @@ class Anime_Sync_Entity_Fill {
 	}
 
 	/**
+	 * 還沒跑的就地更正清單。
+	 */
+	public static function pending_text_fix(): array {
+		$done = (array) get_option( self::OPTION_DONE, [] );
+
+		return array_keys( array_diff_key( self::TEXT_FIX, $done ) );
+	}
+
+	/**
 	 * 排一個單次事件把待跑的資料檔處理掉。
 	 *
 	 * 不在 maybe_upgrade() 裡直接跑：219 筆會產生約 650 次查詢，那不該卡在
@@ -87,7 +166,7 @@ class Anime_Sync_Entity_Fill {
 	 * 沒有待跑的就不排程，所以平常完全沒有成本。
 	 */
 	public static function maybe_schedule(): void {
-		if ( ! self::pending() ) {
+		if ( ! self::pending() && ! self::pending_text_fix() ) {
 			return;
 		}
 
@@ -104,6 +183,10 @@ class Anime_Sync_Entity_Fill {
 	public static function run_pending(): void {
 		foreach ( self::pending() as $file => $mode ) {
 			self::run( $file, false, $mode );
+		}
+
+		foreach ( self::pending_text_fix() as $key ) {
+			self::run_text_fix( $key );
 		}
 	}
 
