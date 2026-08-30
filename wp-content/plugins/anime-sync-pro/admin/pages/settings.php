@@ -173,6 +173,21 @@ if (
         }
     }
 
+    /* STAFF 完整名單回補（v1.8.3），開關同時要動排程，理由同上 */
+    if ( class_exists( 'Anime_Sync_Staff_Backfill' ) ) {
+        $new_staffbf_mode = ( isset( $_POST['anime_sync_staff_backfill_mode'] )
+            && 'on' === sanitize_key( wp_unslash( $_POST['anime_sync_staff_backfill_mode'] ) ) )
+            ? 'on' : 'off';
+
+        update_option( Anime_Sync_Staff_Backfill::OPTION_MODE, $new_staffbf_mode );
+
+        if ( 'on' === $new_staffbf_mode ) {
+            Anime_Sync_Staff_Backfill::schedule();
+        } else {
+            Anime_Sync_Staff_Backfill::unschedule();
+        }
+    }
+
     if ( $new_daily_hour_utc !== $old_daily_hour_utc ) {
         $daily_hook  = 'anime_sync_daily_score_update';
         $today_utc   = strtotime( gmdate( "Y-m-d {$new_daily_hour_utc}:00:00" ) );
@@ -235,6 +250,20 @@ if ( class_exists( 'Anime_Sync_Relation_Cover_Backfill' ) ) {
 
     $relcover_stat = (array) get_option( Anime_Sync_Relation_Cover_Backfill::OPTION_STAT, array() );
     $relcover_next = wp_next_scheduled( Anime_Sync_Relation_Cover_Backfill::HOOK );
+}
+
+/* STAFF 完整名單回補（v1.8.3）目前狀態 */
+$staffbf_mode      = 'off';
+$staffbf_remaining = 0;
+$staffbf_stat      = array();
+$staffbf_next      = false;
+
+if ( class_exists( 'Anime_Sync_Staff_Backfill' ) ) {
+    $staffbf_mode = 'on' === get_option( Anime_Sync_Staff_Backfill::OPTION_MODE, 'off' ) ? 'on' : 'off';
+
+    $staffbf_remaining = Anime_Sync_Staff_Backfill::remaining();
+    $staffbf_stat      = (array) get_option( Anime_Sync_Staff_Backfill::OPTION_STAT, array() );
+    $staffbf_next      = wp_next_scheduled( Anime_Sync_Staff_Backfill::HOOK );
 }
 
 $backfill_skip_chars   = get_option( 'anime_sync_backfill_skip_chars', array() );
@@ -801,6 +830,83 @@ $cron_rows = array(
                                 <?php printf(
                                     esc_html__( '下次執行：%s', 'anime-sync-pro' ),
                                     esc_html( wp_date( 'Y-m-d H:i', $relcover_next ) )
+                                ); ?>
+                            </p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endif; ?>
+
+                <?php
+                /*
+                 * STAFF 完整名單回補（v1.8.3）。
+                 *
+                 * 拿掉職位白名單之後，新匯入與手動重新同步的作品自動就是完整
+                 * 名單，但既有作品仍停在舊的 6-7 筆。這支驅動既有的
+                 * ajax_resync_bangumi() 把它們補齊，補完自動停。
+                 *
+                 * 每輪 12 部比封面回補的 20 部保守：這裡每部要打兩次 Bangumi
+                 *（subject + persons），回應也大得多（最多 475 筆、70KB）。
+                 */
+                ?>
+                <?php if ( class_exists( 'Anime_Sync_Staff_Backfill' ) ) : ?>
+                <tr>
+                    <th scope="row">
+                        <label for="anime_sync_staff_backfill_mode"><?php esc_html_e( 'STAFF 完整名單回補', 'anime-sync-pro' ); ?></label>
+                    </th>
+                    <td>
+                        <label>
+                            <input type="checkbox" id="anime_sync_staff_backfill_mode"
+                                   name="anime_sync_staff_backfill_mode" value="on"
+                                   <?php checked( $staffbf_mode, 'on' ); ?> />
+                            <?php esc_html_e( '啟用（每 15 分鐘 8 部作品，補完自動停止）', 'anime-sync-pro' ); ?>
+                        </label>
+
+                        <?php if ( 'on' === $staffbf_mode ) : ?>
+                            <span class="asc-text-ok" style="margin-left:6px;">● <?php esc_html_e( '執行中', 'anime-sync-pro' ); ?></span>
+                        <?php else : ?>
+                            <span style="color:#999;margin-left:6px;">○ <?php esc_html_e( '已關閉', 'anime-sync-pro' ); ?></span>
+                        <?php endif; ?>
+
+                        <p class="description">
+                            <?php printf(
+                                esc_html__( '待補作品：%s 部', 'anime-sync-pro' ),
+                                '<strong>' . esc_html( number_format_i18n( $staffbf_remaining ) ) . '</strong>'
+                            ); ?>
+                            <?php if ( $staffbf_remaining > 0 ) : ?>
+                                <?php printf(
+                                    esc_html__( '（約需 %s 小時）', 'anime-sync-pro' ),
+                                    esc_html( number_format_i18n( ceil( $staffbf_remaining / 8 ) * 0.25, 1 ) )
+                                ); ?>
+                            <?php endif; ?>
+                            <br>
+                            <?php esc_html_e( '匯入端的職位白名單已移除，新匯入與手動「重新同步 Bangumi」的作品自動就是完整名單；這裡只用於補既有作品。', 'anime-sync-pro' ); ?>
+                            <br>
+                            <?php esc_html_e( '尊重欄位鎖：勾了「不自動更新」的作品不會被覆蓋。', 'anime-sync-pro' ); ?>
+                        </p>
+
+                        <?php if ( ! empty( $staffbf_stat ) ) : ?>
+                            <div class="asc-db-log-info" style="margin-top:8px;">
+                                <?php if ( ! empty( $staffbf_stat['finished'] ) ) : ?>
+                                    <?php esc_html_e( '✅ 已全部補完', 'anime-sync-pro' ); ?>
+                                    （<?php echo esc_html( (string) ( $staffbf_stat['last_run'] ?? '' ) ); ?>）
+                                <?php else : ?>
+                                    <?php printf(
+                                        esc_html__( '上次：%1$s ｜ 補了 %2$s 部、共 %3$s 位 STAFF、失敗 %4$s 部', 'anime-sync-pro' ),
+                                        esc_html( (string) ( $staffbf_stat['last_run'] ?? '—' ) ),
+                                        esc_html( (string) ( $staffbf_stat['last_done'] ?? 0 ) ),
+                                        esc_html( (string) ( $staffbf_stat['last_staff'] ?? 0 ) ),
+                                        esc_html( (string) ( $staffbf_stat['last_fail'] ?? 0 ) )
+                                    ); ?>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ( $staffbf_next ) : ?>
+                            <p class="description">
+                                <?php printf(
+                                    esc_html__( '下次執行：%s', 'anime-sync-pro' ),
+                                    esc_html( wp_date( 'Y-m-d H:i', $staffbf_next ) )
                                 ); ?>
                             </p>
                         <?php endif; ?>
