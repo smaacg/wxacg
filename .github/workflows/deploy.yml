@@ -43,7 +43,25 @@ jobs:
           echo "本次更新沒有修改 JSON 檔案，跳過檢查。"
         fi
 
+    # ------------------------------------------------------------------
+    # FTP 同步：最多三次。
+    #
+    # Hostinger 的 FTP 偶發連線 hang——2026-08-31 一天內失敗三次
+    # （adadbfb / 10f43a1 / 69da445）。特徵很明確：成功的 run 全部
+    # 落在 21-26 秒（FTP 那步只佔約 5 秒），失敗的卻卡滿 129 秒，
+    # 剛好撞上下面的 timeout: 120000。憑證錯誤會立刻失敗、不會掛兩分鐘，
+    # 所以這是連線層的問題，不是設定問題。
+    #
+    # 失敗時人工 re-run 就會過，代表重試有效。與其每次等人來按，
+    # 不如讓 workflow 自己重試。前兩次用 continue-on-error 吞掉結果，
+    # 第三次不吞——三次都失敗才真的讓 job 紅掉。
+    #
+    # 代價：真的壞掉時要等 3 次逾時（約 6 分鐘）才會回報。可以接受，
+    # 因為部署本來就是非同步的，而誤報一次要人工介入的成本更高。
+    # ------------------------------------------------------------------
     - name: 透過 FTP 同步檔案到主機
+      id: ftp1
+      continue-on-error: true
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
@@ -58,4 +76,65 @@ jobs:
           **/.git*/**
           .github/**
           .vscode/**
+
+    - name: 第一次失敗，等 30 秒再試
+      if: steps.ftp1.outcome == 'failure'
+      run: |
+        echo "::warning::FTP 第 1 次同步失敗，30 秒後重試"
+        sleep 30
+
+    - name: FTP 同步（第 2 次）
+      id: ftp2
+      if: steps.ftp1.outcome == 'failure'
+      continue-on-error: true
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        server-dir: domains/weixiaoacg.com/public_html/
+        protocol: ftps
+        port: 21
+        timeout: 120000
+        exclude: |
+          **/.git*
+          **/.git*/**
+          .github/**
+          .vscode/**
+
+    - name: 第二次也失敗，等 60 秒再試
+      if: steps.ftp1.outcome == 'failure' && steps.ftp2.outcome == 'failure'
+      run: |
+        echo "::warning::FTP 第 2 次同步失敗，60 秒後做最後一次嘗試"
+        sleep 60
+
+    # 第三次不加 continue-on-error：這次再失敗就讓 job 紅掉，
+    # 才不會出現「Actions 綠燈但主機沒更新」這種最難察覺的狀況。
+    - name: FTP 同步（第 3 次，最後一次）
+      if: steps.ftp1.outcome == 'failure' && steps.ftp2.outcome == 'failure'
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        server-dir: domains/weixiaoacg.com/public_html/
+        protocol: ftps
+        port: 21
+        timeout: 120000
+        exclude: |
+          **/.git*
+          **/.git*/**
+          .github/**
+          .vscode/**
+
+    - name: 回報同步結果
+      if: always()
+      run: |
+        if [ "${{ steps.ftp1.outcome }}" = "success" ]; then
+          echo "FTP 第 1 次就成功"
+        elif [ "${{ steps.ftp2.outcome }}" = "success" ]; then
+          echo "::warning::FTP 第 1 次失敗、第 2 次成功——Hostinger FTP 不穩，留意頻率"
+        else
+          echo "::warning::FTP 前兩次都失敗，結果見上方第 3 次的步驟"
+        fi
 
