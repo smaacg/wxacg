@@ -5606,11 +5606,41 @@ while ( have_posts() ) :
 								<span class="asd-album-total"><?php echo esc_html( (string) count( $staff_list ) ); ?></span>
 							</h2>
 
+							<?php
+							/*
+							 * 版面分兩種，依群組人數決定。實測全站抽樣 286 部、
+							 * 11,134 個職位群組：
+							 *
+							 *   1 人 56.9%、2 人 15.6%、3-5 人 13.5%
+							 *     → 合計 86% 是 6 人以下。這些在 3-4 欄的格線裡
+							 *       每組佔掉「標題一行＋格線一行」，右邊空 2-3 格，
+							 *       版面被切成一堆稀疏的橫條。
+							 *   13 人以上只佔 6% 的組數，卻貢獻 57% 的卡片。
+							 *
+							 * 所以：小組別改成「標題在左、成員往右流」，把高度和
+							 * 空白一起收掉；大組別維持格線但預設只出 12 位，
+							 * 其餘收在 <details> 裡。
+							 *
+							 * 用 <details> 而不是自己寫 JS：沒有 JS 也能展開，
+							 * 而且瀏覽器內建的 Ctrl+F 找得到收合內容（Chrome 已支援）。
+							 */
+							$staff_inline_max   = 6;   /* 這個數以下走橫向排版 */
+							$staff_collapse_min = 12;  /* 超過這個數就收合 */
+							?>
 							<?php foreach ( $staff_groups as $staff_group ) : ?>
+							<?php
+							$staff_group_size = count( $staff_group['items'] );
+							$staff_is_inline  = ( '' !== $staff_group['label'] && $staff_group_size <= $staff_inline_max );
+							$staff_collapse   = $staff_group_size > $staff_collapse_min;
+							?>
+							<div class="asd-staff-group<?php echo $staff_is_inline ? ' is-inline' : ''; ?>">
+
 							<?php if ( '' !== $staff_group['label'] ) : ?>
 								<h3 class="asd-staff-group-title<?php echo $staff_group['primary'] ? ' is-primary' : ''; ?>">
 									<?php echo esc_html( $staff_group['label'] ); ?>
-									<span class="asd-album-count"><?php echo esc_html( (string) count( $staff_group['items'] ) ); ?></span>
+									<?php if ( ! $staff_is_inline ) : ?>
+										<span class="asd-album-count"><?php echo esc_html( (string) $staff_group_size ); ?></span>
+									<?php endif; ?>
 								</h3>
 							<?php endif; ?>
 
@@ -5622,6 +5652,24 @@ while ( have_posts() ) :
 									if ( ! is_array( $staff_item ) ) {
 										continue;
 									}
+
+									/*
+									 * 大組別在第 12 位之後切開：關掉目前的格線，
+									 * 把剩下的塞進 <details>，再開一個新格線。
+									 * 收合的部分結構完全一樣，展開後看起來是連續的。
+									 */
+									if ( $staff_collapse && $staff_output_index === $staff_collapse_min ) :
+										?>
+										</div><!-- /.asd-staff-grid-v2 -->
+										<details class="asd-staff-more">
+											<summary>
+												展開全部 <?php echo esc_html( (string) $staff_group_size ); ?> 位
+											</summary>
+											<div class="asd-staff-grid-v2">
+										<?php
+									endif;
+									?>
+									<?php
 
 									$staff_id = (int) (
 										$staff_item['id']
@@ -5715,7 +5763,14 @@ while ( have_posts() ) :
 										<?php endif; ?>
 
 										<div class="asd-staff-info">
-											<?php if ( $staff_role ) : ?>
+											<?php
+											/*
+											 * 群組標題已經寫了職位，卡片上再印一次是贅字，
+											 * 而且那行小灰字是版面最吵的東西。只有在沒有
+											 * 群組標題時（未分組的退路）才需要印。
+											 */
+											?>
+											<?php if ( $staff_role && '' === $staff_group['label'] ) : ?>
 												<span class="asd-staff-role">
 													<?php echo esc_html( $staff_role ); ?>
 												</span>
@@ -5745,7 +5800,23 @@ while ( have_posts() ) :
 									$staff_output_index++;
 								endforeach;
 								?>
-							</div>
+							</div><!-- /.asd-staff-grid-v2 -->
+
+							<?php
+							/*
+							 * 有切開才要補收尾。用 $staff_output_index 判斷而不是
+							 * $staff_group_size：迴圈裡有 continue（無名字的會跳過），
+							 * 實際輸出的張數可能少於群組人數，用人數判斷會多印一組
+							 * 關閉標籤、把 HTML 結構弄壞。
+							 */
+							if ( $staff_collapse && $staff_output_index > $staff_collapse_min ) :
+								?>
+								</details>
+								<?php
+							endif;
+							?>
+
+							</div><!-- /.asd-staff-group -->
 							<?php endforeach; /* $staff_groups */ ?>
 
 							<?php /* 收合按鈕已移除——獨立 tab 直接列全部，不需要再點一次 */ ?>

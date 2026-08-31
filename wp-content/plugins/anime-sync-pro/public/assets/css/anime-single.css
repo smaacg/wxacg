@@ -1799,6 +1799,84 @@ nav.asd-tabs a.asd-tab.is-active::after {
    10. STAFF
    ================================================================ */
 
+/* 小組別（6 人以下，實測佔 86%）：標題移到左欄，成員往右流。
+   原本每組是「標題一行＋格線一行」，右邊還空 2-3 格，
+   57% 的組別只有 1 個人卻佔滿一整條。 */
+.asd-staff-group.is-inline {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.asd-staff-group.is-inline .asd-staff-group-title {
+  margin: 0;
+  padding-top: 14px;
+  border: none;
+  text-align: right;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* 橫向時成員用 flex 流動，不要固定欄寬——否則 1 個人的組別
+   還是會撐出一整格的空白，等於沒改到 */
+.asd-staff-group.is-inline .asd-staff-grid-v2 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.asd-staff-group.is-inline .asd-staff-card-v2 {
+  flex: 0 1 auto;
+  min-width: 130px;
+  max-width: 100%;
+}
+
+/* 大組別的收合 */
+.asd-staff-more {
+  margin-top: 10px;
+}
+
+.asd-staff-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-bg);
+  color: var(--asd-text-dim);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  transition: var(--trans-smooth);
+}
+
+/* Safari 用 -webkit-details-marker，不加會多一個三角形 */
+.asd-staff-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.asd-staff-more > summary::after {
+  content: '▾';
+  font-size: 11px;
+}
+
+.asd-staff-more[open] > summary::after {
+  content: '▴';
+}
+
+.asd-staff-more > summary:hover {
+  border-color: rgba(99, 168, 255, .3);
+  background: rgba(255, 255, 255, .09);
+  color: var(--asd-text);
+}
+
+.asd-staff-more > .asd-staff-grid-v2 {
+  margin-top: 10px;
+}
+
 .asd-staff-grid-v2 {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
@@ -3325,6 +3403,28 @@ nav.asd-tabs a.asd-tab.is-active::after {
   .asd-staff-grid-v2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  /* 手機沒有橫向排的空間：88px 的標題欄會把成員擠成一欄，
+     比原本更難看。改回標題在上、成員在下，但保留
+     「不印重複職位」與「大組別收合」那兩項好處。 */
+  .asd-staff-group.is-inline {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .asd-staff-group.is-inline .asd-staff-group-title {
+    padding-top: 0;
+    text-align: left;
+  }
+
+  .asd-staff-group.is-inline .asd-staff-grid-v2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .asd-staff-group.is-inline .asd-staff-card-v2 {
+    min-width: 0;
   }
 
   .asd-staff-card-v2 {
