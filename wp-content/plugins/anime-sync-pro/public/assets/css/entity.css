@@ -1029,32 +1029,57 @@ body:has(.asa-entity-page) .ct-section-inner-container {
 /* ================================================================
    16. [v1.5.1] 其他資料 — 可點連結樣式
    ================================================================ */
+/* 連結做成小標籤按鈕橫排，比照 Bangumi 的「官网 X YouTube」。
+   標籤只有服務名或網域（見模板的 asa_link_label()），本來就短，
+   所以可以並排；不像先前印完整網址得一行一條。
+
+   只有實際含連結的那幾格才加 .has-links（由模板判斷後輸出），
+   純文字的值（成立時間、代表取締役社長…）維持原本的 block。
+   不用 :has() 是因為那牽涉正確性——舊瀏覽器不支援就會讓所有欄位
+   都變成 flex 容器，寧可讓 PHP 明確標記。 */
+.asa-infolist-val.has-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    /* .asa-infolist-row 是 flex，這格的 min-width 預設是 auto，代表它
+       不會縮到比內容窄——極長的網域標籤就會把整格頂出卡片外緣，而且
+       裡面的 max-width:100% 也失效（100% 參照的是被撐大的自己）。
+       設成 0 才允許收縮，省略號才會生效。 */
+    min-width: 0;
+}
+
 .asa-infolist-link {
-    display: block;
+    display: inline-block;
+    padding: 3px 9px;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .04);
     color: var(--asa-primary);
     font-weight: 600;
-    /* 顯示文字已在 PHP 端縮短成「主機名＋截短路徑」，不需要 break-all
-       從網址中間硬斷；改用 anywhere 只在真的排不下時才斷 */
-    overflow-wrap: anywhere;
+    font-size: .86em;
+    line-height: 1.5;
+    /* nowrap 讓「LINE Blog」這種帶空白的服務名不會被拆成兩行。
+       代價是極長的個人站網域（實測 4,209 個標籤裡有 103 個超過 22 字，
+       例：shihohime-blog.fde.whitesnow.jp）會撐破約 200px 的側欄，
+       所以補上截斷與省略號；完整網址放在 title，滑過去看得到。 */
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     transition: var(--trans-smooth);
 }
 
-/* 同一格有多個網址時逐條排開，彼此留一點間距 */
-.asa-infolist-link + .asa-infolist-link,
-.asa-infolist-link + .asa-infolist-link-plain,
-.asa-infolist-link-plain + .asa-infolist-link {
-    margin-top: 4px;
-}
-
-/* 認不出是連結的片段（例：@劉琮729 (https://…)）原樣顯示 */
-.asa-infolist-link-plain {
-    display: block;
-    overflow-wrap: anywhere;
-}
-
 .asa-infolist-link:hover {
+    border-color: var(--asa-primary);
+    background: rgba(255, 255, 255, .1);
     color: #fff;
-    text-decoration: underline;
+    text-decoration: none;
+}
+
+/* 認不出是連結的片段（例：@劉琮729 (https://…)）原樣顯示，不做成按鈕 */
+.asa-infolist-link-plain {
+    overflow-wrap: anywhere;
 }
 
 /* ================================================================

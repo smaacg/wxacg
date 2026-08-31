@@ -131,29 +131,75 @@ if ( ! function_exists( 'asa_infobox_link' ) ) {
     }
 }
 
-/* ── 連結顯示文字：縮短成「主機名＋截短路徑」 ──
- * 側欄只有約 200px 寬，直接印完整網址會被 CSS 的 word-break: break-all
- * 從網址中間硬斷（例：youtube.com/chann / el/UCjfAEJZ…）。
- * 去掉 scheme 與 www.，路徑超過 20 字就截斷，讓一條連結能排進一行。
+/* ── 已知服務：主機名 → 顯示名稱 ──
+ *
+ * 實測正式站 4,210 個網址分布在 1,315 個不重複主機，但前段高度集中：
+ * 這份表涵蓋 60.9%，其餘是聲優事務所與個人站的長尾。
+ * 依主機名比對，也接受子網域（mobile.twitter.com 算 twitter.com）。
  */
-if ( ! function_exists( 'asa_link_text' ) ) {
-    function asa_link_text( string $url ): string {
-        $short = preg_replace( '#^https?://(www\.)?#i', '', $url );
-        $short = rtrim( $short, '/' );
+if ( ! defined( 'ASA_LINK_SERVICES' ) ) {
+    define( 'ASA_LINK_SERVICES', [
+        'x.com'          => 'X',
+        'twitter.com'    => 'X',
+        'weibo.com'      => '微博',
+        'instagram.com'  => 'Instagram',
+        'ameblo.jp'      => 'Ameba',
+        'youtube.com'    => 'YouTube',
+        'youtu.be'       => 'YouTube',
+        'bilibili.com'   => 'bilibili',
+        'pixiv.net'      => 'pixiv',
+        'bsky.app'       => 'Bluesky',
+        'naver.com'      => 'Naver',
+        'facebook.com'   => 'Facebook',
+        'lineblog.me'    => 'LINE Blog',
+        'tiktok.com'     => 'TikTok',
+        'livedoor.jp'    => 'livedoor',
+        'nicovideo.jp'   => 'niconico',
+        'missevan.com'   => '貓耳 FM',
+        'note.com'       => 'note',
+        'lit.link'       => 'lit.link',
+        'sakugabooru.com'=> 'Sakugabooru',
+        'threads.net'    => 'Threads',
+        'tumblr.com'     => 'Tumblr',
+        'soundcloud.com' => 'SoundCloud',
+        'douyin.com'     => '抖音',
+        'zhihu.com'      => '知乎',
+    ] );
+}
 
-        $slash = strpos( $short, '/' );
-        if ( false === $slash ) {
-            return $short;
+/* ── 連結標籤：知名服務用服務名，其餘顯示網域 ──
+ *
+ * 比照 Bangumi 的短標籤按鈕（官网／X／YouTube），但不認得的主機我們
+ * 顯示網域而不是「官網」——這是跟 Bangumi 唯一的差別，理由是資料結構
+ * 不同：Bangumi 只有一個籠統的「链接」欄位，非標不可；我們的欄位名
+ * 本身就帶資訊，實測 3,215 格裡有 2,078 格的欄位名是「官網」「HP」
+ * 「事務所資料頁」「個人部落格」這種具體名稱、而且只有一個網址。
+ * 那些格子再標一次「官網」是純贅字（官網 [官網]），另有 55 格會出現
+ * 兩個以上的「官網」撞在一起。
+ *
+ * 顯示網域則是：欄位名說「這是什麼」，標籤說「連到哪」，各司其職。
+ *
+ * 另一個好處是不必再截斷路徑——標籤只有網域，本來就排得進側欄，
+ * 不會像先前那樣被 word-break 從網址中間硬斷。
+ */
+if ( ! function_exists( 'asa_link_label' ) ) {
+    function asa_link_label( string $url ): string {
+        if ( ! preg_match( '#^https?://([^/?\#]+)#i', $url, $m ) ) {
+            return $url;
         }
 
-        $host = substr( $short, 0, $slash );
-        $path = substr( $short, $slash );
+        $host = strtolower( preg_replace( '/^www\./i', '', $m[1] ) );
 
-        if ( mb_strlen( $path ) > 20 ) {
-            $path = mb_substr( $path, 0, 19 ) . '…';
+        /* 去掉埠號，免得 example.com:8080 對不到表 */
+        $host = preg_replace( '/:\d+$/', '', $host );
+
+        foreach ( ASA_LINK_SERVICES as $domain => $label ) {
+            if ( $host === $domain || substr( $host, -strlen( '.' . $domain ) ) === '.' . $domain ) {
+                return $label;
+            }
         }
 
-        return $host . $path;
+        return $host;
     }
 }
 
@@ -223,10 +269,13 @@ if ( ! function_exists( 'asa_infobox_links' ) ) {
 
             /*
              * asa_infobox_link() 對 @handle 會回傳整理過的文字（'@xxx'），
-             * 那比機械縮短的好，優先沿用；只有「文字就是原網址」的情況
-             * 才需要自己縮短。
+             * 那比機械推導的好，優先沿用。其餘一律交給 asa_link_label()
+             * ——包含裸網域，否則會留著 www.（www.kyotoanimation.co.jp）
+             * 而同一頁其他連結的標籤都是去掉 www. 的，看起來不一致。
              */
-            $text = ( $link[1] !== $link[0] ) ? $link[1] : asa_link_text( $link[0] );
+            $text = ( '' !== $link[1] && '@' === $link[1][0] )
+                ? $link[1]
+                : asa_link_label( $link[0] );
 
             $out[] = [ 'url' => $link[0], 'text' => $text . $note ];
         }
@@ -561,12 +610,13 @@ get_header();
                         <?php foreach ( $extra_info_rows as $row ) : ?>
                             <div class="asa-infolist-row">
                                 <span class="asa-infolist-label"><?php echo esc_html( $row['label'] ); ?></span>
-                                <span class="asa-infolist-val">
+                                <span class="asa-infolist-val<?php echo ! empty( $row['links'] ) ? ' has-links' : ''; ?>">
                                     <?php if ( ! empty( $row['links'] ) ) : ?>
                                         <?php foreach ( $row['links'] as $lnk ) : ?>
                                             <?php if ( '' !== $lnk['url'] ) : ?>
                                                 <a href="<?php echo esc_url( $lnk['url'] ); ?>"
                                                    target="_blank" rel="noopener noreferrer"
+                                                   title="<?php echo esc_attr( $lnk['url'] ); ?>"
                                                    class="asa-infolist-link"><?php echo esc_html( $lnk['text'] ); ?></a>
                                             <?php else : ?>
                                                 <span class="asa-infolist-link-plain"><?php echo esc_html( $lnk['text'] ); ?></span>
