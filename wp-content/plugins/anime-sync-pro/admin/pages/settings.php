@@ -780,7 +780,7 @@ $cron_rows = array(
                             <input type="checkbox" id="anime_sync_relcover_mode"
                                    name="anime_sync_relcover_mode" value="on"
                                    <?php checked( $relcover_mode, 'on' ); ?> />
-                            <?php esc_html_e( '啟用（每 15 分鐘 20 部作品，補完自動停止）', 'anime-sync-pro' ); ?>
+                            <?php esc_html_e( '啟用（每 15 分鐘 20 部作品，常駐執行）', 'anime-sync-pro' ); ?>
                         </label>
 
                         <?php if ( 'on' === $relcover_mode ) : ?>
@@ -797,7 +797,7 @@ $cron_rows = array(
                             <?php if ( $relcover_remaining > 0 ) : ?>
                                 <?php printf(
                                     esc_html__( '（約需 %s 小時）', 'anime-sync-pro' ),
-                                    esc_html( number_format_i18n( ceil( $relcover_remaining / 20 ) * 0.25, 1 ) )
+                                    esc_html( number_format_i18n( ceil( $relcover_remaining / max( 1, (int) Anime_Sync_Relation_Cover_Backfill::BATCH ) ) * 0.25, 1 ) )
                                 ); ?>
                             <?php endif; ?>
                             <br>
@@ -805,13 +805,14 @@ $cron_rows = array(
                             <br>
                             <?php esc_html_e( '封面存的是網址，圖片仍由 Bangumi CDN 提供，本站不存檔。', 'anime-sync-pro' ); ?>
                             <br>
-                            <?php esc_html_e( '新匯入的作品會自動排程補齊，不需要再開這個開關；這裡只用於一次性的追趕。', 'anime-sync-pro' ); ?>
+                            <?php esc_html_e( '每 7 天重新同步一次：專輯多半在動畫播出後才陸續發行（實測 47% 在一季播完之後），抓一次會長期缺一半。關掉這個開關就停止定期同步。', 'anime-sync-pro' ); ?>
                         </p>
 
                         <?php if ( ! empty( $relcover_stat ) ) : ?>
                             <div class="asc-db-log-info" style="margin-top:8px;">
-                                <?php if ( ! empty( $relcover_stat['finished'] ) ) : ?>
-                                    <?php esc_html_e( '✅ 已全部補完', 'anime-sync-pro' ); ?>
+                                <?php if ( ! empty( $relcover_stat['idle'] ) || ! empty( $relcover_stat['finished'] ) ) : ?>
+                                    <?php /* finished 是 1.2.0 之前的舊旗標，留著讓舊資料也顯示得出來 */ ?>
+                                    <?php esc_html_e( '✅ 目前全部同步完成，等待下一輪到期', 'anime-sync-pro' ); ?>
                                     （<?php echo esc_html( (string) ( $relcover_stat['last_run'] ?? '' ) ); ?>）
                                 <?php else : ?>
                                     <?php printf(

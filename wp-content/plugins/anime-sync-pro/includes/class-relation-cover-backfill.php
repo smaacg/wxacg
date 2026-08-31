@@ -202,11 +202,16 @@ class Anime_Sync_Relation_Cover_Backfill {
 			/*
 			 * 從沒抓到任何關聯。
 			 *
-			 * 問過一次就不再問——這種作品在 Bangumi 上本來就沒有關聯條目，
-			 * 每輪重問只是白打。真的之後長出來了，靠 save_post 觀察者
-			 * 或人工重新同步處理。
+			 * META_DONE 是「問過了，對方就是沒有」的標記，用來讓回補收斂，
+			 * 否則這種作品每輪都會被「找沒有關聯列的」撈出來白打一次。
+			 *
+			 * 但它也不能是永久的：實測正式站有 6 部處於這個狀態，全是新番
+			 * 或即將播出的作品——那正是最可能之後才長出 OST 的一批。
+			 * 永久凍結等於重演「抓一次就不再問」那個問題，只是規模小。
+			 * 所以標記一樣套 RESYNC_DAYS 過期，6 部每 7 天各問一次，
+			 * 一年 312 次，可以忽略。
 			 */
-			return '' === (string) get_post_meta( $post_id, self::META_DONE, true );
+			return $this->is_stale( (string) get_post_meta( $post_id, self::META_DONE, true ) );
 		}
 
 		if ( $pending > 0 ) {
@@ -214,6 +219,22 @@ class Anime_Sync_Relation_Cover_Backfill {
 		}
 
 		return $this->is_stale( (string) ( $stat['last_sync'] ?? '' ) );
+	}
+
+	/**
+	 * 過期分界點，給 SQL 比較用。
+	 *
+	 * 集中在一處算，四支查詢（remaining 兩段、批次兩段）才不會各自寫一份
+	 * 而在日後改 RESYNC_DAYS 時漏掉某一支。
+	 *
+	 * 用 current_time( 'timestamp' ) 而不是 time()：欄位存的是站台當地
+	 * 時間，理由見 is_stale()。
+	 */
+	private function stale_cutoff(): string {
+		return gmdate(
+			'Y-m-d H:i:s',
+			current_time( 'timestamp' ) - self::RESYNC_DAYS * DAY_IN_SECONDS
+		);
 	}
 
 	/**
@@ -384,18 +405,22 @@ class Anime_Sync_Relation_Cover_Backfill {
 		);
 
 		$no_rows = (int) $wpdb->get_var(
-			"SELECT COUNT(*)
-			 FROM {$wpdb->posts} p
-			 INNER JOIN {$wpdb->postmeta} m
-			     ON m.post_id = p.ID AND m.meta_key = 'anime_bangumi_id' AND m.meta_value > 0
-			 WHERE p.post_type = 'anime' AND p.post_status = 'publish'
-			   AND NOT EXISTS (
-			       SELECT 1 FROM {$table} r WHERE r.post_id = p.ID
-			   )
-			   AND NOT EXISTS (
-			       SELECT 1 FROM {$wpdb->postmeta} d
-			       WHERE d.post_id = p.ID AND d.meta_key = '_asp_relcover_done'
-			   )"
+			$wpdb->prepare(
+				"SELECT COUNT(*)
+				 FROM {$wpdb->posts} p
+				 INNER JOIN {$wpdb->postmeta} m
+				     ON m.post_id = p.ID AND m.meta_key = 'anime_bangumi_id' AND m.meta_value > 0
+				 WHERE p.post_type = 'anime' AND p.post_status = 'publish'
+				   AND NOT EXISTS (
+				       SELECT 1 FROM {$table} r WHERE r.post_id = p.ID
+				   )
+				   AND NOT EXISTS (
+				       SELECT 1 FROM {$wpdb->postmeta} d
+				       WHERE d.post_id = p.ID AND d.meta_key = '_asp_relcover_done'
+				         AND d.meta_value > %s
+				   )",
+				$this->stale_cutoff()
+			)
 		);
 
 		/* 第三段：資料完整但已過期，等著重新同步的（見 is_stale()） */
@@ -408,7 +433,7 @@ class Anime_Sync_Relation_Cover_Backfill {
 				     GROUP BY post_id
 				     HAVING MAX(synced_at) < %s OR MAX(synced_at) IS NULL
 				 ) x",
-				gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - self::RESYNC_DAYS * DAY_IN_SECONDS )
+				$this->stale_cutoff()
 			)
 		);
 
@@ -469,9 +494,11 @@ class Anime_Sync_Relation_Cover_Backfill {
 					   AND NOT EXISTS (
 					       SELECT 1 FROM {$wpdb->postmeta} d
 					       WHERE d.post_id = p.ID AND d.meta_key = '_asp_relcover_done'
+					         AND d.meta_value > %s
 					   )
 					 ORDER BY p.ID ASC
 					 LIMIT %d",
+					$this->stale_cutoff(),
 					$need
 				),
 				ARRAY_A
@@ -504,7 +531,7 @@ class Anime_Sync_Relation_Cover_Backfill {
 					 HAVING MAX(synced_at) < %s OR MAX(synced_at) IS NULL
 					 ORDER BY MAX(synced_at) ASC
 					 LIMIT %d",
-					gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - self::RESYNC_DAYS * DAY_IN_SECONDS ),
+					$this->stale_cutoff(),
 					$need
 				),
 				ARRAY_A
