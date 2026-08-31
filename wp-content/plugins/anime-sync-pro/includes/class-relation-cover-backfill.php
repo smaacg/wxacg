@@ -32,16 +32,23 @@
  *  （id/type/name/name_cn/infobox/platform/summary/nsfw/date/favorite/
  *    series/tags/score/score_details/rank/meta_tags）。
  *
- * 節制：每 15 分鐘 20 部，約 1,900 次/天，跑完後**自動停止**。這是刻意
- * 設計——2026-08 的實體回補 cron 是每 5 分鐘 60 次（約 17,000 次/天）
- * 且常駐，把正式站 load average 推到 22.7、Cloudflare 開始回 522/525，
- * 最後只能緊急關閉。這支是它的 1/9，而且會收斂。
+ * 節制：每 15 分鐘 20 部，上限約 1,900 次/天。2026-08 的實體回補 cron 是
+ * 每 5 分鐘 60 次（約 17,000 次/天），把正式站 load average 推到 22.7、
+ * Cloudflare 開始回 522/525，最後只能緊急關閉。這支是它的 1/9。
  *
- * 批次能停掉，是因為日常維護交給觀察者而不是輪詢：新作品存檔後排一個
- * 單次事件，沒有新東西就完全不會執行。改成常駐掃描等於把上面那個
- * 「會停」的設計拆掉。
+ * ★ 1.2.0 起這支不再「跑完自動停止」，改成常駐的定期同步（RESYNC_DAYS）。
+ *
+ * 原本的設計是一次性回補 + save_post 觀察者顧新作品，跑完就關掉排程。
+ * 那個假設是「關聯抓一次就固定了」，但實測不成立：拿官方 dump 算全站
+ * 30,284 組動畫→音樂關聯，71% 的專輯在動畫開播 30 天後才發行、47% 在
+ * 一季播完之後才發行、16% 超過一年。抓一次就凍結等於長期缺一半專輯。
+ *
+ * 穩態負載是每天約 252 次（1,761 部 ÷ 7 天），只有上面那個上限的 13%，
+ * 所以常駐並不會把當初「會收斂」的安全性讓出去。詳見 is_stale()。
  *
  * Changelog:
+ *   1.2.0 (2026-08-31) — 加入 RESYNC_DAYS 定期重新同步；finish() 改為
+ *                        idle()（不再自動關閉排程）。
  *   1.1.0 (2026-08-30) — 補關聯列（原本只補封面）；新增 save_post 觀察者。
  *   1.0.0 (2026-08-30) — 初版。
  *
@@ -95,6 +102,14 @@ class Anime_Sync_Relation_Cover_Backfill {
 
 	/* 同一輪內每部作品之間的間隔秒數，別讓 20 次呼叫擠在同一秒 */
 	const SLEEP_BETWEEN = 1;
+
+	/**
+	 * 每部作品多久重新問一次 Bangumi（天）。
+	 *
+	 * 理由與負載試算見 is_stale()。要調快調慢改這個數字就好，
+	 * 邏輯不必動；改小會線性增加每日 API 次數（1,761 ÷ 天數）。
+	 */
+	const RESYNC_DAYS = 7;
 
 	/*
 	 * 單次補的執行鎖存活秒數。
@@ -161,7 +176,8 @@ class Anime_Sync_Relation_Cover_Backfill {
 	/**
 	 * 這部作品還需不需要補。
 	 *
-	 * 兩種需要：一列都沒有（且沒問過），或有列但封面還是 NULL。
+	 * 三種需要：一列都沒有（且沒問過）、有列但封面還是 NULL、
+	 * 或距離上次同步已經超過 RESYNC_DAYS。
 	 */
 	private function needs_backfill( int $post_id ): bool {
 		global $wpdb;
@@ -170,7 +186,9 @@ class Anime_Sync_Relation_Cover_Backfill {
 
 		$stat = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT COUNT(*) AS total, SUM(cover_url IS NULL) AS pending
+				"SELECT COUNT(*) AS total,
+				        SUM(cover_url IS NULL) AS pending,
+				        MAX(synced_at) AS last_sync
 				 FROM {$table} WHERE post_id = %d",
 				$post_id
 			),
@@ -181,11 +199,68 @@ class Anime_Sync_Relation_Cover_Backfill {
 		$pending = (int) ( $stat['pending'] ?? 0 );
 
 		if ( 0 === $total ) {
-			/* 沒問過才要排；問過了但對方就是沒有關聯，不再重試 */
+			/*
+			 * 從沒抓到任何關聯。
+			 *
+			 * 問過一次就不再問——這種作品在 Bangumi 上本來就沒有關聯條目，
+			 * 每輪重問只是白打。真的之後長出來了，靠 save_post 觀察者
+			 * 或人工重新同步處理。
+			 */
 			return '' === (string) get_post_meta( $post_id, self::META_DONE, true );
 		}
 
-		return $pending > 0;
+		if ( $pending > 0 ) {
+			return true;
+		}
+
+		return $this->is_stale( (string) ( $stat['last_sync'] ?? '' ) );
+	}
+
+	/**
+	 * 上次同步是不是已經過期。
+	 *
+	 * 為什麼需要定期重問（原本抓完就凍結）：
+	 *
+	 *   專輯不是跟動畫同時存在的。拿 Bangumi 官方 dump 算過全站
+	 *   30,284 組「動畫→音樂」關聯，專輯發行日相對於動畫開播日：
+	 *     播出前 12.6% ／ 0-30 天 16.2% ／ 31-90 天 24.2%
+	 *     91-180 天 17.9% ／ 181-365 天 13.0% ／ 超過一年 16.1%
+	 *   也就是 71% 的專輯在開播 30 天後才出現、47% 在一季播完後才出現。
+	 *   抓一次就不再問，等於長期缺一半的專輯。
+	 *   而且有 17% 的作品在開播兩年後還會長出新專輯（平均 2.4 張），
+	 *   所以不能「舊番就停掃」。
+	 *
+	 * 為什麼是 7 天：
+	 *
+	 *   Bangumi 官方 dump 是每週發布，7 天已經是那份資料本身的新鮮度上限，
+	 *   再快沒有意義。而用輪詢達到同樣的新鮮度，比解析 dump 的 ZIP
+	 *   少寫兩百行，也不必多一個外部依賴。
+	 *
+	 * 負載（1,761 部 ÷ 7 天 ≈ 每天 252 次）：
+	 *   Rate_Limiter 對 bangumi 壓在 1 req/s（理論上限 86,400/天），這是 0.3%；
+	 *   2026-08-28 那次全站回補實跑約 1,920 次/天，這是它的 13%。
+	 *   對方也沒有節流跡象：連打 10 次全部 200、無 rate limit 標頭，
+	 *   且 API 在 Cloudflare 快取後面。
+	 */
+	private function is_stale( string $last_sync ): bool {
+		if ( '' === $last_sync ) {
+			/* 舊資料沒有 synced_at，當成過期，補一次就會寫上 */
+			return true;
+		}
+
+		$ts = strtotime( $last_sync );
+
+		if ( ! $ts ) {
+			return true;
+		}
+
+		/*
+		 * 時區：synced_at 是用 current_time( 'mysql' ) 寫的，也就是站台
+		 * 當地時間（Asia/Taipei，UTC+8），不是 UTC。strtotime() 在 WP 底下
+		 * 以 UTC 解讀，所以要跟同樣基準的 current_time( 'timestamp' ) 比，
+		 * 拿 time() 比會差 8 小時——不會壞掉，但每筆都會晚 8 小時才判定過期。
+		 */
+		return ( current_time( 'timestamp' ) - $ts ) > ( self::RESYNC_DAYS * DAY_IN_SECONDS );
 	}
 
 	/**
@@ -323,7 +398,26 @@ class Anime_Sync_Relation_Cover_Backfill {
 			   )"
 		);
 
-		return $no_cover + $no_rows;
+		/* 第三段：資料完整但已過期，等著重新同步的（見 is_stale()） */
+		$stale = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM (
+				     SELECT post_id
+				     FROM {$table}
+				     WHERE source_bgm_id > 0
+				     GROUP BY post_id
+				     HAVING MAX(synced_at) < %s OR MAX(synced_at) IS NULL
+				 ) x",
+				gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - self::RESYNC_DAYS * DAY_IN_SECONDS )
+			)
+		);
+
+		/*
+		 * $no_cover 與 $stale 可能重疊（缺封面的那批也可能已經過期），
+		 * 這裡不去重——這個數字是給後台看進度的概數，寧可略高也不要
+		 * 為它多跑一次昂貴的 DISTINCT。
+		 */
+		return $no_cover + $no_rows + $stale;
 	}
 
 	public function run(): void {
@@ -386,8 +480,41 @@ class Anime_Sync_Relation_Cover_Backfill {
 			$targets = array_merge( $targets, $orphans );
 		}
 
+		/*
+		 * 第三段：資料完整但已經過期的，重新問一次（見 is_stale()）。
+		 *
+		 * 排在最後是刻意的優先序——「缺封面」「沒關聯列」是明確的缺口，
+		 * 補起來讓畫面立刻正確；定期重新同步只是為了跟上新發行的專輯，
+		 * 晚一輪沒有差別。前兩段清空之後這段才會吃到配額。
+		 *
+		 * 依 synced_at 由舊到新排：最久沒問的先問，輪替才會平均。
+		 */
+		if ( count( $targets ) < self::BATCH ) {
+			$need = self::BATCH - count( $targets );
+
+			$picked = array_map( 'intval', wp_list_pluck( $targets, 'post_id' ) );
+			$not_in = $picked ? ' AND post_id NOT IN (' . implode( ',', $picked ) . ')' : '';
+
+			$stale = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT post_id, MAX(source_bgm_id) AS bgm
+					 FROM {$table}
+					 WHERE source_bgm_id > 0 {$not_in}
+					 GROUP BY post_id
+					 HAVING MAX(synced_at) < %s OR MAX(synced_at) IS NULL
+					 ORDER BY MAX(synced_at) ASC
+					 LIMIT %d",
+					gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - self::RESYNC_DAYS * DAY_IN_SECONDS ),
+					$need
+				),
+				ARRAY_A
+			);
+
+			$targets = array_merge( $targets, $stale );
+		}
+
 		if ( empty( $targets ) ) {
-			$this->finish();
+			$this->idle();
 
 			return;
 		}
@@ -736,23 +863,26 @@ class Anime_Sync_Relation_Cover_Backfill {
 	 * 這支是一次性作業不是常駐服務，跑完就該消失。新增作品由匯入流程
 	 * 帶進來的列會是 NULL，屆時把 mode 打開再跑一輪即可。
 	 */
-	private function finish(): void {
-		update_option( self::OPTION_MODE, 'off' );
-
-		self::unschedule();
-
+	/**
+	 * 目前沒有待處理的，這一輪空轉。
+	 *
+	 * ★ 這裡原本叫 finish()，會把開關轉 off 並移除排程。加入 RESYNC_DAYS
+	 * 之後那是錯的：這支已經從「一次性回補」變成「常駐的定期同步」，
+	 * 佇列空只代表「這一刻剛好都同步過了」，7 天後會再有一批到期。
+	 * 若照舊自動關閉，第一次清空就會把定期同步永久停掉——而且很難察覺，
+	 * 因為畫面上看起來一切正常，只是資料從此不再更新。
+	 *
+	 * 要真的停掉請用後台的開關（OPTION_MODE），那是人為的明確意思表示。
+	 */
+	private function idle(): void {
 		update_option(
 			self::OPTION_STAT,
 			[
 				'last_run'  => current_time( 'mysql' ),
-				'finished'  => 1,
+				'idle'      => 1,
 				'remaining' => 0,
 			],
 			false
 		);
-
-		if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
-			Anime_Sync_Error_Logger::info( '關聯封面回補完成，已自動停止排程' );
-		}
 	}
 }
