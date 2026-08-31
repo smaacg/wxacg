@@ -3428,6 +3428,30 @@ while ( have_posts() ) :
 			: [];
 
 		/*
+		 * 「消息更新」列表用的另一份，濾掉例行的播出進度。
+		 *
+		 * episode_aired（「第 10 集已播出」）佔已發布事件的 47.9%，但它跟
+		 * 其他類型性質不同：視覺圖、宣傳影片、播出時間是「這部作品發生了
+		 * 什麼事」，播出進度只是每週例行，而且集數 tab 與頁首的追番進度條
+		 * 都已經在講同一件事。消息欄只寫「第 10 集已播出」的資訊量是零。
+		 *
+		 * 只濾顯示，不動資料也不動通知——episode_aired 真正的用途是追番
+		 * 會員的鈴鐺，那條路徑照舊（見 class-anime-events.php 的通知邏輯）。
+		 *
+		 * 副作用是已知並接受的：79 部有事件的作品裡有 44 部只有
+		 * episode_aired，濾掉之後那些作品的「消息更新」區塊會整個不出現。
+		 * 這是對的——那個區塊本來就只該在真的有消息時出現。
+		 *
+		 * 保留原本的 $asd_events 不動，因為頁首的視覺圖切換器共用它。
+		 */
+		$asd_events_news = array_values( array_filter(
+			$asd_events,
+			static function ( $asd_ev ) {
+				return 'episode_aired' !== ( $asd_ev->event_type ?? '' );
+			}
+		) );
+
+		/*
 		 * 視覺圖切換器的圖片清單。
 		 *
 		 * 事件由新到舊排列（get_for_anime() 以 event_date DESC），最新的視覺圖
@@ -5418,12 +5442,12 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
-					<?php if ( ! empty( $show['events'] ) && ( ! empty( $asd_events ) ) ) : ?>
+					<?php if ( ! empty( $show['events'] ) && ( ! empty( $asd_events_news ) ) ) : ?>
 						<section class="asd-section" id="asd-sec-events">
 							<h2 class="asd-section-title">📰 消息更新</h2>
 
 							<ol class="asd-events">
-								<?php foreach ( $asd_events as $asd_event ) : ?>
+								<?php foreach ( $asd_events_news as $asd_event ) : ?>
 									<li class="asd-event">
 										<time class="asd-event-date" datetime="<?php echo esc_attr( $asd_event->event_date ); ?>">
 											<?php echo esc_html( $asd_event->event_date ); ?>
