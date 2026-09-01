@@ -174,60 +174,15 @@ foreach ( $infobox_all as $item ) {
     $extra_info_rows[] = [ $i_label, $i_value ];
 }
 
-/* ── 把 Bangumi 簡介裡的 BBCode 轉成安全的 HTML ──
- * 只認得 Bangumi 實際會用到的幾種標記：[b]、[url=]/[url]、[mask]（劇透，直接拆掉標籤只留內文）。
- * 網址一律過 esc_url()、文字一律過 esc_html()，不信任來源內容，避免 XSS。
+/* ── Bangumi 簡介的 BBCode 處理 ──
+ * asa_render_bgm_bbcode()／asa_strip_bgm_bbcode() 已移到
+ * includes/bgm-bbcode.php 集中管理（本檔與 single-person.php 共用）。
+ * 原本兩個模板各帶一份一字不差的複本，加標記時只改一邊就會漏一邊。
  */
-if ( ! function_exists( 'asa_render_bgm_bbcode' ) ) {
-    function asa_render_bgm_bbcode( string $raw ): string {
-        if ( $raw === '' ) return '';
-
-        // 劇透標籤：先拆掉標籤本身，只留內文
-        $raw = str_replace( [ '[mask]', '[/mask]' ], '', $raw );
-
-        // 用 placeholder 保護連結，避免內容被後面的 esc_html() 動到
-        $links = [];
-        $protect_link = static function ( string $href, string $label ) use ( &$links ): string {
-            $token = "\x01ASA_LINK_" . count( $links ) . "\x02";
-            $links[ $token ] = '<a href="' . esc_url( $href ) . '" target="_blank" rel="noopener noreferrer nofollow">' . esc_html( $label ) . '</a>';
-            return $token;
-        };
-
-        // [url=網址]文字[/url]
-        $raw = preg_replace_callback(
-            '/\[url=(https?:\/\/[^\]\s]+)\](.*?)\[\/url\]/su',
-            static function ( array $m ) use ( $protect_link ): string {
-                return $protect_link( $m[1], $m[2] );
-            },
-            $raw
-        );
-        // 裸網址形式 [url]網址[/url]
-        $raw = preg_replace_callback(
-            '/\[url\](https?:\/\/[^\]\s]+)\[\/url\]/su',
-            static function ( array $m ) use ( $protect_link ): string {
-                return $protect_link( $m[1], $m[1] );
-            },
-            $raw
-        );
-
-        // 其餘文字整段跳脫，任何殘留標記或惡意內容都只會被當純文字顯示
-        $escaped = esc_html( $raw );
-
-        // [b]/[/b] 粗體（此時作用在已跳脫過的文字上，安全）
-        $escaped = str_replace( [ '[b]', '[/b]' ], [ '<strong>', '</strong>' ], $escaped );
-
-        // 換回保護起來的連結
-        $escaped = strtr( $escaped, $links );
-
-        return $escaped;
-    }
-}
 
 /* summary:純文字版拿掉 BBCode 標記符號，給 JSON-LD schema description／thin-content 判斷用 */
 $character_summary_raw = isset( $character['summary'] ) ? trim( (string) $character['summary'] ) : '';
-$character_summary     = $character_summary_raw !== ''
-    ? trim( wp_strip_all_tags( preg_replace( '/\[\/?(?:b|url(?:=[^\]]*)?|mask)\]/u', '', $character_summary_raw ) ) )
-    : '';
+$character_summary     = asa_strip_bgm_bbcode( $character_summary_raw );
 
 /* summary:HTML 版，BBCode 轉安全 HTML，給前台簡介區塊顯示用 */
 $character_summary_html = $character_summary_raw !== '' ? wpautop( asa_render_bgm_bbcode( $character_summary_raw ) ) : '';

@@ -124,6 +124,14 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/capabilities.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/date-helpers.php';
 
 /* ============================================================
+ * 1.17. Bangumi 簡介的 BBCode 處理
+ *
+ * 必須早於模板：single-person.php 與 single-character.php 都用它。
+ * 原本兩個模板各帶一份一字不差的複本，加標記時只改一邊就會漏一邊。
+ * ============================================================ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/bgm-bbcode.php';
+
+/* ============================================================
  * 1.2. AI 編輯短評批次產生工具
  * ============================================================ */
 require_once ANIME_SYNC_PRO_DIR . 'includes/ai-editorial-tool.php';
