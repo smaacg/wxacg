@@ -2,9 +2,32 @@
 /**
  * 檔案名稱: includes/class-api-handler.php
  *
- * @version 1.4.0
+ * @version 1.5.0
  *
  * Changelog:
+ *   1.5.0 (2026-09-01)
+ *     — [Fix 系列分析逾時] expand_series_tree() 改為「經由 PARENT 抵達的節點
+ *         只收錄、不再往外展開」。PARENT 會把子作品接回母系列，長壽 IP 因此
+ *         整串被拉進來：實測《水星的魔女》(AniList 155158) 經 PARENT 連到 1979
+ *         初代鋼彈，展開到 93 部仍未收斂，AJAX 的 set_time_limit(180) 必定逾時。
+ *         這不只是效能問題——系列名稱取自 root 節點，整個鋼彈宇宙會被掛上
+ *         「水星的魔女」這個 term。修正後該系列收斂為 4 部。
+ *     — [Perf 合併重複查詢] 新增 fetch_anilist_node_bundle()，一次請求同時取回
+ *         節點顯示資料與關係（兩者本就是同一個 Media 物件），並照舊寫回
+ *         anime_sync_al_node_* / anime_sync_al_relations_* 兩組 transient。
+ *         同時移除 expand_series_tree() 迴圈末端多餘的 wait_if_needed('anilist')
+ *         ——anilist_request() 內部已各自節流，該行是同一輪的第三次等待。
+ *         每節點耗時由 6 秒降為 2 秒。
+ *     — [Feat 節點上限] 新增 MAX_SERIES_NODES（70）。超過即停止展開並標記
+ *         has_failure，讓前端拿到部分結果與 incomplete 旗標，而非逾時白畫面。
+ *     — [Fix romaji 空 term] 節點若已匯入，title_chinese 改用站內中文標題。
+ *         AniList 無中文標題，原本一律退回 romaji，導致 assign_series_taxonomy()
+ *         另外建出沒有文章的 romaji 空 term（正式站已累積 250 個）。
+ *     — [Fix 命名取錯節點] get_series_tree() 命名改為「root 是 TV 就用 root，
+ *         否則取樹中第一個 TV 節點」。root 由 find_series_root() 沿 PREQUEL
+ *         往上取得，常是 PROLOGUE / OVA 等前導短篇，會產生「…PROLOGUE」這種
+ *         帶字尾的系列名，與既有 term 差一個字尾而重複建立。系列名稱在後台
+ *         是唯讀顯示、無法人工修正，偏差只會默默累積。
  *   1.4.0 (2026-08-11)
  *     — [Fix MAL 節流標籤] fetch_mal_score() 與 fetch_jikan_theme_natives() 的
  *         wait_if_needed() 由 'jikan' 改為 'mal'（需搭配 class-rate-limiter.php
@@ -62,6 +85,17 @@ class Anime_Sync_API_Handler {
         'ALTERNATIVE',
         'PARENT',
     ];
+
+    /**
+     * 系列樹單次展開的節點上限。
+     *
+     * 系列分析走 AJAX,handler 是 set_time_limit(180);展開每個節點要一次
+     * AniList 請求,而 rate limiter 對 anilist 的間隔是 2000ms,因此上限必須
+     * 讓「節點數 × 2 秒」明顯低於 180 秒。70 部約 140 秒,站上最大的系列
+     * （Fate 48 部）在範圍內。超過上限時回傳部分結果並標記 incomplete,
+     * 而不是讓整個請求逾時變成白畫面。
+     */
+    const MAX_SERIES_NODES = 70;
 
     private Anime_Sync_Rate_Limiter $rate_limiter;
     private ?Anime_Sync_ID_Mapper   $id_mapper;
@@ -1177,18 +1211,43 @@ class Anime_Sync_API_Handler {
         $series_name   = '';
         $series_romaji = '';
 
+        /*
+         * 命名節點的選法：
+         *
+         * root 是 find_series_root() 沿 PREQUEL 一路往上找到的最前面那部，
+         * 常常是 PROLOGUE / OVA / SPECIAL 這類前導短篇，拿它命名會得到
+         * 「機動戰士鋼彈 水星的魔女 PROLOGUE」這種帶字尾的名稱，跟站上既有的
+         * 「機動戰士鋼彈 水星的魔女」差一個字尾，於是又長出一個新 term。
+         * 系列名稱是唯讀顯示、使用者無法在畫面上修正，這種偏差只會默默累積。
+         *
+         * 因此改為：root 本身是 TV 就用 root，否則取樹中第一個 TV 節點；
+         * 整棵樹都沒有 TV（純劇場版系列等）才退回 root。
+         */
+        $naming_node = null;
         foreach ( $nodes as $node ) {
             if ( (int) $node['anilist_id'] === $root_id ) {
-                $series_name = $node['title_chinese'] ?: $node['title_romaji'] ?: '';
-                $series_name = preg_replace(
-                    '/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
-                    '',
-                    $series_name
-                );
-                $series_name   = trim( $series_name );
-                $series_romaji = $node['title_romaji'] ?? '';
+                $naming_node = $node;
                 break;
             }
+        }
+        if ( $naming_node !== null && ( $naming_node['format'] ?? '' ) !== 'TV' ) {
+            foreach ( $nodes as $node ) {
+                if ( ( $node['format'] ?? '' ) === 'TV' ) {
+                    $naming_node = $node;
+                    break;
+                }
+            }
+        }
+
+        if ( is_array( $naming_node ) ) {
+            $series_name = $naming_node['title_chinese'] ?: $naming_node['title_romaji'] ?: '';
+            $series_name = preg_replace(
+                '/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
+                '',
+                $series_name
+            );
+            $series_name   = trim( $series_name );
+            $series_romaji = $naming_node['title_romaji'] ?? '';
         }
 
         $result = [
@@ -1696,30 +1755,75 @@ class Anime_Sync_API_Handler {
 
     private function expand_series_tree( int $root_id ): array|WP_Error {
 
-        $queue        = [ $root_id ];
+        /*
+         * 佇列元素為 [ anilist_id, 是否經由 PARENT 抵達 ]。
+         *
+         * PARENT 代表「這部是某個更大母作品的子作品」。若照常從母作品繼續
+         * 往外展開,長壽 IP 會整串被拉進來:實測《水星的魔女》經 PARENT 連到
+         * 1979 年初代鋼彈,而初代鋼彈本身就有 36 條符合條件的邊,展開到 93 部
+         * 仍未收斂。這不只跑不完,結果也是錯的——系列名稱取自 root 節點,
+         * 整個鋼彈宇宙會被掛上「水星的魔女」這個 term。
+         *
+         * 因此經由 PARENT 抵達的節點「只收錄、不再往外展開」:母作品仍會
+         * 出現在清單上供參考,但不會成為擴散的跳板。
+         */
+        $queue        = [ [ $root_id, false ] ];
         $visited      = [];
         $nodes        = [];
         $relation_map = [ $root_id => '' ];
         $has_failure  = false;
 
         while ( ! empty( $queue ) ) {
-            $current_id = array_shift( $queue );
+
+            // 達節點上限即停止,回傳部分結果並標記不完整,避免整個 AJAX 逾時。
+            if ( count( $nodes ) >= self::MAX_SERIES_NODES ) {
+                $has_failure = true;
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( '系列展開：達節點上限，結果不完整', [
+                        'root_id' => $root_id,
+                        'limit'   => self::MAX_SERIES_NODES,
+                    ] );
+                }
+                break;
+            }
+
+            [ $current_id, $via_parent ] = array_shift( $queue );
             if ( in_array( $current_id, $visited, true ) ) continue;
             $visited[] = $current_id;
 
-            $node_data = $this->fetch_anilist_node_data( $current_id );
-            if ( is_wp_error( $node_data ) ) {
+            /*
+             * 一次請求同時取回「節點顯示資料」與「關係」。
+             * 兩者本來就是同一個 Media(id, type: ANIME) 物件,原本卻分成
+             * fetch_anilist_node_data() + fetch_anilist_relations() 兩次請求,
+             * 每次都各自過一次 2000ms 的 anilist 節流,等於每個節點多花一倍時間。
+             */
+            $bundle = $this->fetch_anilist_node_bundle( $current_id );
+            if ( is_wp_error( $bundle ) ) {
                 $has_failure = true;
                 if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
                     Anime_Sync_Error_Logger::warning( '系列展開：節點資料抓取失敗', [
                         'anilist_id' => $current_id,
-                        'error'      => $node_data->get_error_message(),
+                        'error'      => $bundle->get_error_message(),
                     ] );
                 }
                 continue;
             }
 
+            $node_data = $bundle['node'];
+            $relations = $bundle['relations'];
+
             $post_id = $this->find_existing_post( $current_id );
+
+            /*
+             * AniList 沒有中文標題,fetch_anilist_node_bundle() 只能回 romaji。
+             * 站上已匯入的作品改用站內中文標題,否則系列名稱會退回 romaji,
+             * 在 assign_series_taxonomy() 另外長出一個沒有文章的 romaji 空 term。
+             */
+            if ( $post_id > 0 ) {
+                $node_data['title_chinese'] = (string) (
+                    get_post_meta( $post_id, 'anime_title_chinese', true ) ?: get_the_title( $post_id )
+                );
+            }
 
             $node_data['relation_type'] = $relation_map[ $current_id ] ?? '';
             $node_data['imported']      = $post_id > 0;
@@ -1727,15 +1831,8 @@ class Anime_Sync_API_Handler {
             $node_data['edit_url']      = $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '';
             $nodes[]                    = $node_data;
 
-            $relations = $this->fetch_anilist_relations( $current_id );
-            if ( is_wp_error( $relations ) ) {
-                $has_failure = true;
-                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
-                    Anime_Sync_Error_Logger::warning( '系列展開：關係抓取失敗（後續節點將缺失）', [
-                        'anilist_id' => $current_id,
-                        'error'      => $relations->get_error_message(),
-                    ] );
-                }
+            // 經由 PARENT 抵達的母作品:已收錄,但不從它繼續展開（理由見上方註解）。
+            if ( $via_parent ) {
                 continue;
             }
 
@@ -1750,11 +1847,9 @@ class Anime_Sync_API_Handler {
                     if ( ! isset( $relation_map[ $nid ] ) ) {
                         $relation_map[ $nid ] = $rel['type'];
                     }
-                    $queue[] = $nid;
+                    $queue[] = [ $nid, $rel['type'] === 'PARENT' ];
                 }
             }
-
-            $this->rate_limiter->wait_if_needed( 'anilist' );
         }
 
         return [
@@ -1764,7 +1859,86 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
-    // PRIVATE – 取單一節點顯示資料（供系列樹 BFS 使用）
+    // PRIVATE – 一次取回節點顯示資料 + 關係（供系列樹 BFS 使用）
+    //
+    // 節點資料與關係本來就同屬一個 Media(id, type: ANIME) 物件,分兩次請求
+    // 等於白付一次 2000ms 的 anilist 節流。這裡合併成一次,並且照舊寫回
+    // fetch_anilist_node_data() / fetch_anilist_relations() 各自的 transient,
+    // 讓 find_series_root() 與重複分析仍然吃得到快取。
+    // =========================================================================
+
+    private function fetch_anilist_node_bundle( int $anilist_id ): array|WP_Error {
+
+        $node_key = 'anime_sync_al_node_' . $anilist_id;
+        $rel_key  = 'anime_sync_al_relations_' . $anilist_id;
+
+        // 兩份快取都在才算命中;只有一份時仍要發請求,否則會拿到半套資料。
+        $node_cached = get_transient( $node_key );
+        $rel_cached  = get_transient( $rel_key );
+        if ( $node_cached !== false && $rel_cached !== false ) {
+            return [
+                'node'      => (array) $node_cached,
+                'relations' => (array) $rel_cached,
+            ];
+        }
+
+        $query = '
+        query ($id: Int) {
+          Media(id: $id, type: ANIME) {
+            id
+            title { romaji native }
+            coverImage { large }
+            format
+            seasonYear
+            relations {
+              edges {
+                relationType
+                node { id type }
+              }
+            }
+          }
+        }';
+
+        $decoded = $this->anilist_request( $query, [ 'id' => $anilist_id ], 12 );
+        if ( is_wp_error( $decoded ) ) return $decoded;
+
+        $media = $decoded['data']['Media'] ?? null;
+        if ( empty( $media ) ) {
+            return new WP_Error( 'anilist_node_empty', "AniList returned no node data for ID {$anilist_id}." );
+        }
+
+        // 欄位結構必須與 fetch_anilist_node_data() 完全一致——兩者共用同一組 transient。
+        $node = [
+            'anilist_id'    => (int) ( $media['id'] ?? $anilist_id ),
+            'title_chinese' => '',
+            'title_romaji'  => $media['title']['romaji'] ?? '',
+            'title_native'  => $media['title']['native'] ?? '',
+            'cover_image'   => $media['coverImage']['large'] ?? '',
+            'format'        => $media['format']     ?? '',
+            'season_year'   => $media['seasonYear'] ?? 0,
+        ];
+
+        // 同上,結構須與 fetch_anilist_relations() 一致。
+        $relations = [];
+        foreach ( (array) ( $media['relations']['edges'] ?? [] ) as $edge ) {
+            $relations[] = [
+                'type'      => $edge['relationType']  ?? '',
+                'node_id'   => $edge['node']['id']    ?? 0,
+                'node_type' => $edge['node']['type']  ?? '',
+            ];
+        }
+
+        set_transient( $node_key, $node, 6 * HOUR_IN_SECONDS );
+        set_transient( $rel_key, $relations, 6 * HOUR_IN_SECONDS );
+
+        return [ 'node' => $node, 'relations' => $relations ];
+    }
+
+    // =========================================================================
+    // PRIVATE – 取單一節點顯示資料
+    //
+    // 系列樹 BFS 已改用 fetch_anilist_node_bundle();本方法保留供單獨取用,
+    // 兩者共用 anime_sync_al_node_* 這組 transient,欄位結構必須一致。
     // =========================================================================
 
     private function fetch_anilist_node_data( int $anilist_id ): array|WP_Error {
