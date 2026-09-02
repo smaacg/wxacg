@@ -132,6 +132,15 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/date-helpers.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/bgm-bbcode.php';
 
 /* ============================================================
+ * 1.18. YourAnimes 季度新番表索引
+ *
+ * 必須早於匯入流程：class-import-manager.php 的 import_single()
+ * 用它把台灣官方譯名與 YourAnimes 連結一併帶進草稿。
+ * 熔斷器狀態與 class-youranimes-fetcher.php 共用，因此兩者都要載入。
+ * ============================================================ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
+
+/* ============================================================
  * 1.2. AI 編輯短評批次產生工具
  * ============================================================ */
 require_once ANIME_SYNC_PRO_DIR . 'includes/ai-editorial-tool.php';

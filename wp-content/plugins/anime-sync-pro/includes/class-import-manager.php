@@ -2,7 +2,40 @@
 /**
  * 檔案名稱: includes/class-import-manager.php
  *
- * @version 1.5.2
+ * @version 1.7.0
+ * 1.7.0 (2026-09-02) — [Feat 所有匯入管道自動指派系列，名稱取根源的台灣譯名]
+ *           原本只有「🔗 系列分析」分頁會呼叫 assign_series_taxonomy()，
+ *           單筆／季度批次／ID 清單／人氣排行／動畫化決定 五個管道完全不指派系列。
+ *           正式站實測：series 來源 854 部有 850 部掛上系列（99.5%），
+ *           manual 來源 1,543 部只有 673 部（43.6%），差額都是事後人工補的。
+ *           - 新增 maybe_assign_series()，在 import_single() 存完分類後執行；
+ *             已經有系列的作品不動，因此與系列分析那條路徑不互相干擾。
+ *           - resolve_series_root() 盡量不打 API：先用匯入時已抓好的
+ *             anime_relations_json 取直接前作，再看前作是否已匯入並記錄過根源，
+ *             都沒有才交給 api_handler 沿 PREQUEL 走到底（有 6 小時快取）。
+ *             同系列越匯越便宜。
+ *           - resolve_series_name() 命名優先序：根源站內中文標題 →
+ *             根源即自身時用本次的中文標題 → YourAnimes 台灣官方譯名 → romaji。
+ *           - assign_series_taxonomy() 改以 term meta _series_root_anilist_id
+ *             作為 term 身分，名稱只是顯示。原本用 term_exists( $series_name )，
+ *             名稱一變就長新 term——正式站「最強陰陽師的異世界轉生記」同時存在
+ *             #3438（romaji）與 #3439（中文），root 都是 144553；720 個 term 裡
+ *             有 250 個是這樣產生、沒有任何文章的孤兒。既有 term 在下次被用到時
+ *             順便補上該 meta，不需要另外跑遷移。刻意不改既有 term 的名稱。
+ * 1.6.0 (2026-09-02) — [Feat 台灣官方譯名與 YourAnimes 連結自動帶入]
+ *           import_single() 在決定 post_title 之前呼叫
+ *           Anime_Sync_YourAnimes_Season_Index::resolve()，命中時：
+ *             - anime_title_chinese 改用 YourAnimes 的台灣官方譯名
+ *             - anime_youranimes_url 一併寫入，觸發 class-youranimes-fetcher.php 的
+ *               maybe_auto_sync_on_meta_change()，自動同步台灣串流與 YouTube 播放清單
+ *             - anime_official_site / anime_twitter_url 僅在 AniList 沒給時補
+ *             - _asp_ya_match 記錄命中層級、_asp_ya_title_before 保留覆蓋前的原值
+ *           原本 anime_title_chinese 來自 Bangumi name_cn（大陸譯名）逐字簡轉繁，
+ *           實測正式站 1,783 部已發布作品有 1,020 部（57.2%）被人工改成台灣譯名。
+ *           2026 冬季 dry-run：96 部命中 66 部（68.8%），命中者 68.2% 譯名與人工結果相同。
+ *           只在新匯入（! $is_update）時執行，不動既有作品；比對不到或抓取失敗一律
+ *           維持原行為。anime_youranimes_url 刻意不放進 $meta_map，避免無條件寫入時
+ *           用空字串洗掉人工填的網址。
  * 1.5.2 (2026-07-17) — [Feat AnimeThemes by-slug] fetch_themes_only() 新增
  *           選填 $slug 參數，實作「slug 優先、mal_id 備援」：有 slug 先走
  *           api_handler->fetch_animethemes_by_slug()，查無再退回 fetch_animethemes()。
@@ -141,6 +174,50 @@ class Anime_Sync_Import_Manager {
 				];
 			}
 
+			/*
+			 * ★ 台灣官方譯名與 YourAnimes 連結
+			 *
+			 * anime_title_chinese 的來源是 Bangumi 的 name_cn（大陸譯名）逐字簡轉繁，
+			 * 與台灣代理商的官方譯名常常整個不同（實測已發布作品有 57.2% 被人工改過）。
+			 * 這裡改用 YourAnimes 季度新番表的台灣官方譯名，並一併帶入該作品的
+			 * YourAnimes 網址——寫進 anime_youranimes_url 之後，
+			 * class-youranimes-fetcher.php 的 maybe_auto_sync_on_meta_change()
+			 * 會自動排程，把台灣串流與 YouTube 播放清單一起同步進來。
+			 *
+			 * 比對不到就完全不動，維持原本的 Bangumi 譯名（例如劇場版與較舊的作品，
+			 * YourAnimes 新番表本來就收得少）。抓取失敗、熔斷、解析失敗同樣回 null，
+			 * 匯入流程不受影響。
+			 */
+			if ( ! $is_update && class_exists( 'Anime_Sync_YourAnimes_Season_Index' ) ) {
+				$ya_match = Anime_Sync_YourAnimes_Season_Index::resolve( $anime_data );
+
+				if ( $ya_match ) {
+					$anime_data['anime_youranimes_url'] = $ya_match['url'];
+
+					/*
+					 * 只有在 YourAnimes 那邊確實是中文譯名時才覆蓋標題。
+					 * 該站在還沒有台灣譯名時會把 name 直接放日文原名，
+					 * 覆蓋下去會把站上堪用的中文標題換成日文（實測 #5926 就是這種）。
+					 * 判斷細節見 Anime_Sync_YourAnimes_Season_Index::is_usable_tw_title()。
+					 */
+					if ( ! empty( $ya_match['tw_title_ok'] ) ) {
+						// 覆蓋前的原值留著，之後看得出哪些是自動帶的、原本是什麼
+						$anime_data['_asp_ya_title_before'] = (string) ( $anime_data['anime_title_chinese'] ?? '' );
+						$anime_data['anime_title_chinese']  = $ya_match['tw_title'];
+					}
+
+					// 官方網站與 X 只在 AniList 沒給時補，不覆蓋既有來源
+					if ( empty( $anime_data['anime_official_site'] ) && ! empty( $ya_match['official_site'] ) ) {
+						$anime_data['anime_official_site'] = $ya_match['official_site'];
+					}
+					if ( empty( $anime_data['anime_twitter_url'] ) && ! empty( $ya_match['twitter'] ) ) {
+						$anime_data['anime_twitter_url'] = $ya_match['twitter'];
+					}
+
+					$anime_data['_asp_ya_match'] = $ya_match['match_method'];
+				}
+			}
+
 			$has_bangumi   = ! empty( $anime_data['bangumi_id'] ) && (int) $anime_data['bangumi_id'] > 0;
 			$has_chinese   = ! empty( $anime_data['anime_title_chinese'] );
 			$has_synopsis  = ! empty( $anime_data['anime_synopsis_chinese'] );
@@ -231,6 +308,13 @@ class Anime_Sync_Import_Manager {
 
 			$this->save_taxonomies( $post_id, $anime_data );
 
+			/*
+			 * 系列分類：所有匯入管道通用。
+			 * 內部會先檢查「已經有系列就不動」，因此走「🔗 系列分析」那條路徑時
+			 * 不會互相干擾（該路徑在 handle_ajax_import_series() 另外指派）。
+			 */
+			$this->maybe_assign_series( $post_id, $anime_data, $source );
+
 			update_post_meta( $post_id, '_import_source', sanitize_text_field( $source ) );
 			update_post_meta( $post_id, 'anime_last_sync', current_time( 'mysql' ) );
 			delete_post_meta( $post_id, '_enriched_at' );
@@ -293,19 +377,66 @@ class Anime_Sync_Import_Manager {
 		return $this->api_handler->fetch_anilist_popularity( $page );
 	}
 
+	/**
+	 * 指派系列分類。
+	 *
+	 * ★ term 的身分以「系列根源的 AniList ID」為準，不是名稱。
+	 *
+	 * 原本用 term_exists( $series_name ) 找 term，名稱一變就長出新的一個。
+	 * 系列名稱來自 get_series_tree()，而它在作品尚未匯入時只能退回 romaji，
+	 * 因此同一個系列在不同時間匯入會得到不同名稱、分裂成兩個 term——正式站
+	 * 實測「最強陰陽師的異世界轉生記」就同時存在 #3438（romaji）與 #3439（中文），
+	 * 兩者的 root 都是 144553。全站 720 個 term 裡有 250 個是這樣產生、
+	 * 沒有任何文章的孤兒。
+	 *
+	 * 改成先用 term meta _series_root_anilist_id 找既有 term，找到就沿用。
+	 * 既有 term 在下次被用到時順便補上這個 meta，不需要另外跑遷移。
+	 *
+	 * 刻意不改既有 term 的名稱：人工命名過的（賽馬娘、南家三姐妹…）應該保持不動，
+	 * 這裡只負責「不再分裂」。
+	 */
 	public function assign_series_taxonomy( int $post_id, string $series_name, int $root_id = 0, string $series_romaji = '' ): bool {
 		if ( ! $post_id || $series_name === '' ) return false;
 
 		$series_name = trim( $series_name );
-		$term        = term_exists( $series_name, 'anime_series_tax' );
+		$term_id     = 0;
 
-		if ( ! $term ) {
+		// ① 先用根源 ID 找既有 term
+		if ( $root_id > 0 ) {
+			$found = get_terms( [
+				'taxonomy'   => 'anime_series_tax',
+				'hide_empty' => false,
+				'number'     => 1,
+				'fields'     => 'ids',
+				'meta_query' => [ [
+					'key'   => '_series_root_anilist_id',
+					'value' => (string) $root_id,
+				] ],
+			] );
+			if ( ! is_wp_error( $found ) && ! empty( $found ) ) {
+				$term_id = (int) $found[0];
+			}
+		}
+
+		// ② 再用名稱找（相容既有資料）
+		if ( ! $term_id ) {
+			$term = term_exists( $series_name, 'anime_series_tax' );
+			if ( $term ) {
+				$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+			}
+		}
+
+		// ③ 都沒有才建立
+		if ( ! $term_id ) {
 			$slug   = $series_romaji !== '' ? sanitize_title( $series_romaji ) : sanitize_title( $series_name );
 			$result = wp_insert_term( $series_name, 'anime_series_tax', [ 'slug' => $slug ] );
 			if ( is_wp_error( $result ) ) return false;
 			$term_id = (int) $result['term_id'];
-		} else {
-			$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+		}
+
+		// 補上根源 ID，讓下一部同系列的作品能直接找到這個 term
+		if ( $root_id > 0 && ! get_term_meta( $term_id, '_series_root_anilist_id', true ) ) {
+			update_term_meta( $term_id, '_series_root_anilist_id', (string) $root_id );
 		}
 
 		$result = wp_set_post_terms( $post_id, [ $term_id ], 'anime_series_tax', false );
@@ -316,6 +447,157 @@ class Anime_Sync_Import_Manager {
 		}
 
 		return true;
+	}
+
+	// =========================================================================
+	// PRIVATE – 匯入時自動判定並指派系列（所有匯入管道通用）
+	//
+	// 原本只有「🔗 系列分析」那個分頁會呼叫 assign_series_taxonomy()，
+	// 單筆／季度批次／ID 清單／人氣排行／動畫化決定 五個管道完全不指派系列。
+	// 正式站實測：series 來源 854 部有 850 部掛上系列（99.5%），
+	// manual 來源 1,543 部只有 673 部（43.6%），差額都是事後人工補的。
+	// =========================================================================
+
+	/**
+	 * 找出系列根源的 AniList ID。
+	 *
+	 * 盡量不打 API：
+	 *   1. 匯入時已經抓好的 anime_relations_json 裡就有直接前作，這一層免費。
+	 *   2. 前作若已匯入且記錄過根源，直接沿用——同系列越匯越便宜。
+	 *   3. 都沒有才交給 api_handler 沿 PREQUEL 走到底（有 6 小時快取）。
+	 */
+	private function resolve_series_root( array $anime_data ): int {
+
+		$self_id = (int) ( $anime_data['anilist_id'] ?? 0 );
+		if ( $self_id <= 0 ) {
+			return 0;
+		}
+
+		$relations = json_decode( (string) ( $anime_data['anime_relations_json'] ?? '[]' ), true );
+		$prequel   = 0;
+		foreach ( (array) $relations as $relation ) {
+			if ( ( $relation['relation_type'] ?? '' ) === 'PREQUEL'
+				&& ( $relation['type'] ?? '' ) === 'ANIME'
+				&& ! empty( $relation['id'] ) ) {
+				$prequel = (int) $relation['id'];
+				break;
+			}
+		}
+
+		// 沒有前作 → 自己就是根源
+		if ( $prequel <= 0 ) {
+			return $self_id;
+		}
+
+		// 前作已匯入且知道根源 → 直接沿用，零 API 呼叫
+		$prequel_post = $this->find_existing( $prequel );
+		if ( $prequel_post > 0 ) {
+			$known_root = (int) get_post_meta( $prequel_post, '_series_root_anilist_id', true );
+			if ( $known_root > 0 ) {
+				return $known_root;
+			}
+		}
+
+		return $this->api_handler->find_series_root_public( $prequel );
+	}
+
+	/**
+	 * 取得系列名稱（台灣官方譯名優先）。
+	 *
+	 * 優先序：
+	 *   1. 根源已匯入 → 站內的中文標題（那是你人工確認過的）
+	 *   2. 根源就是這次匯入的作品 → 用它自己的中文標題
+	 *   3. 否則 → YourAnimes 季度新番表的台灣官方譯名
+	 *   4. 都沒有 → romaji（維持現行行為）
+	 *
+	 * @return array{0:string,1:string} [系列名稱, 系列 romaji（給 slug 用）]
+	 */
+	private function resolve_series_name( int $root_id, array $anime_data ): array {
+
+		$self_id = (int) ( $anime_data['anilist_id'] ?? 0 );
+		$name    = '';
+		$romaji  = '';
+
+		// 1) 根源已匯入
+		$root_post = $this->find_existing( $root_id );
+		if ( $root_post > 0 ) {
+			$name   = (string) ( get_post_meta( $root_post, 'anime_title_chinese', true ) ?: get_the_title( $root_post ) );
+			$romaji = (string) get_post_meta( $root_post, 'anime_title_romaji', true );
+		}
+
+		// 2) 根源就是自己
+		if ( $name === '' && $root_id === $self_id ) {
+			$name   = (string) ( $anime_data['anime_title_chinese'] ?? '' );
+			$romaji = (string) ( $anime_data['anime_title_romaji'] ?? '' );
+		}
+
+		// 3) YourAnimes 台灣官方譯名
+		if ( $name === '' && class_exists( 'Anime_Sync_YourAnimes_Season_Index' ) ) {
+			$node = $this->api_handler->get_anilist_node_public( $root_id );
+			if ( ! is_wp_error( $node ) ) {
+				$romaji = $romaji ?: (string) ( $node['title_romaji'] ?? '' );
+				$match  = Anime_Sync_YourAnimes_Season_Index::resolve( [
+					'anime_season'        => $node['season']       ?? '',
+					'anime_season_year'   => $node['season_year']  ?? 0,
+					'anime_title_native'  => $node['title_native'] ?? '',
+					'anime_title_romaji'  => $node['title_romaji'] ?? '',
+					'anime_title_english' => '',
+				] );
+				if ( $match && ! empty( $match['tw_title_ok'] ) ) {
+					$name = $match['tw_title'];
+				}
+			}
+		}
+
+		// 4) 退回 romaji
+		if ( $name === '' ) {
+			$name = $romaji;
+		}
+
+		// 去掉季別字尾，讓「XXX 第二季」與「XXX」歸到同一個系列
+		$name = trim( (string) preg_replace(
+			'/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
+			'',
+			$name
+		) );
+
+		return [ $name, $romaji ];
+	}
+
+	/**
+	 * 匯入完成後自動判定並指派系列。失敗一律安靜略過，不影響匯入結果。
+	 *
+	 * ★ 來源是 series 時直接跳過。
+	 *
+	 * 「🔗 系列分析」那條路徑是 handle_ajax_import_series() →
+	 * import_and_enrich() → import_single()（本方法會在這裡跑）→
+	 * 之後才呼叫 assign_series_taxonomy()。兩邊若算出的根源不一致，
+	 * 就會變成「先建一個 term、再被 wp_set_post_terms() 取代」，
+	 * 反而製造出新的孤兒 term。該路徑本來就會自己指派，這裡不必插手。
+	 */
+	private function maybe_assign_series( int $post_id, array $anime_data, string $source = '' ): void {
+
+		if ( $source === 'series' ) {
+			return;
+		}
+
+		// 已經有系列了就不動
+		$existing = wp_get_object_terms( $post_id, 'anime_series_tax', [ 'fields' => 'ids' ] );
+		if ( ! is_wp_error( $existing ) && ! empty( $existing ) ) {
+			return;
+		}
+
+		$root_id = $this->resolve_series_root( $anime_data );
+		if ( $root_id <= 0 ) {
+			return;
+		}
+
+		[ $name, $romaji ] = $this->resolve_series_name( $root_id, $anime_data );
+		if ( $name === '' ) {
+			return;
+		}
+
+		$this->assign_series_taxonomy( $post_id, $name, $root_id, $romaji );
 	}
 
 	// =========================================================================
@@ -511,6 +793,30 @@ class Anime_Sync_Import_Manager {
     }
     update_post_meta( $post_id, $key, $this->prepare_meta_value( $key, $value ) );
 }
+
+		/*
+		 * ★ YourAnimes 比對結果
+		 *
+		 * 刻意不放進上面的 $meta_map：那個迴圈是無條件 update_post_meta，
+		 * 比對不到時會用空字串把人工填好的 anime_youranimes_url 洗掉。
+		 * 這裡一律「有值才寫」。
+		 *
+		 * anime_youranimes_url 一旦寫入，class-youranimes-fetcher.php 的
+		 * maybe_auto_sync_on_meta_change() 會排程單篇同步，把台灣串流與
+		 * YouTube 播放清單一併帶進來，不需要再人工按同步按鈕。
+		 */
+		if ( ! in_array( 'anime_youranimes_url', $locked, true ) ) {
+			$ya_url = trim( (string) ( $data['anime_youranimes_url'] ?? '' ) );
+			if ( $ya_url !== '' ) {
+				update_post_meta( $post_id, 'anime_youranimes_url', $ya_url );
+			}
+		}
+		foreach ( [ '_asp_ya_match', '_asp_ya_title_before' ] as $ya_key ) {
+			$ya_val = trim( (string) ( $data[ $ya_key ] ?? '' ) );
+			if ( $ya_val !== '' ) {
+				update_post_meta( $post_id, $ya_key, $ya_val );
+			}
+		}
 
 		// ★★ [1.4.0] 累積型欄位保護
 		$accumulative_keys = [ 'anime_episodes_json', 'anime_themes' ];

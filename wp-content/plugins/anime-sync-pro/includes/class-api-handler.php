@@ -2,9 +2,18 @@
 /**
  * 檔案名稱: includes/class-api-handler.php
  *
- * @version 1.5.0
+ * @version 1.5.1
  *
  * Changelog:
+ *   1.5.1 (2026-09-02)
+ *     — [Feat 供匯入判定系列使用] fetch_anilist_node_bundle() 的查詢補上 season
+ *         欄位（原本只有 seasonYear）：系列命名要靠季別去查 YourAnimes 的季度
+ *         新番表。新增兩個公開包裝 find_series_root_public() 與
+ *         get_anilist_node_public()，供 class-import-manager.php 在每次匯入時
+ *         判定系列根源與取根源節點資料，做法比照既有的 fetch_bgm_data_public()。
+ *         注意 anime_sync_al_node_* transient 與 fetch_anilist_node_data() 共用，
+ *         舊快取沒有 season 欄位——取不到時會自動略過 YourAnimes 那層，
+ *         6 小時後快取自然更新。
  *   1.5.0 (2026-09-01)
  *     — [Fix 系列分析逾時] expand_series_tree() 改為「經由 PARENT 抵達的節點
  *         只收錄、不再往外展開」。PARENT 會把子作品接回母系列，長壽 IP 因此
@@ -1889,6 +1898,7 @@ class Anime_Sync_API_Handler {
             title { romaji native }
             coverImage { large }
             format
+            season
             seasonYear
             relations {
               edges {
@@ -1908,6 +1918,7 @@ class Anime_Sync_API_Handler {
         }
 
         // 欄位結構必須與 fetch_anilist_node_data() 完全一致——兩者共用同一組 transient。
+        // season 是本方法多帶的：系列命名要靠它去查 YourAnimes 的季度新番表。
         $node = [
             'anilist_id'    => (int) ( $media['id'] ?? $anilist_id ),
             'title_chinese' => '',
@@ -1915,6 +1926,7 @@ class Anime_Sync_API_Handler {
             'title_native'  => $media['title']['native'] ?? '',
             'cover_image'   => $media['coverImage']['large'] ?? '',
             'format'        => $media['format']     ?? '',
+            'season'        => $media['season']     ?? '',
             'season_year'   => $media['seasonYear'] ?? 0,
         ];
 
@@ -3430,6 +3442,26 @@ class Anime_Sync_API_Handler {
     // =========================================================================
     public function fetch_bgm_data_public( int $bangumi_id ): array|WP_Error {
         return $this->get_bangumi_data( $bangumi_id );
+    }
+
+    /**
+     * 沿 PREQUEL 往上找出系列根源的 AniList ID。
+     *
+     * 給 class-import-manager.php 在每一次匯入時判定系列用。
+     * 內部走 fetch_anilist_relations()，該方法有 6 小時 transient 快取，
+     * 同一系列連續匯入時多數節點都會直接命中快取。
+     */
+    public function find_series_root_public( int $anilist_id ): int {
+        $root = $this->find_series_root( $anilist_id );
+        return is_wp_error( $root ) ? $anilist_id : (int) $root;
+    }
+
+    /**
+     * 取單一節點的顯示資料（含 season / season_year），供系列命名查 YourAnimes 用。
+     */
+    public function get_anilist_node_public( int $anilist_id ): array|WP_Error {
+        $bundle = $this->fetch_anilist_node_bundle( $anilist_id );
+        return is_wp_error( $bundle ) ? $bundle : $bundle['node'];
     }
     public function get_bgm_staff_public( int $bangumi_id ): array {
         return $this->get_bgm_staff( $bangumi_id );
