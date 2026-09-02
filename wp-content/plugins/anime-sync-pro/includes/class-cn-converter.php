@@ -130,7 +130,23 @@ class Anime_Sync_CN_Converter {
             $converted = self::convert_with_opencc( $converted );
         }
 
-        return self::convert_with_dict( $converted );
+        $converted = self::convert_with_dict( $converted );
+
+        /*
+         * 最後一步：把大陸譯名換成站上的台灣譯名。
+         *
+         * OpenCC 與字典只做字詞層級的簡繁轉換，換不掉「間諜過家家 → 間諜家家酒」
+         * 這種整個譯名不同的情況。這裡涵蓋的是顯示時才轉換的路徑：
+         * 相關專輯／遊戲的 name_cn、集數列表的 name_cn，以及匯入時寫入的各種文字。
+         *
+         * 人物與角色簡介是「存檔時就轉好」的，不會再經過這裡，
+         * 那條路徑由 includes/bgm-bbcode.php 在輸出時呼叫同一個函式處理。
+         */
+        if ( class_exists( 'Anime_Sync_TW_Titles' ) ) {
+            $converted = Anime_Sync_TW_Titles::localize( $converted );
+        }
+
+        return $converted;
     }
 
     private static function convert_with_opencc( string $text ): string {

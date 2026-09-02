@@ -58,7 +58,28 @@ if ( ! defined( 'ASA_BGM_BBCODE_PATTERN' ) ) {
 if ( ! function_exists( 'asa_strip_bgm_bbcode' ) ) {
     function asa_strip_bgm_bbcode( string $raw ): string {
         if ( $raw === '' ) return '';
-        return trim( wp_strip_all_tags( preg_replace( ASA_BGM_BBCODE_PATTERN, '', $raw ) ) );
+        return asa_localize_tw_titles(
+            trim( wp_strip_all_tags( preg_replace( ASA_BGM_BBCODE_PATTERN, '', $raw ) ) )
+        );
+    }
+}
+
+/**
+ * 把簡介裡的《大陸譯名》換成《台灣譯名》。
+ *
+ * 人物與角色簡介是匯入時就轉成繁體存起來的，顯示時不會再經過
+ * Anime_Sync_CN_Converter，所以那邊掛的譯名替換照顧不到這條路徑，
+ * 必須在輸出時另外呼叫一次。兩邊用的是同一個
+ * Anime_Sync_TW_Titles::localize()——同一份實作，兩條資料路徑。
+ *
+ * 已經是台灣譯名的文字再跑一次不會有事：對照表的鍵是大陸譯名，對不上就原樣返回。
+ */
+if ( ! function_exists( 'asa_localize_tw_titles' ) ) {
+    function asa_localize_tw_titles( string $text ): string {
+        if ( $text === '' || ! class_exists( 'Anime_Sync_TW_Titles' ) ) {
+            return $text;
+        }
+        return Anime_Sync_TW_Titles::localize( $text );
     }
 }
 
@@ -69,6 +90,10 @@ if ( ! function_exists( 'asa_strip_bgm_bbcode' ) ) {
 if ( ! function_exists( 'asa_render_bgm_bbcode' ) ) {
     function asa_render_bgm_bbcode( string $raw ): string {
         if ( $raw === '' ) return '';
+
+        // 《大陸譯名》→《台灣譯名》。放在最前面：此時書名號與內文都還原封不動，
+        // 後面的跳脫不會動到書名號，順序上放這裡最單純。
+        $raw = asa_localize_tw_titles( $raw );
 
         // 劇透標籤：先拆掉標籤本身，只留內文
         $raw = str_replace( [ '[mask]', '[/mask]' ], '', $raw );

@@ -129,6 +129,14 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/date-helpers.php';
  * 必須早於模板：single-person.php 與 single-character.php 都用它。
  * 原本兩個模板各帶一份一字不差的複本，加標記時只改一邊就會漏一邊。
  * ============================================================ */
+/* ============================================================
+ * 1.17.1 台灣譯名替換
+ *
+ * 必須早於 bgm-bbcode.php 與 class-cn-converter.php 的使用點：
+ * 兩者都會呼叫 Anime_Sync_TW_Titles::localize()。
+ * ============================================================ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-tw-titles.php';
+
 require_once ANIME_SYNC_PRO_DIR . 'includes/bgm-bbcode.php';
 
 /* ============================================================
