@@ -3003,9 +3003,10 @@ $cast_prompt .= "以下是 JSON:\n";
         </style>
         <script>
         jQuery(document).ready(function($) {
-            // 模型下拉選單：依供應商切換，目前主要用 Gemini(3個型號),OpenAI/Claude 先各給一個預設值,保留後續擴充空間
+            // 模型下拉選單：依供應商切換，目前主要用 Gemini(4個型號),OpenAI/Claude 先各給一個預設值,保留後續擴充空間
             var AI_MODEL_OPTIONS = {
                 gemini: [
+                    { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
                     { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
                     { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
                     { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' }

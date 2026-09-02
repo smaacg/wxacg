@@ -37,6 +37,7 @@ class WXACG_AI_News_Engine_Plugin {
 
     # 可選用的 Gemini 模型清單（雲端引擎 cloud_engine.py 僅支援 Gemini，故不提供其他供應商）
     const GEMINI_MODELS = [
+        'gemini-3.8-flash' => 'Gemini 3.8 Flash',
         'gemini-3.7-flash' => 'Gemini 3.7 Flash',
         'gemini-3.6-flash' => 'Gemini 3.6 Flash',
         'gemini-3.5-flash' => 'Gemini 3.5 Flash',
