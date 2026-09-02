@@ -147,7 +147,20 @@ class Anime_Sync_Rate_Limiter {
             $retry_after = max( 1, (int) $headers['X-RateLimit-Reset'] - time() );
         }
 
-        $retry_after = max( 5, min( 300, $retry_after ) );
+        /*
+         * 上限刻意壓在 60 秒。
+         *
+         * 原本是 min( 300, ... )，而呼叫端的批次任務自己就是
+         * set_time_limit( 300 )（見 class-cron-manager.php 的
+         * _run_themes_episodes_inner / _run_daily_score_update_inner）
+         * ——只要撞上一次帶長 Retry-After 的 429，光是這一次 sleep 就會把
+         * 整個時間預算睡光，任務 fatal、鎖漏掉、整批進度也一起丟。
+         *
+         * 上游要求等更久時，正確做法是結束這一輪而不是死等：
+         * 這些任務都是 15 分鐘或 1 小時一次的排程，未處理的項目會退回佇列，
+         * 下一輪自然重試。
+         */
+        $retry_after = max( 5, min( 60, $retry_after ) );
 
         if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
             Anime_Sync_Error_Logger::warning( sprintf(

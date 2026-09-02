@@ -113,8 +113,25 @@ class Anime_Sync_Cron_Manager {
 
     const LOCK_TTL_DAILY           = 1800;
     const LOCK_TTL_SEASON          = 3600;
-    const LOCK_TTL_THEMES_EPISODES = 1800;
+    /*
+     * 主題曲＋集數同步：每 15 分鐘一輪，任務自己的上限是 set_time_limit(300)。
+     * 原本 TTL 是 1800（30 分鐘）——足足是任務最長執行時間的 6 倍，
+     * 一旦鎖沒被釋放就會連續擋掉兩輪，這正是「已有另一個程序在執行」
+     * 連續出現的原因。改成略大於任務上限，萬一仍有洩漏也能快速自癒。
+     */
+    const LOCK_TTL_THEMES_EPISODES = 420;
     const LOCK_TTL_WEEKLY          = 600;
+
+    /*
+     * 批次迴圈的時間預算（秒）。
+     *
+     * 必須明顯小於任務自己的 set_time_limit(300)，留出「退回佇列 + 存進度 +
+     * 寫日誌」的收尾餘裕。迴圈每跑完一筆就檢查一次，用盡就正常 break，
+     * 讓程式走到後面的存檔那段——PHP 逾時是 fatal，try/finally 的 finally
+     * 不會執行，鎖會漏；而且佇列與計數器都是整批跑完才寫，逾時等於整批
+     * 白做、下一輪再從同一批開始撞同樣的問題，會自我延續。
+     */
+    const BATCH_TIME_BUDGET = 210;
 
     const DAILY_QUEUE_OPTION = 'anime_sync_daily_queue';
     const DAILY_BATCH_SIZE   = 20;
@@ -521,12 +538,27 @@ class Anime_Sync_Cron_Manager {
          */
         $consecutive_failures = 0;
         $aborted_at           = null;
+        $abort_reason         = '';
+
+        // 與熔斷共用同一套退回機制：時間預算用盡也提前中止，未處理的退回佇列
+        $deadline = microtime( true ) + self::BATCH_TIME_BUDGET;
 
         foreach ( $batch as $index => $post_id ) {
             $post_id = (int) $post_id;
 
             if ( $consecutive_failures >= self::DAILY_ABORT_AFTER_FAILURES ) {
-                $aborted_at = $index;
+                $aborted_at   = $index;
+                $abort_reason = sprintf(
+                    '連續 %d 筆失敗，判定上游暫時不可用',
+                    self::DAILY_ABORT_AFTER_FAILURES
+                );
+                break;
+            }
+
+            // 至少處理一筆，避免預算已過期時佇列完全不前進
+            if ( $index > 0 && microtime( true ) >= $deadline ) {
+                $aborted_at   = $index;
+                $abort_reason = sprintf( '本批時間預算（%d 秒）用盡', self::BATCH_TIME_BUDGET );
                 break;
             }
 
@@ -605,8 +637,9 @@ class Anime_Sync_Cron_Manager {
             $remaining   = array_merge( $unprocessed, $remaining );
 
             $this->logger->log( 'warning', sprintf(
-                '每日動態更新：連續 %d 筆失敗，判定上游暫時不可用，本批提前中止（%d 部退回佇列，下批重試）',
-                self::DAILY_ABORT_AFTER_FAILURES,
+                '每日動態更新：%s，本批提前中止（已處理 %d 部，%d 部退回佇列下批重試）',
+                $abort_reason,
+                $aborted_at,
                 count( $unprocessed )
             ) );
         }
@@ -2051,7 +2084,24 @@ class Anime_Sync_Cron_Manager {
         $theme_added_total = (int) get_option( 'anime_sync_themes_round_theme_added',      0 );
         $ep_added_total    = (int) get_option( 'anime_sync_themes_round_ep_added',         0 );
 
-        foreach ( $batch as $post_id ) {
+        /*
+         * 時間預算：用盡就正常結束本批，未處理的退回佇列，下批繼續。
+         * 做法沿用 _run_daily_score_update_inner() 既有的 $aborted_at 那一套。
+         *
+         * 沒有這道防線時，AniList 配額見底會讓每次呼叫多睡 5 秒
+         * （class-rate-limiter.php check_remaining），一批很容易撐破
+         * set_time_limit(300) 而 fatal——鎖漏掉、整批進度也一起丟掉。
+         */
+        $deadline   = microtime( true ) + self::BATCH_TIME_BUDGET;
+        $aborted_at = null;
+
+        foreach ( $batch as $index => $post_id ) {
+            // 至少處理一筆，避免預算已過期時佇列完全不前進
+            if ( $index > 0 && microtime( true ) >= $deadline ) {
+                $aborted_at = $index;
+                break;
+            }
+
             $post_id = (int) $post_id;
 
             if ( get_post_status( $post_id ) !== 'publish' ) {
@@ -2073,6 +2123,18 @@ class Anime_Sync_Cron_Manager {
             if ( $added_themes > 0 || $added_eps > 0 ) {
                 $this->purge_post_cache( $post_id );
             }
+        }
+
+        if ( $aborted_at !== null ) {
+            $unprocessed = array_slice( $batch, $aborted_at );
+            $remaining   = array_merge( $unprocessed, $remaining );
+
+            $this->logger->log( 'warning', sprintf(
+                '主題曲＋集數同步：本批時間預算（%d 秒）用盡，已處理 %d 部，%d 部退回佇列下批重試',
+                self::BATCH_TIME_BUDGET,
+                $aborted_at,
+                count( $unprocessed )
+            ) );
         }
 
         self::update_cron_option( self::THEMES_QUEUE_OPTION,                       array_values( $remaining ) );
