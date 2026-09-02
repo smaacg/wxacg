@@ -135,6 +135,34 @@ class Anime_Sync_TW_Titles {
 	}
 
 	/**
+	 * 去掉標題尾端的季別／章節字樣，讓「XXX 第二季」與「XXX」歸到同一個系列。
+	 *
+	 * 原本這段正規式在 class-api-handler.php 的 get_series_tree() 與
+	 * class-import-manager.php 的 resolve_series_name() 各有一份，兩邊都漏了
+	 * 「第N章」——正式站實測出現「機動警察 EZY 第二章」的系列被命名成
+	 * 「機動警察 EZY 第一章」。集中成一處，免得以後補寫法時又只改一邊。
+	 *
+	 * 只切尾端，不動標題中間的內容。
+	 */
+	public static function strip_season_suffix( string $title ): string {
+		$stripped = preg_replace(
+			'/[\s：:]*('
+			. '\d+(?:st|nd|rd|th)?[\s]*[Ss]eason'
+			. '|[Ss]eason[\s]*\d+'
+			. '|第[一二三四五六七八九十百\d]+[季期章部]'
+			. '|[Ss]\d+'
+			. ').*$/u',
+			'',
+			$title
+		);
+
+		$stripped = trim( (string) $stripped );
+
+		// 整個標題就是季別字樣時（極少數），寧可保留原標題也不要變成空字串
+		return $stripped !== '' ? $stripped : trim( $title );
+	}
+
+	/**
 	 * 清除對照表快取。站上標題有大量變動（例如批次匯入）後可以呼叫。
 	 */
 	public static function flush(): void {

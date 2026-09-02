@@ -555,11 +555,9 @@ class Anime_Sync_Import_Manager {
 		}
 
 		// 去掉季別字尾，讓「XXX 第二季」與「XXX」歸到同一個系列
-		$name = trim( (string) preg_replace(
-			'/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
-			'',
-			$name
-		) );
+		if ( class_exists( 'Anime_Sync_TW_Titles' ) ) {
+			$name = Anime_Sync_TW_Titles::strip_season_suffix( $name );
+		}
 
 		return [ $name, $romaji ];
 	}

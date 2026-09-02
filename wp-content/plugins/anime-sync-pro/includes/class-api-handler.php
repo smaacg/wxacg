@@ -1250,11 +1250,11 @@ class Anime_Sync_API_Handler {
 
         if ( is_array( $naming_node ) ) {
             $series_name = $naming_node['title_chinese'] ?: $naming_node['title_romaji'] ?: '';
-            $series_name = preg_replace(
-                '/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
-                '',
-                $series_name
-            );
+            // 去季別字尾的規則集中在 Anime_Sync_TW_Titles，避免與
+            // class-import-manager.php 的 resolve_series_name() 各寫一份而漏改
+            if ( class_exists( 'Anime_Sync_TW_Titles' ) ) {
+                $series_name = Anime_Sync_TW_Titles::strip_season_suffix( $series_name );
+            }
             $series_name   = trim( $series_name );
             $series_romaji = $naming_node['title_romaji'] ?? '';
         }
