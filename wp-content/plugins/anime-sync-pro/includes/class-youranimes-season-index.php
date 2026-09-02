@@ -35,13 +35,15 @@
  *
  * 比對策略
  * --------
- * 分四層，信心由高到低，命中即停；全部落空回傳 null（呼叫端維持現行行為）。
+ * 只做「完全相符」，兩層，命中即停；落空回傳 null（呼叫端維持現行行為）。
  *
  *   1. ja_native  日文原名完全相同（正規化後）
  *   2. latin      羅馬字／英文名對上 name 或 alternateName
  *                 （Fate/strange Fake、TRIGUN STARGAZE 這類中日文同名的作品靠這層）
- *   3. date_eps   開播日 + 集數 唯一命中
- *   4. prefix     正規化後前綴相符且唯一（長短版標題差異）
+ *
+ * 曾經還有 date_eps（開播日+集數）與 prefix（前綴相符）兩層模糊比對，
+ * 2026-09-02 實跑後移除——錯誤率 20~40%，而且配錯時連台灣串流都會從錯誤作品的
+ * 頁面抓進來。詳細案例與判斷理由寫在 resolve() 尾端的註解。
  *
  * 正規化必須處理繁體與日文漢字的字形差異：站上的 anime_title_native 經過簡繁轉換，
  * 「違国日記」變成「違國日記」、「死滅回游」變成「死滅迴游」，不處理就配不上。
@@ -76,9 +78,6 @@ class Anime_Sync_YourAnimes_Season_Index {
 		'SUMMER' => '07',
 		'FALL'   => '10',
 	];
-
-	/** 前綴比對的最短長度，太短容易誤配 */
-	const PREFIX_MIN_LEN = 8;
 
 	/**
 	 * 繁體 → 日文新字體的常見字形對照。
@@ -159,41 +158,33 @@ class Anime_Sync_YourAnimes_Season_Index {
 			return $hit + [ 'match_method' => 'latin' ];
 		}
 
-		// ── 第 3 層：開播日 + 集數 ──
-		$start = preg_replace( '/\D/', '', (string) ( $anime_data['anime_start_date'] ?? '' ) );
-		$eps   = (int) ( $anime_data['anime_episodes'] ?? 0 );
-		if ( strlen( $start ) === 8 && $eps > 0 ) {
-			$cands = [];
-			foreach ( $index as $row ) {
-				if ( $row['date'] === $start && $row['eps'] === $eps ) {
-					$cands[ $row['ya_id'] ] = $row;
-				}
-			}
-			if ( count( $cands ) === 1 ) {
-				return array_values( $cands )[0] + [ 'match_method' => 'date_eps' ];
-			}
-		}
-
-		// ── 第 4 層：前綴相符且唯一 ──
-		$cands = [];
-		foreach ( [ $native, $romaji, $english ] as $src ) {
-			$k = self::normalize( $src );
-			if ( mb_strlen( $k ) < self::PREFIX_MIN_LEN ) {
-				continue;
-			}
-			foreach ( $by_any as $key => $row ) {
-				if ( mb_strlen( $key ) < self::PREFIX_MIN_LEN ) {
-					continue;
-				}
-				if ( mb_strpos( $key, $k ) === 0 || mb_strpos( $k, $key ) === 0 ) {
-					$cands[ $row['ya_id'] ] = $row;
-				}
-			}
-		}
-		if ( count( $cands ) === 1 ) {
-			return array_values( $cands )[0] + [ 'match_method' => 'prefix' ];
-		}
-
+		/*
+		 * 到這裡沒命中就放棄。
+		 *
+		 * ── 為什麼只留「完全相符」兩層 ──
+		 *
+		 * 曾經還有兩層模糊比對，2026-09-02 對 120 部草稿實跑後全數移除：
+		 *
+		 *   date_eps（開播日 + 集數）  寫入 6 筆，2 筆配到完全無關的作品
+		 *       アニラとココラ                 → 娑婆氣
+		 *       さわらないで小手指くんミニアニメ劇場 → 胖子與愛情以及過錯！
+		 *     短篇動畫常常同日開播、集數又相同，唯一性檢查擋不住。
+		 *
+		 *   prefix（正規化後前綴相符且唯一）  寫入 10 筆，2～4 筆有問題
+		 *       機械じかけのマリーミニアニメ   → 機械女僕‧瑪麗（本篇）
+		 *       劇場版 Idol光之美少女…         → TV 本篇
+		 *       ぷちきゅあ… シーズン3         → 本篇
+		 *     衍生作品的標題本來就是「本篇 + 後綴」，前綴比對必然配到本篇。
+		 *     試過用「衍生作品關鍵字必須兩邊一致」擋，但關鍵字常常只出現在
+		 *     中文標題而不在日文原名（劇場版那筆就是），擋不乾淨，
+		 *     反而誤傷了原本正確的案例。
+		 *
+		 * 錯誤的比對不只寫錯標題——連台灣串流都會從錯誤作品的頁面抓進來，
+		 * 而那是使用者很難自己發現的。這兩層合計只貢獻約 14% 的命中，
+		 * 用這個比例換取「配對必定正確」是划算的。
+		 *
+		 * 命中不了的維持原本的 Bangumi 譯名，與加這個功能之前完全一樣。
+		 */
 		return null;
 	}
 
@@ -452,10 +443,15 @@ class Anime_Sync_YourAnimes_Season_Index {
 		// 繁體字形 → 日文新字體（站上的日文原名被簡繁轉換動過）
 		$s = strtr( $s, self::KANJI_VARIANTS );
 
-		// 季別寫法：第2期 / 2期 / Season 2 / 2nd Season 一律拉成同一個標記
-		foreach ( [ 2, 3, 4, 5 ] as $n ) {
+		/*
+		 * 季別寫法一律拉成同一個標記：第2期 / 2期 / シーズン2 / Season 2 / 2nd Season。
+		 *
+		 * 「シーズン」那一項是後來補的：少了它，「ぷちきゅあ〜Precure Fairies〜
+		 * シーズン3」正規化後仍保留季別字樣，前綴比對會把它配到本篇。
+		 */
+		foreach ( [ 2, 3, 4, 5, 6 ] as $n ) {
 			$s = preg_replace(
-				'/(第' . $n . '[期季]|' . $n . '期|' . $n . '(?:nd|rd|th)\s*season|season\s*' . $n . ')/iu',
+				'/(第' . $n . '[期季]|' . $n . '期|シーズン\s*' . $n . '|' . $n . '(?:nd|rd|th)\s*season|season\s*' . $n . ')/iu',
 				'@S' . $n,
 				$s
 			);
