@@ -1249,7 +1249,37 @@ class Anime_Sync_API_Handler {
         }
 
         if ( is_array( $naming_node ) ) {
-            $series_name = $naming_node['title_chinese'] ?: $naming_node['title_romaji'] ?: '';
+
+            /*
+             * 命名優先序，與 class-import-manager.php 的 resolve_series_name() 一致：
+             *   1. 站內中文標題（該節點已匯入時才有）
+             *   2. YourAnimes 季度新番表的台灣官方譯名
+             *   3. romaji
+             *
+             * 第 2 層是後補的：分析階段整個系列通常都還沒匯入，title_chinese 全是空的，
+             * 於是系列名稱一律退回 romaji——實測「杜鵑婚約」透過系列分析匯入後，
+             * 系列被命名成「Kakkou no Iinazuke」。一般匯入那條路徑早就會查 YourAnimes，
+             * 這裡漏掉了，同一份邏輯散在兩處的典型後果。
+             */
+            $series_name = (string) ( $naming_node['title_chinese'] ?? '' );
+
+            if ( $series_name === '' && class_exists( 'Anime_Sync_YourAnimes_Season_Index' ) ) {
+                $match = Anime_Sync_YourAnimes_Season_Index::resolve( [
+                    'anime_season'        => $naming_node['season']       ?? '',
+                    'anime_season_year'   => $naming_node['season_year']  ?? 0,
+                    'anime_title_native'  => $naming_node['title_native'] ?? '',
+                    'anime_title_romaji'  => $naming_node['title_romaji'] ?? '',
+                    'anime_title_english' => '',
+                ] );
+                if ( $match && ! empty( $match['tw_title_ok'] ) ) {
+                    $series_name = (string) $match['tw_title'];
+                }
+            }
+
+            if ( $series_name === '' ) {
+                $series_name = (string) ( $naming_node['title_romaji'] ?? '' );
+            }
+
             // 去季別字尾的規則集中在 Anime_Sync_TW_Titles，避免與
             // class-import-manager.php 的 resolve_series_name() 各寫一份而漏改
             if ( class_exists( 'Anime_Sync_TW_Titles' ) ) {
