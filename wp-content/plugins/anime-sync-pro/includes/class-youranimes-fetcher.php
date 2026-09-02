@@ -5,6 +5,19 @@
  * 從 YourAnimes 動畫頁抓取台灣串流平台連結，自動填入 ACF 欄位並勾選對應 checkbox。
  *
  * 變更紀錄：
+ * - [v1.7.0] run_single_sync() 失敗不再無聲：原本只有
+ *            if ( ! is_wp_error( $result ) ) 這一支，抓取失敗時不寫 log、不重試、
+ *            不留任何痕跡，使用者只會看到「串流是空的」卻查不出原因。
+ *            以前一部一部人工貼網址時不明顯；改成匯入時自動觸發、一次連打好幾部
+ *            之後就容易撞到——2026-09-02 實測一批 9 部有 3 部這樣默默失敗
+ *            （重跑即成功，是暫時性錯誤）。正式站累積了 55 部「有網址但從未同步
+ *            成功」的資料。
+ *            現在失敗會記 warning（含錯誤碼與訊息）並排一次 5 分鐘後的重試，
+ *            上限 2 次，用 post meta _anime_youranimes_retry 計數避免無限重排；
+ *            成功後清掉計數。熔斷造成的失敗不計入重試次數——那是整站暫停，
+ *            不是單筆的問題。
+ *            另外 run_daily_sync() 的結果原本只報「失敗 N」，看不出是哪幾部，
+ *            現在會另記一筆 warning 列出失敗的作品與錯誤碼（最多 10 筆）。
  * - [v1.6.0] write_to_acf() 尾端新增 maybe_fill_distributor()：同步抓到台灣自家平台
  *            （木棉花/羚邦/曼迪/回歸線/車庫）時，若代理商欄位為空，自動推導並填入
  *            anime_tw_distributor。僅在空白時填，不覆蓋人工已選的值。
@@ -239,6 +252,21 @@ class Anime_Sync_YourAnimes_Fetcher {
         }
     }
 
+    /** 單篇同步失敗後的重試上限與間隔（post meta 計數，避免無限重排） */
+    const RETRY_META      = '_anime_youranimes_retry';
+    const RETRY_MAX       = 2;
+    const RETRY_DELAY_SEC = 5 * MINUTE_IN_SECONDS;
+
+    /**
+     * 單篇自動同步。
+     *
+     * ★ 失敗時必須留下痕跡並重試。
+     *
+     * 原本只有 if ( ! is_wp_error( $result ) ) 這一支：抓取失敗時不寫 log、
+     * 不重試、什麼都不留，使用者只會看到「串流是空的」卻查不出原因。
+     * 以前一部一部人工貼網址時不明顯；改成匯入時自動觸發、一次連打好幾部之後，
+     * 2026-09-02 實測一批 9 部就有 3 部這樣默默失敗（重跑即成功，是暫時性錯誤）。
+     */
     public function run_single_sync( $post_id ) {
         $post_id = (int) $post_id;
         $url     = get_post_meta( $post_id, 'anime_youranimes_url', true );
@@ -246,17 +274,57 @@ class Anime_Sync_YourAnimes_Fetcher {
             return;
         }
 
-        $result = $this->sync_post( $post_id, true );
+        $post_title = get_the_title( $post_id ) ?: "ID {$post_id}";
+        $result     = $this->sync_post( $post_id, true );
 
-        if ( ! is_wp_error( $result ) ) {
-            update_post_meta( $post_id, '_anime_youranimes_last_synced_url', $this->normalize_url( $url ) );
+        if ( is_wp_error( $result ) ) {
+            $retry = (int) get_post_meta( $post_id, self::RETRY_META, true );
 
-            $post_title = get_the_title( $post_id ) ?: "ID {$post_id}";
-            if ( empty( $result ) ) {
-                $this->log_info( "自動同步〔{$post_title}〕：抓到頁面但尚無串流平台資料" );
-            } else {
-                $this->log_info( "自動同步〔{$post_title}〕：成功更新 " . implode( '、', $result ) );
+            // 熔斷中不算重試次數：那是整站暫停，不是這一筆的問題，
+            // 交給每日 cron 的安全網處理即可。
+            if ( $result->get_error_code() === 'circuit_open' ) {
+                $this->log_warning( "自動同步〔{$post_title}〕：熔斷中，本次略過" );
+                return;
             }
+
+            if ( $retry < self::RETRY_MAX ) {
+                $retry++;
+                update_post_meta( $post_id, self::RETRY_META, $retry );
+
+                if ( ! wp_next_scheduled( self::AUTO_SYNC_HOOK, [ $post_id ] ) ) {
+                    wp_schedule_single_event( time() + self::RETRY_DELAY_SEC, self::AUTO_SYNC_HOOK, [ $post_id ] );
+                }
+
+                $this->log_warning( sprintf(
+                    '自動同步〔%s〕失敗（%s：%s），%d 分鐘後重試（第 %d／%d 次）',
+                    $post_title,
+                    $result->get_error_code(),
+                    $result->get_error_message(),
+                    self::RETRY_DELAY_SEC / MINUTE_IN_SECONDS,
+                    $retry,
+                    self::RETRY_MAX
+                ) );
+            } else {
+                $this->log_warning( sprintf(
+                    '自動同步〔%s〕失敗（%s：%s），已達重試上限 %d 次，放棄。'
+                    . '每日 cron 仍會在開播窗口內再試；或到編輯頁按同步按鈕。',
+                    $post_title,
+                    $result->get_error_code(),
+                    $result->get_error_message(),
+                    self::RETRY_MAX
+                ) );
+            }
+            return;
+        }
+
+        // 成功：清掉重試計數，記錄已同步的網址
+        delete_post_meta( $post_id, self::RETRY_META );
+        update_post_meta( $post_id, '_anime_youranimes_last_synced_url', $this->normalize_url( $url ) );
+
+        if ( empty( $result ) ) {
+            $this->log_info( "自動同步〔{$post_title}〕：抓到頁面但尚無串流平台資料" );
+        } else {
+            $this->log_info( "自動同步〔{$post_title}〕：成功更新 " . implode( '、', $result ) );
         }
     }
 
@@ -359,6 +427,8 @@ class Anime_Sync_YourAnimes_Fetcher {
         $ok = 0;
         $empty = 0;
         $fail = 0;
+        // 只記數字的話，事後看到「失敗 3」也不知道是哪幾部、為什麼失敗
+        $fail_detail = [];
 
         foreach ( $q->posts as $pid ) {
             if ( get_transient( self::CIRCUIT_OPEN_KEY ) ) {
@@ -369,6 +439,14 @@ class Anime_Sync_YourAnimes_Fetcher {
 
             if ( is_wp_error( $result ) ) {
                 $fail++;
+                if ( count( $fail_detail ) < 10 ) {
+                    $fail_detail[] = sprintf(
+                        '%s(#%d %s)',
+                        get_the_title( $pid ) ?: '?',
+                        $pid,
+                        $result->get_error_code()
+                    );
+                }
             } elseif ( empty( $result ) ) {
                 $empty++;
             } else {
@@ -384,6 +462,11 @@ class Anime_Sync_YourAnimes_Fetcher {
             '[Cron] 每日同步完成：更新 %d、尚無資料 %d、失敗 %d（窗口 %s ~ %s）',
             $ok, $empty, $fail, $lower_ymd, $upper_ymd
         ) );
+
+        if ( $fail_detail ) {
+            $this->log_warning( '[Cron] 本輪同步失敗：' . implode( '、', $fail_detail )
+                . ( $fail > count( $fail_detail ) ? sprintf( '…等 %d 部', $fail ) : '' ) );
+        }
     }
 
     // -------------------------------------------------------------------------

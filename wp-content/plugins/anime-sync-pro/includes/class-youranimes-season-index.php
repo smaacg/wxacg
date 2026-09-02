@@ -467,19 +467,35 @@ class Anime_Sync_YourAnimes_Season_Index {
 		return mb_strtolower( (string) $s, 'UTF-8' );
 	}
 
+	/*
+	 * 失敗計數必須用 transient，不能用 option。
+	 *
+	 * class-youranimes-fetcher.php 的 record_failure() 是
+	 * get_transient() / set_transient( ..., 30 分鐘 )。這裡若改用 option，
+	 * 兩邊會各記各的，宣稱的「熔斷器狀態共用」就不成立——本類別的失敗
+	 * 永遠累積不到門檻，也不會觸發熔斷，還會多留一筆用不到的 option。
+	 */
 	private static function record_failure(): void {
 		if ( ! class_exists( 'Anime_Sync_YourAnimes_Fetcher' ) ) {
 			return;
 		}
-		$count = (int) get_option( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY, 0 ) + 1;
-		update_option( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY, $count, false );
+
+		$count = (int) get_transient( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY ) + 1;
+
 		if ( $count >= Anime_Sync_YourAnimes_Fetcher::FAIL_THRESHOLD ) {
 			set_transient(
 				Anime_Sync_YourAnimes_Fetcher::CIRCUIT_OPEN_KEY,
 				1,
 				Anime_Sync_YourAnimes_Fetcher::CIRCUIT_OPEN_TTL
 			);
-			self::log_warning( '連續失敗達門檻，已熔斷 1 小時' );
+			delete_transient( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY );
+			self::log_warning( sprintf(
+				'連續 %d 次失敗，已熔斷 %d 分鐘',
+				Anime_Sync_YourAnimes_Fetcher::FAIL_THRESHOLD,
+				Anime_Sync_YourAnimes_Fetcher::CIRCUIT_OPEN_TTL / MINUTE_IN_SECONDS
+			) );
+		} else {
+			set_transient( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY, $count, 30 * MINUTE_IN_SECONDS );
 		}
 	}
 
@@ -487,9 +503,7 @@ class Anime_Sync_YourAnimes_Season_Index {
 		if ( ! class_exists( 'Anime_Sync_YourAnimes_Fetcher' ) ) {
 			return;
 		}
-		if ( (int) get_option( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY, 0 ) !== 0 ) {
-			update_option( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY, 0, false );
-		}
+		delete_transient( Anime_Sync_YourAnimes_Fetcher::FAIL_COUNT_KEY );
 	}
 
 	private static function log_warning( string $message ): void {
