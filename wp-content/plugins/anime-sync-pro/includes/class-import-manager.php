@@ -504,31 +504,48 @@ class Anime_Sync_Import_Manager {
 	/**
 	 * 取得系列名稱（台灣官方譯名優先）。
 	 *
-	 * 優先序：
+	 * 三個有把握的來源，取不到就回傳空字串，讓呼叫端「不指派」：
 	 *   1. 根源已匯入 → 站內的中文標題（那是你人工確認過的）
 	 *   2. 根源就是這次匯入的作品 → 用它自己的中文標題
-	 *   3. 否則 → YourAnimes 季度新番表的台灣官方譯名
-	 *   4. 都沒有 → romaji（維持現行行為）
+	 *   3. YourAnimes 季度新番表的台灣官方譯名
 	 *
-	 * @return array{0:string,1:string} [系列名稱, 系列 romaji（給 slug 用）]
+	 * ★ 刻意不退回 romaji。
+	 *
+	 * 原本第四層是「都取不到就用 romaji」，2026-09-02 對 180 部草稿實跑後移除：
+	 * 產出的 180 個系列裡有 96 個是羅馬拼音（53%）。這種名稱對使用者沒有價值
+	 * ——看到「Hoppe-chan: Sun Oukoku to Kuro…」還是得自己想中文名、自己打，
+	 * 跟留空的工作量一樣；但留空至少不會在後台留下一堆羅馬拼音的空殼 term，
+	 * 而那正是站上既有 250 個孤兒 term 的成因（見 assign_series_taxonomy 註解）。
+	 *
+	 * 判斷是否有把握用「名稱來自哪一層」，不是看字串長相——有些正牌台灣譯名
+	 * 本來就是純英文（Fate/Zero、IRIS OUT），從字面分不出來。
+	 *
+	 * @return array{0:string,1:string,2:bool} [系列名稱, 系列 romaji（給 slug 用）, 是否有把握]
 	 */
 	private function resolve_series_name( int $root_id, array $anime_data ): array {
 
-		$self_id = (int) ( $anime_data['anilist_id'] ?? 0 );
-		$name    = '';
-		$romaji  = '';
+		$self_id   = (int) ( $anime_data['anilist_id'] ?? 0 );
+		$name      = '';
+		$romaji    = '';
+		$confident = false;
 
 		// 1) 根源已匯入
 		$root_post = $this->find_existing( $root_id );
 		if ( $root_post > 0 ) {
 			$name   = (string) ( get_post_meta( $root_post, 'anime_title_chinese', true ) ?: get_the_title( $root_post ) );
 			$romaji = (string) get_post_meta( $root_post, 'anime_title_romaji', true );
+			if ( $name !== '' ) {
+				$confident = true;
+			}
 		}
 
 		// 2) 根源就是自己
 		if ( $name === '' && $root_id === $self_id ) {
 			$name   = (string) ( $anime_data['anime_title_chinese'] ?? '' );
 			$romaji = (string) ( $anime_data['anime_title_romaji'] ?? '' );
+			if ( $name !== '' ) {
+				$confident = true;
+			}
 		}
 
 		// 3) YourAnimes 台灣官方譯名
@@ -544,14 +561,14 @@ class Anime_Sync_Import_Manager {
 					'anime_title_english' => '',
 				] );
 				if ( $match && ! empty( $match['tw_title_ok'] ) ) {
-					$name = $match['tw_title'];
+					$name      = $match['tw_title'];
+					$confident = true;
 				}
 			}
 		}
 
-		// 4) 退回 romaji
-		if ( $name === '' ) {
-			$name = $romaji;
+		if ( ! $confident ) {
+			return [ '', $romaji, false ];
 		}
 
 		// 去掉季別字尾，讓「XXX 第二季」與「XXX」歸到同一個系列
@@ -559,7 +576,7 @@ class Anime_Sync_Import_Manager {
 			$name = Anime_Sync_TW_Titles::strip_season_suffix( $name );
 		}
 
-		return [ $name, $romaji ];
+		return [ $name, $romaji, true ];
 	}
 
 	/**
