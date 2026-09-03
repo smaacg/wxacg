@@ -2,13 +2,17 @@
 /**
  * Series Index (系列總覽頁)
  * Path: wp-content/plugins/anime-sync-pro/includes/class-series-index.php
- * Version: 1.1.0 (2026-09-03)
+ * Version: 1.1.1 (2026-09-03)
  *
  * 功能：讓 /series/ 根目錄（taxonomy archive 的上層）能顯示一個
  *      「所有系列總覽頁」。WordPress 原生對 taxonomy 根目錄沒有模板，
  *      因此用自訂 rewrite rule + query var + template_include 攔截。
  *
  * Changelog:
+ *   1.1.1 (2026-09-03)
+ *     - [修正] 補上 description filter（1.1.0 只修了 title 與 canonical，
+ *              description 仍與首頁一字不差）。meta / og / twitter 三個
+ *              描述欄位各走各的取值路徑，都要掛。
  *   1.1.0 (2026-09-03)
  *     - [修正] 補上 canonical / og:url filter。虛擬頁被 WordPress 判定為首頁，
  *              Rank Math 把 canonical 覆寫成首頁網址，本頁因此無法進索引。
@@ -40,6 +44,11 @@ class Anime_Sync_Series_Index {
         add_filter( 'rank_math/frontend/title',     [ __CLASS__, 'filter_title' ],     99 );
         add_filter( 'rank_math/frontend/canonical', [ __CLASS__, 'filter_canonical' ], 99 );
         add_filter( 'rank_math/opengraph/url',      [ __CLASS__, 'filter_canonical' ], 99 );
+
+        /* 三個描述欄位各走各的路徑，og/twitter 不會繼承 meta description */
+        add_filter( 'rank_math/frontend/description',           [ __CLASS__, 'filter_description' ], 99 );
+        add_filter( 'rank_math/opengraph/facebook/description', [ __CLASS__, 'filter_description' ], 99 );
+        add_filter( 'rank_math/opengraph/twitter/description',  [ __CLASS__, 'filter_description' ], 99 );
     }
 
     /** 目前請求是不是 /series/ 總覽頁 */
@@ -77,6 +86,23 @@ class Anime_Sync_Series_Index {
         $url = home_url( '/' . self::SLUG . '/' );
 
         return is_string( $url ) && '' !== $url ? $url : $canonical;
+    }
+
+    /**
+     * meta description / og:description / twitter:description。
+     *
+     * 原因同 filter_canonical()：虛擬頁被判定為首頁，Rank Math 套用首頁描述，
+     * 本頁描述因此與首頁一字不差。og 與 twitter 不會從 meta description
+     * 繼承（各自走 class-opengraph.php 的 get_description()），三個都要掛。
+     */
+    public static function filter_description( $description ) {
+
+        if ( ! self::is_series_index() ) {
+            return $description;
+        }
+
+        return '微笑動漫全部動畫系列總覽，依系列彙整續作、前傳、外傳與衍生作品，'
+            . '快速掌握一個系列的完整作品與觀看順序。';
     }
 
     /** 註冊 /series/ 的 rewrite rule */

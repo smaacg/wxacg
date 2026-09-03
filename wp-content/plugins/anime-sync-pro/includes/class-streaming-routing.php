@@ -2,9 +2,13 @@
 /**
  * Streaming Routing (串流平台總覽與各平台作品頁)
  * Path: wp-content/plugins/anime-sync-pro/includes/class-streaming-routing.php
- * Version: 1.0.1 (2026-09-03)
+ * Version: 1.0.2 (2026-09-03)
  *
  * Changelog:
+ *   1.0.2 (2026-09-03)
+ *     - [修正] 補上 description filter（1.0.1 只修了 title 與 canonical，
+ *              description 仍沿用首頁的，18 頁描述與首頁一字不差）。
+ *              meta / og / twitter 三個描述欄位各走各的路徑，都要掛。
  *   1.0.1 (2026-09-03)
  *     - [修正] 補上 canonical / og:url filter。虛擬頁沒有主查詢，WordPress
  *              判定為首頁，Rank Math 把 canonical 覆寫成首頁網址，等同告訴
@@ -70,6 +74,11 @@ class Anime_Sync_Streaming_Routing {
 
 		add_filter( 'rank_math/frontend/canonical', [ __CLASS__, 'filter_canonical' ], 99 );
 		add_filter( 'rank_math/opengraph/url',      [ __CLASS__, 'filter_canonical' ], 99 );
+
+		/* 三個描述欄位各走各的路徑，og/twitter 不會繼承 meta description */
+		add_filter( 'rank_math/frontend/description',           [ __CLASS__, 'filter_description' ], 99 );
+		add_filter( 'rank_math/opengraph/facebook/description', [ __CLASS__, 'filter_description' ], 99 );
+		add_filter( 'rank_math/opengraph/twitter/description',  [ __CLASS__, 'filter_description' ], 99 );
 	}
 
 	public static function add_rewrite(): void {
@@ -182,6 +191,42 @@ class Anime_Sync_Streaming_Routing {
 		$url = $key !== '' ? self::platform_url( $key ) : self::index_url();
 
 		return is_string( $url ) && '' !== $url ? $url : $canonical;
+	}
+
+	/**
+	 * meta description / og:description / twitter:description。
+	 *
+	 * 與 title、canonical 同一個根因：虛擬頁被判定為首頁，Rank Math 於是
+	 * 套用首頁的描述（class-opengraph.php 的 is_front_page() 分支直接讀
+	 * titles.homepage_facebook_description），這 18 頁的描述因此與首頁一字不差。
+	 *
+	 * 三個欄位各走各的取值路徑，og:description 與 twitter:description
+	 * 「不會」從 meta description 繼承，所以三個 hook 都要掛。
+	 */
+	public static function filter_description( $description ) {
+
+		if ( ! self::is_streaming_page() ) {
+			return $description;
+		}
+
+		$key = self::current_platform_key();
+
+		if ( $key === '' ) {
+			return '台灣看得到的動畫串流平台一覽：Netflix、巴哈姆特動畫瘋、Crunchyroll、'
+				. 'Ani-One、木棉花等，整理各平台有哪些動畫可以線上看，資料持續同步更新。';
+		}
+
+		$platform = Anime_Sync_Streaming_Registry::get( $key );
+		$label    = $platform['label'] ?? $key;
+		$counts   = self::get_counts();
+		$total    = (int) ( $counts[ $key ] ?? 0 );
+
+		return sprintf(
+			'%s 有哪些動畫可以看？收錄 %d 部作品的官方線上看連結，'
+			. '含播出年份、集數、評分與製作公司，資料持續同步更新。',
+			$label,
+			$total
+		);
 	}
 
 	/**
