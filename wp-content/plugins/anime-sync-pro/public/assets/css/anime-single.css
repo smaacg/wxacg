@@ -5110,6 +5110,29 @@ nav.asd-tabs--views a.asd-tab.is-active:hover {
 	font-weight: 700;
 }
 
+/*
+ * 串流區塊底部的站內出口，連往 /streaming/ 平台總覽。
+ * 刻意做得比上面的平台按鈕低調：那些才是使用者要點的觀看連結，
+ * 這條只是「想看看各平台還有什麼」的次要動線。
+ */
+.asd-stream-more {
+	margin: 14px 0 0;
+	font-size: 12.5px;
+}
+
+.asd-stream-more a {
+	color: var(--asd-text-muted);
+	text-decoration: none;
+	border-bottom: 1px dashed currentColor;
+	padding-bottom: 1px;
+	transition: color .15s ease;
+}
+
+.asd-stream-more a:hover,
+.asd-stream-more a:focus-visible {
+	color: var(--asd-text, #fff);
+}
+
 /* 免費那組用綠色點出來——那是使用者最想先看到的 */
 .asd-stream-bill:first-child .asd-stream-bill-head {
 	color: #34d399;

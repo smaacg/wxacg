@@ -5114,6 +5114,22 @@ while ( have_posts() ) :
 											</div>
 										</div>
 									<?php endforeach; ?>
+
+									<?php
+									/*
+									 * 連往站內的串流平台總覽。
+									 *
+									 * 上面的平台按鈕連的是外部觀看連結（使用者真正要點的），
+									 * 這裡另外給一條站內出口：全站上千部作品頁都有這個區塊，
+									 * 等於為 /streaming/ 提供上千個內部入口，再由總覽頁把權重
+									 * 分配到各平台的作品清單頁。
+									 */
+									if ( class_exists( 'Anime_Sync_Streaming_Routing' ) ) :
+										?>
+										<p class="asd-stream-more">
+											<a href="<?php echo esc_url( Anime_Sync_Streaming_Routing::index_url() ); ?>">各平台有哪些動畫？看串流平台一覽 →</a>
+										</p>
+									<?php endif; ?>
 								</div>
 							<?php endif; ?>
 
