@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Anime Sync Pro
  * Description: 從 AniList、Bangumi 自動同步動畫資料，並支援多媒體形式（動畫/漫畫/小說/遊戲/音樂）的作品系列聚合。
- * Version:     1.9.3
+ * Version:     1.9.4
  * Author:      weixiaoacg
  * Requires PHP: 8.0
  * Text Domain: anime-sync-pro
@@ -93,7 +93,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * ============================================================ */
 // ★ 1.6.1：新增 manga_publisher_tax。版本號變動會在 init priority 99
 //   觸發 flush_rewrite_rules()，否則 /manga-publisher/{slug}/ 會 404。
-define( 'ANIME_SYNC_PRO_VERSION',  '1.9.3' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.9.4' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -1249,6 +1249,17 @@ add_action( 'plugins_loaded', function (): void {
 	// ------------------------------------------------------
 	if ( class_exists( 'Anime_Sync_Subview_Routing' ) ) {
 		Anime_Sync_Subview_Routing::init();
+	}
+
+	// ------------------------------------------------------
+	// 串流平台頁 /streaming/ 與 /streaming/{platform}/（v1.9.4 新增）
+	// 同上,rewrite / template_include 前後台都要註冊。
+	//
+	// 與 Entity_Routing 不同,這裡不設 noindex:平台頁是站內資料的整理與
+	// 比較、數量只有十幾頁,而且正是台灣使用者會搜尋的「XX 有哪些動畫」。
+	// ------------------------------------------------------
+	if ( class_exists( 'Anime_Sync_Streaming_Routing' ) ) {
+		Anime_Sync_Streaming_Routing::init();
 	}
 
 	// ------------------------------------------------------
