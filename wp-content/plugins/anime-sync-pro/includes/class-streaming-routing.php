@@ -2,7 +2,15 @@
 /**
  * Streaming Routing (串流平台總覽與各平台作品頁)
  * Path: wp-content/plugins/anime-sync-pro/includes/class-streaming-routing.php
- * Version: 1.0.0 (2026-09-03)
+ * Version: 1.0.1 (2026-09-03)
+ *
+ * Changelog:
+ *   1.0.1 (2026-09-03)
+ *     - [修正] 補上 canonical / og:url filter。虛擬頁沒有主查詢，WordPress
+ *              判定為首頁，Rank Math 把 canonical 覆寫成首頁網址，等同告訴
+ *              Google「這 18 頁是首頁的複本」，完全無法進索引。
+ *   1.0.0 (2026-09-03)
+ *     - [新增] /streaming/ 與 /streaming/{platform}/ 路由與模板。
  *
  * 功能：攔截 /streaming/ 與 /streaming/{platform}/，載入對應模板。
  *      平台清單來自 Anime_Sync_Streaming_Registry，作品來自
@@ -20,7 +28,11 @@
  *   三萬多頁聚合內容曾導致 AdSense 退件（見該檔 filter_entity_robots 註解）。
  *   平台頁的性質不同：它是站內資料的整理與比較，數量只有十幾頁，
  *   而且正是台灣使用者會搜尋的「XX 有哪些動畫可以看」。
- *   已實測 /series/（同樣機制的虛擬頁）robots 為 index，故不需額外處理。
+ *   已實測 /series/（同樣機制的虛擬頁）robots 為 index，故 robots 不需額外處理。
+ *
+ *   ⚠ 1.0.1 更正：上面那次實測「只驗了 robots，沒驗 canonical」。
+ *     robots 確實是 index，但 canonical 被覆寫成首頁網址，結果一樣進不了索引。
+ *     驗證單一訊號就下結論是不夠的，詳見 filter_canonical() 的說明。
  *
  * @package Anime_Sync_Pro
  */
@@ -55,6 +67,9 @@ class Anime_Sync_Streaming_Routing {
 
 		add_filter( 'pre_get_document_title',   [ __CLASS__, 'filter_title' ], 99 );
 		add_filter( 'rank_math/frontend/title', [ __CLASS__, 'filter_title' ], 99 );
+
+		add_filter( 'rank_math/frontend/canonical', [ __CLASS__, 'filter_canonical' ], 99 );
+		add_filter( 'rank_math/opengraph/url',      [ __CLASS__, 'filter_canonical' ], 99 );
 	}
 
 	public static function add_rewrite(): void {
@@ -133,6 +148,40 @@ class Anime_Sync_Streaming_Routing {
 		}
 
 		return '台灣動畫串流平台一覽' . $sep . $site;
+	}
+
+	/**
+	 * canonical / og:url 指向該頁自己。
+	 *
+	 * 虛擬頁沒有主查詢，WordPress 判定為首頁（body class 為 home blog），
+	 * Rank Math 因此在 class-paper.php 的 is_front_page() 分支把 canonical
+	 * 覆寫成首頁網址。canonical 指向首頁＝告訴 Google「這頁是首頁的複本」，
+	 * 這 18 頁（17 平台 + 總覽）永遠不會被收錄。
+	 *
+	 * 為什麼不改 is_home 這個根因：
+	 *   Rank Math 用 Search / Singular / Blog / Archive / Error_404 五個條件
+	 *   挑 Paper（目前命中 Blog）。把 is_home 設成 false 會五個全不成立，
+	 *   Rank Math 拿不到任何 Paper，canonical 反而變成空的——站上的
+	 *   /year-review/ 正是這個狀態。所以這個 filter 是必要手段，不是權宜之計。
+	 *
+	 * 寫法比照 class-subview-routing.php::filter_canonical()：
+	 *   - 優先度 99，避免被其他外掛蓋掉
+	 *   - 參數不宣告型別（Rank Math 的 canonical 預設值是 false）
+	 *   - 取不到網址時退回原值，不回傳空字串
+	 *
+	 * og:url 另外掛一次：它雖然是從 get_canonical() 衍生的，
+	 * 但既有實作沒有賭這件事，這裡照做。
+	 */
+	public static function filter_canonical( $canonical ) {
+
+		if ( ! self::is_streaming_page() ) {
+			return $canonical;
+		}
+
+		$key = self::current_platform_key();
+		$url = $key !== '' ? self::platform_url( $key ) : self::index_url();
+
+		return is_string( $url ) && '' !== $url ? $url : $canonical;
 	}
 
 	/**
