@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const postId   = parseInt(bar.dataset.postId, 10);
     const totalEp  = parseInt(bar.dataset.episodes, 10) || 0;
+    /* 已播出集數；連載中的作品用它當進度上限（見進度按鈕區塊） */
+    const airedEp  = parseInt(bar.dataset.episodesAired, 10) || 0;
     const loggedIn = cfg.loggedIn === true || cfg.loggedIn === '1' || cfg.loggedIn === 1;
     const apiBase  = cfg.apiUrl  || '/wp-json/weixiaoacg/v1/';
     const nonce    = cfg.nonce   || '';
@@ -295,7 +297,16 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!loggedIn) { requireLogin(); return; }
             const delta   = parseInt(btn.dataset.value, 10);
             const oldProg = state.progress;
-            const newProg = Math.max(0, Math.min(totalEp || Infinity, oldProg + delta));
+
+            /* 進度不能加到還沒播出的集數。
+               totalEp 是全長（顯示與百分比用），airedEp 是已播出集數；
+               連載中時 airedEp < totalEp，此時上限取 airedEp。
+               airedEp 為 0（未知／已完結沒回填）時退回 totalEp，行為同改動前。
+               上限再與 oldProg 取大值：已經存了超過已播出集數的使用者
+               不會被這個限制強制拉回去，只是不能再往上加。 */
+            const progCap = (airedEp > 0 && airedEp < totalEp) ? airedEp : totalEp;
+            const upper   = Math.max(progCap || Infinity, oldProg);
+            const newProg = Math.max(0, Math.min(upper, oldProg + delta));
             if (newProg === oldProg) return;
             const oldStatus = state.status;
             state.progress = newProg;

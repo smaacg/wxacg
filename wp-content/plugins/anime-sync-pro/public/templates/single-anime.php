@@ -4559,6 +4559,18 @@ while ( have_posts() ) :
 			class="smacg-track-bar"
 			data-post-id="<?php echo esc_attr( $post_id ); ?>"
 			data-episodes="<?php echo esc_attr( $episodes ); ?>"
+			<?php
+			/*
+			 * 已播出集數另外給 JS，讓進度的 +／- 不能加到還沒播的集數。
+			 *
+			 * data-episodes 是「全長」，顯示「N / 12 集」與百分比都要用它；
+			 * 但連載中的作品只播到第 9 集，追番進度卻能一路加到 12。
+			 * 兩個數字用途不同，不能共用一個。
+			 *
+			 * 值為 0（未知或已完結沒回填）時 JS 會退回用總集數，行為與改動前相同。
+			 */
+			?>
+			data-episodes-aired="<?php echo esc_attr( $ep_aired ); ?>"
 			data-status="<?php echo esc_attr( $user_anime_entry['status'] ?? '' ); ?>"
 			data-progress="<?php echo esc_attr( $progress_value ); ?>"
 			data-favorited="<?php echo ! empty( $user_anime_entry['favorited'] ) ? '1' : '0'; ?>"
