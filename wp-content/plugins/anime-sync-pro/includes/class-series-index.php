@@ -101,8 +101,25 @@ class Anime_Sync_Series_Index {
             return $description;
         }
 
-        return '微笑動漫全部動畫系列總覽，依系列彙整續作、前傳、外傳與衍生作品，'
-            . '快速掌握一個系列的完整作品與觀看順序。';
+        /*
+         * 系列數量動態帶入。頁面本身就印「本站共收錄 N 個作品系列」
+         * （見 series-index.php），描述用同一個來源才不會對不上。
+         * 取不到就退回不帶數字的版本——不寫 0，那是假的。
+         */
+        $count = taxonomy_exists( 'anime_series_tax' )
+            ? wp_count_terms( [ 'taxonomy' => 'anime_series_tax', 'hide_empty' => true ] )
+            : 0;
+
+        $total = is_wp_error( $count ) ? 0 : (int) $count;
+
+        $lead = $total > 0
+            ? sprintf( '微笑動漫收錄 %d 個動畫系列', $total )
+            : '微笑動漫全部動畫系列總覽';
+
+        return $lead . '，依系列彙整續作、前傳、外傳與衍生作品，'
+            . '一次掌握某個系列共有哪些動畫、各季播出年份與建議的觀看順序。'
+            . '涵蓋長篇作品的各季、劇場版與 OVA，每個系列附封面與作品數，'
+            . '系列名稱採台灣官方譯名，資料隨新作品上架持續更新。';
     }
 
     /** 註冊 /series/ 的 rewrite rule */

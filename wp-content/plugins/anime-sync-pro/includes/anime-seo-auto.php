@@ -111,19 +111,101 @@ if ( ! function_exists( 'wx_asp_get_anime_seo_desc' ) ) {
 			$parts[] = $source_labels[ $source ];
 		}
 
+		/*
+		 * 類型（genre 分類法）。
+		 *
+		 * 沒有台灣串流資料的作品描述會明顯偏短（實測最短只有 74 字），
+		 * 類型是站上一定有、使用者也真的會搜的資訊，用它補長度比填充詞誠實。
+		 * 取三個就好，再多會擠掉後面的串流平台。
+		 */
+		$genres = wp_get_post_terms( $post_id, 'genre', [ 'fields' => 'names' ] );
+
+		if ( ! is_wp_error( $genres ) && $genres ) {
+			$parts[] = '類型：' . implode( '、', array_slice( $genres, 0, 3 ) );
+		}
+
 		$desc = implode( '，', array_filter( $parts ) );
 
-		if ( $desc ) {
-			$desc .= '，包含播出時間、集數、官方PV、聲優陣容、劇情簡介與合法線上看／串流平台資訊。';
-		} else {
-			$desc = '動畫作品資訊整理，包含播出時間、集數、官方PV、聲優陣容、劇情簡介與合法線上看／串流平台資訊。';
+		/*
+		 * 把「實際有上架的平台名稱」寫進描述。
+		 *
+		 * Bing 網站掃描指出全站描述過短：實測作品頁只有 65~119 字，
+		 * 建議值是 120~160。但補長度不能靠填充詞——熱門查詢幾乎清一色是
+		 * 「XX 線上看」，把真正上架的平台名稱寫出來，既補足長度也直接
+		 * 命中搜尋意圖。
+		 *
+		 * 沒有台灣串流資料的作品就不輸出這一段，不寫「無」也不編造平台。
+		 * 最多三個，再多會被 160 字上限截掉。
+		 */
+		$tw_streaming = get_post_meta( $post_id, 'anime_tw_streaming', true );
+		$labels       = [];
+
+		if ( is_array( $tw_streaming ) && class_exists( 'Anime_Sync_Streaming_Registry' ) ) {
+			foreach ( $tw_streaming as $key ) {
+				$key = trim( (string) $key );
+
+				if ( $key === '' ) {
+					continue;
+				}
+
+				$platform = Anime_Sync_Streaming_Registry::get( $key );
+
+				if ( $platform ) {
+					$labels[] = $platform['label'] ?? $key;
+				}
+
+				if ( count( $labels ) >= 3 ) {
+					break;
+				}
+			}
 		}
 
-		if ( function_exists( 'mb_substr' ) ) {
-			return mb_substr( $desc, 0, 160 );
+		if ( $desc === '' ) {
+			$desc = '動畫作品資訊整理';
 		}
 
-		return substr( $desc, 0, 160 );
+		if ( $labels ) {
+			$desc .= '。可在' . implode( '、', $labels ) . '線上看';
+		}
+
+		$desc .= '。收錄播出時間表、集數與各集資訊、聲優陣容與製作團隊、主題曲、官方 PV 與劇情簡介。';
+
+		return wx_asp_trim_seo_desc( $desc, 160 );
+	}
+}
+
+/* ============================================================
+ * 2b. Helper：描述截斷（切在標點上）
+ * ============================================================ */
+if ( ! function_exists( 'wx_asp_trim_seo_desc' ) ) {
+	/**
+	 * 截到指定字數以內，但盡量切在標點後面。
+	 *
+	 * 原本直接 mb_substr( $desc, 0, 160 ) 會把句子斬一半，
+	 * 搜尋結果上看起來像壞掉。這裡改成往前找最近的標點，
+	 * 找不到（或太靠前）才硬切。
+	 */
+	function wx_asp_trim_seo_desc( $desc, $limit = 160 ) {
+		if ( ! function_exists( 'mb_strlen' ) ) {
+			return substr( $desc, 0, $limit );
+		}
+
+		if ( mb_strlen( $desc, 'UTF-8' ) <= $limit ) {
+			return $desc;
+		}
+
+		$cut = mb_substr( $desc, 0, $limit, 'UTF-8' );
+
+		foreach ( [ '。', '，', '、' ] as $mark ) {
+			$pos = mb_strrpos( $cut, $mark, 0, 'UTF-8' );
+
+			// 切點太靠前的話寧可硬切，不然描述會短得莫名其妙
+			if ( $pos !== false && $pos >= (int) ( $limit * 0.6 ) ) {
+				return mb_substr( $cut, 0, $pos + 1, 'UTF-8' );
+			}
+		}
+
+		return $cut;
 	}
 }
 

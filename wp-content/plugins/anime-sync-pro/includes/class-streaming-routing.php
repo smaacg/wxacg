@@ -209,24 +209,58 @@ class Anime_Sync_Streaming_Routing {
 			return $description;
 		}
 
-		$key = self::current_platform_key();
+		$key    = self::current_platform_key();
+		$counts = self::get_counts();
 
 		if ( $key === '' ) {
-			return '台灣看得到的動畫串流平台一覽：Netflix、巴哈姆特動畫瘋、Crunchyroll、'
-				. 'Ani-One、木棉花等，整理各平台有哪些動畫可以線上看，資料持續同步更新。';
+			/*
+			 * 平台名稱不寫死：取作品數前 6 名動態帶入，平台增減或改名都跟著走。
+			 * 描述長度目標 120~160 字（Bing 網站掃描的建議值），列 6 個剛好落在區間內。
+			 */
+			$names = [];
+			foreach ( array_slice( array_keys( $counts ), 0, 5 ) as $k ) {
+				$p = Anime_Sync_Streaming_Registry::get( $k );
+				if ( $p ) {
+					$names[] = $p['label'] ?? $k;
+				}
+			}
+
+			$list = $names ? implode( '、', $names ) . ' 等' : '';
+
+			return self::trim_desc( sprintf(
+				'台灣看得到的動畫串流平台一覽：%s%d 個平台各收錄哪些動畫可以合法線上看。'
+				. '每個平台附完整作品清單、作品數與播出年份，資料持續同步更新，'
+				. '實際上架狀況以平台公告為準。',
+				$list,
+				count( $counts )
+			) );
 		}
 
 		$platform = Anime_Sync_Streaming_Registry::get( $key );
 		$label    = $platform['label'] ?? $key;
-		$counts   = self::get_counts();
 		$total    = (int) ( $counts[ $key ] ?? 0 );
 
-		return sprintf(
-			'%s 有哪些動畫可以看？收錄 %d 部作品的官方線上看連結，'
-			. '含播出年份、集數、評分與製作公司，資料持續同步更新。',
+		return self::trim_desc( sprintf(
+			'台灣 %1$s 有哪些動畫可以看？微笑動漫整理 %2$d 部在 %1$s 上架的動畫，'
+			. '每部附封面、播出年份與集數，並說明該平台計費方式與常見問題。'
+			. '收錄範圍涵蓋當季新番與過往作品，點卡片可查看完整作品資料。'
+			. '資料持續同步更新，實際上架狀況以平台公告為準。',
 			$label,
 			$total
-		);
+		) );
+	}
+
+	/**
+	 * 描述長度安全上限。
+	 *
+	 * 平台名稱長度差很多（「Ani-One 羚邦集團 YouTube」比「Netflix」長三倍），
+	 * 同一句模板組出來會從 117 字到 169 字都有，所以統一過一次上限。
+	 * 共用 anime-seo-auto.php 的切字helper，切在標點上而不是硬斬。
+	 */
+	private static function trim_desc( string $desc ): string {
+		return function_exists( 'wx_asp_trim_seo_desc' )
+			? wx_asp_trim_seo_desc( $desc, 160 )
+			: $desc;
 	}
 
 	/**
