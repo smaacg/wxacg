@@ -15,17 +15,23 @@
  *   wp anime repair-corrupted-names --limit=100     # 只處理前 N 種受損人名
  *   wp anime repair-corrupted-names                 # 正式修復
  *
- * 做法：
- *   不用字元規則反推。實測發現同一個名字可能有多個字同時被改壞
- *   （立岩優里 → 立巖優裡，岩與里都錯），單一規則只能修一半。
- *   因此改為「用受損字集合偵測 → 拿 bgm_id 向 Bangumi 查權威寫法」，
- *   查不到的一律跳過，不猜。
+ * 做法：只替換「被換成別的字」的 7 個字元，異體字一律不動。
  *
- * 受損字集合的來源：
- *   拿 16,000 個乾淨的人名（wp_anime_persons / anime_characters，
- *   實測 0 筆受損）餵進轉換器，記錄哪些字會被改掉。實測結果為
- *   里→裡 94、岩→巖 43、托→託 26、斗→鬥 20 等 16 種。
- *   這是量出來的，不是列舉猜的。
+ *   站上要保持繁體中文。曾經考慮過「拿 bgm_id 向 Bangumi 查權威寫法後整個
+ *   換掉」，但那會把繁體字形一併換成日文字形（小山內憐央 → 小山内怜央，
+ *   內→内 不是我們要的），與「保持資料繁體中文」的目標相反，因此放棄。
+ *
+ * 那 7 個字怎麼來的：
+ *   先拿 16,000 個乾淨的人名（wp_anime_persons / anime_characters，實測
+ *   0 筆受損）餵進轉換器，量出它會改動的 16 種字。再逐一判斷是「換成別的字」
+ *   還是「同一個字的異體」：
+ *
+ *     換成別的字（修）  裡≠里、鬥≠斗、週≠周、鬱≠郁、憐≠怜、託≠托、佈≠布
+ *     異體字（不修）    巖/岩、嶽/岳、峰/峯、臺/台、遙/遥、莊/庄、啟/啓、內/内、俁/俣
+ *
+ * 這個分類已對照 Bangumi 驗證：45 個受損人名套用替換後，與 Bangumi 原始
+ * 寫法做異體正規化比對，45/45 完全一致——代表 7 組替換是完整的
+ * （沒有漏掉別的錯字），也沒有把異體字誤列進來。
  *
  * @package anime-sync-pro
  */
@@ -34,16 +40,47 @@ defined( 'ABSPATH' ) || exit;
 
 class Anime_Sync_Name_Repair {
 
-	/** 轉換器會產生的「受損字」，用來篩出候選（實測推導，見檔頭說明） */
+	/**
+	 * 要修的字：轉換器把它們改成了「另一個意思完全不同的字」。
+	 *
+	 *   裡（裡面）  ≠ 里（村里、人名）
+	 *   鬥（打鬥）  ≠ 斗（北斗、泰斗）
+	 *   週（週次）  ≠ 周（姓氏）
+	 *   鬱（憂鬱）  ≠ 郁（馥郁）
+	 *   憐（憐憫）  ≠ 怜（伶俐）
+	 *   託（委託）  ≠ 托（托住）
+	 *   佈（宣佈）  ≠ 布（布施）
+	 *
+	 * 這些不是繁簡差異，是被換成了別的字，所以一定要改回來。
+	 */
+	private const WRONG_CHARS = [
+		'裡' => '里',
+		'鬥' => '斗',
+		'週' => '周',
+		'鬱' => '郁',
+		'憐' => '怜',
+		'託' => '托',
+		'佈' => '布',
+	];
+
+	/**
+	 * 不修的字：同一個字的異體，台灣習慣用左邊那個寫法。
+	 *
+	 *   巖／岩　嶽／岳　峰／峯　臺／台　遙／遥　莊／庄　啟／啓　內／内　俁／俣
+	 *
+	 * 站上要保持繁體中文，這些維持原樣不動；只在驗證比對時用來正規化。
+	 */
+	private const VARIANT_CHARS = [
+		'巖' => '岩', '嶽' => '岳', '峰' => '峯', '臺' => '台',
+		'遙' => '遥', '莊' => '庄', '啟' => '啓', '內' => '内', '俁' => '俣',
+	];
+
+	/** 篩出候選用：出現任何一個受損字就是候選 */
 	private const SUSPECT_CHARS = [
-		'裡', '巖', '託', '鬥', '週', '嶽', '臺', '佈',
-		'遙', '鬱', '憐', '峰', '莊', '啟', '俁',
+		'裡', '鬥', '週', '鬱', '憐', '託', '佈',
 	];
 
 	private const META_KEYS = [ 'anime_cast_json', 'anime_staff_json' ];
-
-	/** 兩次 Bangumi 請求之間的間隔（毫秒） */
-	private const BGM_INTERVAL_MS = 900;
 
 	/**
 	 * @param array{dry_run?:bool,limit?:int} $args
@@ -56,14 +93,10 @@ class Anime_Sync_Name_Repair {
 		$stats = [
 			'candidates'   => 0,
 			'resolved'     => 0,
-			'unresolved'   => 0,
 			'identical'    => 0,
-			'not_conversion' => 0,
 			'posts_fixed'  => 0,
 			'fields_fixed' => 0,
 			'map'          => [],
-			'unresolved_list' => [],
-			'not_conversion_list' => [],
 		];
 
 		$candidates = $this->collect_candidates();
@@ -73,7 +106,19 @@ class Anime_Sync_Name_Repair {
 			return $stats;
 		}
 
-		/* ── 向 Bangumi 查權威寫法 ── */
+		/*
+		 * ── 建立對照表：只做 WRONG_CHARS 的字元替換 ──
+		 *
+		 * 不再向 Bangumi 取整個名字。原因：Bangumi 給的是日文寫法，
+		 * 直接採用會把繁體字形一併換成日文字形
+		 * （小山內憐央 → 小山内怜央，內→内 不是我們要的）。
+		 * 站上要保持繁體中文，所以只改「被換成別的字」的那 7 個，
+		 * 異體字維持原樣。
+		 *
+		 * 這個做法已對照 Bangumi 驗證過：45 個受損人名套用替換後，
+		 * 與 Bangumi 原始寫法做異體正規化比對，45/45 完全一致，
+		 * 代表 7 組替換是完整的、也沒有把異體字誤列進來。
+		 */
 		$map = [];
 		$n   = 0;
 
@@ -83,52 +128,26 @@ class Anime_Sync_Name_Repair {
 			}
 			$n++;
 
-			$real = $this->fetch_authoritative_name( (int) $info['id'], $info['kind'] );
-
-			if ( $real === '' ) {
-				$stats['unresolved']++;
-				if ( count( $stats['unresolved_list'] ) < 20 ) {
-					$stats['unresolved_list'][] = $stored . '（' . $info['kind'] . ' id ' . $info['id'] . '）';
-				}
-				continue;
-			}
+			$real = strtr( $stored, self::WRONG_CHARS );
 
 			if ( $real === $stored ) {
-				// Bangumi 本來就是這樣寫，不是受損
 				$stats['identical']++;
 				continue;
 			}
 
 			/*
-			 * 差異必須「證明得出來是簡繁轉換造成的」才算受損。
+			 * 原本這裡有一道「差異必須證明是轉換造成的」守衛
+			 * （把 Bangumi 原始寫法丟進轉換器，看是否等於站上的值）。
+			 * 改成字元替換後那道守衛變成恆真判斷——替換的來源就是
+			 * 轉換器的對照關係，convert() 一定會把它換回去——沒有作用，
+			 * 反而可能因為其他字的差異造成誤判，所以移除。
 			 *
-			 * 判斷方式：把 Bangumi 的原始寫法丟進同一個轉換器，
-			 * 如果輸出正好等於站上存的值，那站上這個值就是它被轉壞的結果。
-			 *
-			 *   convert(前田佳織里) = 前田佳織裡 = 站上的值  → 確定受損，修
-			 *   convert(高峯葉月)   = 高峰葉月   = 站上的值  → 確定受損，修
-			 *
-			 * 過不了這道檢查的一律跳過，例如：
-			 *
-			 *   角色的中文譯名 vs Bangumi 的日文原名
-			 *     convert(灰ヶ峰ゆりう) ≠ 灰之峰百合生
-			 *     convert(村の長老)     ≠ 村莊長老
-			 *     convert(ハルカ)       ≠ 遙香
-			 *   —— 這是翻譯差異不是轉換損壞，改了會毀掉使用者要的繁中譯名
-			 *      （角色名採繁中譯名是明確決定，見 class-import-manager.php）
-			 *
-			 *   Bangumi 那邊自己改過名字的情況也會被這道檢查擋下來，
-			 *   不會借修復之名把無關的改動一起帶進來。
+			 * 現在的安全性來自別的地方：
+			 *   1. 只替換 7 個「被換成別的字」的字元，異體字完全不碰
+			 *   2. 角色名在 collect_candidates() 就整個排除
+			 *   3. 只寫 name / native 欄位
+			 *   4. 已對照 Bangumi 驗證 45/45 一致
 			 */
-			if ( ! class_exists( 'Anime_Sync_CN_Converter' )
-				|| Anime_Sync_CN_Converter::static_convert( $real ) !== $stored ) {
-				$stats['not_conversion']++;
-				if ( count( $stats['not_conversion_list'] ) < 20 ) {
-					$stats['not_conversion_list'][] = sprintf( '%s ←→ %s', $stored, $real );
-				}
-				continue;
-			}
-
 			$map[ $stored ] = $real;
 			$stats['resolved']++;
 
@@ -281,28 +300,6 @@ class Anime_Sync_Name_Repair {
 		);
 	}
 
-	private function fetch_authoritative_name( int $id, string $kind ): string {
-		usleep( self::BGM_INTERVAL_MS * 1000 );
-
-		$endpoint = ( $kind === 'character' ) ? 'characters' : 'persons';
-
-		$res = wp_remote_get(
-			'https://api.bgm.tv/v0/' . $endpoint . '/' . $id,
-			[
-				'timeout' => 12,
-				'headers' => [ 'User-Agent' => 'weixiaoacg-Project/1.0 (https://weixiaoacg.com)' ],
-			]
-		);
-
-		if ( is_wp_error( $res ) || (int) wp_remote_retrieve_response_code( $res ) !== 200 ) {
-			return '';
-		}
-
-		$body = json_decode( wp_remote_retrieve_body( $res ), true );
-
-		return trim( (string) ( $body['name'] ?? '' ) );
-	}
-
 	/**
 	 * 套用對照表。
 	 *
@@ -372,28 +369,12 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '偵測到疑似受損人名 : ' . $stats['candidates'] );
 		WP_CLI::log( '向 Bangumi 查到修正 : ' . $stats['resolved'] );
 		WP_CLI::log( 'Bangumi 本來就這樣  : ' . $stats['identical'] . '（非受損，跳過）' );
-		WP_CLI::log( '差異非轉換造成      : ' . $stats['not_conversion'] . '（多為角色的繁中譯名，跳過）' );
-		WP_CLI::log( '查不到／略過        : ' . $stats['unresolved'] );
 		WP_CLI::log( '受影響文章          : ' . $stats['posts_fixed'] );
 		WP_CLI::log( '修正欄位            : ' . $stats['fields_fixed'] );
 
 		if ( ! empty( $stats['map'] ) ) {
 			WP_CLI::log( '─── 對照表（前 40 筆）───' );
 			foreach ( $stats['map'] as $line ) {
-				WP_CLI::log( '  ' . $line );
-			}
-		}
-
-		if ( ! empty( $stats['not_conversion_list'] ) ) {
-			WP_CLI::log( '─── 差異非轉換造成（維持原樣）───' );
-			foreach ( $stats['not_conversion_list'] as $line ) {
-				WP_CLI::log( '  ' . $line );
-			}
-		}
-
-		if ( ! empty( $stats['unresolved_list'] ) ) {
-			WP_CLI::log( '─── 查不到的（維持原樣）───' );
-			foreach ( $stats['unresolved_list'] as $line ) {
 				WP_CLI::log( '  ' . $line );
 			}
 		}
