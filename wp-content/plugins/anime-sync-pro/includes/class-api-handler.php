@@ -2438,7 +2438,15 @@ class Anime_Sync_API_Handler {
             if ( '' !== trim( (string) $role ) ) {
                 $staff[] = [
                     'id'     => $p['id']             ?? 0,
-                    'name'   => Anime_Sync_CN_Converter::static_convert( $p['name'] ?? '' ),
+                    /*
+                     * 人名不做簡繁轉換。
+                     *
+                     * 轉換器會把日文漢字當成簡體處理，產生不存在的寫法：
+                     *   岩里祐穂 → 巖裡祐穂（岩→巖、里→裡）
+                     *   前田佳織里 → 前田佳織裡、日高里菜 → 日高裡菜
+                     * 實測站上受損 678 筆。職稱（role）仍然要轉，那是中文用語。
+                     */
+                    'name'   => (string) ( $p['name'] ?? '' ),
                     'role'   => $role,
                     'image'  => $p['images']['large'] ?? $p['images']['medium'] ?? '',
                     'source' => 'bangumi',
@@ -2455,7 +2463,8 @@ class Anime_Sync_API_Handler {
             if ( $original_name !== '' ) {
                 $staff[] = [
                     'id'     => 0,
-                    'name'   => Anime_Sync_CN_Converter::static_convert( $original_name ),
+                    // 原作者姓名，同樣不做簡繁轉換（見上方 'name' 的說明）
+                    'name'   => (string) $original_name,
                     'role'   => '原作',
                     'image'  => '',
                     'source' => 'bangumi_infobox',
@@ -2536,7 +2545,8 @@ class Anime_Sync_API_Handler {
 
             $staff[] = [
                 'id'     => $p['id']             ?? 0,
-                'name'   => Anime_Sync_CN_Converter::static_convert( $name ),
+                // 人名不轉（見 get_bgm_staff 的說明）；role 上面已單獨轉過
+                'name'   => (string) $name,
                 'role'   => $role,
                 'image'  => $p['images']['large'] ?? $p['images']['medium'] ?? '',
                 'source' => 'bangumi',
@@ -2552,7 +2562,8 @@ class Anime_Sync_API_Handler {
             if ( $original_name !== '' ) {
                 $staff[] = [
                     'id'     => 0,
-                    'name'   => Anime_Sync_CN_Converter::static_convert( $original_name ),
+                    // 原作者姓名，同樣不做簡繁轉換（見上方 'name' 的說明）
+                    'name'   => (string) $original_name,
                     'role'   => '原作',
                     'image'  => '',
                     'source' => 'bangumi_infobox',
@@ -2615,7 +2626,8 @@ class Anime_Sync_API_Handler {
             foreach ( $c['actors'] ?? [] as $a ) {
                 $va[] = [
                     'id'    => $a['id']             ?? 0,
-                    'name'  => Anime_Sync_CN_Converter::static_convert( $a['name'] ?? '' ),
+                    // 聲優本人姓名，不做簡繁轉換（見 get_bgm_staff 的說明）
+                    'name'  => (string) ( $a['name'] ?? '' ),
                     'image' => $a['images']['large'] ?? '',
                 ];
             }
@@ -2653,7 +2665,8 @@ class Anime_Sync_API_Handler {
             foreach ( $c['actors'] ?? [] as $a ) {
                 $va[] = [
                     'id'    => $a['id']             ?? 0,
-                    'name' => Anime_Sync_CN_Converter::static_convert( $a['name'] ?? '' ),
+                    // 聲優本人姓名，不做簡繁轉換（見 get_bgm_staff 的說明）
+                    'name' => (string) ( $a['name'] ?? '' ),
                     'image' => $a['images']['large'] ?? '',
                 ];
             }

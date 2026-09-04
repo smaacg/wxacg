@@ -894,13 +894,64 @@ class Anime_Sync_Import_Manager {
 	 *   讀回即無法解析，加了則正常；全站 23 筆損毀樣本 100% 含未跳脫引號，
 	 *   2,009 筆正常樣本則零引號異常。
 	 */
+	/**
+	 * JSON meta 裡「不可以」簡繁轉換的欄位路徑。
+	 *
+	 * 起因：簡繁轉換把日本人名改成不存在的寫法。實測受損 678 筆，例如
+	 *   岩里祐穂 → 巖裡祐穂（岩→巖、里→裡 兩個字都被轉）
+	 *   前田佳織里 → 前田佳織裡
+	 *   日高里菜 → 日高裡菜（40 次）、鬼頭明里 → 鬼頭明裡（38 次）
+	 * 原本的做法是把整份 JSON 丟進轉換器，沒有分辨欄位語意。
+	 *
+	 * 各欄位語意經實測確認（本機 8,878 筆 cast 條目、13,733 筆 staff）：
+	 *   cast.name          角色的繁中譯名 → 要轉（使用者在 ACF 就是填繁中譯名）
+	 *   cast.native        角色日文原名   → 不轉
+	 *   cast.voice_actors  聲優本人姓名   → 不轉（8,015 筆純漢字日文名）
+	 *   staff.name         製作人員姓名   → 不轉（11,110 筆漢字人名）
+	 *   staff.role         職稱           → 要轉（含「主动画师」等簡體）
+	 *   episodes.name      日文原標題     → 不轉
+	 *   episodes.name_cn   中文標題       → 要轉（含「开始的魔法」等簡體）
+	 *   themes.*           全是羅馬字或日文，一個中文都沒有 → 整份不轉
+	 *   relations_json     全是拉丁字     → 轉不轉都一樣，不列
+	 *
+	 * '*' 代表整份都不轉。路徑不含陣列索引（voice_actors.name 會命中
+	 * voice_actors[0].name、voice_actors[1].name…）。
+	 */
+	private const JSON_NO_CONVERT = [
+		'anime_cast_json'     => [ 'native', 'voice_actors.name', 'voice_actors.native' ],
+		'anime_staff_json'    => [ 'name', 'native' ],
+		'anime_episodes_json' => [ 'name' ],
+		'anime_themes'        => [ '*' ],
+	];
+
 	private function prepare_meta_value( string $key, $value ) {
 		if ( $this->is_json_meta_key( $key ) ) {
-			$converted = is_string( $value )
-				? $this->cn_converter->convert_json_string( $value )
-				: wp_json_encode( $this->cn_converter->convert_mixed( $value ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+			$skip = self::JSON_NO_CONVERT[ $key ] ?? [];
 
-			return wp_slash( $this->fix_staff_role_terms( $converted ) );
+			if ( in_array( '*', $skip, true ) ) {
+				// 整份不轉，但仍要走 wp_slash 與職稱修正，行為其餘不變
+				$converted = is_string( $value )
+					? $value
+					: wp_json_encode( $value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+
+				return wp_slash( $this->fix_staff_role_terms( (string) $converted ) );
+			}
+
+			$decoded = is_string( $value ) ? json_decode( $value, true ) : $value;
+
+			if ( is_array( $decoded ) ) {
+				$converted = wp_json_encode(
+					$this->convert_json_except( $decoded, $skip ),
+					JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+				);
+			} else {
+				// 解不出陣列（不該發生）就退回原本的整份轉換，不要靜默丟資料
+				$converted = is_string( $value )
+					? $this->cn_converter->convert_json_string( $value )
+					: wp_json_encode( $this->cn_converter->convert_mixed( $value ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+			}
+
+			return wp_slash( $this->fix_staff_role_terms( (string) $converted ) );
 		}
 
 		if ( $this->is_convertible_text_meta_key( $key ) ) {
@@ -908,6 +959,42 @@ class Anime_Sync_Import_Manager {
 		}
 
 		return $value;
+	}
+
+	/**
+	 * 遞迴轉換陣列內容，但跳過 $skip 列出的欄位路徑。
+	 *
+	 * 路徑不計陣列索引，所以 'voice_actors.name' 會命中
+	 * voice_actors[0].name、voice_actors[1].name…。
+	 * 只處理字串，其餘型別原樣返回；key 本身永遠不轉。
+	 *
+	 * 單一字串的轉換沿用 cn_converter->convert()，它與原本
+	 * convert_mixed_value() 走的 convert_document() 是同一條路徑，
+	 * 所以「該轉的欄位」行為與改動前完全相同。
+	 */
+	private function convert_json_except( array $data, array $skip, string $path = '' ): array {
+		foreach ( $data as $key => $item ) {
+			$next = is_int( $key )
+				? $path
+				: ( $path === '' ? (string) $key : $path . '.' . $key );
+
+			if ( is_array( $item ) ) {
+				$data[ $key ] = $this->convert_json_except( $item, $skip, $next );
+				continue;
+			}
+
+			if ( ! is_string( $item ) || $item === '' ) {
+				continue;
+			}
+
+			if ( in_array( $next, $skip, true ) ) {
+				continue;
+			}
+
+			$data[ $key ] = $this->cn_converter->convert( $item );
+		}
+
+		return $data;
 	}
 
 	private function fix_staff_role_terms( string $json ): string {
