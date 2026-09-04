@@ -98,8 +98,19 @@ class Anime_Sync_Streaming_Registry {
         ],
         [
             'key'    => 'bilibili',
-            'billing' => 'sub',
-            'label'  => 'Bilibili 國際版',
+            /*
+             * 正片免費看，大會員買的是畫質與多端播放，不是觀看權
+             * （實測 bilibili.com/bangumi/play/ss33577 銀魂：未登入大會員仍可播放）。
+             * 標成 sub 會讓作品頁把它分到「月租觀看」，那是錯的。
+             * 與巴哈姆特動畫瘋同一個標準：以免費為主、會員是加值。
+             */
+            'billing' => 'free',
+            /*
+             * 標籤不寫「國際版」：下面的 match 同時吃 bilibili.tv（國際版）
+             * 與 bilibili.com（中國站），站上實際存的網址以 .com 居多，
+             * 寫死其中一個會標錯。
+             */
+            'label'  => 'Bilibili',
             'color'  => '#00A1D6',
             'icon'   => 'bilibili_icon.webp',
             'match'  => ['bilibili.tv', 'bilibili.com', 'bilibili'],
