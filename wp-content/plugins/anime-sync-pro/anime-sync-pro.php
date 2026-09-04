@@ -219,6 +219,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		ANIME_SYNC_PRO_DIR . 'includes/class-entity-migrator.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-source-tax-backfill.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-themes-native-backfill.php',
+		ANIME_SYNC_PRO_DIR . 'includes/class-name-repair.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-upcoming-drift-check.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-new-release-scan.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-upcoming-bgm-scan.php',
