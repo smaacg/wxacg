@@ -154,13 +154,19 @@ $endings  = isset( $endings ) && is_array( $endings ) ? $endings : [];
 											? $theme_native
 											: $theme_title;
 
-										$music_sub = (
-											$theme_native !== ''
-											&& $theme_title !== ''
-											&& $theme_title !== $theme_native
-										)
-											? $theme_title
-											: '';
+										/*
+										 * 只顯示一種寫法，不並列。
+										 *
+										 * 原本有原文時會把 AnimeThemes 的羅馬字當副標一起印
+										 * （雨トキメキ恋模様 / Ame Tokimeki Koimoyou），
+										 * 但使用者要的是「原文優先，沒有原文才退回 AnimeThemes」，
+										 * 兩種寫法並列只是雜訊。$music_main 已經是這個優先序，
+										 * 這裡不再輸出副標。
+										 *
+										 * 註：AnimeThemes 的 title 本身有 4% 就是日文
+										 * （紅蓮の弓矢、自由の翼），那種情況 $music_main
+										 * 直接就是原文，本來也沒有副標可印。
+										 */
 
 										$music_badge_class =
 											strpos( $theme_type, 'OP' ) === 0
@@ -179,23 +185,10 @@ $endings  = isset( $endings ) && is_array( $endings ) ? $endings : [];
 													</span>
 												<?php endif; ?>
 
-												<?php if ( $music_sub ) : ?>
-													<span class="asd-music-native">
-														<?php echo esc_html( $music_sub ); ?>
-													</span>
-												<?php endif; ?>
-
+												<?php /* 歌手同樣只顯示一種寫法：有原文用原文，沒有才用羅馬字 */ ?>
 												<?php if ( $artist_display ) : ?>
 													<span class="asd-music-artist">
 														by <?php echo esc_html( $artist_display ); ?>
-														<?php if (
-															$artist_romaji
-															&& $artist_romaji !== $artist_display
-														) : ?>
-															<span class="asd-music-artist-romaji">
-																(<?php echo esc_html( $artist_romaji ); ?>)
-															</span>
-														<?php endif; ?>
 													</span>
 												<?php elseif ( $artist_romaji ) : ?>
 													<span class="asd-music-artist">
