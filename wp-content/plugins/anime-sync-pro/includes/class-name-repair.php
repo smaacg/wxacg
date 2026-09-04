@@ -367,8 +367,8 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 		WP_CLI::log( '─────────────────────────────' );
 		WP_CLI::log( '偵測到疑似受損人名 : ' . $stats['candidates'] );
-		WP_CLI::log( '向 Bangumi 查到修正 : ' . $stats['resolved'] );
-		WP_CLI::log( 'Bangumi 本來就這樣  : ' . $stats['identical'] . '（非受損，跳過）' );
+		WP_CLI::log( '可修正的人名     : ' . $stats['resolved'] );
+		WP_CLI::log( '不含錯字，跳過   : ' . $stats['identical'] . '（非受損，跳過）' );
 		WP_CLI::log( '受影響文章          : ' . $stats['posts_fixed'] );
 		WP_CLI::log( '修正欄位            : ' . $stats['fields_fixed'] );
 
