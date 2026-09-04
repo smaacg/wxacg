@@ -143,7 +143,8 @@ class Anime_Sync_Name_Repair {
 
 		/* ── 套用對照表 ── */
 		foreach ( self::META_KEYS as $meta_key ) {
-			$rows = $this->fetch_rows( $meta_key );
+			$rows    = $this->fetch_rows( $meta_key );
+			$is_cast = ( $meta_key === 'anime_cast_json' );
 
 			foreach ( $rows as $row ) {
 				$data = json_decode( (string) $row->meta_value, true );
@@ -153,7 +154,7 @@ class Anime_Sync_Name_Repair {
 				}
 
 				$hits = 0;
-				$data = $this->apply_map( $data, $map, $hits );
+				$data = $this->apply_map( $data, $map, $is_cast, $hits );
 
 				if ( $hits === 0 ) {
 					continue;
@@ -186,7 +187,7 @@ class Anime_Sync_Name_Repair {
 		$out = [];
 
 		foreach ( self::META_KEYS as $meta_key ) {
-			$kind_top = ( $meta_key === 'anime_cast_json' ) ? 'character' : 'person';
+			$is_cast = ( $meta_key === 'anime_cast_json' );
 
 			foreach ( $this->fetch_rows( $meta_key ) as $row ) {
 				$data = json_decode( (string) $row->meta_value, true );
@@ -200,7 +201,27 @@ class Anime_Sync_Name_Repair {
 						continue;
 					}
 
-					$this->collect_from_entry( $entry, $kind_top, $out );
+					/*
+					 * ★ 角色名一律不修。
+					 *
+					 * cast_json 頂層是角色，站上採「繁體中文譯名」（使用者的明確決定，
+					 * 見 class-import-manager.php 的欄位語意說明）；Bangumi 給的是日文原名。
+					 * 拿 Bangumi 的名字回填，等於把繁中譯名改成日文寫法。
+					 *
+					 * 這種情況「差異確實是轉換造成的」，所以 convert() 那道守衛擋不住——
+					 * 方向對人物是對的（日本人的真名就是日文漢字），對角色卻是反的。
+					 * 實測 17 個角色名有 10 個會被改，其中：
+					 *   豬俁         → 猪俣          豬(繁) → 猪(日)
+					 *   三代目御臺所 → 三代目御台所  臺(繁) → 台(日)
+					 *   白鳥憐太     → 白鳥怜太      憐(繁) → 怜(日)
+					 * 因此只能從來源排除，不能靠守衛。
+					 *
+					 * staff_json 的條目與 cast_json 的 voice_actors 都是「真實人物」，
+					 * 站上要的就是日文本名，照修。
+					 */
+					if ( ! $is_cast ) {
+						$this->collect_from_entry( $entry, 'person', $out );
+					}
 
 					foreach ( (array) ( $entry['voice_actors'] ?? [] ) as $va ) {
 						if ( is_array( $va ) ) {
@@ -282,27 +303,50 @@ class Anime_Sync_Name_Repair {
 		return trim( (string) ( $body['name'] ?? '' ) );
 	}
 
-	/** 遞迴套用對照表，只換 name / native 欄位 */
-	private function apply_map( array $data, array $map, int &$hits ): array {
-		foreach ( $data as $key => $value ) {
-			if ( is_array( $value ) ) {
-				$data[ $key ] = $this->apply_map( $value, $map, $hits );
+	/**
+	 * 套用對照表。
+	 *
+	 * 刻意不用泛用遞迴：那樣只要值字串相同就會被換掉，某個人物名如果剛好
+	 * 等於某個角色名，就會連角色欄位一起改到——而角色名一律不能動
+	 * （見 collect_candidates 的說明）。所以照實際結構逐層走。
+	 */
+	private function apply_map( array $data, array $map, bool $is_cast, int &$hits ): array {
+		foreach ( $data as $i => $entry ) {
+			if ( ! is_array( $entry ) ) {
 				continue;
 			}
 
-			if ( ! is_string( $key ) || ! in_array( $key, [ 'name', 'native' ], true ) ) {
-				continue;
+			// cast_json 的頂層是角色，不動
+			if ( ! $is_cast ) {
+				$entry = $this->replace_fields( $entry, $map, $hits );
 			}
 
-			if ( ! is_string( $value ) || ! isset( $map[ $value ] ) ) {
-				continue;
+			if ( ! empty( $entry['voice_actors'] ) && is_array( $entry['voice_actors'] ) ) {
+				foreach ( $entry['voice_actors'] as $vi => $va ) {
+					if ( is_array( $va ) ) {
+						$entry['voice_actors'][ $vi ] = $this->replace_fields( $va, $map, $hits );
+					}
+				}
 			}
 
-			$data[ $key ] = $map[ $value ];
-			$hits++;
+			$data[ $i ] = $entry;
 		}
 
 		return $data;
+	}
+
+	/** 換掉單一條目的 name / native */
+	private function replace_fields( array $entry, array $map, int &$hits ): array {
+		foreach ( [ 'name', 'native' ] as $field ) {
+			$value = $entry[ $field ] ?? null;
+
+			if ( is_string( $value ) && $value !== '' && isset( $map[ $value ] ) ) {
+				$entry[ $field ] = $map[ $value ];
+				$hits++;
+			}
+		}
+
+		return $entry;
 	}
 }
 
