@@ -2295,6 +2295,46 @@ class Anime_Sync_Cron_Manager {
                         $existing['video_url'] = $new_video;
                         $added++;
                     }
+
+                    /*
+                     * 日文原文也比照「只補空值」補上。
+                     *
+                     * 原本這裡只補音訊/影片網址，所以早期同步進來、
+                     * title_native 是空的主題曲永遠補不到日文歌名——
+                     * 站上 2,814 首只有 29% 顯示日文，多數並不是 MAL
+                     * 沒有資料，而是當初存進來時沒有、之後也沒機會更新。
+                     *
+                     * 一樣只在「舊的是空、新的有值」時才寫，不覆蓋既有內容，
+                     * 使用者手動改過的日文歌名不會被動到。
+                     */
+                    if ( trim( (string) ( $existing['title_native'] ?? '' ) ) === ''
+                        && trim( (string) ( $new_theme['title_native'] ?? '' ) ) !== '' ) {
+                        $existing['title_native'] = $new_theme['title_native'];
+                        $added++;
+                    }
+
+                    // 歌手的日文名逐位比對，同樣只補空的
+                    if ( ! empty( $new_theme['artists'] ) && is_array( $existing['artists'] ?? null ) ) {
+                        foreach ( $existing['artists'] as $ai => $old_artist ) {
+                            $new_artist = $new_theme['artists'][ $ai ] ?? null;
+                            if ( ! is_array( $new_artist ) ) {
+                                continue;
+                            }
+
+                            // 位置對得上還不夠，羅馬字名也要相同才是同一位歌手
+                            if ( trim( (string) ( $old_artist['name'] ?? '' ) )
+                                !== trim( (string) ( $new_artist['name'] ?? '' ) ) ) {
+                                continue;
+                            }
+
+                            if ( trim( (string) ( $old_artist['name_native'] ?? '' ) ) === ''
+                                && trim( (string) ( $new_artist['name_native'] ?? '' ) ) !== '' ) {
+                                $existing['artists'][ $ai ]['name_native'] = $new_artist['name_native'];
+                                $added++;
+                            }
+                        }
+                    }
+
                     break;
                 }
                 unset( $existing );

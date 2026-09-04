@@ -3506,6 +3506,34 @@ class Anime_Sync_API_Handler {
         $bundle = $this->fetch_anilist_node_bundle( $anilist_id );
         return is_wp_error( $bundle ) ? $bundle : $bundle['node'];
     }
+    /**
+     * MAL 的主題曲日文對照表，供一次性回填使用。
+     *
+     * 回傳 [ 正規化後的羅馬字歌名 => 日文歌名 ]。
+     * 包裝而非複製解析邏輯——MAL 的文字格式（"Inori (祈り)" by …）
+     * 只該有一處實作，兩份會漂移。
+     */
+    public function get_theme_natives_public( int $mal_id ): array {
+        return $this->fetch_jikan_theme_natives( $mal_id );
+    }
+
+    /**
+     * 提供給回填端做 key 正規化，確保與同步時用的是同一套規則。
+     */
+    public function normalize_title_public( string $title ): string {
+        return $this->normalize_title( $title );
+    }
+
+    /**
+     * 用站內既有主題曲資料反查歌手日文名（不打任何外部 API）。
+     *
+     * 同一位歌手常在多部作品出現，其中一部查到過 MusicBrainz 就會留下
+     * name_native，這裡把它套用到其他還沒有的地方。
+     */
+    public function lookup_artist_native_public( string $romaji_name ): string {
+        return $this->lookup_known_artist_native( $romaji_name );
+    }
+
     public function get_bgm_staff_public( int $bangumi_id ): array {
         return $this->get_bgm_staff( $bangumi_id );
     }
