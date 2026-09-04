@@ -58,10 +58,12 @@ class Anime_Sync_Name_Repair {
 			'resolved'     => 0,
 			'unresolved'   => 0,
 			'identical'    => 0,
+			'not_conversion' => 0,
 			'posts_fixed'  => 0,
 			'fields_fixed' => 0,
 			'map'          => [],
 			'unresolved_list' => [],
+			'not_conversion_list' => [],
 		];
 
 		$candidates = $this->collect_candidates();
@@ -94,6 +96,36 @@ class Anime_Sync_Name_Repair {
 			if ( $real === $stored ) {
 				// Bangumi 本來就是這樣寫，不是受損
 				$stats['identical']++;
+				continue;
+			}
+
+			/*
+			 * 差異必須「證明得出來是簡繁轉換造成的」才算受損。
+			 *
+			 * 判斷方式：把 Bangumi 的原始寫法丟進同一個轉換器，
+			 * 如果輸出正好等於站上存的值，那站上這個值就是它被轉壞的結果。
+			 *
+			 *   convert(前田佳織里) = 前田佳織裡 = 站上的值  → 確定受損，修
+			 *   convert(高峯葉月)   = 高峰葉月   = 站上的值  → 確定受損，修
+			 *
+			 * 過不了這道檢查的一律跳過，例如：
+			 *
+			 *   角色的中文譯名 vs Bangumi 的日文原名
+			 *     convert(灰ヶ峰ゆりう) ≠ 灰之峰百合生
+			 *     convert(村の長老)     ≠ 村莊長老
+			 *     convert(ハルカ)       ≠ 遙香
+			 *   —— 這是翻譯差異不是轉換損壞，改了會毀掉使用者要的繁中譯名
+			 *      （角色名採繁中譯名是明確決定，見 class-import-manager.php）
+			 *
+			 *   Bangumi 那邊自己改過名字的情況也會被這道檢查擋下來，
+			 *   不會借修復之名把無關的改動一起帶進來。
+			 */
+			if ( ! class_exists( 'Anime_Sync_CN_Converter' )
+				|| Anime_Sync_CN_Converter::static_convert( $real ) !== $stored ) {
+				$stats['not_conversion']++;
+				if ( count( $stats['not_conversion_list'] ) < 20 ) {
+					$stats['not_conversion_list'][] = sprintf( '%s ←→ %s', $stored, $real );
+				}
 				continue;
 			}
 
@@ -296,6 +328,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '偵測到疑似受損人名 : ' . $stats['candidates'] );
 		WP_CLI::log( '向 Bangumi 查到修正 : ' . $stats['resolved'] );
 		WP_CLI::log( 'Bangumi 本來就這樣  : ' . $stats['identical'] . '（非受損，跳過）' );
+		WP_CLI::log( '差異非轉換造成      : ' . $stats['not_conversion'] . '（多為角色的繁中譯名，跳過）' );
 		WP_CLI::log( '查不到／略過        : ' . $stats['unresolved'] );
 		WP_CLI::log( '受影響文章          : ' . $stats['posts_fixed'] );
 		WP_CLI::log( '修正欄位            : ' . $stats['fields_fixed'] );
@@ -303,6 +336,13 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		if ( ! empty( $stats['map'] ) ) {
 			WP_CLI::log( '─── 對照表（前 40 筆）───' );
 			foreach ( $stats['map'] as $line ) {
+				WP_CLI::log( '  ' . $line );
+			}
+		}
+
+		if ( ! empty( $stats['not_conversion_list'] ) ) {
+			WP_CLI::log( '─── 差異非轉換造成（維持原樣）───' );
+			foreach ( $stats['not_conversion_list'] as $line ) {
 				WP_CLI::log( '  ' . $line );
 			}
 		}
