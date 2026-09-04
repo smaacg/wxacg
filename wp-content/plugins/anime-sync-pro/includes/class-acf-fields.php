@@ -2466,6 +2466,22 @@ $cast_prompt .= "以下是 JSON:\n";
                     $yaLabel.append(' <span class="asp-ya-example" style="background-color: #f0f0f1; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; color: #3c434a; font-weight: normal; margin-left: 8px;">範例: https://youranimes.tw/animes/xxxx/onair</span>');
                 }
 
+                // 將「YourAnimes 網址」旁邊加上開啟連結按鈕（比照 Wikipedia / YT 播放清單）
+                if ($yaLabel.length && $yaLabel.find('.asp-ya-link-btn').length === 0) {
+                    var $yaBtn = $('<a href="#" class="asp-ya-link-btn" target="_blank" style="margin-left: 10px; font-size: 12px; text-decoration: none; color: #2271b1; background-color: #f0f0f1; padding: 2px 8px; border-radius: 3px; font-weight: normal;">🔗 點擊 YourAnimes</a>');
+                    $yaLabel.append($yaBtn);
+
+                    $yaBtn.on('click', function(e) {
+                        var currentUrl = $('.acf-field[data-name="shortcut_anime_youranimes_url"] input[type="url"]').val();
+                        if (!currentUrl) {
+                            e.preventDefault();
+                            alert('請先在下方輸入 YourAnimes 網址');
+                        } else {
+                            $(this).attr('href', currentUrl);
+                        }
+                    });
+                }
+
                 // 將「Wikipedia」旁邊加上開啟連結按鈕
                 var $wikiLabel = $('.acf-field[data-name="shortcut_anime_wikipedia_url"] .acf-label label');
                 if ($wikiLabel.length && $wikiLabel.find('.asp-wiki-link-btn').length === 0) {
