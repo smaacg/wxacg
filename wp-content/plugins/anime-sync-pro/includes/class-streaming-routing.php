@@ -61,7 +61,8 @@ class Anime_Sync_Streaming_Routing {
 	const MIN_WORKS = 50;
 
 	/** 平台作品數統計的快取 */
-	const COUNT_CACHE_KEY = 'asp_streaming_counts_v1';
+	/* v2：快取結構從「純計數陣列」改為 [counts, exclusive]，換 key 讓舊快取自然失效 */
+	const COUNT_CACHE_KEY = 'asp_streaming_counts_v2';
 	const COUNT_CACHE_TTL = 6 * HOUR_IN_SECONDS;
 
 	public static function init(): void {
@@ -270,10 +271,27 @@ class Anime_Sync_Streaming_Routing {
 	 * meta_query——27 個平台就是 27 次全表掃描。
 	 */
 	public static function get_counts( bool $bypass_cache = false ): array {
+		return self::get_stats( $bypass_cache )['counts'];
+	}
+
+	/**
+	 * 各平台的統計：收錄數與獨家數。
+	 *
+	 * 「獨家」＝這部作品只標了這一個平台。實測它是唯一真正差異化的欄位
+	 * （Bilibili 244 部、Netflix 37、多數平台 0），直接回答「我該訂哪家」；
+	 * 相對地「平均評分」全站擠在 73~77 分、「熱門代表作」每家都是進擊的巨人
+	 * ——那種欄位是湊數不是比較，所以沒做。
+	 *
+	 * 兩個數字在同一次掃描裡算完。原本就要把所有 anime_tw_streaming 讀出來，
+	 * 順手判斷 count($keys) === 1 不增加任何查詢。
+	 *
+	 * @return array{counts: array<string,int>, exclusive: array<string,int>}
+	 */
+	public static function get_stats( bool $bypass_cache = false ): array {
 
 		if ( ! $bypass_cache ) {
 			$cached = get_transient( self::COUNT_CACHE_KEY );
-			if ( is_array( $cached ) ) {
+			if ( is_array( $cached ) && isset( $cached['counts'], $cached['exclusive'] ) ) {
 				return $cached;
 			}
 		}
@@ -289,24 +307,37 @@ class Anime_Sync_Streaming_Routing {
 			    AND p.post_status = 'publish'"
 		);
 
-		$counts = [];
+		$counts    = [];
+		$exclusive = [];
+
 		foreach ( (array) $rows as $raw ) {
 			$keys = maybe_unserialize( $raw );
 			if ( ! is_array( $keys ) ) {
 				continue;
 			}
+
+			// 同一部作品可能重複標記同一平台，去重後才算得準
+			$keys = array_values( array_unique( array_filter( array_map( 'trim', $keys ) ) ) );
+			if ( ! $keys ) {
+				continue;
+			}
+
+			$solo = ( count( $keys ) === 1 );
+
 			foreach ( $keys as $k ) {
-				$k = trim( (string) $k );
-				if ( $k !== '' ) {
-					$counts[ $k ] = ( $counts[ $k ] ?? 0 ) + 1;
+				$counts[ $k ] = ( $counts[ $k ] ?? 0 ) + 1;
+				if ( $solo ) {
+					$exclusive[ $k ] = ( $exclusive[ $k ] ?? 0 ) + 1;
 				}
 			}
 		}
 
 		arsort( $counts );
-		set_transient( self::COUNT_CACHE_KEY, $counts, self::COUNT_CACHE_TTL );
 
-		return $counts;
+		$stats = [ 'counts' => $counts, 'exclusive' => $exclusive ];
+		set_transient( self::COUNT_CACHE_KEY, $stats, self::COUNT_CACHE_TTL );
+
+		return $stats;
 	}
 
 	/** 該平台是否夠格擁有獨立頁面 */

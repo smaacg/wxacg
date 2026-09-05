@@ -297,6 +297,75 @@ class Anime_Sync_Streaming_Registry {
             'global' => false,
         ],
     ];
+
+    // =========================================================================
+    // 台灣定價
+    // =========================================================================
+
+    /**
+     * 定價資料的查證月份。顯示在比較表下方，讓讀者知道資料多新。
+     *
+     * 定價與平台定義刻意分開放：平台的 key／match／icon 幾乎不會變，
+     * 但價格會。混在同一份陣列裡，之後更新價格得在 27 筆定義中翻找，
+     * 也看不出「這份價格是什麼時候查的」。
+     */
+    public const PRICING_UPDATED = '2026-09';
+
+    /**
+     * 各平台台灣定價。
+     *
+     *   from : 最低月費（新台幣）。0 = 免費可看；null = 查無台灣定價
+     *   note : 其他方案與但書，寫給人看的
+     *   url  : 官方方案頁，價格有疑義時讀者自己查
+     *
+     * 只記「最低可看價」——多數平台有 2~3 個級距、促銷價、電信綁約價，
+     * 硬塞單一數字會失真，所以表格標「起」，細節交給 note 與官方連結。
+     *
+     * 2026-09 查證來源：各平台官網與 Money101／Roo.Cash／CashFeel 等
+     * 資費整理，交叉比對後取最低可訂閱方案。
+     */
+    private const PRICING = [
+        /* ── 免費為主 ── */
+        'bahamut'      => [ 'from' => 0,   'note' => '免費含廣告；VIP 30 天 99 元（360 天 1,089 元，約 91/月）', 'url' => 'https://ani.gamer.com.tw/' ],
+        'ofiii'        => [ 'from' => 0,   'note' => '完全免費，免註冊', 'url' => 'https://www.ofiii.com/' ],
+        'bilibili'     => [ 'from' => 0,   'note' => '正片免費；大會員為畫質與多端加值', 'url' => 'https://www.bilibili.com/' ],
+        'litv'         => [ 'from' => 0,   'note' => '免費含廣告；付費方案 99 元起', 'url' => 'https://www.litv.tv/' ],
+        'linetv'       => [ 'from' => 0,   'note' => '免費含廣告；VIP 單人 240 元（雙人 360、四人 480）', 'url' => 'https://www.linetv.tw/purchase' ],
+        'ani_one'      => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/@AniOneAsia' ],
+        'muse'         => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/@MuseTW' ],
+        'youtube'      => [ 'from' => 0,   'note' => '官方授權頻道，免費', 'url' => 'https://www.youtube.com/' ],
+        'mighty'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/' ],
+        'ani_mi'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/' ],
+        'tropicsanime' => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/' ],
+        'garageplay'   => [ 'from' => 0,   'note' => '免費', 'url' => 'https://www.youtube.com/' ],
+        'anipass'      => [ 'from' => 0,   'note' => '免費', 'url' => 'https://www.youtube.com/' ],
+        'ptsplus'      => [ 'from' => 0,   'note' => '公共電視，免費', 'url' => 'https://www.pts.org.tw/' ],
+
+        /* ── 訂閱制 ── */
+        'crunchyroll'  => [ 'from' => 120, 'note' => '粉絲 120／超級粉絲 135；年繳 1,000 元', 'url' => 'https://www.crunchyroll.com/tw/premium' ],
+        'amazon'       => [ 'from' => 169, 'note' => 'Prime 會員資格', 'url' => 'https://www.primevideo.com/' ],
+        'catchplay'    => [ 'from' => 199, 'note' => '支援 4K', 'url' => 'https://www.catchplay.com/tw' ],
+        'friday'       => [ 'from' => 199, 'note' => '年繳約 155/月；遠傳用戶另有優惠', 'url' => 'https://video.friday.tw/packages' ],
+        'myvideo'      => [ 'from' => 199, 'note' => '促銷價，6 期後原價 250；台哥大用戶 149 起', 'url' => 'https://www.myvideo.net.tw/event/member/' ],
+        'hami'         => [ 'from' => 199, 'note' => '影劇館+ 90 天 597 元；中華電信用戶 188 元起', 'url' => 'https://hamivideo.hinet.net/' ],
+        'iqiyi'        => [ 'from' => 240, 'note' => '黃金會員起；鑽石會員支援 4K，年繳首年 1,990 元', 'url' => 'https://www.iq.com/' ],
+        'appletv'      => [ 'from' => 250, 'note' => '年繳 2,490 元（約 208/月）', 'url' => 'https://tv.apple.com/' ],
+        'disney'       => [ 'from' => 285, 'note' => '基本 285／高級 335（4K）', 'url' => 'https://www.disneyplus.com/zh-hant-tw' ],
+        'netflix'      => [ 'from' => 290, 'note' => '基本 290／標準 380／高級 460（4K+HDR）', 'url' => 'https://www.netflix.com/tw/' ],
+
+        /* ── 單次計費 ── */
+        'renta'        => [ 'from' => null, 'note' => '依作品單次計費，無月費', 'url' => 'https://renta.papy.co.jp/' ],
+
+        /* ── 台灣未正式營運，不列價格 ── */
+        'hidive'       => [ 'from' => null, 'note' => '台灣未正式營運', 'url' => 'https://www.hidive.com/' ],
+        'hulu'         => [ 'from' => null, 'note' => '台灣未正式營運', 'url' => 'https://www.hulu.com/' ],
+    ];
+
+    /** 取單一平台的定價；查無回 null 讓呼叫端自行決定顯示方式 */
+    public static function pricing( string $key ): ?array {
+        return self::PRICING[ $key ] ?? null;
+    }
+
     // =========================================================================
     // 公用 API
     // =========================================================================

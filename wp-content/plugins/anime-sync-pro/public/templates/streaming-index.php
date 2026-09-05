@@ -22,9 +22,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 get_header();
 
-$counts   = Anime_Sync_Streaming_Routing::get_counts( isset( $_GET['asp_refresh'] ) );
-$all      = Anime_Sync_Streaming_Registry::all();
-$icon_of  = Anime_Sync_Streaming_Routing::class;
+$stats     = Anime_Sync_Streaming_Routing::get_stats( isset( $_GET['asp_refresh'] ) );
+$counts    = $stats['counts'];
+$exclusive = $stats['exclusive'];
+$all       = Anime_Sync_Streaming_Registry::all();
+$icon_of   = Anime_Sync_Streaming_Routing::class;
+
+/** 月費顯示：0 → 免費，null → 破折號，其餘 → NT$N 起 */
+$price_text = static function ( ?array $pr ): string {
+	if ( $pr === null || ! array_key_exists( 'from', $pr ) || $pr['from'] === null ) {
+		return '—';
+	}
+	return (int) $pr['from'] === 0 ? '免費' : 'NT$' . number_format( (int) $pr['from'] ) . ' 起';
+};
 
 $billing_label = [
 	'free' => '免費',
@@ -44,6 +54,20 @@ foreach ( $groups as &$g ) {
 	usort( $g, static fn( $a, $b ) => $b['count'] <=> $a['count'] );
 }
 unset( $g );
+
+/* 比較表另外依「月費」排序：讀者問的是「哪家便宜」，不是「哪家片多」 */
+$by_price = array_merge( $groups['tw'], $groups['global'] );
+usort(
+	$by_price,
+	static function ( $a, $b ) {
+		$pa = Anime_Sync_Streaming_Registry::pricing( $a['key'] );
+		$pb = Anime_Sync_Streaming_Registry::pricing( $b['key'] );
+		// null（台灣未營運／單次計費）排最後，其餘由便宜到貴
+		$va = ( $pa['from'] ?? null ) === null ? PHP_INT_MAX : (int) $pa['from'];
+		$vb = ( $pb['from'] ?? null ) === null ? PHP_INT_MAX : (int) $pb['from'];
+		return $va === $vb ? ( $b['count'] <=> $a['count'] ) : ( $va <=> $vb );
+	}
+);
 
 $total_platforms = count( $all );
 $total_works     = (int) wp_count_posts( 'anime' )->publish;
@@ -66,19 +90,79 @@ foreach ( array_merge( $groups['tw'], $groups['global'] ) as $p ) {
 		continue;
 	}
 	$pos++;
+
+	$org = [
+		'@type' => 'Organization',
+		'name'  => $p['label'],
+		'url'   => Anime_Sync_Streaming_Routing::has_own_page( $p['key'] )
+			? Anime_Sync_Streaming_Routing::platform_url( $p['key'] )
+			: Anime_Sync_Streaming_Routing::index_url(),
+	];
+
+	/*
+	 * 價格寫進 Offer，讓「台灣最便宜的動畫串流」這種問題有機器可讀的答案。
+	 * 只放最低方案（與表格一致），免費平台 price = 0。
+	 * 查無台灣定價的（HIDIVE／Hulu／renta!）不輸出 Offer，不編造。
+	 */
+	$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+
+	if ( $pr !== null && ( $pr['from'] ?? null ) !== null ) {
+		$org['makesOffer'] = [
+			'@type'         => 'Offer',
+			'name'          => (int) $pr['from'] === 0 ? '免費方案' : '最低訂閱方案',
+			'price'         => (string) (int) $pr['from'],
+			'priceCurrency' => 'TWD',
+			'category'      => $billing_label[ $p['billing'] ?? 'sub' ] ?? '訂閱制',
+			'availableAtOrFrom' => [ '@type' => 'Country', 'name' => 'Taiwan' ],
+		];
+		if ( ! empty( $pr['url'] ) ) {
+			$org['makesOffer']['url'] = $pr['url'];
+		}
+	}
+
 	$item_list[] = [
 		'@type'    => 'ListItem',
 		'position' => $pos,
-		'item'     => [
-			'@type' => 'Organization',
-			'name'  => $p['label'],
-			'url'   => Anime_Sync_Streaming_Routing::has_own_page( $p['key'] )
-				? Anime_Sync_Streaming_Routing::platform_url( $p['key'] )
-				: Anime_Sync_Streaming_Routing::index_url(),
-		],
+		'item'     => $org,
 	];
 }
 $top = $groups['tw'][0] ?? null;
+
+/*
+ * ── FAQ ──
+ *
+ * 每一題的答案都從實際資料算出來，不寫死。AI 引擎會直接引用這些句子，
+ * 所以句子本身要能獨立成立（帶平台名與數字），不能是「如上表所示」。
+ */
+
+/* 最便宜的付費平台 */
+$cheapest = null;
+foreach ( $by_price as $p ) {
+	$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+	if ( $pr && ( $pr['from'] ?? null ) !== null && (int) $pr['from'] > 0 && $p['count'] > 0 ) {
+		$cheapest = [ 'p' => $p, 'pr' => $pr ];
+		break;
+	}
+}
+
+/* 獨家作品最多的平台 */
+$most_exclusive = null;
+foreach ( array_merge( $groups['tw'], $groups['global'] ) as $p ) {
+	$ex = (int) ( $exclusive[ $p['key'] ] ?? 0 );
+	if ( $most_exclusive === null || $ex > $most_exclusive['n'] ) {
+		$most_exclusive = [ 'p' => $p, 'n' => $ex ];
+	}
+}
+
+/* 免費平台中作品最多的 */
+$best_free = null;
+foreach ( array_merge( $groups['tw'], $groups['global'] ) as $p ) {
+	$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+	if ( $pr && ( $pr['from'] ?? null ) === 0 && ( $best_free === null || $p['count'] > $best_free['count'] ) ) {
+		$best_free = $p;
+	}
+}
+
 $faq = [
 	[
 		'q' => '台灣有哪些可以看動畫的串流平台？',
@@ -96,21 +180,67 @@ $faq = [
 			: '目前尚無統計資料。',
 	],
 	[
+		'q' => '看動畫最便宜的串流平台是哪個？',
+		'a' => $cheapest
+			? sprintf(
+				'在需要付費的平台中，%s 最低月費 NT$%s 起（%s），本站收錄 %s 部作品。若不介意廣告，巴哈姆特動畫瘋與 Ofiii 歐飛提供免費觀看。價格為 %s 查得之最低方案，實際以官方公告為準。',
+				$cheapest['p']['label'],
+				number_format( (int) $cheapest['pr']['from'] ),
+				$cheapest['pr']['note'],
+				number_format( $cheapest['p']['count'] ),
+				Anime_Sync_Streaming_Registry::PRICING_UPDATED
+			)
+			: '目前尚無定價資料。',
+	],
+	[
 		'q' => '有免費看動畫的合法串流平台嗎？',
-		'a' => '有。巴哈姆特動畫瘋提供免費會員觀看（含廣告），付費會員可免廣告並支援更高畫質。部分平台也提供免費試看或限時免費的作品。',
+		'a' => $best_free
+			? sprintf(
+				'有。%s 收錄的動畫最多，共 %s 部。巴哈姆特動畫瘋提供免費會員觀看（含廣告），付費會員可免廣告並支援更高畫質；Ofiii 歐飛完全免費且免註冊；Ani-One、Muse 木棉花等代理商也在 YouTube 提供官方免費頻道。',
+				$best_free['label'],
+				number_format( $best_free['count'] )
+			)
+			: '有，巴哈姆特動畫瘋與 Ofiii 歐飛都提供免費觀看。',
+	],
+	[
+		'q' => '哪個平台的獨家動畫最多？',
+		'a' => ( $most_exclusive && $most_exclusive['n'] > 0 )
+			? sprintf(
+				'以本站資料統計，%s 有 %s 部動畫是其他平台查不到的，數量最多。所謂獨家是指本站收錄的平台中僅該平台有上架，實際授權範圍可能隨時異動。',
+				$most_exclusive['p']['label'],
+				number_format( $most_exclusive['n'] )
+			)
+			: '目前尚無統計資料。',
+	],
+	[
+		'q' => '訂閱串流平台就能看到所有動畫嗎？',
+		'a' => sprintf(
+			'不能。動畫的串流授權多半是分平台、分地區的，同一季新番常散在不同平台。本站 %s 部有平台標註的動畫分布在 %d 個平台上，因此多數人會搭配一個免費平台與一到兩個訂閱平台。',
+			number_format( $with_streaming ),
+			$total_platforms
+		),
 	],
 ];
+/*
+ * 只輸出 ItemList 與 FAQPage。
+ *
+ * CollectionPage／WebSite／Organization 由 Rank Math 產生（見頁面上
+ * class="rank-math-schema" 那一段），這裡再輸出一次會變成同一頁有兩份
+ * 同型別節點——實測 CollectionPage×2、WebSite×2。Google 容忍，但對
+ * 解析結構化資料的引擎是雜訊，而且兩份內容若日後不一致更難查。
+ * ItemList 與 FAQPage 是 Rank Math 沒有的，才由這裡負責。
+ */
 $schema = [
 	'@context' => 'https://schema.org',
 	'@graph'   => [
 		[
-			'@type'           => 'CollectionPage',
+			'@type'           => 'ItemList',
 			'name'            => '台灣動畫串流平台一覽',
-			'description'     => sprintf( '整理 %d 個動畫串流平台在台灣的上架情形，可依平台瀏覽作品清單。', $total_platforms ),
+			'description'     => sprintf( '整理 %d 個動畫串流平台在台灣的上架情形與最低月費。', $total_platforms ),
 			'url'             => Anime_Sync_Streaming_Routing::index_url(),
 			'dateModified'    => $updated,
-			'isPartOf'        => [ '@type' => 'WebSite', 'name' => get_bloginfo( 'name' ), 'url' => home_url( '/' ) ],
-			'mainEntity'      => [ '@type' => 'ItemList', 'numberOfItems' => count( $item_list ), 'itemListElement' => $item_list ],
+			'numberOfItems'   => count( $item_list ),
+			'itemListElement' => $item_list,
 		],
 		[
 			'@type'      => 'FAQPage',
@@ -176,17 +306,46 @@ $schema = [
 		</section>
 	<?php endforeach; ?>
 
-	<?php /* 比較表：表格格式最容易被搜尋引擎取為精選摘要 */ ?>
+	<?php
+	/*
+	 * 比較表：表格格式最容易被搜尋引擎取為精選摘要，也最容易被 AI 引擎解析。
+	 *
+	 * 排序改成「由便宜到貴」而不是「作品數多寡」——讀者來這頁是要決定訂哪家，
+	 * 價格才是第一決策因素。
+	 *
+	 * 欄位的取捨：
+	 *   月費起   決策核心
+	 *   獨家     唯一真正差異化的目錄指標（Bilibili 244、多數平台 0）
+	 *   收錄數   規模參考
+	 *   方案     官方連結，價格有疑義時讀者自己查，也避免我們的數字過期誤導
+	 *
+	 * 刻意沒放「平均評分」與「熱門代表作」：實測前者全站擠在 73~77 分、
+	 * 後者每個平台都是進擊的巨人／鬼滅之刃，那是湊欄位不是比較。
+	 */
+	?>
 	<section class="asp-st-section">
 		<h2 class="asp-st-h2">平台比較</h2>
 		<div class="asp-st-tablewrap">
 			<table class="asp-st-table">
+				<caption class="asp-st-caption">
+					依最低月費排序。價格為 <?php echo esc_html( Anime_Sync_Streaming_Registry::PRICING_UPDATED ); ?> 查得之最低方案，實際以官方公告為準。
+				</caption>
 				<thead>
-					<tr><th scope="col">平台</th><th scope="col">地區</th><th scope="col">計費方式</th><th scope="col">收錄動畫數</th></tr>
+					<tr>
+						<th scope="col">平台</th>
+						<th scope="col">月費起</th>
+						<th scope="col">地區</th>
+						<th scope="col">收錄動畫數</th>
+						<th scope="col">獨家</th>
+						<th scope="col">方案</th>
+					</tr>
 				</thead>
 				<tbody>
-				<?php foreach ( array_merge( $groups['tw'], $groups['global'] ) as $p ) :
-					if ( $p['count'] <= 0 ) { continue; } ?>
+				<?php foreach ( $by_price as $p ) :
+					if ( $p['count'] <= 0 ) { continue; }
+					$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+					$ex = (int) ( $exclusive[ $p['key'] ] ?? 0 );
+					?>
 					<tr>
 						<th scope="row">
 							<?php if ( Anime_Sync_Streaming_Routing::has_own_page( $p['key'] ) ) : ?>
@@ -195,9 +354,22 @@ $schema = [
 								<?php echo esc_html( $p['label'] ); ?>
 							<?php endif; ?>
 						</th>
+						<td class="asp-st-price">
+							<?php echo esc_html( $price_text( $pr ) ); ?>
+							<?php if ( ! empty( $pr['note'] ) ) : ?>
+								<span class="asp-st-pricenote"><?php echo esc_html( $pr['note'] ); ?></span>
+							<?php endif; ?>
+						</td>
 						<td><?php echo empty( $p['global'] ) ? '台灣' : '國際'; ?></td>
-						<td><?php echo esc_html( $billing_label[ $p['billing'] ?? 'sub' ] ?? '訂閱制' ); ?></td>
 						<td class="asp-st-num"><?php echo esc_html( number_format( $p['count'] ) ); ?></td>
+						<td class="asp-st-num"><?php echo $ex > 0 ? esc_html( number_format( $ex ) ) : '—'; ?></td>
+						<td>
+							<?php if ( ! empty( $pr['url'] ) ) : ?>
+								<a href="<?php echo esc_url( $pr['url'] ); ?>" target="_blank" rel="nofollow noopener">官方方案</a>
+							<?php else : ?>
+								—
+							<?php endif; ?>
+						</td>
 					</tr>
 				<?php endforeach; ?>
 				</tbody>
@@ -248,6 +420,14 @@ a.asp-st-card:hover { transform: translateY(-3px); border-color: var(--asp-st-co
     border-bottom: 1px solid rgba(127,127,127,.18); }
 .asp-st-table thead th { font-weight: 700; white-space: nowrap; }
 .asp-st-num { text-align: right; font-variant-numeric: tabular-nums; }
+/* 表格說明：資料查證月份與但書，放 caption 而不是表格外的段落，
+   讓「這張表的價格是什麼時候的」與表格本身綁在一起，摘錄時不會脫節 */
+.asp-st-caption { caption-side: bottom; margin-top: 10px; font-size: 12.5px;
+    opacity: .62; line-height: 1.7; text-align: left; }
+.asp-st-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 方案但書：跟價格同格但降階，手機上換行不擠壓主要數字 */
+.asp-st-pricenote { display: block; margin-top: 3px; font-size: 11.5px;
+    opacity: .58; white-space: normal; line-height: 1.55; max-width: 22em; }
 .asp-st-faqitem { padding: 12px 0; border-bottom: 1px solid rgba(127,127,127,.18); }
 .asp-st-faqitem summary { cursor: pointer; font-weight: 600; }
 .asp-st-faqitem p { margin: 10px 0 0; line-height: 1.85; opacity: .88; }

@@ -36,6 +36,9 @@ $is_tw    = empty( $platform['global'] );
 $billing_label = [ 'free' => '免費', 'sub' => '訂閱制', 'rent' => '單次租看', 'buy' => '購買' ];
 $billing = $billing_label[ $platform['billing'] ?? 'sub' ] ?? '訂閱制';
 
+/* 台灣定價（可能為 null：台灣未營運或單次計費） */
+$pricing = Anime_Sync_Streaming_Registry::pricing( $key );
+
 $per_page = 60;
 $paged    = max( 1, (int) get_query_var( 'paged' ) ?: ( isset( $_GET['p'] ) ? (int) $_GET['p'] : 1 ) );
 
@@ -78,8 +81,22 @@ $faq = [
 		'a' => sprintf( '本站收錄 %s 上架的動畫共 %s 部，可在本頁依年份瀏覽完整清單。', $label, number_format( $total ) ),
 	],
 	[
-		'q' => $label . ' 要付費嗎？',
-		'a' => sprintf( '%s 的主要計費方式為「%s」。實際方案與可觀看範圍以平台公告為準。', $label, $billing ),
+		'q' => $label . ' 要付費嗎？多少錢？',
+		/*
+		 * 帶入實際價格而不只是「訂閱制」三個字——這一題正是使用者搜尋
+		 * 「XX 多少錢」時要的答案，AI 引擎也會直接引用這個句子。
+		 * 查無台灣定價的平台退回原本的說法，不編造數字。
+		 */
+		'a' => ( $pricing !== null && ( $pricing['from'] ?? null ) !== null )
+			? implode( '', array_filter( [
+				(int) $pricing['from'] === 0
+					? sprintf( '%s 可以免費觀看。', $label )
+					: sprintf( '%s 需要付費，最低月費 NT$%s 起。', $label, number_format( (int) $pricing['from'] ) ),
+				$pricing['note'] ? $pricing['note'] . '。' : '',
+				$total > 0 ? sprintf( '本站收錄該平台 %s 部動畫。', number_format( $total ) ) : '',
+				sprintf( '價格為 %s 查得之最低方案，實際以官方公告為準。', Anime_Sync_Streaming_Registry::PRICING_UPDATED ),
+			] ) )
+			: sprintf( '%s 的主要計費方式為「%s」。實際方案與可觀看範圍以平台公告為準。', $label, $billing ),
 	],
 ];
 $schema = [
@@ -91,7 +108,23 @@ $schema = [
 			'description'  => sprintf( '%s 在台灣上架的動畫清單，本站收錄 %s 部。', $label, number_format( $total ) ),
 			'url'          => Anime_Sync_Streaming_Routing::platform_url( $key ),
 			'dateModified' => $updated,
-			'about'        => [ '@type' => 'Organization', 'name' => $label ],
+			/* 平台本身當作 Organization，價格掛在它的 makesOffer 上，
+			   讓「XX 多少錢」這種問題有機器可讀的答案 */
+			'about'        => array_filter( [
+				'@type'      => 'Organization',
+				'name'       => $label,
+				'makesOffer' => ( $pricing !== null && ( $pricing['from'] ?? null ) !== null )
+					? array_filter( [
+						'@type'             => 'Offer',
+						'name'              => (int) $pricing['from'] === 0 ? '免費方案' : '最低訂閱方案',
+						'price'             => (string) (int) $pricing['from'],
+						'priceCurrency'     => 'TWD',
+						'category'          => $billing,
+						'url'               => $pricing['url'] ?? '',
+						'availableAtOrFrom' => [ '@type' => 'Country', 'name' => 'Taiwan' ],
+					] )
+					: null,
+			] ),
 			'mainEntity'   => [ '@type' => 'ItemList', 'numberOfItems' => $total, 'itemListElement' => $items ],
 		],
 		[
@@ -138,9 +171,25 @@ $schema = [
 			<p class="asp-sp-lead">
 				本站收錄 <strong><?php echo esc_html( $label ); ?></strong> 上架的動畫共
 				<strong><?php echo esc_html( number_format( $total ) ); ?></strong> 部，
-				計費方式為<strong><?php echo esc_html( $billing ); ?></strong>，
+				計費方式為<strong><?php echo esc_html( $billing ); ?></strong><?php
+				/*
+				 * 有查到台灣定價就把數字寫進導言，讓摘要與 AI 引用能直接抓走。
+				 * 免費平台不補「（可免費觀看）」——上一句的計費方式已經寫著「免費」，
+				 * 再補一次是廢話。
+				 */
+				if ( $pricing !== null && (int) ( $pricing['from'] ?? 0 ) > 0 ) : ?>（最低月費 <strong>NT$<?php echo esc_html( number_format( (int) $pricing['from'] ) ); ?></strong> 起）<?php
+				endif; ?>，
 				屬於<?php echo $is_tw ? '台灣本地' : '國際'; ?>串流平台。
 			</p>
+			<?php if ( ! empty( $pricing['note'] ) ) : ?>
+				<p class="asp-sp-pricenote">
+					<?php echo esc_html( $pricing['note'] ); ?>
+					<?php if ( ! empty( $pricing['url'] ) ) : ?>
+						<a href="<?php echo esc_url( $pricing['url'] ); ?>" target="_blank" rel="nofollow noopener">官方方案 →</a>
+					<?php endif; ?>
+					<span class="asp-sp-pricedate">（<?php echo esc_html( Anime_Sync_Streaming_Registry::PRICING_UPDATED ); ?> 查得，實際以官方公告為準）</span>
+				</p>
+			<?php endif; ?>
 			<p class="asp-sp-updated">資料更新：<time datetime="<?php echo esc_attr( $updated ); ?>"><?php echo esc_html( $updated ); ?></time></p>
 		</div>
 	</header>
@@ -222,6 +271,10 @@ $schema = [
 .asp-sp-title { font-size: 27px; font-weight: 800; margin: 0 0 10px; line-height: 1.3; }
 .asp-sp-lead { font-size: 15.5px; line-height: 1.9; margin: 0 0 6px; max-width: 62ch; }
 .asp-sp-updated { font-size: 13px; opacity: .6; margin: 0; }
+/* 方案但書：接在導言下方，字級降階不搶主要數字 */
+.asp-sp-pricenote { font-size: 13px; line-height: 1.8; opacity: .75; margin: 0 0 6px; max-width: 62ch; }
+.asp-sp-pricenote a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.asp-sp-pricedate { opacity: .7; }
 .asp-sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
 .asp-sp-card { display: flex; flex-direction: column; gap: 5px; text-decoration: none; color: inherit; }
 .asp-sp-cover { display: block; aspect-ratio: 3/4; border-radius: 10px; overflow: hidden;
