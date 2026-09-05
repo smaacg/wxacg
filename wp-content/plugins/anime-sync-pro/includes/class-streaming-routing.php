@@ -61,8 +61,8 @@ class Anime_Sync_Streaming_Routing {
 	const MIN_WORKS = 50;
 
 	/** 平台作品數統計的快取 */
-	/* v2：快取結構從「純計數陣列」改為 [counts, exclusive]，換 key 讓舊快取自然失效 */
-	const COUNT_CACHE_KEY = 'asp_streaming_counts_v2';
+	/* v3：移除 exclusive 後結構又變了，換 key 讓舊快取自然失效 */
+	const COUNT_CACHE_KEY = 'asp_streaming_counts_v3';
 	const COUNT_CACHE_TTL = 6 * HOUR_IN_SECONDS;
 
 	public static function init(): void {
@@ -275,23 +275,30 @@ class Anime_Sync_Streaming_Routing {
 	}
 
 	/**
-	 * 各平台的統計：收錄數與獨家數。
+	 * 各平台的統計：目前只有收錄數。
 	 *
-	 * 「獨家」＝這部作品只標了這一個平台。實測它是唯一真正差異化的欄位
-	 * （Bilibili 244 部、Netflix 37、多數平台 0），直接回答「我該訂哪家」；
-	 * 相對地「平均評分」全站擠在 73~77 分、「熱門代表作」每家都是進擊的巨人
-	 * ——那種欄位是湊數不是比較，所以沒做。
+	 * 曾經一併算過「獨家數」（＝這部作品只標了這一個平台），已移除。
+	 * 那個數字量到的不是授權事實而是我們的資料缺口：平台資料有兩個來源，
+	 * AniList 的 externalLinks 只涵蓋國際平台（Bilibili、Netflix、Disney+…），
+	 * 台灣平台（巴哈、Hami、MyVideo、friDay、LINE TV…）只能靠 YourAnimes 補。
+	 * 作品若只被 AniList 涵蓋就會長得像「Bilibili 獨家」。
 	 *
-	 * 兩個數字在同一次掃描裡算完。原本就要把所有 anime_tw_streaming 讀出來，
-	 * 順手判斷 count($keys) === 1 不增加任何查詢。
+	 * 實測（2026-09）：被判為獨家的作品有 YourAnimes 資料的只有 10.1%，
+	 * 非獨家是 40.8%；Bilibili 的「獨家」中 90.8% 根本沒有台灣平台資料。
+	 * 獨家率也完全照來源分裂——AniList 系的 Bilibili 42%、Amazon 42%、
+	 * Disney+ 29%，YourAnimes 系的巴哈 0.8%、Hami 1.1%。
+	 * 真實授權狀況只能查外部權威來源，且逐季變動，本站無法自行推導。
 	 *
-	 * @return array{counts: array<string,int>, exclusive: array<string,int>}
+	 * 回傳值保留 array{counts:…} 這層結構（而不是直接回陣列），
+	 * 之後要再加別的統計時不必再改一次呼叫端。
+	 *
+	 * @return array{counts: array<string,int>}
 	 */
 	public static function get_stats( bool $bypass_cache = false ): array {
 
 		if ( ! $bypass_cache ) {
 			$cached = get_transient( self::COUNT_CACHE_KEY );
-			if ( is_array( $cached ) && isset( $cached['counts'], $cached['exclusive'] ) ) {
+			if ( is_array( $cached ) && isset( $cached['counts'] ) ) {
 				return $cached;
 			}
 		}
@@ -307,8 +314,7 @@ class Anime_Sync_Streaming_Routing {
 			    AND p.post_status = 'publish'"
 		);
 
-		$counts    = [];
-		$exclusive = [];
+		$counts = [];
 
 		foreach ( (array) $rows as $raw ) {
 			$keys = maybe_unserialize( $raw );
@@ -322,19 +328,14 @@ class Anime_Sync_Streaming_Routing {
 				continue;
 			}
 
-			$solo = ( count( $keys ) === 1 );
-
 			foreach ( $keys as $k ) {
 				$counts[ $k ] = ( $counts[ $k ] ?? 0 ) + 1;
-				if ( $solo ) {
-					$exclusive[ $k ] = ( $exclusive[ $k ] ?? 0 ) + 1;
-				}
 			}
 		}
 
 		arsort( $counts );
 
-		$stats = [ 'counts' => $counts, 'exclusive' => $exclusive ];
+		$stats = [ 'counts' => $counts ];
 		set_transient( self::COUNT_CACHE_KEY, $stats, self::COUNT_CACHE_TTL );
 
 		return $stats;

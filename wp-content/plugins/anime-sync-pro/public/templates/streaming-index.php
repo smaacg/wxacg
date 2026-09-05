@@ -24,7 +24,6 @@ get_header();
 
 $stats     = Anime_Sync_Streaming_Routing::get_stats( isset( $_GET['asp_refresh'] ) );
 $counts    = $stats['counts'];
-$exclusive = $stats['exclusive'];
 $all       = Anime_Sync_Streaming_Registry::all();
 $icon_of   = Anime_Sync_Streaming_Routing::class;
 
@@ -101,8 +100,8 @@ usort(
 /*
  * ── 標章 ──
  *
- * 使用者來這頁其實只有三個問題：哪家片最多、哪家最便宜、哪家有別處看不到的。
- * 與其讓他自己掃 24 列數字，直接把答案標在卡片上。
+ * 使用者來這頁其實只有三個問題：哪家片最多、付費的哪家最便宜、免費的哪家片最多。
+ * 與其讓他自己掃 20 幾列數字，直接把答案標在卡片上。
  * 每個標章只給一個平台，給多了就失去指示作用。
  */
 $award = [];
@@ -128,20 +127,30 @@ foreach ( $all as $p ) {
 	}
 }
 
-/* 獨家最多 */
-$max_ex = 0;
+/*
+ * 免費平台中作品最多。
+ *
+ * 原本這個位置是「獨家最多」，已移除：那個數字算的是「這部作品只標到
+ * 一個平台」，而平台資料有兩個來源——AniList 只給國際平台（Bilibili、
+ * Netflix…），台灣平台只能靠 YourAnimes 補。作品若只被 AniList 涵蓋，
+ * 就會長得像「Bilibili 獨家」。實測獨家作品的 YourAnimes 覆蓋率只有
+ * 10.1%，非獨家是 40.8%，Bilibili 的「獨家」有 90.8% 根本沒有台灣平台
+ * 資料。那是資料缺口，不是授權事實，不能當成站上的宣稱。
+ */
+$max_free = 0;
 foreach ( $all as $p ) {
-	$e = (int) ( $exclusive[ $p['key'] ] ?? 0 );
-	if ( $e > $max_ex ) {
-		$max_ex                 = $e;
-		$award['most_exclusive'] = $p['key'];
+	$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+	$c  = (int) ( $counts[ $p['key'] ] ?? 0 );
+	if ( ( $pr['from'] ?? null ) === 0 && $c > $max_free ) {
+		$max_free          = $c;
+		$award['most_free'] = $p['key'];
 	}
 }
 
 $award_label = [
-	'most_titles'    => '作品最多',
-	'cheapest'       => '付費最便宜',
-	'most_exclusive' => '獨家最多',
+	'most_titles' => '作品最多',
+	'cheapest'    => '付費最便宜',
+	'most_free'   => '免費最多',
 ];
 /** 反查：平台 key → 它拿到的標章 */
 $award_of = array_flip( $award );
@@ -222,15 +231,6 @@ foreach ( $by_price as $p ) {
 	}
 }
 
-/* 獨家作品最多的平台 */
-$most_exclusive = null;
-foreach ( array_merge( $groups['tw'], $groups['global'] ) as $p ) {
-	$ex = (int) ( $exclusive[ $p['key'] ] ?? 0 );
-	if ( $most_exclusive === null || $ex > $most_exclusive['n'] ) {
-		$most_exclusive = [ 'p' => $p, 'n' => $ex ];
-	}
-}
-
 /* 免費平台中作品最多的 */
 $best_free = null;
 foreach ( array_merge( $groups['tw'], $groups['global'] ) as $p ) {
@@ -239,6 +239,30 @@ foreach ( array_merge( $groups['tw'], $groups['global'] ) as $p ) {
 		$best_free = $p;
 	}
 }
+
+/*
+ * 國際平台在台灣能不能用。
+ *
+ * 「未正式營運」是定價表 note 裡寫的（HIDIVE／Hulu）。這裡認那句字串，
+ * 而不是另外維護一份名單——名單分兩個地方遲早會不一致。
+ * 若哪天 note 改寫法，這題會退化成「都有台灣服務」而不是講錯話。
+ */
+$unavailable   = [];
+$available_int = [];
+$intl_total    = 0;
+foreach ( $groups['global'] as $p ) {
+	$intl_total++;
+	$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+	if ( ! empty( $pr['note'] ) && mb_strpos( $pr['note'], '未正式營運' ) !== false ) {
+		$unavailable[] = $p['label'];
+		continue;
+	}
+	// 有查到台灣定價 ＝ 台灣可訂閱；名單一併從資料算出來，不另外寫死一份
+	if ( ( $pr['from'] ?? null ) !== null ) {
+		$available_int[] = $p['label'];
+	}
+}
+$intl_priced = count( $available_int );
 
 $faq = [
 	[
@@ -280,14 +304,23 @@ $faq = [
 			: '有，巴哈姆特動畫瘋與 Ofiii 歐飛都提供免費觀看。',
 	],
 	[
-		'q' => '哪個平台的獨家動畫最多？',
-		'a' => ( $most_exclusive && $most_exclusive['n'] > 0 )
+		/*
+		 * 原本這題是「哪個平台的獨家動畫最多？」，已移除。
+		 * 那題的答案是用「作品只標到一個平台」推出來的，而那反映的是
+		 * 我們的資料缺口（台灣平台資料只有 YourAnimes 一個來源），
+		 * 不是實際授權狀況。放在 FAQPage 結構化資料裡會被 AI 引擎當成
+		 * 事實引用，所以整題拿掉，換成同樣有用但我們答得準的問題。
+		 */
+		'q' => 'HIDIVE、Hulu 這些國際平台在台灣可以用嗎？',
+		'a' => $unavailable
 			? sprintf(
-				'以本站資料統計，%s 有 %s 部動畫是其他平台查不到的，數量最多。所謂獨家是指本站收錄的平台中僅該平台有上架，實際授權範圍可能隨時異動。',
-				$most_exclusive['p']['label'],
-				number_format( $most_exclusive['n'] )
+				'部分不行。%s 目前未在台灣正式營運，本站列出僅供辨識作品出處。%s 則有台灣區服務，可直接訂閱。本站共列出 %d 個國際平台，其中 %d 個查得到台灣定價。',
+				implode( ' 與 ', $unavailable ),
+				implode( '、', $available_int ),
+				$intl_total,
+				$intl_priced
 			)
-			: '目前尚無統計資料。',
+			: sprintf( '本站列出的 %d 個國際平台目前都有台灣區服務。', $intl_total ),
 	],
 	[
 		'q' => '訂閱串流平台就能看到所有動畫嗎？',
@@ -366,7 +399,6 @@ $schema = [
 					$has_page = Anime_Sync_Streaming_Routing::has_own_page( $p['key'] );
 					$icon     = Anime_Sync_Streaming_Routing::icon_url( $p['icon'] ?? '' );
 					$pr       = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
-					$ex       = (int) ( $exclusive[ $p['key'] ] ?? 0 );
 					$badge    = $award_of[ $p['key'] ] ?? '';
 					/* 有收錄才給下限 3%（太小的條看不見）；0 部就是空條，不能畫出假的長度 */
 					$pct      = $p['count'] > 0 ? max( 3, (int) round( $p['count'] / $group_max * 100 ) ) : 0;
@@ -407,9 +439,8 @@ $schema = [
 						</div>
 						<div class="asp-st-cardstats">
 							<span><strong><?php echo esc_html( number_format( $p['count'] ) ); ?></strong> 部</span>
-							<?php if ( $ex > 0 ) : ?>
-								<span class="asp-st-ex">獨家 <strong><?php echo esc_html( number_format( $ex ) ); ?></strong></span>
-							<?php endif; ?>
+							<?php /* 右側原本放「獨家 N」，該指標已移除（見上方 $award 的說明） */ ?>
+							<span class="asp-st-billing"><?php echo esc_html( $billing_label[ $p['billing'] ?? 'sub' ] ?? '' ); ?></span>
 						</div>
 
 						<?php if ( $has_act ) : ?>
@@ -439,7 +470,7 @@ $schema = [
 	 *
 	 * 欄位的取捨：
 	 *   月費起   決策核心
-	 *   獨家     唯一真正差異化的目錄指標（Bilibili 244、多數平台 0）
+	 *   計費     免費/訂閱/單次租看，決定要不要繼續看下去
 	 *   收錄數   規模參考
 	 *   方案     官方連結，價格有疑義時讀者自己查，也避免我們的數字過期誤導
 	 *
@@ -453,7 +484,7 @@ $schema = [
 		/*
 		 * 表格預設收合。
 		 *
-		 * 卡片已經帶了決策要用的資訊（價格／規模／獨家／連結），表格是給
+		 * 卡片已經帶了決策要用的資訊（價格／規模／計費／連結），表格是給
 		 * 想一次橫向比對的人用的，攤開放在頁面上會變成第二份重複內容、
 		 * 也把版面壓得很密。
 		 *
@@ -477,7 +508,7 @@ $schema = [
 					<col class="asp-st-col-name">
 					<col class="asp-st-col-price">
 					<col class="asp-st-col-n">
-					<col class="asp-st-col-n">
+					<col class="asp-st-col-billing">
 					<col class="asp-st-col-link">
 				</colgroup>
 				<thead>
@@ -485,7 +516,8 @@ $schema = [
 						<th scope="col">平台</th>
 						<th scope="col">月費起</th>
 						<th scope="col" class="asp-st-num">收錄</th>
-						<th scope="col" class="asp-st-num">獨家</th>
+						<?php /* 原本這欄是「獨家」，該指標已移除（見上方 $award 的說明），換成計費方式 */ ?>
+						<th scope="col">計費</th>
 						<th scope="col">方案</th>
 					</tr>
 				</thead>
@@ -493,7 +525,6 @@ $schema = [
 				<?php foreach ( $by_price as $p ) :
 					if ( $p['count'] <= 0 ) { continue; }
 					$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
-					$ex = (int) ( $exclusive[ $p['key'] ] ?? 0 );
 					?>
 					<tr>
 						<th scope="row">
@@ -513,7 +544,7 @@ $schema = [
 							<?php endif; ?>
 						</td>
 						<td class="asp-st-num"><?php echo esc_html( number_format( $p['count'] ) ); ?></td>
-						<td class="asp-st-num"><?php echo $ex > 0 ? esc_html( number_format( $ex ) ) : '—'; ?></td>
+						<td><?php echo esc_html( $billing_label[ $p['billing'] ?? 'sub' ] ?? '—' ); ?></td>
 						<td>
 							<?php if ( ! empty( $pr['url'] ) ) : ?>
 								<a href="<?php echo esc_url( $pr['url'] ); ?>" target="_blank" rel="nofollow noopener">官方方案</a>
@@ -554,7 +585,7 @@ $schema = [
 .asp-st-section { margin-top: 40px; }
 .asp-st-h2 { font-size: 20px; font-weight: 700; margin: 0 0 16px; padding-left: 10px; border-left: 4px solid currentColor; }
 /* 卡片改成資訊卡：原本只有圖示＋名稱＋作品數，資訊量太少，
-   使用者還是得跑去看表格。現在把決策要用的東西（價格、規模、獨家）
+   使用者還是得跑去看表格。現在把決策要用的東西（價格、規模、計費）
    都放進卡片，表格退居完整參考。 */
 .asp-st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 14px; }
 .asp-st-card { position: relative; display: flex; flex-direction: column; gap: 10px;
@@ -595,7 +626,7 @@ $schema = [
 .asp-st-cardstats { display: flex; justify-content: space-between; gap: 8px;
     font-size: 12.5px; opacity: .82; font-variant-numeric: tabular-nums; }
 .asp-st-cardstats strong { font-weight: 700; }
-.asp-st-ex { opacity: .9; }
+.asp-st-billing { opacity: .72; }
 
 .asp-st-cardactions { display: flex; gap: 8px; margin-top: 2px; }
 .asp-st-act { flex: 1; text-align: center; padding: 7px 10px; border-radius: 8px;
@@ -623,10 +654,11 @@ $schema = [
     opacity: .62; line-height: 1.7; text-align: left; }
 /* 欄寬明確分配：不指定的話瀏覽器會依內容長度分配，
    說明文字一長就把價格欄撐到整表四成寬，其他欄擠在右邊很難掃讀 */
-.asp-st-col-name  { width: 32%; }
-.asp-st-col-price { width: 26%; }
-.asp-st-col-n     { width: 12%; }
-.asp-st-col-link  { width: 18%; }
+.asp-st-col-name    { width: 30%; }
+.asp-st-col-price   { width: 26%; }
+.asp-st-col-n       { width: 11%; }
+.asp-st-col-billing { width: 15%; }
+.asp-st-col-link    { width: 18%; }
 /* 地區併進平台欄，做成小標籤 */
 .asp-st-region { display: inline-block; margin-left: 8px; padding: 1px 7px;
     border-radius: 3px; font-size: 11px; font-weight: 400; opacity: .62;
