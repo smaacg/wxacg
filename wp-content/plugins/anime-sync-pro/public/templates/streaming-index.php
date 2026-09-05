@@ -461,8 +461,13 @@ $schema = [
 		 * AI 引擎照樣讀得到，精選摘要抓表格的價值不受影響。
 		 */
 		?>
+		<?php
+		/* 表格只列有收錄作品的平台（下方 count<=0 會 continue），
+		   summary 的數字要跟實際列數一致，不能用 $by_price 的總數 */
+		$table_rows = count( array_filter( $by_price, static fn( $p ) => $p['count'] > 0 ) );
+		?>
 		<details class="asp-st-tabledetails">
-			<summary>展開完整比較表（<?php echo esc_html( (string) count( $by_price ) ); ?> 個平台）</summary>
+			<summary>展開完整比較表（<?php echo esc_html( (string) $table_rows ); ?> 個有收錄作品的平台）</summary>
 		<div class="asp-st-tablewrap">
 			<table class="asp-st-table">
 				<caption class="asp-st-caption">
