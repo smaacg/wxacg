@@ -3077,6 +3077,89 @@ class Anime_Sync_API_Handler {
         return $map[ $this->normalize_title( $name ) ] ?? '';
     }
 
+    /**
+     * 用人物表的「羅馬字」別名反查歌手日文名。
+     *
+     * wp_anime_persons 的 aliases_json 存有 Bangumi 的羅馬字，例如
+     *   前田佳織里 → {"羅馬字":"Maeda Kaori"}
+     * 而 AnimeThemes 給的是「Kaori Maeda」——同一個人，只差姓名順序。
+     * 因此索引時正序與反序都收，並把長音符號正規化（Gō→go），
+     * 因為兩邊的轉寫習慣不同。
+     *
+     * 這是字典查詢不是模糊比對：對不到就回空字串，不猜。
+     *
+     * 快取比照 lookup_known_artist_native()：static 變數 + transient，
+     * 一次請求內只建一次表，跨請求 12 小時內不重建。
+     */
+    private function lookup_person_native( string $romaji ): string {
+        static $map = null;
+
+        if ( $map === null ) {
+            $cached = get_transient( 'anime_sync_person_romaji_map' );
+
+            if ( is_array( $cached ) ) {
+                $map = $cached;
+            } else {
+                $map = $this->build_person_romaji_map();
+                set_transient( 'anime_sync_person_romaji_map', $map, 12 * HOUR_IN_SECONDS );
+            }
+        }
+
+        return $map[ self::normalize_romaji( $romaji ) ] ?? '';
+    }
+
+    private function build_person_romaji_map(): array {
+        global $wpdb;
+
+        $map  = [];
+        $rows = $wpdb->get_results(
+            "SELECT name, aliases_json FROM {$wpdb->prefix}anime_persons
+              WHERE aliases_json LIKE '%羅馬字%' AND name <> ''"
+        );
+
+        foreach ( (array) $rows as $r ) {
+            $aliases = json_decode( (string) $r->aliases_json, true );
+            $romaji  = trim( (string) ( $aliases['羅馬字'] ?? '' ) );
+
+            if ( $romaji === '' ) {
+                continue;
+            }
+
+            // 目標是拿到日文寫法，本身不含日文字元的沒有意義
+            if ( ! preg_match( '/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u', (string) $r->name ) ) {
+                continue;
+            }
+
+            $parts    = preg_split( '/\s+/', $romaji );
+            $variants = [ $romaji ];
+
+            // 「姓 名」↔「名 姓」；只有兩段時才反轉，三段以上意義不明就不猜
+            if ( is_array( $parts ) && count( $parts ) === 2 ) {
+                $variants[] = $parts[1] . ' ' . $parts[0];
+            }
+
+            foreach ( $variants as $v ) {
+                $key = self::normalize_romaji( $v );
+                if ( $key !== '' && ! isset( $map[ $key ] ) ) {
+                    $map[ $key ] = (string) $r->name;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /** 小寫、長音符號還原、去掉所有非英數字元 */
+    private static function normalize_romaji( string $s ): string {
+        $s = mb_strtolower( trim( $s ), 'UTF-8' );
+        $s = strtr( $s, [
+            'ā' => 'a', 'ī' => 'i', 'ū' => 'u', 'ē' => 'e', 'ō' => 'o',
+            'â' => 'a', 'î' => 'i', 'û' => 'u', 'ê' => 'e', 'ô' => 'o',
+        ] );
+
+        return preg_replace( '/[^a-z0-9]/u', '', $s ) ?? '';
+    }
+
     private function parse_animethemes_payload( array $anime_arr, int $mal_id ): array {
         if ( empty( $anime_arr ) ) return [ 'slug' => '', 'themes' => [] ];
 
@@ -3141,6 +3224,20 @@ class Anime_Sync_API_Handler {
                          * 讓「查過一次就一直有」而不是每次重新賭 MB 查不查得到。
                          */
                         $name_native = $this->lookup_known_artist_native( $name );
+
+                        /*
+                         * 再退一層：人物表的「羅馬字」別名。
+                         *
+                         * 實測 MusicBrainz 這條路覆蓋率極低——全站回填 599 筆
+                         * 歌手日文名，MusicBrainz 與站內既有主題曲合計貢獻 0 筆，
+                         * 599 筆全部來自人物表。所以這一層不是可有可無的補充，
+                         * 而是實際有效的那一個。
+                         *
+                         * 純本地查詢，不打任何外部 API。
+                         */
+                        if ( $name_native === '' ) {
+                            $name_native = $this->lookup_person_native( $name );
+                        }
                     }
 
                     $artists[] = [
@@ -3531,7 +3628,9 @@ class Anime_Sync_API_Handler {
      * name_native，這裡把它套用到其他還沒有的地方。
      */
     public function lookup_artist_native_public( string $romaji_name ): string {
-        return $this->lookup_known_artist_native( $romaji_name );
+        $native = $this->lookup_known_artist_native( $romaji_name );
+
+        return $native !== '' ? $native : $this->lookup_person_native( $romaji_name );
     }
 
     public function get_bgm_staff_public( int $bangumi_id ): array {

@@ -40,80 +40,6 @@ class Anime_Sync_Themes_Native_Backfill {
 
 	private ?Anime_Sync_API_Handler $api = null;
 
-	/** 羅馬字 → 日文名 的對照表，由 wp_anime_persons 建立（延遲初始化） */
-	private ?array $person_map = null;
-
-	/**
-	 * 用人物表的「羅馬字」別名反查日文名。
-	 *
-	 * MusicBrainz 那條路覆蓋率不足（實測全站只補到 11 位），但站上的
-	 * wp_anime_persons 在 aliases_json 存了 Bangumi 的羅馬字，例如
-	 *   前田佳織里 → {"羅馬字":"Maeda Kaori"}
-	 * 而 AnimeThemes 給的是「Kaori Maeda」——同一個人，只差姓名順序。
-	 *
-	 * 索引時同時收正序與反序，並把長音符號正規化（Gō→go），
-	 * 因為兩邊的轉寫習慣不同。這是字典查詢不是位置配對，
-	 * 對不到就是對不到，不會猜。
-	 */
-	private function lookup_person_native( string $romaji ): string {
-		if ( $this->person_map === null ) {
-			$this->person_map = $this->build_person_map();
-		}
-
-		return $this->person_map[ self::normalize_romaji( $romaji ) ] ?? '';
-	}
-
-	private function build_person_map(): array {
-		global $wpdb;
-
-		$map  = [];
-		$rows = $wpdb->get_results(
-			"SELECT name, aliases_json FROM {$wpdb->prefix}anime_persons
-			  WHERE aliases_json LIKE '%羅馬字%' AND name <> ''"
-		);
-
-		foreach ( (array) $rows as $r ) {
-			$aliases = json_decode( (string) $r->aliases_json, true );
-			$romaji  = trim( (string) ( $aliases['羅馬字'] ?? '' ) );
-
-			if ( $romaji === '' ) {
-				continue;
-			}
-
-			// 目標是拿到日文寫法，本身不含日文字元的就沒有意義
-			if ( ! preg_match( '/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u', (string) $r->name ) ) {
-				continue;
-			}
-
-			$parts    = preg_split( '/\s+/', $romaji );
-			$variants = [ $romaji ];
-
-			// 「姓 名」↔「名 姓」；只有兩段時才反轉，三段以上意義不明就不猜
-			if ( is_array( $parts ) && count( $parts ) === 2 ) {
-				$variants[] = $parts[1] . ' ' . $parts[0];
-			}
-
-			foreach ( $variants as $v ) {
-				$key = self::normalize_romaji( $v );
-				if ( $key !== '' && ! isset( $map[ $key ] ) ) {
-					$map[ $key ] = (string) $r->name;
-				}
-			}
-		}
-
-		return $map;
-	}
-
-	/** 小寫、長音符號還原、去掉所有非英數字元 */
-	private static function normalize_romaji( string $s ): string {
-		$s = mb_strtolower( trim( $s ), 'UTF-8' );
-		$s = strtr( $s, [
-			'ā' => 'a', 'ī' => 'i', 'ū' => 'u', 'ē' => 'e', 'ō' => 'o',
-			'â' => 'a', 'î' => 'i', 'û' => 'u', 'ê' => 'e', 'ô' => 'o',
-		] );
-
-		return preg_replace( '/[^a-z0-9]/u', '', $s ) ?? '';
-	}
 
 	/**
 	 * @param array{dry_run?:bool,limit?:int,local_only?:bool} $args
@@ -129,8 +55,6 @@ class Anime_Sync_Themes_Native_Backfill {
 			'posts_changed'  => 0,
 			'title_filled'         => 0,
 			'artist_filled'        => 0,
-			'artist_from_themes'   => 0,
-			'artist_from_persons'  => 0,
 			'mal_calls'      => 0,
 			'mal_no_data'    => 0,
 			'skipped_locked' => 0,
@@ -280,17 +204,14 @@ class Anime_Sync_Themes_Native_Backfill {
 				}
 
 				/*
-				 * 兩個來源都是純本地查詢，不打任何 API：
-				 *   ① 站內既有主題曲（某部作品查到過 MusicBrainz 就留下了）
-				 *   ② 人物表的羅馬字別名（涵蓋 ① 沒碰過的聲優／歌手）
+				 * 共用 API Handler 的查詢鏈：站內既有主題曲 → 人物表羅馬字。
+				 * 兩層都是純本地查詢，不打任何外部 API。
+				 *
+				 * 這條鏈同時也接在同步流程上（class-api-handler.php 組 artists
+				 * 陣列時），所以新匯入的作品會自動有日文歌手名，不必再手動回填。
+				 * 本指令只負責補「同步流程不會再回頭處理」的既有資料。
 				 */
 				$native = $this->api->lookup_artist_native_public( $name );
-				$src    = 'themes';
-
-				if ( $native === '' ) {
-					$native = $this->lookup_person_native( $name );
-					$src    = 'persons';
-				}
 
 				/*
 				 * 反查結果與羅馬字相同（HYDE → HYDE）或根本不含日文字元時，
@@ -302,7 +223,6 @@ class Anime_Sync_Themes_Native_Backfill {
 				}
 
 				if ( $native !== '' ) {
-					$stats[ 'artist_from_' . $src ]++;
 					$themes[ $i ]['artists'][ $ai ]['name_native'] = $native;
 					$stats['artist_filled']++;
 					$changed = true;
@@ -356,9 +276,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( '掃描作品      : ' . $stats['scanned'] );
 		WP_CLI::log( '有變更的作品  : ' . $stats['posts_changed'] );
 		WP_CLI::log( '補到歌名日文  : ' . $stats['title_filled'] );
-		WP_CLI::log( '補到歌手日文  : ' . $stats['artist_filled']
-			. '（既有主題曲 ' . $stats['artist_from_themes']
-			. ' / 人物表 ' . $stats['artist_from_persons'] . '）' );
+		WP_CLI::log( '補到歌手日文  : ' . $stats['artist_filled'] );
 		WP_CLI::log( 'MAL 請求次數  : ' . $stats['mal_calls'] );
 		WP_CLI::log( 'MAL 無資料    : ' . $stats['mal_no_data'] );
 		WP_CLI::log( '因鎖定而略過  : ' . $stats['skipped_locked'] );
