@@ -28,6 +28,35 @@ $exclusive = $stats['exclusive'];
 $all       = Anime_Sync_Streaming_Registry::all();
 $icon_of   = Anime_Sync_Streaming_Routing::class;
 
+/**
+ * 品牌色上該用白字還是黑字。
+ *
+ * 卡片的主按鈕與標章直接以品牌色當底，固定用白字的話，
+ * LINE TV(#06C755)、Hulu(#1CE783) 這幾個亮色會讀不到。
+ *
+ * 用 WCAG 相對亮度算出兩個候選字色的對比度，取高的那個；
+ * 不設固定門檻，免得換平台色時又要重調魔術數字。
+ */
+$ink_on = static function ( string $hex ): string {
+	$hex = ltrim( $hex, '#' );
+	if ( strlen( $hex ) !== 6 || ! ctype_xdigit( $hex ) ) {
+		return '#fff';
+	}
+	/** 相對亮度（WCAG 2.x） */
+	$lum = static function ( string $h ): float {
+		$lin = static function ( float $c ): float {
+			$c /= 255;
+			return $c <= 0.03928 ? $c / 12.92 : pow( ( $c + 0.055 ) / 1.055, 2.4 );
+		};
+		return 0.2126 * $lin( (float) hexdec( substr( $h, 0, 2 ) ) )
+			+ 0.7152 * $lin( (float) hexdec( substr( $h, 2, 2 ) ) )
+			+ 0.0722 * $lin( (float) hexdec( substr( $h, 4, 2 ) ) );
+	};
+	$bg    = $lum( $hex );
+	$ratio = static fn( float $a, float $b ): float => ( max( $a, $b ) + 0.05 ) / ( min( $a, $b ) + 0.05 );
+	return $ratio( $bg, $lum( 'ffffff' ) ) >= $ratio( $bg, $lum( '111111' ) ) ? '#fff' : '#111';
+};
+
 /** 月費顯示：0 → 免費，null → 破折號，其餘 → NT$N 起 */
 $price_text = static function ( ?array $pr ): string {
 	if ( $pr === null || ! array_key_exists( 'from', $pr ) || $pr['from'] === null ) {
@@ -68,6 +97,54 @@ usort(
 		return $va === $vb ? ( $b['count'] <=> $a['count'] ) : ( $va <=> $vb );
 	}
 );
+
+/*
+ * ── 標章 ──
+ *
+ * 使用者來這頁其實只有三個問題：哪家片最多、哪家最便宜、哪家有別處看不到的。
+ * 與其讓他自己掃 24 列數字，直接把答案標在卡片上。
+ * 每個標章只給一個平台，給多了就失去指示作用。
+ */
+$award = [];
+
+/* 作品最多 */
+$max_count = 0;
+foreach ( $all as $p ) {
+	$c = (int) ( $counts[ $p['key'] ] ?? 0 );
+	if ( $c > $max_count ) {
+		$max_count            = $c;
+		$award['most_titles'] = $p['key'];
+	}
+}
+
+/* 最便宜的付費平台（免費的不算，那不是「便宜」是另一個類別） */
+$min_paid = PHP_INT_MAX;
+foreach ( $all as $p ) {
+	$pr = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+	$v  = $pr['from'] ?? null;
+	if ( $v !== null && (int) $v > 0 && (int) $v < $min_paid && (int) ( $counts[ $p['key'] ] ?? 0 ) > 0 ) {
+		$min_paid            = (int) $v;
+		$award['cheapest']   = $p['key'];
+	}
+}
+
+/* 獨家最多 */
+$max_ex = 0;
+foreach ( $all as $p ) {
+	$e = (int) ( $exclusive[ $p['key'] ] ?? 0 );
+	if ( $e > $max_ex ) {
+		$max_ex                 = $e;
+		$award['most_exclusive'] = $p['key'];
+	}
+}
+
+$award_label = [
+	'most_titles'    => '作品最多',
+	'cheapest'       => '付費最便宜',
+	'most_exclusive' => '獨家最多',
+];
+/** 反查：平台 key → 它拿到的標章 */
+$award_of = array_flip( $award );
 
 $total_platforms = count( $all );
 $total_works     = (int) wp_count_posts( 'anime' )->publish;
@@ -281,26 +358,73 @@ $schema = [
 		<section class="asp-st-section">
 			<h2 class="asp-st-h2"><?php echo esc_html( $gtitle ); ?></h2>
 			<div class="asp-st-grid">
-				<?php foreach ( $groups[ $gk ] as $p ) :
+				<?php
+				/* 長條圖以該組最大值為基準，組間不互相比較（免費組與國際組規模差很多） */
+				$group_max = max( 1, (int) ( $groups[ $gk ][0]['count'] ?? 1 ) );
+
+				foreach ( $groups[ $gk ] as $p ) :
 					$has_page = Anime_Sync_Streaming_Routing::has_own_page( $p['key'] );
 					$icon     = Anime_Sync_Streaming_Routing::icon_url( $p['icon'] ?? '' );
-					$tag      = $has_page ? 'a' : 'div';
+					$pr       = Anime_Sync_Streaming_Registry::pricing( $p['key'] );
+					$ex       = (int) ( $exclusive[ $p['key'] ] ?? 0 );
+					$badge    = $award_of[ $p['key'] ] ?? '';
+					/* 有收錄才給下限 3%（太小的條看不見）；0 部就是空條，不能畫出假的長度 */
+					$pct      = $p['count'] > 0 ? max( 3, (int) round( $p['count'] / $group_max * 100 ) ) : 0;
+					$has_act  = $has_page || ! empty( $pr['url'] );
 					?>
-					<<?php echo $tag; ?> class="asp-st-card<?php echo $has_page ? '' : ' is-flat'; ?>"
-						<?php if ( $has_page ) : ?>href="<?php echo esc_url( Anime_Sync_Streaming_Routing::platform_url( $p['key'] ) ); ?>"<?php endif; ?>
-						style="--asp-st-color: <?php echo esc_attr( $p['color'] ?? '#666' ); ?>">
-						<?php if ( $icon ) : ?>
-							<img class="asp-st-icon" src="<?php echo esc_url( $icon ); ?>" alt=""
-								loading="lazy" decoding="async" width="48" height="48">
-						<?php else : ?>
-							<span class="asp-st-icon asp-st-icon--none" aria-hidden="true"></span>
+					<div class="asp-st-card<?php echo $has_page ? '' : ' is-flat'; ?>"
+						style="--asp-st-color: <?php echo esc_attr( $p['color'] ?? '#666' ); ?>; --asp-st-ink: <?php echo esc_attr( $ink_on( $p['color'] ?? '#666' ) ); ?>">
+
+						<?php if ( $badge !== '' ) : ?>
+							<span class="asp-st-award"><?php echo esc_html( $award_label[ $badge ] ); ?></span>
 						<?php endif; ?>
-						<span class="asp-st-name"><?php echo esc_html( $p['label'] ); ?></span>
-						<span class="asp-st-meta">
-							<span class="asp-st-billing"><?php echo esc_html( $billing_label[ $p['billing'] ?? 'sub' ] ?? '訂閱制' ); ?></span>
-							<span class="asp-st-count"><?php echo esc_html( number_format( $p['count'] ) ); ?> 部</span>
-						</span>
-					</<?php echo $tag; ?>>
+
+						<div class="asp-st-cardhead">
+							<?php if ( $icon ) : ?>
+								<img class="asp-st-icon" src="<?php echo esc_url( $icon ); ?>" alt=""
+									loading="lazy" decoding="async" width="44" height="44">
+							<?php else : ?>
+								<span class="asp-st-icon asp-st-icon--none" aria-hidden="true"></span>
+							<?php endif; ?>
+							<div class="asp-st-headtext">
+								<span class="asp-st-name"><?php echo esc_html( $p['label'] ); ?></span>
+								<span class="asp-st-cardregion"><?php echo empty( $p['global'] ) ? '台灣' : '國際'; ?></span>
+							</div>
+						</div>
+
+						<?php /* 價格是決策核心，給它最大的字級 */ ?>
+						<div class="asp-st-cardprice">
+							<span class="asp-st-pricebig"><?php echo esc_html( $price_text( $pr ) ); ?></span>
+							<?php if ( ! empty( $pr['short'] ) ) : ?>
+								<span class="asp-st-pricesub"><?php echo esc_html( $pr['short'] ); ?></span>
+							<?php endif; ?>
+						</div>
+
+						<?php /* 作品數用長條表示相對規模，數字單看沒有比較基準 */ ?>
+						<div class="asp-st-bar" role="img"
+							aria-label="收錄 <?php echo esc_attr( number_format( $p['count'] ) ); ?> 部">
+							<span class="asp-st-barfill" style="width: <?php echo esc_attr( (string) $pct ); ?>%"></span>
+						</div>
+						<div class="asp-st-cardstats">
+							<span><strong><?php echo esc_html( number_format( $p['count'] ) ); ?></strong> 部</span>
+							<?php if ( $ex > 0 ) : ?>
+								<span class="asp-st-ex">獨家 <strong><?php echo esc_html( number_format( $ex ) ); ?></strong></span>
+							<?php endif; ?>
+						</div>
+
+						<?php if ( $has_act ) : ?>
+						<div class="asp-st-cardactions">
+							<?php if ( $has_page ) : ?>
+								<a class="asp-st-act asp-st-act--main"
+									href="<?php echo esc_url( Anime_Sync_Streaming_Routing::platform_url( $p['key'] ) ); ?>">看清單</a>
+							<?php endif; ?>
+							<?php if ( ! empty( $pr['url'] ) ) : ?>
+								<a class="asp-st-act" href="<?php echo esc_url( $pr['url'] ); ?>"
+									target="_blank" rel="nofollow noopener">官方方案</a>
+							<?php endif; ?>
+						</div>
+						<?php endif; ?>
+					</div>
 				<?php endforeach; ?>
 			</div>
 		</section>
@@ -325,6 +449,20 @@ $schema = [
 	?>
 	<section class="asp-st-section">
 		<h2 class="asp-st-h2">平台比較</h2>
+		<?php
+		/*
+		 * 表格預設收合。
+		 *
+		 * 卡片已經帶了決策要用的資訊（價格／規模／獨家／連結），表格是給
+		 * 想一次橫向比對的人用的，攤開放在頁面上會變成第二份重複內容、
+		 * 也把版面壓得很密。
+		 *
+		 * 用 <details> 而不是 JS 摺疊：內容始終在 DOM 裡，搜尋引擎與
+		 * AI 引擎照樣讀得到，精選摘要抓表格的價值不受影響。
+		 */
+		?>
+		<details class="asp-st-tabledetails">
+			<summary>展開完整比較表（<?php echo esc_html( (string) count( $by_price ) ); ?> 個平台）</summary>
 		<div class="asp-st-tablewrap">
 			<table class="asp-st-table">
 				<caption class="asp-st-caption">
@@ -383,6 +521,7 @@ $schema = [
 				</tbody>
 			</table>
 		</div>
+		</details>
 	</section>
 
 	<section class="asp-st-section asp-st-faq">
@@ -409,19 +548,64 @@ $schema = [
 .asp-st-updated { font-size: 13px; opacity: .6; margin: 0; }
 .asp-st-section { margin-top: 40px; }
 .asp-st-h2 { font-size: 20px; font-weight: 700; margin: 0 0 16px; padding-left: 10px; border-left: 4px solid currentColor; }
-.asp-st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 14px; }
-.asp-st-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 12px;
-    border-radius: 14px; text-decoration: none; color: inherit;
-    background: rgba(127,127,127,.08); border: 1px solid rgba(127,127,127,.16);
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
-a.asp-st-card:hover { transform: translateY(-3px); border-color: var(--asp-st-color);
-    box-shadow: 0 6px 18px rgba(0,0,0,.14); }
-.asp-st-card.is-flat { opacity: .72; }
-.asp-st-icon { width: 48px; height: 48px; border-radius: 10px; object-fit: contain; background: #fff; }
+/* 卡片改成資訊卡：原本只有圖示＋名稱＋作品數，資訊量太少，
+   使用者還是得跑去看表格。現在把決策要用的東西（價格、規模、獨家）
+   都放進卡片，表格退居完整參考。 */
+.asp-st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 14px; }
+.asp-st-card { position: relative; display: flex; flex-direction: column; gap: 10px;
+    padding: 16px 16px 14px; border-radius: 14px; color: inherit; overflow: hidden;
+    background: rgba(127,127,127,.07); border: 1px solid rgba(127,127,127,.16);
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+/* 品牌色只用在頂端細條與長條圖：整張卡片染色會讓 24 張卡變成調色盤，反而看不出重點 */
+.asp-st-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px;
+    background: var(--asp-st-color); opacity: .85; }
+.asp-st-card:hover { transform: translateY(-3px); border-color: var(--asp-st-color);
+    box-shadow: 0 8px 22px rgba(0,0,0,.16); }
+.asp-st-card.is-flat { opacity: .78; }
+
+.asp-st-award { position: absolute; top: 12px; right: 12px; padding: 2px 8px;
+    border-radius: 999px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+    background: var(--asp-st-color); color: var(--asp-st-ink, #fff); white-space: nowrap; }
+
+.asp-st-cardhead { display: flex; align-items: center; gap: 10px; padding-right: 68px; }
+.asp-st-headtext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.asp-st-icon { width: 44px; height: 44px; border-radius: 10px; object-fit: contain;
+    background: #fff; flex: 0 0 auto; }
 .asp-st-icon--none { display: block; background: var(--asp-st-color); }
-.asp-st-name { font-size: 14px; font-weight: 700; text-align: center; line-height: 1.4; }
-.asp-st-meta { display: flex; gap: 8px; font-size: 12px; opacity: .75; }
-.asp-st-billing { padding: 1px 7px; border-radius: 999px; background: var(--asp-st-color); color: #fff; }
+.asp-st-name { font-size: 14.5px; font-weight: 700; line-height: 1.35; }
+/* 卡片的地區標籤與表格的 .asp-st-region 分開命名：同名會被下面表格那組蓋掉 */
+.asp-st-cardregion { align-self: flex-start; padding: 0 6px; border-radius: 3px; font-size: 10.5px;
+    opacity: .6; border: 1px solid rgba(127,127,127,.35); }
+
+/* 價格是決策核心，字級最大 */
+.asp-st-cardprice { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.asp-st-pricebig { font-size: 19px; font-weight: 800; letter-spacing: .01em;
+    font-variant-numeric: tabular-nums; }
+.asp-st-pricesub { font-size: 11.5px; opacity: .58; }
+
+/* 作品數的長條：數字單看沒有比較基準，長條讓規模差距一眼可見 */
+.asp-st-bar { height: 5px; border-radius: 999px; background: rgba(127,127,127,.18); overflow: hidden; }
+.asp-st-barfill { display: block; height: 100%; border-radius: 999px;
+    background: var(--asp-st-color); opacity: .8; }
+.asp-st-cardstats { display: flex; justify-content: space-between; gap: 8px;
+    font-size: 12.5px; opacity: .82; font-variant-numeric: tabular-nums; }
+.asp-st-cardstats strong { font-weight: 700; }
+.asp-st-ex { opacity: .9; }
+
+.asp-st-cardactions { display: flex; gap: 8px; margin-top: 2px; }
+.asp-st-act { flex: 1; text-align: center; padding: 7px 10px; border-radius: 8px;
+    font-size: 12.5px; font-weight: 600; text-decoration: none; color: inherit;
+    border: 1px solid rgba(127,127,127,.28); transition: background .15s ease, border-color .15s ease; }
+.asp-st-act:hover { border-color: var(--asp-st-color); background: rgba(127,127,127,.12); }
+.asp-st-act--main { background: var(--asp-st-color); border-color: var(--asp-st-color);
+    color: var(--asp-st-ink, #fff); }
+.asp-st-act--main:hover { filter: brightness(1.1); background: var(--asp-st-color); }
+/* 完整比較表：預設收合，內容仍在 DOM 裡供搜尋引擎與 AI 讀取 */
+.asp-st-tabledetails > summary { cursor: pointer; display: inline-block; padding: 8px 14px;
+    border-radius: 8px; font-size: 13px; font-weight: 600;
+    border: 1px solid rgba(127,127,127,.28); transition: background .15s ease; }
+.asp-st-tabledetails > summary:hover { background: rgba(127,127,127,.12); }
+.asp-st-tabledetails[open] > summary { margin-bottom: 14px; }
 .asp-st-tablewrap { overflow-x: auto; }
 .asp-st-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .asp-st-table th, .asp-st-table td { padding: 10px 12px; text-align: left;
@@ -453,7 +637,7 @@ a.asp-st-card:hover { transform: translateY(-3px); border-color: var(--asp-st-co
 .asp-st-disclaimer { margin-top: 36px; font-size: 12.5px; opacity: .6; line-height: 1.8; }
 @media screen and (max-width: 600px) {
     .asp-st-title { font-size: 23px; }
-    .asp-st-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+    .asp-st-grid { grid-template-columns: 1fr; gap: 12px; }
 }
 </style>
 
