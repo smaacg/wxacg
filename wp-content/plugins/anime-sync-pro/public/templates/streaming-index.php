@@ -330,13 +330,19 @@ $schema = [
 				<caption class="asp-st-caption">
 					依最低月費排序。價格為 <?php echo esc_html( Anime_Sync_Streaming_Registry::PRICING_UPDATED ); ?> 查得之最低方案，實際以官方公告為準。
 				</caption>
+				<colgroup>
+					<col class="asp-st-col-name">
+					<col class="asp-st-col-price">
+					<col class="asp-st-col-n">
+					<col class="asp-st-col-n">
+					<col class="asp-st-col-link">
+				</colgroup>
 				<thead>
 					<tr>
 						<th scope="col">平台</th>
 						<th scope="col">月費起</th>
-						<th scope="col">地區</th>
-						<th scope="col">收錄動畫數</th>
-						<th scope="col">獨家</th>
+						<th scope="col" class="asp-st-num">收錄</th>
+						<th scope="col" class="asp-st-num">獨家</th>
 						<th scope="col">方案</th>
 					</tr>
 				</thead>
@@ -353,14 +359,16 @@ $schema = [
 							<?php else : ?>
 								<?php echo esc_html( $p['label'] ); ?>
 							<?php endif; ?>
+							<?php /* 地區併進平台欄：它只有台灣／國際兩種值，獨立成欄浪費一整欄寬度 */ ?>
+							<span class="asp-st-region"><?php echo empty( $p['global'] ) ? '台灣' : '國際'; ?></span>
 						</th>
 						<td class="asp-st-price">
-							<?php echo esc_html( $price_text( $pr ) ); ?>
-							<?php if ( ! empty( $pr['note'] ) ) : ?>
-								<span class="asp-st-pricenote"><?php echo esc_html( $pr['note'] ); ?></span>
+							<span class="asp-st-pricenum"><?php echo esc_html( $price_text( $pr ) ); ?></span>
+							<?php /* 表格用精簡說明；完整說明留在平台頁，避免把這欄撐到整表四成寬 */ ?>
+							<?php if ( ! empty( $pr['short'] ) ) : ?>
+								<span class="asp-st-pricenote"><?php echo esc_html( $pr['short'] ); ?></span>
 							<?php endif; ?>
 						</td>
-						<td><?php echo empty( $p['global'] ) ? '台灣' : '國際'; ?></td>
 						<td class="asp-st-num"><?php echo esc_html( number_format( $p['count'] ) ); ?></td>
 						<td class="asp-st-num"><?php echo $ex > 0 ? esc_html( number_format( $ex ) ) : '—'; ?></td>
 						<td>
@@ -424,10 +432,21 @@ a.asp-st-card:hover { transform: translateY(-3px); border-color: var(--asp-st-co
    讓「這張表的價格是什麼時候的」與表格本身綁在一起，摘錄時不會脫節 */
 .asp-st-caption { caption-side: bottom; margin-top: 10px; font-size: 12.5px;
     opacity: .62; line-height: 1.7; text-align: left; }
-.asp-st-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
-/* 方案但書：跟價格同格但降階，手機上換行不擠壓主要數字 */
-.asp-st-pricenote { display: block; margin-top: 3px; font-size: 11.5px;
-    opacity: .58; white-space: normal; line-height: 1.55; max-width: 22em; }
+/* 欄寬明確分配：不指定的話瀏覽器會依內容長度分配，
+   說明文字一長就把價格欄撐到整表四成寬，其他欄擠在右邊很難掃讀 */
+.asp-st-col-name  { width: 32%; }
+.asp-st-col-price { width: 26%; }
+.asp-st-col-n     { width: 12%; }
+.asp-st-col-link  { width: 18%; }
+/* 地區併進平台欄，做成小標籤 */
+.asp-st-region { display: inline-block; margin-left: 8px; padding: 1px 7px;
+    border-radius: 3px; font-size: 11px; font-weight: 400; opacity: .62;
+    border: 1px solid rgba(127,127,127,.35); vertical-align: middle; }
+.asp-st-price { font-variant-numeric: tabular-nums; }
+.asp-st-pricenum { font-weight: 600; white-space: nowrap; }
+/* 精簡說明：跟價格同格但降階，不換行也不撐開欄位 */
+.asp-st-pricenote { display: block; margin-top: 2px; font-size: 11.5px;
+    opacity: .55; line-height: 1.5; }
 .asp-st-faqitem { padding: 12px 0; border-bottom: 1px solid rgba(127,127,127,.18); }
 .asp-st-faqitem summary { cursor: pointer; font-weight: 600; }
 .asp-st-faqitem p { margin: 10px 0 0; line-height: 1.85; opacity: .88; }

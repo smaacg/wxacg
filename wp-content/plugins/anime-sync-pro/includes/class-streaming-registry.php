@@ -314,9 +314,15 @@ class Anime_Sync_Streaming_Registry {
     /**
      * 各平台台灣定價。
      *
-     *   from : 最低月費（新台幣）。0 = 免費可看；null = 查無台灣定價
-     *   note : 其他方案與但書，寫給人看的
-     *   url  : 官方方案頁，價格有疑義時讀者自己查
+     *   from  : 最低月費（新台幣）。0 = 免費可看；null = 查無台灣定價
+     *   note  : 完整說明，用於平台頁的導言與 FAQ
+     *   short : 比較表用的精簡版，10 字內；空字串代表不顯示
+     *   url   : 官方方案頁，價格有疑義時讀者自己查
+     *
+     * short 為什麼要另外寫：note 最長 41 字，塞進比較表會把「月費起」那欄
+     * 撐到整張表的四成寬，其他欄位擠在右邊很難掃讀。而且「YouTube 官方頻道，
+     * 免費」這種說明跟左邊已經顯示的「免費」重複，等於用版面換廢話——
+     * 那幾個的 short 直接留空。
      *
      * 只記「最低可看價」——多數平台有 2~3 個級距、促銷價、電信綁約價，
      * 硬塞單一數字會失真，所以表格標「起」，細節交給 note 與官方連結。
@@ -326,39 +332,40 @@ class Anime_Sync_Streaming_Registry {
      */
     private const PRICING = [
         /* ── 免費為主 ── */
-        'bahamut'      => [ 'from' => 0,   'note' => '免費含廣告；VIP 30 天 99 元（360 天 1,089 元，約 91/月）', 'url' => 'https://ani.gamer.com.tw/' ],
-        'ofiii'        => [ 'from' => 0,   'note' => '完全免費，免註冊', 'url' => 'https://www.ofiii.com/' ],
-        'bilibili'     => [ 'from' => 0,   'note' => '正片免費；大會員為畫質與多端加值', 'url' => 'https://www.bilibili.com/' ],
-        'litv'         => [ 'from' => 0,   'note' => '免費含廣告；付費方案 99 元起', 'url' => 'https://www.litv.tv/' ],
-        'linetv'       => [ 'from' => 0,   'note' => '免費含廣告；VIP 單人 240 元（雙人 360、四人 480）', 'url' => 'https://www.linetv.tw/purchase' ],
-        'ani_one'      => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/@AniOneAsia' ],
-        'muse'         => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/@MuseTW' ],
-        'youtube'      => [ 'from' => 0,   'note' => '官方授權頻道，免費', 'url' => 'https://www.youtube.com/' ],
-        'mighty'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/' ],
-        'ani_mi'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/' ],
-        'tropicsanime' => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'url' => 'https://www.youtube.com/' ],
-        'garageplay'   => [ 'from' => 0,   'note' => '免費', 'url' => 'https://www.youtube.com/' ],
-        'anipass'      => [ 'from' => 0,   'note' => '免費', 'url' => 'https://www.youtube.com/' ],
-        'ptsplus'      => [ 'from' => 0,   'note' => '公共電視，免費', 'url' => 'https://www.pts.org.tw/' ],
+        'bahamut'      => [ 'from' => 0,   'note' => '免費含廣告；VIP 30 天 99 元（360 天 1,089 元，約 91/月）', 'short' => 'VIP 99/30天', 'url' => 'https://ani.gamer.com.tw/' ],
+        'ofiii'        => [ 'from' => 0,   'note' => '完全免費，免註冊', 'short' => '免註冊', 'url' => 'https://www.ofiii.com/' ],
+        'bilibili'     => [ 'from' => 0,   'note' => '正片免費；大會員為畫質與多端加值', 'short' => '大會員為畫質加值', 'url' => 'https://www.bilibili.com/' ],
+        'litv'         => [ 'from' => 0,   'note' => '免費含廣告；付費方案 99 元起', 'short' => '付費 99 起', 'url' => 'https://www.litv.tv/' ],
+        'linetv'       => [ 'from' => 0,   'note' => '免費含廣告；VIP 單人 240 元（雙人 360、四人 480）', 'short' => 'VIP 240/月', 'url' => 'https://www.linetv.tw/purchase' ],
+        /* 以下 short 一律留空：說明就是「免費」，跟左邊的月費欄完全重複 */
+        'ani_one'      => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/@AniOneAsia' ],
+        'muse'         => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/@MuseTW' ],
+        'youtube'      => [ 'from' => 0,   'note' => '官方授權頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'mighty'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'ani_mi'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'tropicsanime' => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'garageplay'   => [ 'from' => 0,   'note' => '免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'anipass'      => [ 'from' => 0,   'note' => '免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'ptsplus'      => [ 'from' => 0,   'note' => '公共電視，免費', 'short' => '', 'url' => 'https://www.pts.org.tw/' ],
 
         /* ── 訂閱制 ── */
-        'crunchyroll'  => [ 'from' => 120, 'note' => '粉絲 120／超級粉絲 135；年繳 1,000 元', 'url' => 'https://www.crunchyroll.com/tw/premium' ],
-        'amazon'       => [ 'from' => 169, 'note' => 'Prime 會員資格', 'url' => 'https://www.primevideo.com/' ],
-        'catchplay'    => [ 'from' => 199, 'note' => '支援 4K', 'url' => 'https://www.catchplay.com/tw' ],
-        'friday'       => [ 'from' => 199, 'note' => '年繳約 155/月；遠傳用戶另有優惠', 'url' => 'https://video.friday.tw/packages' ],
-        'myvideo'      => [ 'from' => 199, 'note' => '促銷價，6 期後原價 250；台哥大用戶 149 起', 'url' => 'https://www.myvideo.net.tw/event/member/' ],
-        'hami'         => [ 'from' => 199, 'note' => '影劇館+ 90 天 597 元；中華電信用戶 188 元起', 'url' => 'https://hamivideo.hinet.net/' ],
-        'iqiyi'        => [ 'from' => 240, 'note' => '黃金會員起；鑽石會員支援 4K，年繳首年 1,990 元', 'url' => 'https://www.iq.com/' ],
-        'appletv'      => [ 'from' => 250, 'note' => '年繳 2,490 元（約 208/月）', 'url' => 'https://tv.apple.com/' ],
-        'disney'       => [ 'from' => 285, 'note' => '基本 285／高級 335（4K）', 'url' => 'https://www.disneyplus.com/zh-hant-tw' ],
-        'netflix'      => [ 'from' => 290, 'note' => '基本 290／標準 380／高級 460（4K+HDR）', 'url' => 'https://www.netflix.com/tw/' ],
+        'crunchyroll'  => [ 'from' => 120, 'note' => '粉絲 120／超級粉絲 135；年繳 1,000 元', 'short' => '年繳 1,000', 'url' => 'https://www.crunchyroll.com/tw/premium' ],
+        'amazon'       => [ 'from' => 169, 'note' => 'Prime 會員資格', 'short' => '', 'url' => 'https://www.primevideo.com/' ],
+        'catchplay'    => [ 'from' => 199, 'note' => '支援 4K', 'short' => '支援 4K', 'url' => 'https://www.catchplay.com/tw' ],
+        'friday'       => [ 'from' => 199, 'note' => '年繳約 155/月；遠傳用戶另有優惠', 'short' => '年繳約 155/月', 'url' => 'https://video.friday.tw/packages' ],
+        'myvideo'      => [ 'from' => 199, 'note' => '促銷價，6 期後原價 250；台哥大用戶 149 起', 'short' => '原價 250', 'url' => 'https://www.myvideo.net.tw/event/member/' ],
+        'hami'         => [ 'from' => 199, 'note' => '影劇館+ 90 天 597 元；中華電信用戶 188 元起', 'short' => '電信戶 188 起', 'url' => 'https://hamivideo.hinet.net/' ],
+        'iqiyi'        => [ 'from' => 240, 'note' => '黃金會員起；鑽石會員支援 4K，年繳首年 1,990 元', 'short' => '鑽石方案更高', 'url' => 'https://www.iq.com/' ],
+        'appletv'      => [ 'from' => 250, 'note' => '年繳 2,490 元（約 208/月）', 'short' => '年繳 2,490', 'url' => 'https://tv.apple.com/' ],
+        'disney'       => [ 'from' => 285, 'note' => '基本 285／高級 335（4K）', 'short' => '高級 335', 'url' => 'https://www.disneyplus.com/zh-hant-tw' ],
+        'netflix'      => [ 'from' => 290, 'note' => '基本 290／標準 380／高級 460（4K+HDR）', 'short' => '標準 380／高級 460', 'url' => 'https://www.netflix.com/tw/' ],
 
         /* ── 單次計費 ── */
-        'renta'        => [ 'from' => null, 'note' => '依作品單次計費，無月費', 'url' => 'https://renta.papy.co.jp/' ],
+        'renta'        => [ 'from' => null, 'note' => '依作品單次計費，無月費', 'short' => '單次計費', 'url' => 'https://renta.papy.co.jp/' ],
 
         /* ── 台灣未正式營運，不列價格 ── */
-        'hidive'       => [ 'from' => null, 'note' => '台灣未正式營運', 'url' => 'https://www.hidive.com/' ],
-        'hulu'         => [ 'from' => null, 'note' => '台灣未正式營運', 'url' => 'https://www.hulu.com/' ],
+        'hidive'       => [ 'from' => null, 'note' => '台灣未正式營運', 'short' => '', 'url' => 'https://www.hidive.com/' ],
+        'hulu'         => [ 'from' => null, 'note' => '台灣未正式營運', 'short' => '', 'url' => 'https://www.hulu.com/' ],
     ];
 
     /** 取單一平台的定價；查無回 null 讓呼叫端自行決定顯示方式 */
