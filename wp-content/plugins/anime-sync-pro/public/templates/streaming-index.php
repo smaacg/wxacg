@@ -449,9 +449,13 @@ $schema = [
 								<a class="asp-st-act asp-st-act--main"
 									href="<?php echo esc_url( Anime_Sync_Streaming_Routing::platform_url( $p['key'] ) ); ?>">看清單</a>
 							<?php endif; ?>
-							<?php if ( ! empty( $pr['url'] ) ) : ?>
-								<a class="asp-st-act" href="<?php echo esc_url( $pr['url'] ); ?>"
-									target="_blank" rel="nofollow noopener">官方方案</a>
+							<?php
+							$plan = Anime_Sync_Streaming_Registry::pricing_link( $p['key'], 'streaming-index' );
+							if ( $plan['url'] !== '' ) :
+								?>
+								<a class="asp-st-act" href="<?php echo esc_url( $plan['url'] ); ?>"
+									target="_blank"
+									rel="nofollow noopener<?php echo $plan['sponsored'] ? ' sponsored' : ''; ?>">官方方案</a>
 							<?php endif; ?>
 						</div>
 						<?php endif; ?>
@@ -546,8 +550,12 @@ $schema = [
 						<td class="asp-st-num"><?php echo esc_html( number_format( $p['count'] ) ); ?></td>
 						<td><?php echo esc_html( $billing_label[ $p['billing'] ?? 'sub' ] ?? '—' ); ?></td>
 						<td>
-							<?php if ( ! empty( $pr['url'] ) ) : ?>
-								<a href="<?php echo esc_url( $pr['url'] ); ?>" target="_blank" rel="nofollow noopener">官方方案</a>
+							<?php
+							$plan = Anime_Sync_Streaming_Registry::pricing_link( $p['key'], 'streaming-table' );
+							if ( $plan['url'] !== '' ) :
+								?>
+								<a href="<?php echo esc_url( $plan['url'] ); ?>" target="_blank"
+									rel="nofollow noopener<?php echo $plan['sponsored'] ? ' sponsored' : ''; ?>">官方方案</a>
 							<?php else : ?>
 								—
 							<?php endif; ?>

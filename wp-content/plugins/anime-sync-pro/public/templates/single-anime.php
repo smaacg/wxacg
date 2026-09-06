@@ -5060,6 +5060,31 @@ while ( have_posts() ) :
 												)
 											);
 
+											/*
+											 * 有聯盟方案的通路（目前只有 Renta! 台灣）包成推廣網址。
+											 *
+											 * anime_sync_affiliate_url() 查不到對應通路時原樣回傳，
+											 * 所以巴哈、Netflix 這些連結完全不受影響——比對前後
+											 * 是否相同就能判斷這條到底有沒有被包裝，不必另外維護
+											 * 一份「哪些通路有聯盟」的清單（那會跟前綴表不同步）。
+											 *
+											 * subid 帶作品 slug，聯盟後台的「追蹤標籤1」就能看出
+											 * 是哪一部作品帶來的成交。
+											 */
+											$stream_sponsored = false;
+
+											if ( $stream_url !== '' && function_exists( 'anime_sync_affiliate_url' ) ) {
+												$stream_affiliate_url = anime_sync_affiliate_url(
+													$stream_url,
+													(string) get_post_field( 'post_name', $post_id )
+												);
+
+												if ( $stream_affiliate_url !== $stream_url ) {
+													$stream_url       = $stream_affiliate_url;
+													$stream_sponsored = true;
+												}
+											}
+
 											$stream_icon = trim(
 												(string) (
 													$stream_item['icon_url']
@@ -5092,7 +5117,8 @@ while ( have_posts() ) :
 												<a
 													href="<?php echo esc_url( $stream_url ); ?>"
 													target="_blank"
-													rel="noopener noreferrer"
+													<?php /* 聯盟連結必須標 sponsored（Google 連結垃圾政策明文要求）；一般串流連結維持原樣 */ ?>
+													rel="noopener noreferrer<?php echo $stream_sponsored ? ' nofollow sponsored' : ''; ?>"
 													class="<?php echo esc_attr( $stream_class ); ?>"
 													title="<?php echo esc_attr( $stream_label ); ?>"
 												>

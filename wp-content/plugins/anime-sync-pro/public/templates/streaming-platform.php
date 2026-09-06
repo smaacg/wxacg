@@ -184,8 +184,13 @@ $schema = [
 			<?php if ( ! empty( $pricing['note'] ) ) : ?>
 				<p class="asp-sp-pricenote">
 					<?php echo esc_html( $pricing['note'] ); ?>
-					<?php if ( ! empty( $pricing['url'] ) ) : ?>
-						<a href="<?php echo esc_url( $pricing['url'] ); ?>" target="_blank" rel="nofollow noopener">官方方案 →</a>
+					<?php
+					/* 追蹤標籤帶平台 key，聯盟後台就能看出是哪個平台頁帶來的點擊 */
+					$plan = Anime_Sync_Streaming_Registry::pricing_link( $key, 'streaming-' . $key );
+					if ( $plan['url'] !== '' ) :
+						?>
+						<a href="<?php echo esc_url( $plan['url'] ); ?>" target="_blank"
+							rel="nofollow noopener<?php echo $plan['sponsored'] ? ' sponsored' : ''; ?>">官方方案 →</a>
 					<?php endif; ?>
 					<span class="asp-sp-pricedate">（<?php echo esc_html( Anime_Sync_Streaming_Registry::PRICING_UPDATED ); ?> 查得，實際以官方公告為準）</span>
 				</p>

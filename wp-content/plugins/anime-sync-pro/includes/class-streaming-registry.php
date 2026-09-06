@@ -361,7 +361,9 @@ class Anime_Sync_Streaming_Registry {
         'netflix'      => [ 'from' => 290, 'note' => '基本 290／標準 380／高級 460（4K+HDR）', 'short' => '標準 380／高級 460', 'url' => 'https://www.netflix.com/tw/' ],
 
         /* ── 單次計費 ── */
-        'renta'        => [ 'from' => null, 'note' => '依作品單次計費，無月費', 'short' => '單次計費', 'url' => 'https://renta.papy.co.jp/' ],
+        /* 台灣站（原本填的是日本站 renta.papy.co.jp，對台灣讀者是錯的網址）。
+           站上作品實際存的串流網址也都是 tw.myrenta.com/item/…，這裡跟著一致。 */
+        'renta'        => [ 'from' => null, 'note' => '依作品單次計費，無月費', 'short' => '單次計費', 'url' => 'https://tw.myrenta.com/' ],
 
         /* ── 台灣未正式營運，不列價格 ── */
         'hidive'       => [ 'from' => null, 'note' => '台灣未正式營運', 'short' => '', 'url' => 'https://www.hidive.com/' ],
@@ -371,6 +373,38 @@ class Anime_Sync_Streaming_Registry {
     /** 取單一平台的定價；查無回 null 讓呼叫端自行決定顯示方式 */
     public static function pricing( string $key ): ?array {
         return self::PRICING[ $key ] ?? null;
+    }
+
+    /**
+     * 平台官方連結，有聯盟方案的通路自動包成推廣網址。
+     *
+     * 串流總覽、比較表、平台頁三處都要輸出「官方方案」連結，邏輯放這裡
+     * 共用一份——複製三份的話，將來多接一家聯盟就得記得三個地方都改。
+     *
+     * anime_sync_affiliate_url() 查不到對應通路時原樣回傳目的地網址，
+     * 因此沒有聯盟方案的平台（絕大多數）輸出的連結與改動前一字不差。
+     * 是否實際被包裝由「前後網址是否相同」判斷，不另外維護通路清單。
+     *
+     * sponsored 為 true 時呼叫端必須加上 rel="nofollow sponsored"，
+     * 這是 Google 連結垃圾政策的明文要求。
+     *
+     * @param string $key   平台 key。
+     * @param string $subid 追蹤標籤，對應聯盟後台的「追蹤標籤1」。
+     * @return array{url: string, sponsored: bool} 查無定價或無網址時 url 為空字串。
+     */
+    public static function pricing_link( string $key, string $subid = '' ): array {
+        $url = (string) ( self::PRICING[ $key ]['url'] ?? '' );
+
+        if ( $url === '' || ! function_exists( 'anime_sync_affiliate_url' ) ) {
+            return [ 'url' => $url, 'sponsored' => false ];
+        }
+
+        $wrapped = anime_sync_affiliate_url( $url, $subid );
+
+        return [
+            'url'       => $wrapped,
+            'sponsored' => ( $wrapped !== $url ),
+        ];
     }
 
     // =========================================================================
