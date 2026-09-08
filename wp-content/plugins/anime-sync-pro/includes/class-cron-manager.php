@@ -971,6 +971,25 @@ class Anime_Sync_Cron_Manager {
             $aired = $total;
         }
 
+        /*
+         * ★ 只增不減——這個守衛不能拿掉。
+         *
+         * fetch_bgm_episodes() 對 Bangumi 是用 limit=100 抓的，超過 100 集的
+         * 長壽番只會拿回前 100 集。2026-09-08 首次上線時漏了這道守衛，實際造成
+         * ONE PIECE 1177→100、吉伊卡哇 375→100、無尾熊繪日記 48→39 被改小。
+         *
+         * 截斷只會讓數字偏少、不會偏多，所以「算出來比現值小就整個不採用」
+         * 就足以擋掉；另外 Bangumi 的 airdate 偶爾比實際播出晚一天更新
+         * （女主角？聖女？那筆 11→10 就是），同一道守衛一併擋住。
+         *
+         * 備援的定位是「AniList 掛掉時別讓集數停住」，不是「校正既有數字」——
+         * 往下修的權力只屬於 AniList 本人。
+         */
+        $current = (int) get_post_meta( $post_id, 'anime_episodes_aired', true );
+        if ( $aired <= $current ) {
+            return null;
+        }
+
         return [
             'nextAiringEpisode' => [ 'episode' => $aired + 1 ],
         ];
