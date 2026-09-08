@@ -147,6 +147,7 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/bgm-bbcode.php';
  * 熔斷器狀態與 class-youranimes-fetcher.php 共用，因此兩者都要載入。
  * ============================================================ */
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-meta-guard.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-dub-platform-link.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
 
 /* ============================================================
@@ -1278,6 +1279,15 @@ add_action( 'plugins_loaded', function (): void {
 	// ------------------------------------------------------
 	if ( class_exists( 'Anime_Sync_Meta_Guard' ) ) {
 		Anime_Sync_Meta_Guard::init();
+	}
+
+	// ------------------------------------------------------
+	// 配音連結 → 串流平台自動連動（v1.9.5 新增）
+	// 公視+ 只上架台語版，永遠不會出現在 YourAnimes 的一般串流區塊，
+	// 只能靠人工填的配音連結補進 anime_tw_streaming。
+	// ------------------------------------------------------
+	if ( class_exists( 'Anime_Sync_Dub_Platform_Link' ) ) {
+		Anime_Sync_Dub_Platform_Link::init();
 	}
 
 	// ------------------------------------------------------
