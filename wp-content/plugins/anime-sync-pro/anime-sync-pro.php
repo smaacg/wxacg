@@ -146,6 +146,7 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/bgm-bbcode.php';
  * 用它把台灣官方譯名與 YourAnimes 連結一併帶進草稿。
  * 熔斷器狀態與 class-youranimes-fetcher.php 共用，因此兩者都要載入。
  * ============================================================ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-meta-guard.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
 
 /* ============================================================
@@ -1263,6 +1264,20 @@ add_action( 'plugins_loaded', function (): void {
 	// ------------------------------------------------------
 	if ( class_exists( 'Anime_Sync_Streaming_Routing' ) ) {
 		Anime_Sync_Streaming_Routing::init();
+	}
+
+	// ------------------------------------------------------
+	// 欄位寫入防護欄（v1.9.5 新增）
+	//
+	// 掛 update_post_metadata，擋下「邏輯上不可能」的變更（已播集數變小、
+	// 評分歸零、標題被清空）。2026-09-08 有過實際事故：Bangumi 備援因
+	// API limit=100 被截斷，把 ONE PIECE 已播 1177 集寫成 100 集，
+	// 資料庫照單全收。規則收在一處，任何呼叫端都繞不過。
+	//
+	// 前後台都要註冊：cron、匯入、後台編輯走的是同一條 meta 寫入路徑。
+	// ------------------------------------------------------
+	if ( class_exists( 'Anime_Sync_Meta_Guard' ) ) {
+		Anime_Sync_Meta_Guard::init();
 	}
 
 	// ------------------------------------------------------
