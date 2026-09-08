@@ -108,6 +108,17 @@ class Anime_Sync_Cron_Manager {
      * 反應時間從最慢 4 小時壓到最慢 15 分鐘。
      */
     const HOOK_URGENT_EPISODE_CHECK = 'anime_sync_urgent_episode_check';
+
+    /*
+     * AniList 熔斷器。
+     *
+     * 門檻與 TTL 沿用 class-youranimes-fetcher.php 既有那套的值，
+     * 兩邊行為一致，維護時不用記兩組數字。
+     */
+    const ANILIST_FAIL_COUNT_KEY   = 'anime_sync_anilist_fail_count';
+    const ANILIST_CIRCUIT_OPEN_KEY = 'anime_sync_anilist_circuit_open';
+    const ANILIST_FAIL_THRESHOLD   = 5;
+    const ANILIST_CIRCUIT_TTL      = HOUR_IN_SECONDS;
     const LOCK_TTL_URGENT_EPISODE   = 290;
     const URGENT_EPISODE_BATCH_SIZE = 10;
 
@@ -866,15 +877,145 @@ class Anime_Sync_Cron_Manager {
         }
     }
 
+    // =========================================================================
+    // AniList 熔斷器 ＋ Bangumi 備援
+    // =========================================================================
+
+    /**
+     * 熔斷是否開啟。
+     *
+     * 「怎麼知道 AniList 掛了」不需要另外做健康檢查——請求失敗本身就是訊號。
+     * 連續失敗達門檻就開啟熔斷，期間所有呼叫直接跳過 AniList 走備援；
+     * TTL 到期後 transient 自然消失，下一次請求就是半開重試，
+     * 成功即自動恢復，不需要人工介入。
+     *
+     * 做法與 class-youranimes-fetcher.php 既有的熔斷一致（transient 存狀態、
+     * 跨行程共用），不另外發明一套。
+     */
+    private function anilist_circuit_is_open(): bool {
+        return (bool) get_transient( self::ANILIST_CIRCUIT_OPEN_KEY );
+    }
+
+    private function anilist_record_failure(): void {
+        $n = (int) get_transient( self::ANILIST_FAIL_COUNT_KEY ) + 1;
+        set_transient( self::ANILIST_FAIL_COUNT_KEY, $n, self::ANILIST_CIRCUIT_TTL );
+
+        if ( $n >= self::ANILIST_FAIL_THRESHOLD && ! $this->anilist_circuit_is_open() ) {
+            set_transient( self::ANILIST_CIRCUIT_OPEN_KEY, 1, self::ANILIST_CIRCUIT_TTL );
+            $this->logger->log( 'warning', sprintf(
+                'AniList 連續失敗 %d 次，熔斷開啟 %d 分鐘，期間改用 Bangumi 備援',
+                $n,
+                (int) ( self::ANILIST_CIRCUIT_TTL / MINUTE_IN_SECONDS )
+            ) );
+        }
+    }
+
+    private function anilist_record_success(): void {
+        if ( $this->anilist_circuit_is_open() ) {
+            $this->logger->log( 'info', 'AniList 已恢復，熔斷關閉' );
+        }
+        delete_transient( self::ANILIST_FAIL_COUNT_KEY );
+        delete_transient( self::ANILIST_CIRCUIT_OPEN_KEY );
+    }
+
+    /**
+     * 用 Bangumi 的逐集 airdate 算出已播集數，合成成 AniList 的資料形狀。
+     *
+     * 刻意只放 nextAiringEpisode 一個鍵：下方所有欄位的寫入都有
+     * isset() / 現值為空 的守衛，缺席的鍵一律跳過，所以站上既有的
+     * 狀態、評分、MAL ID 都不會被這份精簡資料洗掉。
+     * 已播集數那段會算成 episode - 1，因此這裡回傳 $aired + 1。
+     *
+     * 回傳 null 代表備援也拿不到（沒有 Bangumi ID／抓取失敗／一集都還沒播），
+     * 呼叫端維持原本的失敗處理。
+     */
+    private function build_bgm_fallback_media( int $post_id ): ?array {
+
+        $bgm_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+        if ( $bgm_id <= 0 ) {
+            $bgm_id = (int) get_post_meta( $post_id, 'bangumi_id', true );
+        }
+        if ( $bgm_id <= 0 ) {
+            return null;
+        }
+
+        $eps = $this->api_handler->fetch_bgm_episodes( $bgm_id, false, $post_id );
+        if ( ! is_array( $eps ) || ! $eps ) {
+            return null;
+        }
+
+        $today = current_time( 'Y-m-d' );
+        $aired = 0;
+
+        foreach ( $eps as $ep ) {
+            // 只算正片；SP／特別篇不計入已播集數
+            if ( (int) ( $ep['type'] ?? 0 ) !== 0 ) {
+                continue;
+            }
+            $airdate = (string) ( $ep['airdate'] ?? '' );
+            if ( $airdate !== '' && $airdate <= $today ) {
+                $aired++;
+            }
+        }
+
+        if ( $aired <= 0 ) {
+            return null;
+        }
+
+        /*
+         * 已知總集數時不得超過：Bangumi 偶爾把 PV／預告混進正片列表，
+         * 那會讓已播集數大於總集數，前台的追番進度條會爆掉。
+         */
+        $total = (int) get_post_meta( $post_id, 'anime_episodes', true );
+        if ( $total > 0 && $aired > $total ) {
+            $aired = $total;
+        }
+
+        return [
+            'nextAiringEpisode' => [ 'episode' => $aired + 1 ],
+        ];
+    }
+
     private function sync_dynamic_for_post( int $post_id, int $anilist_id ): string {
 
-        $media = $this->fetch_anilist_dynamic( $anilist_id );
+        $media         = $this->fetch_anilist_dynamic( $anilist_id );
+        $from_fallback = false;
+
         if ( $media === null ) {
-            $this->logger->log( 'warning', '每日動態更新：AniList 查詢失敗', [
+
+            /*
+             * AniList 拿不到 → 退到 Bangumi 補「已播集數」。
+             *
+             * 2026-09 AniList 全站把 API 關掉（403「temporarily disabled due to
+             * severe stability issues」）好幾天，期間站上已播集數整個停住，
+             * 追番會員的新集數通知一則都沒發出去。這是站上唯一每週都會發生、
+             * 而且會員真的在等的訊號，不能綁死在單一上游。
+             *
+             * 為什麼是 Bangumi 而不是 MAL：MAL v2 沒有「已播到第幾集」的概念
+             * （只有 num_episodes 總集數與 status），Bangumi 的 /v0/episodes
+             * 有逐集 airdate。2026-09-08 拿 31 部現正播出作品實測，Bangumi 算出的
+             * 已播集數與 AniList 最後已知狀態 31/31 完全吻合。
+             *
+             * 只補集數，不補評分與人氣：兩邊的評分尺度與母體都不同
+             * （MAL mean 1–10 / AniList averageScore 0–100 / Bangumi 1–10），
+             * 換來源會讓同一部作品的分數在上游恢復前後來回跳，比暫時不更新更糟。
+             */
+            $media = $this->build_bgm_fallback_media( $post_id );
+
+            if ( $media === null ) {
+                $this->logger->log( 'warning', '每日動態更新：AniList 查詢失敗', [
+                    'post_id'    => $post_id,
+                    'anilist_id' => $anilist_id,
+                ] );
+                return 'failed';
+            }
+
+            $from_fallback = true;
+
+            $this->logger->log( 'info', '每日動態更新：AniList 不可用，改用 Bangumi 補已播集數', [
                 'post_id'    => $post_id,
                 'anilist_id' => $anilist_id,
             ] );
-            return 'failed';
         }
 
         $locked = get_post_meta( $post_id, 'anime_locked_fields', true );
@@ -1012,7 +1153,8 @@ class Anime_Sync_Cron_Manager {
                             'event_type'  => 'episode_aired',
                             'fingerprint' => (string) $aired,
                             'event_date'  => current_time( 'Y-m-d' ),
-                            'source'      => 'anilist_sync',
+                            // 實際來源要照實記，日後追查「這集是誰報的」才查得出來
+                            'source'      => $from_fallback ? 'bangumi_fallback' : 'anilist_sync',
                         ] );
 
                         /*
@@ -1335,13 +1477,32 @@ class Anime_Sync_Cron_Manager {
         }
         GQL;
 
+        /*
+         * 熔斷開啟時直接放棄，不發請求。
+         *
+         * 上游整個不可用時（AniList 2026-09 全站 403），逐筆空打的代價是：
+         * 每 2 秒敲一次一個明說「因嚴重穩定性問題暫停服務」的 API、
+         * log 被灌爆、而且有被對方封 IP 的風險。呼叫端收到 null 之後會自行
+         * 退到 Bangumi 備援，功能不會因為這個提前返回而中斷。
+         */
+        if ( $this->anilist_circuit_is_open() ) {
+            return null;
+        }
+
         $body = $this->anilist_request( $query, [ 'id' => $anilist_id ] );
         if ( $body === null ) {
+            $this->anilist_record_failure();
             return null;
         }
 
         $media = $body['data']['Media'] ?? null;
-        return is_array( $media ) ? $media : null;
+
+        if ( is_array( $media ) ) {
+            $this->anilist_record_success();
+            return $media;
+        }
+
+        return null;
     }
 
     // =========================================================================
