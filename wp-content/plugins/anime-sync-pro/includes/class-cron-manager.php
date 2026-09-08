@@ -1022,10 +1022,26 @@ class Anime_Sync_Cron_Manager {
             $media = $this->build_bgm_fallback_media( $post_id );
 
             if ( $media === null ) {
-                $this->logger->log( 'warning', '每日動態更新：AniList 查詢失敗', [
-                    'post_id'    => $post_id,
-                    'anilist_id' => $anilist_id,
-                ] );
+
+                /*
+                 * 分成兩種情況記錄，不要一律報 warning。
+                 *
+                 * 熔斷開啟期間，備援對「集數已經是最新」的作品一律回 null，
+                 * 那是正常的無事可做；若也記成「AniList 查詢失敗」，一輪就會
+                 * 刷十幾則看起來像錯誤的訊息，久了就沒人會認真看 log 了。
+                 */
+                if ( $this->anilist_circuit_is_open() ) {
+                    $this->logger->log( 'info', '每日動態更新：AniList 熔斷中，Bangumi 亦無新集數可補', [
+                        'post_id'    => $post_id,
+                        'anilist_id' => $anilist_id,
+                    ] );
+                } else {
+                    $this->logger->log( 'warning', '每日動態更新：AniList 查詢失敗', [
+                        'post_id'    => $post_id,
+                        'anilist_id' => $anilist_id,
+                    ] );
+                }
+
                 return 'failed';
             }
 
