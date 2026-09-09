@@ -119,6 +119,16 @@ class Anime_Sync_Cron_Manager {
     const ANILIST_CIRCUIT_OPEN_KEY = 'anime_sync_anilist_circuit_open';
     const ANILIST_FAIL_THRESHOLD   = 5;
     const ANILIST_CIRCUIT_TTL      = HOUR_IN_SECONDS;
+
+    /**
+     * 429 限流 log 的節流閘門。
+     *
+     * 限流是配額見底的訊號，不記下來就查不出「連續失敗 N 次」的原因。
+     * 但上游整個不可用時這條路徑每 2 秒就走一次，無條件寫入會把
+     * wp_anime_sync_logs 灌爆，所以同一個時間窗內只記一次。
+     */
+    const ANILIST_429_LOG_KEY = 'anime_sync_anilist_429_logged';
+    const ANILIST_429_LOG_TTL = 5 * MINUTE_IN_SECONDS;
     const LOCK_TTL_URGENT_EPISODE   = 290;
     const URGENT_EPISODE_BATCH_SIZE = 10;
 
@@ -2771,6 +2781,20 @@ class Anime_Sync_Cron_Manager {
 
         if ( $code === 429 ) {
             $wait = $this->rate_limiter->handle_rate_limit_error( $response, 'anilist' );
+
+            /*
+             * 這條路徑原本靜默返回，導致 2026-09-08「連續失敗 5 次、熔斷開啟」
+             * 查不出成因——log 裡完全沒有痕跡。節流閘門見 ANILIST_429_LOG_KEY。
+             */
+            if ( ! get_transient( self::ANILIST_429_LOG_KEY ) ) {
+                set_transient( self::ANILIST_429_LOG_KEY, 1, self::ANILIST_429_LOG_TTL );
+                $this->logger->log(
+                    'warning',
+                    sprintf( 'AniList 回應 429 限流，等待 %d 秒後放棄本次呼叫', $wait ),
+                    [ 'wait' => $wait ]
+                );
+            }
+
             sleep( $wait );
             return null;
         }
@@ -2782,9 +2806,20 @@ class Anime_Sync_Cron_Manager {
 
         $this->rate_limiter->check_remaining( $response, 'anilist' );
 
-        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        $raw_body = (string) wp_remote_retrieve_body( $response );
+
+        $body = json_decode( $raw_body, true );
 
         if ( ! is_array( $body ) ) {
+            /*
+             * HTTP 200 卻解析不出 JSON——上游回了 HTML 錯誤頁、空回應或
+             * 被中間層攔截。罕見，所以不節流；帶回應開頭供判斷是哪一種。
+             */
+            $this->logger->log(
+                'warning',
+                'AniList 回應 HTTP 200 但無法解析為 JSON：'
+                    . substr( trim( $raw_body ), 0, 200 )
+            );
             return null;
         }
 
