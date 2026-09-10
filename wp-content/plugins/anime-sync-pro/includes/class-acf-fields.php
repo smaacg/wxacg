@@ -1111,11 +1111,20 @@ class Anime_Sync_ACF_Fields {
     'label'         => '原作來源',
     'name'          => 'anime_source',
     'type'          => 'select',
-    'instructions'  => '由 AniList source 欄位自動填入。',
+    'instructions'  => '由 AniList 或 MAL 的 source 欄位自動填入。',
     'required'      => 0,
     'choices'       => [
         'ORIGINAL'           => '原創',
         'MANGA'              => '漫畫',
+        /*
+         * WEB_MANGA 不是 AniList 的值，是 MAL 才有的（實測 2024–2026 十二季
+         * 樣本中 196 筆，6.9%，是韓國 webtoon 與中國網漫改編的主要落點）。
+         *
+         * anime_sync_get_source_tax_map() 早就有對應的「網路漫畫改編 /
+         * web-manga」，只是 AniList 沒有這個值，那筆設定一直不可達。
+         * 這裡補上 choices，值才不會因為不在清單內而在編輯者存檔時被清空。
+         */
+        'WEB_MANGA'          => '網路漫畫',
         'LIGHT_NOVEL'        => '輕小說',
         'VISUAL_NOVEL'       => '視覺小說',
         'VIDEO_GAME'         => '電子遊戲',

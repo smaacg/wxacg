@@ -74,13 +74,52 @@ class Anime_Sync_Import_Manager {
 	// PUBLIC – 單筆匯入
 	// =========================================================================
 
+	/**
+	 * 以 MAL ID 匯入。
+	 *
+	 * AniList 停用期間的替代入口。除了「核心資料從哪裡來」之外，後面的流程
+	 * （鎖、去重、寫 meta、分類法、系列、排 enrich）與 AniList 匯入完全相同，
+	 * 因此不另寫一套，只是把來源切換的資訊透過 $args 傳進 import_single()。
+	 *
+	 * @param int      $mal_id     MyAnimeList 動畫 ID。
+	 * @param int|null $bangumi_id 已知的 Bangumi ID；null 時自動反查。
+	 * @param string   $source     來源標籤，寫進 _import_source。
+	 * @param array    $args       支援 force。
+	 * @return array 與 import_single() 相同的回傳結構。
+	 */
+	public function import_single_from_mal( int $mal_id, ?int $bangumi_id = null, string $source = 'mal', array $args = [] ): array {
+		if ( $mal_id <= 0 ) {
+			return [ 'success' => false, 'message' => '無效的 MAL ID' ];
+		}
+
+		$args['mal_id'] = $mal_id;
+
+		return $this->import_single( 0, $bangumi_id, $source, $args );
+	}
+
 	public function import_single( int $anilist_id, ?int $bangumi_id = null, string $source = 'manual', array $args = [] ): array {
 
+		/*
+		 * 來源切換。$args['mal_id'] 有值代表走 MAL 路徑（見 import_single_from_mal）。
+		 * 兩條路徑只差三件事：鎖的命名空間、去重用哪個 ID、核心資料跟誰要。
+		 * 其餘一律共用，避免兩份流程各自漂移。
+		 */
+		$mal_id   = (int) ( $args['mal_id'] ?? 0 );
+		$from_mal = $mal_id > 0;
+		$lock_id  = $from_mal ? $mal_id : $anilist_id;
+		$lock_kind = $from_mal ? 'mal' : 'al';
+
+		// 訊息與後備標題裡要標對來源，否則 MAL 匯入會顯示成「ID 0」
+		$id_label       = $from_mal ? "MAL {$mal_id}" : "ID {$anilist_id}";
+		$fallback_title = $from_mal ? "Anime MAL{$mal_id}" : "Anime {$anilist_id}";
+
 		$force      = ! empty( $args['force'] );
-		$lock_token = $this->acquire_import_lock( $anilist_id, $force );
+		$lock_token = $this->acquire_import_lock( $lock_id, $force, $lock_kind );
 
 		if ( $lock_token === '' ) {
-			$existing_id = $this->find_existing( $anilist_id );
+			$existing_id = $from_mal
+				? $this->find_existing_by_mal( $mal_id )
+				: $this->find_existing( $anilist_id );
 
 			if ( $existing_id > 0 ) {
 				$existing_bangumi_id = (int) get_post_meta( $existing_id, 'anime_bangumi_id', true );
@@ -94,7 +133,7 @@ class Anime_Sync_Import_Manager {
 					'skip_enrich'     => true,
 					'message'         => '此作品已有同步程序，已直接沿用既有草稿',
 					'post_id'         => $existing_id,
-					'title'           => get_the_title( $existing_id ) ?: "ID {$anilist_id}",
+					'title'           => get_the_title( $existing_id ) ?: $id_label,
 					'edit_url'        => get_edit_post_link( $existing_id, 'raw' ),
 					'bangumi_missing' => $existing_bangumi_id <= 0,
 					'needs_enrich'    => ! (bool) get_post_meta( $existing_id, '_enriched_at', true ),
@@ -109,7 +148,9 @@ class Anime_Sync_Import_Manager {
 		}
 
 		try {
-			$existing_id = $this->find_existing( $anilist_id );
+			$existing_id = $from_mal
+				? $this->find_existing_by_mal( $mal_id )
+				: $this->find_existing( $anilist_id );
 			$is_update   = (bool) $existing_id;
 
 			// ★ [1.5.0] 已存在文章直接跳過，防止誤觸重新匯入覆蓋資料。
@@ -136,7 +177,9 @@ class Anime_Sync_Import_Manager {
 				}
 			}
 
-			$anime_data = $this->api_handler->get_core_anime_data( $anilist_id, $existing_id, $bangumi_id );
+			$anime_data = $from_mal
+				? $this->api_handler->get_core_anime_data_from_mal( $mal_id, $existing_id, $bangumi_id )
+				: $this->api_handler->get_core_anime_data( $anilist_id, $existing_id, $bangumi_id );
 
 			if ( is_wp_error( $anime_data ) ) {
 				return [
@@ -145,16 +188,51 @@ class Anime_Sync_Import_Manager {
 				];
 			}
 
-			if ( empty( $anime_data['anilist_id'] ) ) {
+			/*
+			 * 識別子檢查看的是「這條路徑該有的那一個」。
+			 * MAL 路徑的 anilist_id 正常就是 0（見 get_core_anime_data_from_mal()
+			 * 對 hint 的說明），用舊的判斷會把每一筆都擋掉。
+			 */
+			if ( $from_mal ? empty( $anime_data['mal_id'] ) : empty( $anime_data['anilist_id'] ) ) {
 				return [
 					'success' => false,
-					'message' => '無效的 AniList 資料（缺少 anilist_id）',
+					'message' => $from_mal
+						? '無效的 MAL 資料（缺少 mal_id）'
+						: '無效的 AniList 資料（缺少 anilist_id）',
 				];
+			}
+
+			/*
+			 * 跨來源去重：AniList 路徑也要查一次 MAL ID。
+			 *
+			 * AniList 停用期間匯入的草稿沒有 anime_anilist_id，上面那次
+			 * find_existing() 查不到它們。等 AniList 恢復後同一部作品從
+			 * AniList 再匯入一次就會變成兩篇。這裡在拿到 mal_id 之後補查一次。
+			 */
+			if ( ! $from_mal && ! $existing_id && ! empty( $anime_data['mal_id'] ) ) {
+				$dup_id = $this->find_existing_by_mal( (int) $anime_data['mal_id'] );
+				if ( $dup_id > 0 ) {
+					$existing_id = $dup_id;
+					$is_update   = true;
+
+					if ( ! $force ) {
+						return [
+							'success'      => true,
+							'skipped'      => true,
+							'skip_enrich'  => true,
+							'message'      => '⚠️ 已有相同 MAL ID 的作品（可能由 MAL 匯入建立），跳過',
+							'post_id'      => $existing_id,
+							'title'        => get_the_title( $existing_id ),
+							'edit_url'     => get_edit_post_link( $existing_id, 'raw' ),
+							'needs_enrich' => false,
+						];
+					}
+				}
 			}
 
 			if ( $this->is_adult_content( $anime_data ) ) {
 				$blocked_title = $anime_data['anime_title_chinese']
-					?: ( $anime_data['anime_title_romaji'] ?? "ID {$anilist_id}" );
+					?: ( $anime_data['anime_title_romaji'] ?? $id_label );
 
 				if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
 					Anime_Sync_Error_Logger::log( 'info', '已略過成人作品匯入', [
@@ -168,7 +246,7 @@ class Anime_Sync_Import_Manager {
 					'skipped'        => true,
 					'skip_enrich'    => true,
 					'adult_filtered' => true,
-					'message'        => "🔞 已略過成人作品 – {$blocked_title} (ID {$anilist_id})",
+					'message'        => "🔞 已略過成人作品 – {$blocked_title} ({$id_label})",
 					'title'          => $blocked_title,
 					'needs_enrich'   => false,
 				];
@@ -244,11 +322,11 @@ class Anime_Sync_Import_Manager {
 					? $existing_post->post_title
 					: ( ! empty( $anime_data['anime_title_chinese'] )
 						? (string) $anime_data['anime_title_chinese']
-						: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" ) );
+						: ( $anime_data['anime_title_romaji'] ?? $fallback_title ) );
 			} else {
 				$post_title = ! empty( $anime_data['anime_title_chinese'] )
 					? (string) $anime_data['anime_title_chinese']
-					: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" );
+					: ( $anime_data['anime_title_romaji'] ?? $fallback_title );
 			}
 
 			$post_slug   = $this->generate_slug( $anime_data, $existing_id );
@@ -325,9 +403,9 @@ class Anime_Sync_Import_Manager {
 				wp_schedule_single_event( time() + $delay, 'anime_sync_enrich_post', [ $post_id ] );
 			}
 
-			$display_title   = $anime_data['anime_title_chinese'] ?: $anime_data['anime_title_romaji'] ?: "ID {$anilist_id}";
+			$display_title   = $anime_data['anime_title_chinese'] ?: $anime_data['anime_title_romaji'] ?: $id_label;
 			$action_label    = $is_update ? '已更新' : '已匯入';
-			$base_message    = "{$action_label} – {$display_title} (ID {$anilist_id})";
+			$base_message    = "{$action_label} – {$display_title} ({$id_label})";
 			$bangumi_missing = ! $has_bangumi;
 
 			if ( $bangumi_missing ) {
@@ -346,7 +424,7 @@ class Anime_Sync_Import_Manager {
 				'needs_enrich'    => true,
 			];
 		} finally {
-			$this->release_import_lock( $anilist_id, $lock_token );
+			$this->release_import_lock( $lock_id, $lock_token, $lock_kind );
 		}
 	}
 
@@ -699,15 +777,25 @@ class Anime_Sync_Import_Manager {
 	// =========================================================================
 
 	private function generate_slug( array $data, int $exclude_id = 0 ): string {
+		/*
+		 * 最後的保底 slug 要挑「這筆資料實際有的那個 ID」。
+		 * MAL 匯入的 anilist_id 是 0，寫死用它會讓每一部都退回 anime-0，
+		 * 後面的去重迴圈就只能靠 -1 -2 -3 累加，網址完全不可預期。
+		 * 實務上 romaji 幾乎一定有值，走不到這裡，但不該留一顆地雷。
+		 */
+		$fallback_id = ( (int) ( $data['anilist_id'] ?? 0 ) > 0 )
+			? 'anime-' . (int) $data['anilist_id']
+			: ( ( (int) ( $data['mal_id'] ?? 0 ) > 0 ) ? 'anime-mal-' . (int) $data['mal_id'] : '' );
+
 		$candidates = array_filter( [
 			$data['anime_title_romaji'] ?? '',
 			$data['anime_title_english'] ?? '',
-			'anime-' . ( $data['anilist_id'] ?? 0 ),
+			$fallback_id,
 		] );
 
 		$raw  = reset( $candidates );
-		$slug = sanitize_title( $raw );
-		if ( $slug === '' ) $slug = 'anime-' . ( $data['anilist_id'] ?? 0 );
+		$slug = sanitize_title( (string) $raw );
+		if ( $slug === '' ) $slug = $fallback_id !== '' ? $fallback_id : 'anime-' . uniqid();
 
 		$original = $slug;
 		$suffix   = 1;
@@ -806,6 +894,19 @@ class Anime_Sync_Import_Manager {
             continue; // 已有分數，新值是 0（尚未抓），跳過保留現值
         }
     }
+    /*
+     * ★ anilist_id 為 0 時完全不寫這個 meta。
+     *
+     * MAL 路徑的 anilist_id 正常就是 0（推導出來的 ID 未經驗證，只放在
+     * _asp_anilist_id_hint）。但「meta 存在且值為 0」與「meta 不存在」對
+     * 下游不是同一件事——class-upstream-diff-scan.php 的佇列 SQL 用
+     * `meta_value REGEXP '^[0-9]+$'` 篩選，字串 "0" 會通過，於是那篇作品
+     * 會被排進差異掃描並拿 id=0 去問 AniList。
+     * 不寫入就不會進佇列，語意也比較誠實：這部作品目前沒有 AniList ID。
+     */
+    if ( $key === 'anime_anilist_id' && (int) $value <= 0 ) {
+        continue;
+    }
     update_post_meta( $post_id, $key, $this->prepare_meta_value( $key, $value ) );
 }
 
@@ -831,6 +932,28 @@ class Anime_Sync_Import_Manager {
 			if ( $ya_val !== '' ) {
 				update_post_meta( $post_id, $ya_key, $ya_val );
 			}
+		}
+
+		/*
+		 * ★ AniList ID 的「待驗證推測值」。
+		 *
+		 * MAL 匯入時由離線對照表（anime-offline-database）反查而來，準確率
+		 * 99.51%——剩下的 0.49% 是 AniList 把分割放送／續季拆成多個條目、
+		 * MAL 用同一條目造成的一對多（實測葬送的芙莉蓮 2期/3期、夏日口袋
+		 * 三篇、JOJO 石之海第 2 部分）。
+		 *
+		 * 寫錯的後果不是少一個 ID，而是 AniList 恢復後每日同步會把「另一季」
+		 * 的狀態／集數／評分寫進這部作品，且沒有任何錯誤訊息。因此這裡只存
+		 * 推測值與待驗證旗標，正式的 anime_anilist_id 一律留空，等 AniList
+		 * 可用時以 Media(id:hint){ idMal } 反查驗證 idMal 是否等於本站的
+		 * anime_mal_id，確認後才寫入。
+		 *
+		 * 已經有正式 anilist_id 的作品不需要 hint（例如 force 重匯）。
+		 */
+		$hint = (int) ( $data['_asp_anilist_id_hint'] ?? 0 );
+		if ( $hint > 0 && (int) get_post_meta( $post_id, 'anime_anilist_id', true ) <= 0 ) {
+			update_post_meta( $post_id, '_asp_anilist_id_hint', $hint );
+			update_post_meta( $post_id, '_asp_needs_anilist_verify', 1 );
 		}
 
 		// ★★ [1.4.0] 累積型欄位保護
@@ -1167,7 +1290,27 @@ class Anime_Sync_Import_Manager {
 				$genre_name = trim( (string) $genre_name );
 				if ( $genre_name === '' ) continue;
 
-				$zh_name = $genre_map[ $genre_name ] ?? $genre_name;
+				/*
+				 * ★ 對照表沒有的一律略過，不用原文建詞。
+				 *
+				 * 原本是 `$zh_name = $genre_map[ $genre_name ] ?? $genre_name;`
+				 * ——對不上就拿英文原名去建詞彙。這是繁體站，前台會直接冒出
+				 * 「Gore」「Urban Fantasy」這種詞，而且分類頁一旦建立就會進
+				 * sitemap。
+				 *
+				 * 為什麼至今沒出事：AniList 的 genres 只有 19 種，剛好被
+				 * get_anilist_genre_map() 全部涵蓋，這條路徑從來沒被走到過
+				 * （實測站上 27 個 genre 詞彙沒有一個是英文）。但 MAL 的
+				 * genres 有 74 種，走 MAL 匯入就會踩中。
+				 *
+				 * 略過的語意與 anime_tags 那條路徑一致（resolve_tag_name()
+				 * 對不上就回空字串、直接跳過），兩邊行為因此統一。
+				 */
+				if ( ! isset( $genre_map[ $genre_name ] ) ) {
+					continue;
+				}
+
+				$zh_name = $genre_map[ $genre_name ];
 
 				$term = term_exists( $zh_name, 'genre' );
 				if ( ! $term ) {
@@ -1312,20 +1455,92 @@ class Anime_Sync_Import_Manager {
 			$studio_term_ids = [];
 			foreach ( $studio_names as $studio_name ) {
 				if ( $studio_name === '' ) continue;
-				$term = term_exists( $studio_name, 'anime_studio_tax' );
-				if ( ! $term ) {
-					$term = wp_insert_term( $studio_name, 'anime_studio_tax', [
-						'slug' => sanitize_title( $studio_name ),
-					] );
-				}
-				if ( ! is_wp_error( $term ) ) {
-					$studio_term_ids[] = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+				$tid = $this->find_or_create_studio_term( $studio_name );
+				if ( $tid > 0 ) {
+					$studio_term_ids[] = $tid;
 				}
 			}
 			if ( ! empty( $studio_term_ids ) ) {
 				wp_set_object_terms( $post_id, $studio_term_ids, 'anime_studio_tax', false );
 			}
 		}
+	}
+
+	/**
+	 * 取得（必要時建立）製作公司詞彙，比對時忽略大小寫與標點。
+	 *
+	 * ★ 為什麼不能直接 term_exists( $name )：
+	 *   不同上游對同一家公司的寫法不一致——MAL 給 J.C.Staff／Trigger／
+	 *   David Production，站上（AniList 來源）是 J.C.STAFF／TRIGGER／
+	 *   david production。實測 593 部重疊作品中有 128 部（22.7%）如此。
+	 *   term_exists() 的比對會讓它們各自建一個詞，同一家公司分裂成兩個
+	 *   封存頁、文章數也被拆開，而且沒有任何錯誤訊息。
+	 *
+	 * ★ 命中既有詞時沿用「站上原有的名稱」，不改寫成上游的寫法：
+	 *   站上的寫法是人工看過的結果，不該被上游的大小寫習慣覆蓋。
+	 *   這也讓這個修正對既有 AniList 匯入完全無副作用——同名時行為不變。
+	 *
+	 * 對照表以 static 快取在單次請求內，批次匯入幾百部只掃一次 terms。
+	 *
+	 * @param string $name 上游給的製作公司名稱。
+	 * @return int 詞彙 ID；失敗為 0。
+	 */
+	private function find_or_create_studio_term( string $name ): int {
+		static $normalized_index = null;
+
+		$name = trim( $name );
+		if ( $name === '' ) {
+			return 0;
+		}
+
+		$normalize = static function ( string $s ): string {
+			// 去掉所有非英數字元後轉小寫：J.C.STAFF / J.C.Staff → jcstaff
+			return strtolower( (string) preg_replace( '/[^\p{L}\p{N}]+/u', '', $s ) );
+		};
+
+		if ( $normalized_index === null ) {
+			$normalized_index = [];
+			$terms = get_terms( [
+				'taxonomy'   => 'anime_studio_tax',
+				'hide_empty' => false,
+				'fields'     => 'id=>name',
+			] );
+			if ( ! is_wp_error( $terms ) ) {
+				foreach ( $terms as $tid => $tname ) {
+					$key = $normalize( (string) $tname );
+					// 同一個正規化鍵已有詞就不覆蓋，維持既有詞優先
+					if ( $key !== '' && ! isset( $normalized_index[ $key ] ) ) {
+						$normalized_index[ $key ] = (int) $tid;
+					}
+				}
+			}
+		}
+
+		$key = $normalize( $name );
+
+		if ( $key !== '' && isset( $normalized_index[ $key ] ) ) {
+			return $normalized_index[ $key ];
+		}
+
+		$result = wp_insert_term( $name, 'anime_studio_tax', [ 'slug' => sanitize_title( $name ) ] );
+
+		if ( is_wp_error( $result ) ) {
+			if ( $result->get_error_code() === 'term_exists' ) {
+				$tid = (int) ( $result->get_error_data() ?: 0 );
+				if ( $tid > 0 && $key !== '' ) {
+					$normalized_index[ $key ] = $tid;
+				}
+				return $tid;
+			}
+			return 0;
+		}
+
+		$tid = (int) $result['term_id'];
+		if ( $key !== '' ) {
+			$normalized_index[ $key ] = $tid;
+		}
+
+		return $tid;
 	}
 
 	private function ensure_year_parent_term( int $year ): int {
@@ -1351,8 +1566,15 @@ class Anime_Sync_Import_Manager {
 		return (int) $result['term_id'];
 	}
 
+	/**
+	 * 類型對照表（→ genre 分類法）。
+	 *
+	 * 上半是 AniList 的 19 種類型，下半是 MAL 才有、且站上已經存在對應詞彙的。
+	 * 對不上的不建詞（見 save_taxonomies() 內的說明）。
+	 */
 	private function get_anilist_genre_map(): array {
 		return [
+			// ── AniList genres（19 種，完整涵蓋）──
 			'Action' => '動作', 'Adventure' => '冒險', 'Comedy' => '喜劇',
 			'Drama' => '劇情', 'Ecchi' => '輕色情', 'Fantasy' => '奇幻',
 			'Hentai' => '成人', 'Horror' => '恐怖', 'Mahou Shoujo' => '魔法少女',
@@ -1360,6 +1582,20 @@ class Anime_Sync_Import_Manager {
 			'Psychological' => '心理', 'Romance' => '戀愛', 'Sci-Fi' => '科幻',
 			'Slice of Life' => '日常', 'Sports' => '運動', 'Supernatural' => '超自然',
 			'Thriller' => '驚悚',
+
+			/*
+			 * ── MAL 才有的類型 ──
+			 * 只收「站上這個詞彙已經存在」的，因此不會生出沒有內容的封存頁。
+			 * 校園／懸疑／耽美／百合是 class-installer.php 的安裝種子詞，
+			 * 建站至今 0 篇——AniList 沒有對應的類型值，所以一直用不到。
+			 * 分流由 Anime_Sync_API_Handler::MAL_GENRE_ROUTE 決定。
+			 */
+			'School'        => '校園',
+			'Suspense'      => '懸疑',
+			'Boys Love'     => '耽美',
+			'Girls Love'    => '百合',
+			'Team Sports'   => '運動',
+			'Combat Sports' => '運動',
 		];
 	}
 
@@ -1488,19 +1724,75 @@ class Anime_Sync_Import_Manager {
 			'Josei' => '女性向', 'Mecha' => '機器人', 'Sci-Fi' => '科幻',
 			'Adventure' => '冒險', 'Mystery' => '推理', 'Thriller' => '驚悚',
 			'Drama' => '劇情', 'Family' => '家庭', 'Kids' => '兒童',
+
+			/*
+			 * ── MAL 的題材與客群標記（2026-09-10 新增）──
+			 *
+			 * MAL 把類型／題材／客群全部塞在同一個 genres 陣列裡，AniList 則是
+			 * genres 與 tags 兩個欄位。分流在 Anime_Sync_API_Handler 完成，
+			 * 這裡只負責譯名。
+			 *
+			 * 前三組是既有名稱的別名（MAL 用單數／不同寫法），沿用上面已有的譯名：
+			 */
+			'Super Power'      => '超能力',   // 上面是 Superpowers
+			'Vampire'          => '吸血鬼',   // 上面是 Vampires
+			'Idols (Female)'   => '偶像',     // 上面是 Idol
+			'Idols (Male)'     => '偶像',
+
+			/*
+			 * 以下是 MAL 獨有、站上尚無對應的題材。涵蓋率：加上這些之後
+			 * MAL genres 的整體覆蓋由 82.8% 提升到 99.9%（實測 1,912 部樣本）。
+			 * 未列出的（目前只有 Award Winning）刻意丟棄——那是「得過獎」
+			 * 不是題材，當標籤沒有瀏覽價值。
+			 */
+			'Anthropomorphic'  => '擬人化',
+			'Adult Cast'       => '成人主角',
+			'Parody'           => '惡搞',
+			'Urban Fantasy'    => '都市奇幻',
+			'Gag Humor'        => '搞笑',
+			'Workplace'        => '職場',
+			'Gourmet'          => '美食',
+			'Video Game'       => '電玩',
+			'Educational'      => '教育',
+			'Avant Garde'      => '前衛',
+			'Strategy Game'    => '策略遊戲',
+			'Pets'             => '寵物',
+			'Racing'           => '賽車',
+			'Iyashikei'        => '治癒系',
+			'CGDCT'            => '萌系日常',
+			'Organized Crime'  => '黑道',
+			'Villainess'       => '惡役千金',
+			'Performing Arts'  => '表演藝術',
+			'Love Polygon'     => '多角戀',
+			'Childcare'        => '育兒',
+			'Crossdressing'    => '扮裝',
+			'Otaku Culture'    => '御宅文化',
+			'Medical'          => '醫療',
+			'High Stakes Game' => '死亡遊戲',
+			'Love Status Quo'  => '戀愛日常',
+			'Showbiz'          => '演藝圈',
+			'Delinquents'      => '不良少年',
+			'Visual Arts'      => '視覺藝術',
+			'Reverse Harem'    => '逆後宮',
 		];
 	}
 
-	private function get_import_lock_key( int $anilist_id ): string {
-		return 'anime_sync_import_lock_' . $anilist_id;
+	/**
+	 * 匯入鎖的鍵。
+	 *
+	 * $kind 用來把 AniList 與 MAL 兩種 ID 分開命名空間——兩邊的 ID 是各自
+	 * 獨立的號碼，不隔開的話 AniList #21 與 MAL #21 會互相擋。
+	 */
+	private function get_import_lock_key( int $id, string $kind = 'al' ): string {
+		return 'anime_sync_import_lock_' . ( $kind === 'mal' ? 'mal_' : '' ) . $id;
 	}
 
-	private function acquire_import_lock( int $anilist_id, bool $force = false ): string {
+	private function acquire_import_lock( int $anilist_id, bool $force = false, string $kind = 'al' ): string {
 		if ( $anilist_id <= 0 ) {
 			return '';
 		}
 
-		$key      = $this->get_import_lock_key( $anilist_id );
+		$key      = $this->get_import_lock_key( $anilist_id, $kind );
 		$existing = get_transient( $key );
 
 		if ( is_array( $existing ) && ! empty( $existing['token'] ) ) {
@@ -1524,12 +1816,12 @@ class Anime_Sync_Import_Manager {
 		return '';
 	}
 
-	private function release_import_lock( int $anilist_id, string $token ): void {
+	private function release_import_lock( int $anilist_id, string $token, string $kind = 'al' ): void {
 		if ( $anilist_id <= 0 || $token === '' ) {
 			return;
 		}
 
-		$key    = $this->get_import_lock_key( $anilist_id );
+		$key    = $this->get_import_lock_key( $anilist_id, $kind );
 		$stored = get_transient( $key );
 		if ( is_array( $stored ) && ( $stored['token'] ?? '' ) === $token ) {
 			delete_transient( $key );
@@ -1563,6 +1855,41 @@ class Anime_Sync_Import_Manager {
 				'post_ids'   => array_map( 'intval', $query->posts ),
 			] );
 		}
+
+		return ! empty( $query->posts ) ? (int) $query->posts[0] : 0;
+	}
+
+	/**
+	 * 用 MAL ID 查站上是否已有這部作品。
+	 *
+	 * ★ 為什麼需要：AniList 停用期間由 MAL 匯入的草稿，anime_anilist_id 是空的
+	 *   （見 get_core_anime_data_from_mal() 對 hint 的說明），find_existing()
+	 *   查不到它們。少了這一層，同一部作品之後從 AniList 再匯入一次會變成
+	 *   兩篇文章，而且兩篇都有內容、很難事後發現。
+	 *
+	 * @param int $mal_id MyAnimeList 動畫 ID。
+	 * @return int 文章 ID；沒有為 0。
+	 */
+	private function find_existing_by_mal( int $mal_id ): int {
+		if ( $mal_id <= 0 ) return 0;
+
+		$query = new WP_Query( [
+			'post_type'      => 'anime',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'orderby'        => 'ID',
+			'order'          => 'ASC',
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => [
+				[
+					'key'     => 'anime_mal_id',
+					'value'   => $mal_id,
+					'compare' => '=',
+					'type'    => 'NUMERIC',
+				],
+			],
+		] );
 
 		return ! empty( $query->posts ) ? (int) $query->posts[0] : 0;
 	}
