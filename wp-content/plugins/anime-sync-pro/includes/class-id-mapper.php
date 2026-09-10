@@ -45,6 +45,27 @@ class Anime_Sync_ID_Mapper {
     const META_FILE        = 'anime_map_meta.json';
     const AL_INDEX_FILE    = 'al_index.json';
 
+    /*
+     * MAL ID → AniList ID 反查索引。
+     *
+     * ★ 為什麼需要：AniList 停用期間改由 MAL 匯入，但站上幾乎所有持續同步
+     *   都以 anime_anilist_id 為鍵（每日動態更新、緊急集數檢查、差異掃描、
+     *   匯入去重）。沒有它，MAL 匯入的作品會變成「沒有任何 cron 會再碰」的
+     *   死記錄，AniList 恢復後也不會自動接手。
+     *
+     * ★ 為什麼不必多打一次 API：下方 download_and_cache_map() 的迴圈本來就
+     *   在建 $al_to_mal（用來把 AniList 串到 Bangumi），同一份資料反過來存
+     *   一份即可，零額外請求。
+     *
+     * ★ 命中率（2026-09-10 實測 anime-offline-database，lastUpdate 2026-07-04）：
+     *     全部 41,537 筆條目中，同時有 AniList 與 MAL 網址的 18,858 筆（45.4%）
+     *     對 MAL 2024–2026 十二季樣本：排除 music/pv/cm 後 73.5%
+     *     對 2026 秋番：80.7%（83 部中 16 部查不到）
+     *   查不到多半是最近才建的冷門條目——該資料庫本身有數週延遲。
+     *   因此呼叫端必須容許查不到（見 Anime_Sync_Import_Manager 的待補標記）。
+     */
+    const MAL_AL_INDEX_FILE = 'mal_al_index.json';
+
     // ✅ ACB：更新為 GitHub Releases 路徑
     const MAP_SOURCE_URL   = 'https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json';
 
@@ -72,6 +93,7 @@ class Anime_Sync_ID_Mapper {
     private ?array  $anime_map           = null;
     private ?array  $mal_index           = null;
     private ?array  $al_index            = null;
+    private ?array  $mal_al_index        = null;
     private ?array  $name_cache          = null;
     private ?array  $bgm_ext_mal_index   = null;
     private ?array  $bgm_ext_name_index  = null;
@@ -267,6 +289,26 @@ class Anime_Sync_ID_Mapper {
         return $this->name_cache[ $bgm_id ] ?? '';
     }
 
+    /**
+     * 用 MAL ID 反查 AniList ID。純本地查表，不打任何 API。
+     *
+     * 查不到回 0——呼叫端必須把 0 當成正常結果處理（該資料庫有數週延遲，
+     * 剛建條目的新番查不到是常態，實測 2026 秋番約兩成）。
+     * 不要用標題模糊比對補：配錯 ID 造成的後續污染遠大於留空。
+     *
+     * @param int $mal_id MyAnimeList 動畫 ID。
+     * @return int AniList ID；查不到為 0。
+     */
+    public function get_anilist_id_by_mal( int $mal_id ): int {
+        if ( $mal_id <= 0 ) {
+            return 0;
+        }
+
+        $this->load_mal_al_index();
+
+        return (int) ( $this->mal_al_index[ $mal_id ] ?? 0 );
+    }
+
     public function get_last_error(): ?string {
         return $this->last_error;
     }
@@ -284,6 +326,7 @@ class Anime_Sync_ID_Mapper {
                 'entry_count'      => 0,
                 'mal_count'        => 0,
                 'al_count'         => 0,
+                'mal_al_count'     => 0,
                 'ext_total'        => 0,
                 'ext_mal_count'    => 0,
                 'ext_anidb_count'  => 0,
@@ -305,6 +348,7 @@ class Anime_Sync_ID_Mapper {
             'entry_count'      => $meta['entry_count']         ?? 0,
             'mal_count'        => $meta['mal_count']           ?? 0,
             'al_count'         => $meta['al_count']            ?? 0,
+            'mal_al_count'     => $meta['mal_al_count']        ?? 0,
             'ext_total'        => $ext_meta['total']           ?? 0,
             'ext_mal_count'    => $ext_meta['mal_count']       ?? 0,
             'ext_anidb_count'  => $ext_meta['anidb_count']     ?? 0,
@@ -381,6 +425,8 @@ class Anime_Sync_ID_Mapper {
         $name_cache = [];
         // AniList → MAL。本來源沒有 Bangumi，靠這個中繼才串得到（見下方說明）
         $al_to_mal  = [];
+        // MAL → AniList。反向，供 MAL 匯入回填 anilist_id（見 MAL_AL_INDEX_FILE 註解）
+        $mal_to_al  = [];
 
         foreach ( $data['data'] as $entry ) {
             $sources = $entry['sources'] ?? [];
@@ -419,6 +465,7 @@ class Anime_Sync_ID_Mapper {
              */
             if ( $al_id && $mal_id ) {
                 $al_to_mal[ $al_id ] = $mal_id;
+                $mal_to_al[ $mal_id ] = $al_id;
             }
 
             if ( $bgm_id ) {
@@ -448,9 +495,17 @@ class Anime_Sync_ID_Mapper {
         $this->write_json( self::AL_INDEX_FILE,   $al_index );
         $this->write_json( self::NAME_CACHE_FILE, $name_cache );
 
-        $this->al_index   = $al_index;
-        $this->mal_index  = $mal_index;
-        $this->name_cache = $name_cache;
+        /*
+         * MAL → AniList 只需要在這裡寫一次：它完全來自第一段來源
+         * （anime-offline-database 的 sources），與第二段的 BangumiExtLinker
+         * 無關，不像 al_index／mal_index 要等第二段串接完才是最終內容。
+         */
+        $this->write_json( self::MAL_AL_INDEX_FILE, $mal_to_al );
+
+        $this->al_index    = $al_index;
+        $this->mal_index   = $mal_index;
+        $this->name_cache  = $name_cache;
+        $this->mal_al_index = $mal_to_al;
 
         // ── 第二段：BangumiExtLinker ──────────────────────────────────────────
         $ext_response = wp_remote_get( self::BGM_EXT_SOURCE_URL, [
@@ -468,6 +523,7 @@ class Anime_Sync_ID_Mapper {
                 'entry_count'  => 0,
                 'mal_count'    => 0,
                 'al_count'     => count( $al_index ),
+                'mal_al_count' => count( $mal_to_al ),
                 'generated_at' => gmdate( 'Y-m-d H:i:s' ),
             ] );
             return true;
@@ -482,6 +538,7 @@ class Anime_Sync_ID_Mapper {
                 'entry_count'  => 0,
                 'mal_count'    => 0,
                 'al_count'     => count( $al_index ),
+                'mal_al_count' => count( $mal_to_al ),
                 'generated_at' => gmdate( 'Y-m-d H:i:s' ),
             ] );
             return true;
@@ -629,6 +686,7 @@ class Anime_Sync_ID_Mapper {
             'entry_count'  => count( $bgm_ext_mal_index ),
             'mal_count'    => count( $bgm_ext_mal_index ),
             'al_count'     => count( $al_index ),
+            'mal_al_count' => count( $mal_to_al ),
             'generated_at' => gmdate( 'Y-m-d H:i:s' ),
         ] );
 
@@ -648,6 +706,7 @@ class Anime_Sync_ID_Mapper {
 
         $this->mal_index           = null;
         $this->al_index            = null;
+        $this->mal_al_index        = null;
         $this->name_cache          = null;
         $this->bgm_ext_mal_index   = null;
         $this->bgm_ext_name_index  = null;
@@ -655,6 +714,7 @@ class Anime_Sync_ID_Mapper {
 
         $this->load_mal_index();
         $this->load_al_index();
+        $this->load_mal_al_index();
         $this->load_name_cache();
         $this->load_bgm_ext_mal_index();
         $this->load_bgm_ext_name_index();
@@ -1339,6 +1399,11 @@ class Anime_Sync_ID_Mapper {
     private function load_al_index(): void {
         if ( $this->al_index === null )
             $this->al_index = $this->load_json_file( $this->get_file_path( self::AL_INDEX_FILE ) ) ?? [];
+    }
+
+    private function load_mal_al_index(): void {
+        if ( $this->mal_al_index === null )
+            $this->mal_al_index = $this->load_json_file( $this->get_file_path( self::MAL_AL_INDEX_FILE ) ) ?? [];
     }
 
     private function load_name_cache(): void {
