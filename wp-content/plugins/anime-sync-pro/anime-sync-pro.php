@@ -226,6 +226,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		ANIME_SYNC_PRO_DIR . 'includes/class-upcoming-drift-check.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-new-release-scan.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-upcoming-bgm-scan.php',
+		ANIME_SYNC_PRO_DIR . 'includes/class-mal-upcoming-scan.php',
 	];
 	foreach ( $anime_sync_cli_files as $anime_sync_cli_file ) {
 		if ( file_exists( $anime_sync_cli_file ) ) {
@@ -1086,6 +1087,10 @@ register_activation_hook( __FILE__, function (): void {
 		Anime_Sync_Upcoming_BGM_Scan::schedule();
 	}
 
+	if ( class_exists( 'Anime_Sync_MAL_Upcoming_Scan' ) ) {
+		Anime_Sync_MAL_Upcoming_Scan::schedule();
+	}
+
 	if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
 		Anime_Sync_Upstream_Diff_Scan::schedule();
 	}
@@ -1116,6 +1121,10 @@ register_deactivation_hook( __FILE__, function (): void {
 
 	if ( class_exists( 'Anime_Sync_Upcoming_BGM_Scan' ) ) {
 		Anime_Sync_Upcoming_BGM_Scan::unschedule();
+	}
+
+	if ( class_exists( 'Anime_Sync_MAL_Upcoming_Scan' ) ) {
+		Anime_Sync_MAL_Upcoming_Scan::unschedule();
 	}
 
 	if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
@@ -1397,6 +1406,24 @@ add_action( 'plugins_loaded', function (): void {
 		// AniList 新登錄作品掃描（每日；匯入成草稿等人工複核）
 		if ( $import_manager && class_exists( 'Anime_Sync_New_Release_Scan' ) ) {
 			new Anime_Sync_New_Release_Scan( $import_manager );
+		}
+
+		/*
+		 * MAL 動畫化決定掃描（每日；匯入成草稿等人工複核）
+		 *
+		 * 與上面那支 AniList 版並存、互不干擾：兩者的偵測機制不同
+		 * （AniList 用 media id 水位線，MAL 只能比對 upcoming 清單），
+		 * 而重複建立由 Anime_Sync_Import_Manager 的跨來源去重擋掉。
+		 * AniList 停用期間由這支頂著，恢復後兩支各自照跑。
+		 */
+		if ( $import_manager && class_exists( 'Anime_Sync_MAL_Upcoming_Scan' ) ) {
+			new Anime_Sync_MAL_Upcoming_Scan( $import_manager );
+
+			/*
+			 * 補一次排程註冊，理由同下方 Upstream_Diff_Scan：
+			 * 啟用 hook 只有「後台停用再啟用外掛」才會觸發，git push 部署碰不到。
+			 */
+			Anime_Sync_MAL_Upcoming_Scan::schedule();
 		}
 
 		// 未播出作品的 Bangumi 班底輪掃（每小時一批，約一天輪完一圈）
