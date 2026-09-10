@@ -223,25 +223,38 @@ while ( have_posts() ) :
      * 前 6 位的話，兩個別部作品的客串會擋在主角前面。
      *
      * 用分桶而非 usort:分桶保證同一組內維持原順序，不依賴 PHP 版本的
-     * 排序穩定性。動畫模板也是同樣做法（只是沒有把客串特別往後放）。
+     * 排序穩定性。動畫模板（single-anime.php）現在採用同一套分類。
+     *
+     * role_name 的寫法並不統一——實測站上 48,550 筆角色條目共出現 22 種值，
+     * 除了主角／配角／客串，還有簡體「闲角」、英文 MAIN／SUPPORTING，
+     * 以及「主要角色」「客串角色」這類同義異寫，一併歸入下列四類。
      */
     $cast_buckets = [ 0 => [], 1 => [], 2 => [], 3 => [] ];
+
+    // 背景角色明確列舉：不能用「其餘一律殿後」，站上有 220 筆「常駐角色」
+    // 那是經常出現的配角而非背景，掃到最後會排錯。
+    $cast_background_roles = [
+        '闲角', '閒角', '閑角', '常客（閒角）', '路人甲（閑角）',
+        '路人', '路人配角', '龍套', '旁白', '旁-白',
+        'BACKGROUND', '声库', '聲庫',
+    ];
 
     foreach ( $cast_list as $cast_item ) {
         if ( ! is_array( $cast_item ) || trim( (string) ( $cast_item['name'] ?? '' ) ) === '' ) {
             continue;
         }
 
-        $role = trim( (string) ( $cast_item['role'] ?? '' ) );
+        $role  = trim( (string) ( $cast_item['role'] ?? '' ) );
+        $upper = strtoupper( $role );
 
-        if ( $role === '主角' || strtoupper( $role ) === 'MAIN' ) {
+        if ( $role === '主角' || $role === '主要角色' || $upper === 'MAIN' ) {
             $bucket = 0;
-        } elseif ( $role === '客串' ) {
+        } elseif ( $role === '客串' || $role === '客串角色' ) {
             $bucket = 2;   // 別部作品來的聯動角色，排在正規配角之後
-        } elseif ( $role === '闲角' || $role === '閒角' ) {
+        } elseif ( in_array( $role, $cast_background_roles, true ) ) {
             $bucket = 3;   // 背景角色集合，最後
         } else {
-            $bucket = 1;   // 配角／SUPPORTING／未標示
+            $bucket = 1;   // 配角／SUPPORTING／常駐角色／未標示
         }
 
         $cast_buckets[ $bucket ][] = $cast_item;
@@ -1474,6 +1487,11 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                 $char_name   = trim( (string) ( $cast_item['name']   ?? '' ) );
                                 $char_native = trim( (string) ( $cast_item['native'] ?? '' ) );
                                 $char_image  = trim( (string) ( $cast_item['image']  ?? '' ) );
+                                $char_role   = trim( (string) ( $cast_item['role']   ?? '' ) );
+
+                                // 只標客串：主角靠排序已在最前，配角是多數不必標，
+                                // 唯有客串是別部作品來的角色，需要一句說明。
+                                $char_is_guest = ( $char_role === '客串' || $char_role === '客串角色' );
 
                                 if ( $char_name === '' ) continue;
 
@@ -1527,6 +1545,10 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                                                 <?php echo esc_html( $char_name ); ?>
                                             <?php endif; ?>
                                         </span>
+
+                                        <?php if ( $char_is_guest ) : ?>
+                                            <span class="asd-cast-role asd-cast-role--guest">客串</span>
+                                        <?php endif; ?>
 
                                         <?php if ( $char_native && $char_native !== $char_name ) : ?>
                                             <span class="asd-cast-char-native" lang="ja"><?php echo esc_html( $char_native ); ?></span>

@@ -2628,50 +2628,74 @@ while ( have_posts() ) :
 	}
 
 	/* =========================================================
-	 * CAST 排序：主角優先
+	 * CAST 排序：主角 → 配角 → 客串 → 背景
+	 *
+	 * ★ 為什麼要正規化再排序
+	 *   Bangumi 的 role_name 寫法並不統一，實測站上 48,550 筆角色
+	 *   條目共出現 22 種值：除了「主角／配角／客串」，還有簡體的
+	 *   「闲角」（2,655 筆）、英文 MAIN／SUPPORTING、以及「主要角色」
+	 *   「客串角色」這類同義異寫。原本只比對「主角」與 MAIN，
+	 *   其餘全部混在一起照上游順序排。
+	 *
+	 * ★ 客串為什麼要單獨拉出來
+	 *   上游常把客串角色放在最前面——例如《男子高校生的日常》的
+	 *   第一位是《魔法少女小圓》客串的鹿目圓。照原順序顯示，訪客
+	 *   第一眼看到的會是不屬於本作的角色。
+	 *
+	 *   這裡只在顯示層處理，不改寫 anime_cast_json，因此不會被
+	 *   Bangumi 重新同步覆蓋，簡體「闲角」也不必動到資料本身。
 	 * ======================================================= */
+
+	$cast_role_rank = static function ( string $role ): int {
+		$role  = trim( $role );
+		$upper = strtoupper( $role );
+
+		if (
+			$role === '主角'
+			|| $role === '主要角色'
+			|| $upper === 'MAIN'
+		) {
+			return 0;
+		}
+
+		if (
+			$role === '配角'
+			|| $upper === 'SUPPORTING'
+		) {
+			return 1;
+		}
+
+		if (
+			$role === '客串'
+			|| $role === '客串角色'
+		) {
+			return 2;
+		}
+
+		/*
+		 * 背景角色明確列舉，不用「其餘一律殿後」。
+		 *
+		 * 站上有 220 筆「常駐角色」——那是經常出現的配角而非背景，
+		 * 用預設值把它掃到最後會排錯。同理，role 為空或出現未知寫法時
+		 * 也視為配角，寧可排在中間也不要讓有效角色沉底。
+		 */
+		$background = [
+			'闲角', '閒角', '閑角', '常客（閒角）', '路人甲（閑角）',
+			'路人', '路人配角', '龍套', '旁白', '旁-白',
+			'BACKGROUND', '声库', '聲庫',
+		];
+
+		if ( in_array( $role, $background, true ) || $upper === 'BACKGROUND' ) {
+			return 3;
+		}
+
+		// 空值或未知寫法：當作配角
+		return 1;
+	};
 
 	$cast_to_display = [];
 	$cast_seen       = [];
-
-	foreach ( $cast_list as $cast_item ) {
-		if ( ! is_array( $cast_item ) ) {
-			continue;
-		}
-
-		$cast_name = trim(
-			(string) (
-				$cast_item['name']
-					?? ''
-			)
-		);
-
-		$cast_role = trim(
-			(string) (
-				$cast_item['role']
-					?? ''
-			)
-		);
-
-		$cast_key = md5(
-			wp_json_encode( $cast_item )
-		);
-
-		if (
-			$cast_name === ''
-			|| isset( $cast_seen[ $cast_key ] )
-		) {
-			continue;
-		}
-
-		if (
-			$cast_role === '主角'
-			|| strtoupper( $cast_role ) === 'MAIN'
-		) {
-			$cast_to_display[]       = $cast_item;
-			$cast_seen[ $cast_key ] = true;
-		}
-	}
+	$cast_buckets    = [ [], [], [], [] ];
 
 	foreach ( $cast_list as $cast_item ) {
 		if ( ! is_array( $cast_item ) ) {
@@ -2696,9 +2720,20 @@ while ( have_posts() ) :
 			continue;
 		}
 
-		$cast_to_display[]       = $cast_item;
 		$cast_seen[ $cast_key ] = true;
+
+		$cast_buckets[
+			$cast_role_rank(
+				(string) (
+					$cast_item['role']
+						?? ''
+				)
+			)
+		][] = $cast_item;
 	}
+
+	// 同一類之內維持上游原本的順序
+	$cast_to_display = array_merge( ...$cast_buckets );
 
 	/* =========================================================
 	 * JSON-LD Schema
@@ -5979,6 +6014,25 @@ while ( have_posts() ) :
 										continue;
 									}
 
+									/*
+									 * 客串角色加標示。
+									 *
+									 * 只標客串：主角靠排序已在最前，配角佔全站近七成、
+									 * 逐一標示只會變成視覺雜訊；唯有客串是「不屬於本作
+									 * 卻出現在列表裡」，需要一句說明。
+									 */
+									$character_role = trim(
+										(string) (
+											$cast_item['role']
+												?? ''
+										)
+									);
+
+									$character_is_guest = (
+										$character_role === '客串'
+										|| $character_role === '客串角色'
+									);
+
 									$voice_actors = (
 										! empty( $cast_item['voice_actors'] )
 										&& is_array( $cast_item['voice_actors'] )
@@ -6104,6 +6158,10 @@ while ( have_posts() ) :
 													<?php echo esc_html( $character_name ); ?>
 												<?php endif; ?>
 											</span>
+
+											<?php if ( $character_is_guest ) : ?>
+												<span class="asd-cast-role asd-cast-role--guest">客串</span>
+											<?php endif; ?>
 
 											<?php if (
 												$character_native

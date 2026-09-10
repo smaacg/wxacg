@@ -5614,3 +5614,20 @@ body.asd-amodal-open {
 		animation: none;
 	}
 }
+
+/* 角色身分標示：目前只用於客串
+   上游 role_name 寫法不統一，正規化與排序在 single-anime.php 處理，
+   這裡只負責樣式。刻意做得低調——它是補充說明，不該搶走角色名的焦點。 */
+.asd-cast-role {
+  border: 1px solid var(--asd-border);
+  border-radius: var(--asd-radius-pill);
+  color: var(--asd-text-faint);
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-left: 4px;
+  padding: 0 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
