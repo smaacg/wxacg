@@ -96,6 +96,10 @@ class Anime_Sync_Admin {
         // ★ [1.9.0] 新增：重新同步 AniList 圖片
         add_action( 'wp_ajax_anime_resync_anilist_images',   [ $this, 'handle_ajax_resync_anilist_images' ] );
 
+        // ★ MAL 匯入（AniList 停用期間的替代路徑）
+        add_action( 'wp_ajax_anime_sync_mal_import_single',  [ $this, 'handle_ajax_mal_import_single' ] );
+        add_action( 'wp_ajax_anime_sync_mal_query_season',   [ $this, 'handle_ajax_mal_query_season'  ] );
+
         // Meta box
                 // ★ 已移除「一鍵轉繁體」按鈕（保留方法備用，僅停用 meta box 註冊）
         add_action( 'wp_ajax_anime_sync_convert_post', [ $this, 'ajax_convert_post_to_tw'   ] );
@@ -559,6 +563,176 @@ class Anime_Sync_Admin {
         }
 
         wp_send_json_success( $result );
+    }
+
+    // =========================================================================
+    // AJAX: MAL 單筆匯入
+    //
+    // AniList 停用期間的替代路徑。與 handle_ajax_import_single() 平行，
+    // 刻意不共用——兩者的 ID 空間不同，混在同一個端點只會讓呼叫端必須
+    // 多傳一個「這是哪種 ID」的參數，反而容易傳錯。
+    // =========================================================================
+
+    public function handle_ajax_mal_import_single(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
+        if ( ! $this->require_import_manager() ) return;
+
+        if ( ! defined( 'MAL_CLIENT_ID' ) || MAL_CLIENT_ID === '' ) {
+            wp_send_json_error( [ 'message' => 'wp-config.php 未設定 MAL_CLIENT_ID，無法使用 MAL 匯入。' ] );
+        }
+
+        @set_time_limit( 180 );
+
+        $mal_id = isset( $_POST['mal_id'] ) ? intval( $_POST['mal_id'] ) : 0;
+        $force  = ! empty( $_POST['force'] );
+
+        if ( $mal_id <= 0 ) wp_send_json_error( [ 'message' => '無效的 MAL ID' ] );
+
+        $result = $this->import_manager->import_single_from_mal( $mal_id, null, 'mal', [ 'force' => $force ] );
+
+        if ( empty( $result['success'] ) ) {
+            wp_send_json_error( [ 'message' => $result['message'] ?? '匯入失敗' ] );
+        }
+
+        /*
+         * 匯入完立刻補抓第二段（Bangumi 的 staff / cast / 集數、主題曲、維基）。
+         * 與 import_and_enrich() 對 AniList 的處理一致——手動匯入時使用者就
+         * 站在畫面前等，資料一次到位比較合理；季度/批次那條路徑則維持排程。
+         */
+        $post_id = (int) ( $result['post_id'] ?? 0 );
+        if ( $post_id > 0 && empty( $result['skip_enrich'] ) && class_exists( 'Anime_Sync_API_Handler' ) ) {
+            delete_post_meta( $post_id, '_enriched_at' );
+            $api    = new Anime_Sync_API_Handler();
+            $enrich = $api->enrich_anime_data( $post_id );
+            if ( ! is_wp_error( $enrich ) ) {
+                $result['enriched'] = array_keys( $enrich );
+            } else {
+                $result['enrich_error'] = $enrich->get_error_message();
+            }
+        }
+
+        wp_send_json_success( $result );
+    }
+
+    // =========================================================================
+    // AJAX: MAL 清單查詢（季度／動畫化決定 兩種模式）
+    //
+    // 與 AniList 的 handle_ajax_query_season() + handle_ajax_query_announced()
+    // 對應，但合成同一個端點——兩種模式的回應結構完全一樣，差別只在打哪個
+    // MAL 端點。分成兩支只會讓前端也得複製一份表格繪製與匯入佇列。
+    // =========================================================================
+
+    public function handle_ajax_mal_query_season(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
+
+        if ( ! defined( 'MAL_CLIENT_ID' ) || MAL_CLIENT_ID === '' ) {
+            wp_send_json_error( 'wp-config.php 未設定 MAL_CLIENT_ID，無法使用 MAL 匯入。' );
+        }
+
+        $mode = sanitize_key( $_POST['mode'] ?? 'season' );
+
+        @set_time_limit( 180 );
+
+        if ( 'upcoming' === $mode ) {
+            /*
+             * 動畫化決定：/v2/anime/ranking?ranking_type=upcoming
+             *
+             * 這個端點涵蓋「檔期未定」的作品——實測 564 部裡有 362 部沒有
+             * start_season，而那正是季度端點抓不到、卻最需要提早建檔的一批
+             * （咒術迴戰死滅迴游後篇、EVA 新作系列、搖曳露營第四季…）。
+             */
+            $url = 'https://api.myanimelist.net/v2/anime/ranking'
+                . '?ranking_type=upcoming&limit=500'
+                . '&fields=id,title,media_type,status,num_episodes,num_list_users,mean,start_season';
+        } else {
+            $season = strtolower( sanitize_text_field( $_POST['season'] ?? '' ) );
+            $year   = intval( $_POST['year'] ?? 0 );
+
+            if ( ! in_array( $season, [ 'winter', 'spring', 'summer', 'fall' ], true ) ) {
+                wp_send_json_error( '請選擇有效的季節' );
+            }
+            if ( $year < 1960 || $year > 2100 ) {
+                wp_send_json_error( '請選擇有效的年份' );
+            }
+
+            $url = 'https://api.myanimelist.net/v2/anime/season/' . $year . '/' . $season
+                . '?limit=500&sort=anime_num_list_users'
+                . '&fields=id,title,media_type,status,num_episodes,num_list_users,mean,start_season';
+        }
+
+        $all  = [];
+        $page = 0;
+
+        while ( $url !== '' && $page < 4 ) {
+            $page++;
+
+            $res = wp_remote_get( $url, [
+                'timeout' => 30,
+                'headers' => [
+                    'User-Agent'      => Anime_Sync_API_Handler::USER_AGENT,
+                    'X-MAL-CLIENT-ID' => MAL_CLIENT_ID,
+                ],
+            ] );
+
+            if ( is_wp_error( $res ) ) {
+                wp_send_json_error( 'MAL 查詢失敗：' . $res->get_error_message() );
+            }
+
+            $code = (int) wp_remote_retrieve_response_code( $res );
+            if ( $code !== 200 ) {
+                wp_send_json_error( "MAL 查詢失敗（HTTP {$code}）" );
+            }
+
+            $body = json_decode( wp_remote_retrieve_body( $res ), true );
+            if ( ! is_array( $body ) || empty( $body['data'] ) ) break;
+
+            foreach ( $body['data'] as $row ) {
+                $n  = $row['node'] ?? [];
+                $id = (int) ( $n['id'] ?? 0 );
+                if ( $id <= 0 ) continue;
+
+                $type = strtolower( (string) ( $n['media_type'] ?? '' ) );
+
+                // MV／預告／廣告不是作品，理由見 Cron_Manager::fetch_season_list_from_mal()
+                if ( in_array( $type, [ 'music', 'pv', 'cm' ], true ) ) continue;
+
+                $existing = get_posts( [
+                    'post_type'        => 'anime',
+                    'meta_key'         => 'anime_mal_id',
+                    'meta_value'       => $id,
+                    'posts_per_page'   => 1,
+                    'fields'           => 'ids',
+                    'post_status'      => 'any',
+                    'no_found_rows'    => true,
+                    'suppress_filters' => true,
+                ] );
+
+                $all[ $id ] = [
+                    'mal_id'     => $id,
+                    'title'      => (string) ( $n['title'] ?? '' ),
+                    'format'     => strtoupper( $type ),
+                    'episodes'   => (int) ( $n['num_episodes'] ?? 0 ),
+                    'members'    => (int) ( $n['num_list_users'] ?? 0 ),
+                    'score'      => isset( $n['mean'] ) ? (float) $n['mean'] : 0,
+                    'status'     => (string) ( $n['status'] ?? '' ),
+                    // 動畫化決定模式常常是空的，前端顯示「檔期未定」
+                    'season'     => isset( $n['start_season'] )
+                        ? trim( ( $n['start_season']['season'] ?? '' ) . ' ' . ( $n['start_season']['year'] ?? '' ) )
+                        : '',
+                    'imported'   => ! empty( $existing ),
+                    'edit_url'   => ! empty( $existing ) ? (string) get_edit_post_link( $existing[0], 'raw' ) : '',
+                ];
+            }
+
+            $url = (string) ( $body['paging']['next'] ?? '' );
+        }
+
+        wp_send_json_success( [
+            'list'  => array_values( $all ),
+            'total' => count( $all ),
+        ] );
     }
 
     // =========================================================================
@@ -1578,6 +1752,8 @@ class Anime_Sync_Admin {
             'actions' => [
                 'import_single'          => 'anime_sync_import_single',
                 'query_season'           => 'anime_sync_query_season',
+                'mal_import_single'      => 'anime_sync_mal_import_single',
+                'mal_query_season'       => 'anime_sync_mal_query_season',
                 'query_announced'        => 'anime_sync_query_announced',
                 'analyze_series'         => 'anime_sync_analyze_series',
                 'import_series'          => 'anime_sync_import_series',

@@ -52,6 +52,7 @@ $converter_stats = $cn_converter->get_stats();
             <a href="#series"    class="nav-tab" data-tab="series">🔗 系列分析</a>
             <a href="#ranking"   class="nav-tab" data-tab="ranking">🏆 人氣排行</a>
             <a href="#announced" class="nav-tab" data-tab="announced">🎬 動畫化決定</a>
+            <a href="#mal"       class="nav-tab" data-tab="mal">🅼 MAL 匯入</a>
         </h2>
     </div>
 
@@ -352,6 +353,126 @@ $converter_stats = $cn_converter->get_stats();
                     <span id="announced-throttle-notice" class="asc-throttle-notice" style="display:none;"></span>
                 </div>
                 <?php echo asc_progress_block('announced'); ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================
+         TAB 7：MAL 匯入（AniList 停用期間的替代路徑）
+    ================================================================ -->
+    <div id="tab-mal" class="anime-sync-tab-content" style="display:none;">
+        <div class="asc-card">
+            <h3>🅼 從 MyAnimeList 匯入</h3>
+
+            <?php if ( ! defined( 'MAL_CLIENT_ID' ) || MAL_CLIENT_ID === '' ) : ?>
+                <div class="notice notice-error inline" style="margin:0 0 14px;">
+                    <p><strong>wp-config.php 未設定 <code>MAL_CLIENT_ID</code></strong>，此分頁無法使用。</p>
+                </div>
+            <?php endif; ?>
+
+            <p class="description" style="margin-bottom:14px;">
+                AniList 對第三方停用期間的替代來源。與 AniList 匯入的差別：<br>
+                • <strong>中文標題、簡介、聲優、製作團隊、集數</strong>照舊來自 Bangumi，完全不受影響<br>
+                • <strong>串流連結、橫幅圖、預告片</strong>MAL 沒有，會留空；串流靠 YourAnimes 連結補，
+                  其餘等 AniList 恢復後由差異掃描自動補上<br>
+                • <strong>AniList ID</strong> 先不寫入，只記推測值；等 AniList 恢復後系統會自動核對
+                  <code>idMal</code> 相符才寫進去
+            </p>
+
+            <?php /* ── 單筆 ── */ ?>
+            <div class="asc-query-row">
+                <div class="asc-query-field">
+                    <label for="mal-single-id">MAL ID</label>
+                    <input type="number" id="mal-single-id" class="regular-text" placeholder="例如 44511">
+                </div>
+                <div class="asc-query-field asc-query-field--btn">
+                    <label class="asc-label-hidden">匯入</label>
+                    <button type="button" id="btn-mal-single" class="button button-primary asc-btn-full">單筆匯入</button>
+                </div>
+            </div>
+            <p class="description" style="margin-top:-6px;">
+                網址 myanimelist.net/anime/<strong>44511</strong>/… 中的數字。單筆匯入會當場補抓 Bangumi 資料，約需 10–20 秒。
+            </p>
+            <div id="mal-single-result" style="margin:12px 0;padding:12px;display:none;border-radius:4px;"></div>
+
+            <hr style="margin:20px 0;">
+
+            <?php /* ── 批次 ── */ ?>
+            <h4 style="margin:0 0 10px;">批次匯入</h4>
+            <div class="asc-query-row">
+                <div class="asc-query-field">
+                    <label>來源</label>
+                    <select id="mal-mode-select">
+                        <option value="season">📅 依季度</option>
+                        <option value="upcoming">🎬 動畫化決定（含檔期未定）</option>
+                    </select>
+                </div>
+                <div class="asc-query-field mal-season-only">
+                    <label>年份</label>
+                    <select id="mal-year-select">
+                        <?php for ( $y = (int) date('Y') + 2; $y >= 2000; $y-- ) : ?>
+                            <option value="<?php echo esc_attr( $y ); ?>"<?php selected( date('Y'), $y ); ?>><?php echo esc_html( $y ); ?></option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+                <div class="asc-query-field mal-season-only">
+                    <label>季節</label>
+                    <select id="mal-season-select">
+                        <option value="winter">冬季 (1–3月)</option>
+                        <option value="spring">春季 (4–6月)</option>
+                        <option value="summer">夏季 (7–9月)</option>
+                        <option value="fall">秋季 (10–12月)</option>
+                    </select>
+                </div>
+                <div class="asc-query-field asc-query-field--btn">
+                    <label class="asc-label-hidden">查詢</label>
+                    <button type="button" id="btn-mal-query" class="button asc-btn-full">第一步：查詢季度清單</button>
+                </div>
+                <div class="asc-query-field asc-query-field--btn" id="mal-import-field" style="display:none;">
+                    <label class="asc-label-hidden">匯入</label>
+                    <button type="button" id="btn-mal-import" class="button button-primary asc-btn-full">第二步：批次匯入選中項</button>
+                </div>
+            </div>
+            <div id="mal-query-spinner" class="asc-spinner" style="display:none;">⏳ 查詢中…</div>
+
+            <div id="mal-preview" style="display:none;">
+                <p id="mal-preview-summary" class="description"></p>
+                <div class="asc-format-filter-bar">
+                    <strong>篩選格式：</strong>
+                    <label><input type="checkbox" class="mal-format-check" value="TV" checked> TV</label>
+                    <label><input type="checkbox" class="mal-format-check" value="MOVIE" checked> MOVIE</label>
+                    <label><input type="checkbox" class="mal-format-check" value="OVA" checked> OVA</label>
+                    <label><input type="checkbox" class="mal-format-check" value="ONA" checked> ONA</label>
+                    <label><input type="checkbox" class="mal-format-check" value="SPECIAL" checked> SPECIAL</label>
+                    <label><input type="checkbox" class="mal-format-check" value="TV_SPECIAL" checked> TV_SPECIAL</label>
+                    <label style="margin-left:12px;border-left:1px solid #ccd0d4;padding-left:12px;">
+                        <input type="checkbox" id="mal-filter-not-imported"> 只顯示未匯入
+                    </label>
+                    <button type="button" id="btn-mal-apply-filter" class="button button-small">套用篩選</button>
+                    <span id="mal-filter-count" class="asc-filter-count"></span>
+                </div>
+                <div class="asc-table-wrap">
+                    <table class="wp-list-table widefat fixed striped asc-desktop-only">
+                        <thead><tr>
+                            <th class="asc-col-check"><input id="mal-select-all" type="checkbox" checked></th>
+                            <th class="asc-col-id">MAL ID</th>
+                            <th>名稱</th>
+                            <th class="asc-col-sm">格式</th>
+                            <th class="asc-col-md">檔期</th>
+                            <th class="asc-col-sm">集數</th>
+                            <th class="asc-col-md">MAL 分數</th>
+                            <th class="asc-col-md">收藏人數</th>
+                            <th class="asc-col-md">站內狀態</th>
+                        </tr></thead>
+                        <tbody id="mal-tbody"></tbody>
+                    </table>
+                    <div id="mal-cards" class="asc-mobile-cards asc-mobile-only"></div>
+                </div>
+                <div class="asc-action-row">
+                    <button type="button" id="btn-mal-stop" class="button asc-btn-danger" style="display:none;">停止匯入</button>
+                    <span id="mal-throttle-notice" class="asc-throttle-notice" style="display:none;"></span>
+                </div>
+                <?php echo asc_progress_block('mal'); ?>
             </div>
         </div>
     </div>
@@ -1262,9 +1383,19 @@ function asc_progress_block( $prefix ) {
     /* =========================================================================
        共用：循序匯入佇列
     ========================================================================= */
-    var stopFlags = { season: false, batch: false, series: false, ranking: false, announced: false };
+    var stopFlags = { season: false, batch: false, series: false, ranking: false, announced: false, mal: false };
 
-    function runImportQueue(prefix, ids) {
+    /*
+     * opts.source = 'mal' 時改走 MAL 端點，送出的參數名也不同（mal_id）。
+     * 兩種來源的 ID 空間各自獨立，因此不共用參數名——傳錯的話會靜默匯入
+     * 到完全不相干的作品。
+     */
+    function runImportQueue(prefix, ids, opts) {
+        opts = opts || {};
+        var isMal      = opts.source === 'mal';
+        var ajaxAction = isMal ? animeSyncAdmin.actions.mal_import_single : 'anime_sync_import_single';
+        var idParam    = isMal ? 'mal_id' : 'anilist_id';
+        var idPrefix   = isMal ? 'MAL #' : 'AniList #';
         // ★ v1.9.1：進佇列前最後一道防線——過濾 NaN/0/負數並去重，杜絕 #NaN 洗版
         var seen = {};
         ids = (ids || []).filter(function(n){
@@ -1300,34 +1431,32 @@ function asc_progress_block( $prefix ) {
                 return;
             }
             var id = ids[index];
-            appendLog(prefix + '-import-log', '⏳ 匯入 AniList #' + id + ' …', 'log-info');
+            appendLog(prefix + '-import-log', '⏳ 匯入 ' + idPrefix + id + ' …', 'log-info');
 
-            $.post(animeSyncAdmin.ajaxUrl, {
-                action:     'anime_sync_import_single',
-                nonce:      animeSyncAdmin.nonce,
-                anilist_id: id,
-                force:      0
-            }, function(res){
+            var payload = { action: ajaxAction, nonce: animeSyncAdmin.nonce, force: 0 };
+            payload[idParam] = id;
+
+            $.post(animeSyncAdmin.ajaxUrl, payload, function(res){
                 done++;
                 if (res.success) {
                     if (res.data && res.data.skipped) {
                         skipped++;
-                        appendLog(prefix + '-import-log', '⏭ #' + id + ' 已存在，跳過', 'log-skip');
+                        appendLog(prefix + '-import-log', '⏭ ' + idPrefix + id + ' 已存在，跳過', 'log-skip');
                     } else {
                         success++;
-                        var title = (res.data && res.data.title) ? res.data.title : '#' + id;
+                        var title = (res.data && res.data.title) ? res.data.title : idPrefix + id;
                         appendLog(prefix + '-import-log', '✅ ' + escHtml(title) + ' 匯入成功', 'log-success');
                     }
                 } else {
                     failed++;
                     var errMsg = (res.data && res.data.message) ? res.data.message : '失敗';
-                    appendLog(prefix + '-import-log', '❌ #' + id + ' ' + escHtml(errMsg), 'log-error');
+                    appendLog(prefix + '-import-log', '❌ ' + idPrefix + id + ' ' + escHtml(errMsg), 'log-error');
                 }
                 updateProgress(prefix, done, total, success, skipped, failed);
                 setTimeout(function(){ next(index + 1); }, 800);
             }).fail(function(){
                 done++; failed++;
-                appendLog(prefix + '-import-log', '❌ #' + id + ' 網路錯誤', 'log-error');
+                appendLog(prefix + '-import-log', '❌ ' + idPrefix + id + ' 網路錯誤', 'log-error');
                 updateProgress(prefix, done, total, success, skipped, failed);
                 setTimeout(function(){ next(index + 1); }, 800);
             });
@@ -1335,7 +1464,191 @@ function asc_progress_block( $prefix ) {
         next(0);
     }
 
-    $('#btn-season-stop, #btn-batch-stop, #btn-series-stop, #btn-ranking-stop, #btn-announced-stop').on('click', function(){
+    /* =========================================================================
+       TAB 7：MAL 匯入
+    ========================================================================= */
+
+    /* ── 單筆 ── */
+    $('#btn-mal-single').on('click', function(){
+        var id  = parseInt($('#mal-single-id').val(), 10);
+        var $b  = $(this);
+        var $r  = $('#mal-single-result');
+        if (!id || id < 1) {
+            $r.removeClass('success warning').addClass('error').text('請輸入有效的 MAL ID。').show();
+            return;
+        }
+        $b.prop('disabled', true).text('匯入中…');
+        $r.hide().empty().removeClass('success warning error');
+
+        $.post(animeSyncAdmin.ajaxUrl, {
+            action: animeSyncAdmin.actions.mal_import_single,
+            nonce:  animeSyncAdmin.nonce,
+            mal_id: id,
+            force:  0
+        }, function(res){
+            $r.empty();
+            if (res.success) {
+                var d = res.data || {};
+                $r.addClass(d.skipped ? 'warning' : 'success');
+                $r.append($('<strong>').text((d.skipped ? '⏭ ' : '✓ ') + String(d.title || ('MAL #' + id))));
+                if (d.message) $r.append($('<br>')).append($('<span>').text(d.message));
+                if (d.post_id && d.edit_url) {
+                    $r.append($('<br>')).append(
+                        $('<a>').attr('href', d.edit_url).attr('target','_blank').text('編輯文章 #' + d.post_id)
+                    );
+                }
+                if (d.enrich_error) {
+                    $r.append($('<br>')).append($('<small>').css('color','#d63638').text('補抓失敗：' + d.enrich_error));
+                }
+            } else {
+                $r.addClass('error').text('✗ ' + String((res.data && res.data.message) ? res.data.message : '匯入失敗'));
+            }
+            $r.show();
+        }).fail(function(){
+            $r.addClass('error').text('網路錯誤，請重試。').show();
+        }).always(function(){
+            $b.prop('disabled', false).text('單筆匯入');
+        });
+    });
+
+    /* ── 批次（季度／動畫化決定）── */
+    var malData = [];
+
+    /* 動畫化決定不分季度，把年份與季節收起來免得誤會 */
+    $('#mal-mode-select').on('change', function(){
+        var isSeason = $(this).val() === 'season';
+        $('.mal-season-only').toggle(isSeason);
+        $('#btn-mal-query').text(isSeason ? '第一步：查詢季度清單' : '第一步：查詢動畫化決定清單');
+    }).trigger('change');
+
+    $('#btn-mal-query').on('click', function(){
+        var mode   = $('#mal-mode-select').val();
+        var year   = $('#mal-year-select').val();
+        var season = $('#mal-season-select').val();
+        $(this).prop('disabled', true);
+        $('#mal-query-spinner').show();
+        $('#mal-preview').hide();
+        $('#mal-import-field').hide();
+        malData = [];
+
+        $.post(animeSyncAdmin.ajaxUrl, {
+            action: animeSyncAdmin.actions.mal_query_season,
+            nonce:  animeSyncAdmin.nonce,
+            mode:   mode,
+            year:   year,
+            season: season
+        }, function(res){
+            $('#btn-mal-query').prop('disabled', false);
+            $('#mal-query-spinner').hide();
+            if (!res.success) { alert('查詢失敗：' + (res.data || '未知錯誤')); return; }
+            malData = res.data.list || [];
+            if (malData.length === 0) { alert('查無資料'); return; }
+            renderMalTable(malData);
+            var imported = malData.filter(function(i){ return i.imported; }).length;
+            $('#mal-preview-summary').text(
+                '共 ' + malData.length + ' 部，已匯入 ' + imported + ' 部、未匯入 ' + (malData.length - imported) + ' 部。'
+            );
+            $('#mal-preview').show();
+            $('#mal-import-field').show();
+        }).fail(function(){
+            $('#btn-mal-query').prop('disabled', false);
+            $('#mal-query-spinner').hide();
+            alert('網路錯誤');
+        });
+    });
+
+    function renderMalTable(list) {
+        var tbody = $('#mal-tbody').empty();
+        var cards = $('#mal-cards').empty();
+        var notImported = 0;
+
+        $.each(list, function(i, item){
+            var id = validId(item.mal_id);
+            if (id === null) { return true; }
+
+            var done = item.imported;
+            var chk  = done
+                ? '<input type="checkbox" class="mal-item-check" data-id="' + id + '" disabled>'
+                : '<input type="checkbox" class="mal-item-check" data-id="' + id + '" checked>';
+            var status = done
+                ? (item.edit_url
+                    ? '<a class="status-imported" href="' + escHtml(item.edit_url) + '" target="_blank" rel="noopener">✓ 已匯入 ↗</a>'
+                    : '<span class="status-imported">✓ 已匯入</span>')
+                : '<span class="status-new">未匯入</span>';
+
+            tbody.append($('<tr>')
+                .attr('data-format', item.format || '')
+                .attr('data-imported', done ? '1' : '0')
+                .html(
+                    '<td>' + chk + '</td>' +
+                    '<td>' + escHtml(String(id)) + '</td>' +
+                    '<td>' + escHtml(item.title || '') + '</td>' +
+                    '<td>' + escHtml(item.format || '') + '</td>' +
+                    '<td>' + (item.season ? escHtml(item.season) : '<span class="asc-no-date-badge">檔期未定</span>') + '</td>' +
+                    '<td>' + escHtml(String(item.episodes || '—')) + '</td>' +
+                    '<td>' + escHtml(item.score ? String(item.score) : '—') + '</td>' +
+                    '<td>' + escHtml(String(item.members || 0)) + '</td>' +
+                    '<td>' + status + '</td>'
+                ));
+
+            var card = buildImportCard({
+                anilist_id:   id,
+                title_romaji: item.title || '',
+                format:       item.format || '',
+                meta1Label:   '集數',  meta1Val: item.episodes || '—',
+                meta2Label:   'MAL 分', meta2Val: item.score ? String(item.score) : '—',
+                popularity:   item.members,
+                imported:     done
+            }, 'mal-item-check');
+            card.attr('data-format', item.format || '');
+            cards.append(card);
+
+            if (!done) notImported++;
+        });
+
+        $('#mal-filter-count').text('未匯入 ' + notImported + ' 部');
+
+        $('#mal-select-all').off('change').on('change', function(){
+            $('.mal-item-check:not(:disabled):visible').prop('checked', $(this).prop('checked'));
+        });
+
+        /* 表格與手機卡片是兩份 checkbox，要同步（理由見季度分頁的註解） */
+        $(document).off('change', '.mal-item-check').on('change', '.mal-item-check', function(){
+            var aid = $(this).data('id');
+            if (aid) $('.mal-item-check[data-id="' + aid + '"]').prop('checked', $(this).prop('checked'));
+        });
+    }
+
+    $('#btn-mal-apply-filter').on('click', function(){
+        var enabled = [];
+        $('.mal-format-check:checked').each(function(){ enabled.push($(this).val()); });
+        var onlyNew = $('#mal-filter-not-imported').is(':checked');
+        var visible = 0;
+
+        $('#mal-tbody tr').each(function(){
+            var fmt  = $(this).attr('data-format') || '';
+            var done = $(this).attr('data-imported') === '1';
+            var show = enabled.indexOf(fmt) !== -1 && !(onlyNew && done);
+            $(this).toggleClass('format-hidden', !show);
+        });
+        $('#mal-cards .asc-import-card').each(function(){
+            var fmt  = $(this).attr('data-format') || '';
+            var done = $(this).hasClass('is-imported');
+            var show = enabled.indexOf(fmt) !== -1 && !(onlyNew && done);
+            $(this).toggle(show);
+            if (show && !done) visible++;
+        });
+        $('#mal-filter-count').text('篩選後未匯入 ' + visible + ' 部');
+    });
+
+    $('#btn-mal-import').on('click', function(){
+        var ids = collectIds('.mal-item-check');
+        if (ids.length === 0) { alert('請勾選至少一部'); return; }
+        if (ids.length > 10 && !confirm('即將從 MAL 匯入 ' + ids.length + ' 部，確定嗎？')) { return; }
+        runImportQueue('mal', ids, { source: 'mal' });
+    });
+
+    $('#btn-season-stop, #btn-batch-stop, #btn-series-stop, #btn-ranking-stop, #btn-announced-stop, #btn-mal-stop').on('click', function(){
         var prefix = $(this).attr('id').replace('btn-','').replace('-stop','');
         stopFlags[prefix] = true;
         $(this).text('停止中…').prop('disabled', true);
