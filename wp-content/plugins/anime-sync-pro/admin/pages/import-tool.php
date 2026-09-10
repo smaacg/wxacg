@@ -448,6 +448,9 @@ $converter_stats = $cn_converter->get_stats();
                     <label style="margin-left:12px;border-left:1px solid #ccd0d4;padding-left:12px;">
                         <input type="checkbox" id="mal-filter-not-imported"> 只顯示未匯入
                     </label>
+                    <label class="mal-season-only" title="MAL 的季度清單包含跨季續播的作品（例如查 2024 冬季會出現 1999 年開播的 One Piece）。預設只顯示本季新開播的，與 AniList 的季度批次一致。">
+                        <input type="checkbox" id="mal-filter-new-only" checked> 只顯示本季新作
+                    </label>
                     <button type="button" id="btn-mal-apply-filter" class="button button-small">套用篩選</button>
                     <span id="mal-filter-count" class="asc-filter-count"></span>
                 </div>
@@ -656,6 +659,18 @@ function asc_progress_block( $prefix ) {
     border-radius: 3px;
     vertical-align: middle;
     margin-left: 2px;
+}
+
+/* MAL 季度清單含跨季續播作品，標一下免得檔期看起來像錯的 */
+.asc-carryover-badge {
+    display: inline-block;
+    background: #e0e0e0;
+    color: #555;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-left: 4px;
 }
 
 /* =============================================================================
@@ -1576,15 +1591,21 @@ function asc_progress_block( $prefix ) {
                     : '<span class="status-imported">✓ 已匯入</span>')
                 : '<span class="status-new">未匯入</span>';
 
+            /* 續播作品的檔期會早於查詢的季度，標一下免得看起來像資料錯誤 */
+            var seasonCell = item.season
+                ? escHtml(item.season) + (item.is_new === false ? ' <span class="asc-carryover-badge">續播</span>' : '')
+                : '<span class="asc-no-date-badge">檔期未定</span>';
+
             tbody.append($('<tr>')
                 .attr('data-format', item.format || '')
                 .attr('data-imported', done ? '1' : '0')
+                .attr('data-new', item.is_new === false ? '0' : '1')
                 .html(
                     '<td>' + chk + '</td>' +
                     '<td>' + escHtml(String(id)) + '</td>' +
                     '<td>' + escHtml(item.title || '') + '</td>' +
                     '<td>' + escHtml(item.format || '') + '</td>' +
-                    '<td>' + (item.season ? escHtml(item.season) : '<span class="asc-no-date-badge">檔期未定</span>') + '</td>' +
+                    '<td>' + seasonCell + '</td>' +
                     '<td>' + escHtml(String(item.episodes || '—')) + '</td>' +
                     '<td>' + escHtml(item.score ? String(item.score) : '—') + '</td>' +
                     '<td>' + escHtml(String(item.members || 0)) + '</td>' +
@@ -1601,12 +1622,16 @@ function asc_progress_block( $prefix ) {
                 imported:     done
             }, 'mal-item-check');
             card.attr('data-format', item.format || '');
+            card.attr('data-new', item.is_new === false ? '0' : '1');
             cards.append(card);
 
             if (!done) notImported++;
         });
 
         $('#mal-filter-count').text('未匯入 ' + notImported + ' 部');
+
+        /* 預設就把「只顯示本季新作」套上去，不必等使用者按套用 */
+        applyMalFilter();
 
         $('#mal-select-all').off('change').on('change', function(){
             $('.mal-item-check:not(:disabled):visible').prop('checked', $(this).prop('checked'));
@@ -1619,27 +1644,37 @@ function asc_progress_block( $prefix ) {
         });
     }
 
-    $('#btn-mal-apply-filter').on('click', function(){
+    function applyMalFilter(){
         var enabled = [];
         $('.mal-format-check:checked').each(function(){ enabled.push($(this).val()); });
-        var onlyNew = $('#mal-filter-not-imported').is(':checked');
+        var hideImported = $('#mal-filter-not-imported').is(':checked');
+        /* 動畫化決定模式沒有「本季」可言，那個核取方塊是隱藏的，不套用 */
+        var newOnly = $('#mal-mode-select').val() === 'season' && $('#mal-filter-new-only').is(':checked');
         var visible = 0;
 
         $('#mal-tbody tr').each(function(){
-            var fmt  = $(this).attr('data-format') || '';
-            var done = $(this).attr('data-imported') === '1';
-            var show = enabled.indexOf(fmt) !== -1 && !(onlyNew && done);
-            $(this).toggleClass('format-hidden', !show);
-        });
-        $('#mal-cards .asc-import-card').each(function(){
-            var fmt  = $(this).attr('data-format') || '';
-            var done = $(this).hasClass('is-imported');
-            var show = enabled.indexOf(fmt) !== -1 && !(onlyNew && done);
-            $(this).toggle(show);
+            var $t   = $(this);
+            var fmt  = $t.attr('data-format') || '';
+            var done = $t.attr('data-imported') === '1';
+            var isNew = $t.attr('data-new') !== '0';
+            var show = enabled.indexOf(fmt) !== -1 && !(hideImported && done) && !(newOnly && !isNew);
+            $t.toggleClass('format-hidden', !show);
             if (show && !done) visible++;
         });
+        $('#mal-cards .asc-import-card').each(function(){
+            var $c   = $(this);
+            var fmt  = $c.attr('data-format') || '';
+            var done = $c.hasClass('is-imported');
+            var isNew = $c.attr('data-new') !== '0';
+            var show = enabled.indexOf(fmt) !== -1 && !(hideImported && done) && !(newOnly && !isNew);
+            $c.toggle(show);
+        });
         $('#mal-filter-count').text('篩選後未匯入 ' + visible + ' 部');
-    });
+    }
+
+    $('#btn-mal-apply-filter').on('click', applyMalFilter);
+    /* 這兩個切換是純顯示，即時反應比要求再按一次「套用篩選」直覺 */
+    $('#mal-filter-new-only, #mal-filter-not-imported').on('change', applyMalFilter);
 
     $('#btn-mal-import').on('click', function(){
         var ids = collectIds('.mal-item-check');

@@ -635,6 +635,10 @@ class Anime_Sync_Admin {
 
         @set_time_limit( 180 );
 
+        // 季度模式才有「本季新作」的概念；動畫化決定模式一律視為新作
+        $q_season = '';
+        $q_year   = 0;
+
         if ( 'upcoming' === $mode ) {
             /*
              * 動畫化決定：/v2/anime/ranking?ranking_type=upcoming
@@ -656,6 +660,9 @@ class Anime_Sync_Admin {
             if ( $year < 1960 || $year > 2100 ) {
                 wp_send_json_error( '請選擇有效的年份' );
             }
+
+            $q_season = $season;
+            $q_year   = $year;
 
             $url = 'https://api.myanimelist.net/v2/anime/season/' . $year . '/' . $season
                 . '?limit=500&sort=anime_num_list_users'
@@ -721,6 +728,20 @@ class Anime_Sync_Admin {
                     'season'     => isset( $n['start_season'] )
                         ? trim( ( $n['start_season']['season'] ?? '' ) . ' ' . ( $n['start_season']['year'] ?? '' ) )
                         : '',
+                    /*
+                     * ★ 是不是「本季新開播」。
+                     *
+                     * MAL 的季度端點與 AniList 的季度查詢語意不同：
+                     *   AniList  media(season:WINTER, seasonYear:2024) → 該季「開播」的
+                     *   MAL      /v2/anime/season/2024/winter          → 該季「播出中」的
+                     * 後者含跨季續播，實測 2024 冬季回 233 部裡有 66 部（28%）不是
+                     * 該季開始的——One Piece 從 1999 就在播、名偵探柯南從 1996。
+                     * 前端預設只顯示本季新作，與 AniList 那條路徑對齊；要看全部
+                     * 可以在篩選列打開。
+                     */
+                    'is_new'     => ( $q_season === '' )
+                        || ( strtolower( (string) ( $n['start_season']['season'] ?? '' ) ) === $q_season
+                             && (int) ( $n['start_season']['year'] ?? 0 ) === $q_year ),
                     'imported'   => ! empty( $existing ),
                     'edit_url'   => ! empty( $existing ) ? (string) get_edit_post_link( $existing[0], 'raw' ) : '',
                 ];
