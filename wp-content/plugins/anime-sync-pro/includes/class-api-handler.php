@@ -80,6 +80,30 @@ class Anime_Sync_API_Handler {
     const BGM_LEGACY_SUBJECT_URL = 'https://api.bgm.tv/subject/';
     const BGM_EPISODES_URL  = 'https://api.bgm.tv/v0/episodes';
     const ANIMETHEMES_URL   = 'https://api.animethemes.moe/anime';
+
+    /*
+     * MyAnimeList 官方 API v2。
+     *
+     * 既有的 fetch_mal_score() / fetch_jikan_theme_natives() 已經在用同一個
+     * 端點與同一組憑證（wp-config.php 的 MAL_CLIENT_ID），這裡只是把「取單筆
+     * 完整資料」也走同一條路。節流沿用 rate_limiter 的 'mal' 桶。
+     */
+    const MAL_ANIME_URL  = 'https://api.myanimelist.net/v2/anime/';
+    const MAL_SEASON_URL = 'https://api.myanimelist.net/v2/anime/season/';
+
+    /*
+     * 一次取齊 MAL 匯入需要的所有欄位，避免多次往返。
+     *
+     * ★ num_list_users 不是 popularity：MAL 的 popularity 是「人氣排名」
+     *   （數字越小越紅），與站上 anime_popularity 的「收藏人數」語意相反，
+     *   照抄會讓排序整個顛倒。實測鏈鋸人 popularity=47、num_list_users=2,026,113。
+     *   即使如此 num_list_users 也不寫進 anime_popularity，理由見
+     *   get_core_anime_data_from_mal() 內該欄位的註解。
+     */
+    const MAL_CORE_FIELDS = 'id,title,main_picture,alternative_titles,start_date,end_date,'
+        . 'synopsis,mean,num_list_users,media_type,status,genres,num_episodes,start_season,'
+        . 'broadcast,source,average_episode_duration,rating,nsfw,studios,related_anime';
+
     const WIKI_ZH_API       = 'https://zh.wikipedia.org/w/api.php';
     const WIKI_EN_REST      = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
 
@@ -105,6 +129,140 @@ class Anime_Sync_API_Handler {
      * 而不是讓整個請求逾時變成白畫面。
      */
     const MAX_SERIES_NODES = 70;
+
+    // =========================================================================
+    // MAL 詞彙 → 站上詞彙的對照表
+    //
+    // ★ 為什麼一定要對照，不能直寫：
+    //   anime_format / anime_status / anime_source 三個欄位在 ACF 是 select，
+    //   choices 寫死 AniList 的詞彙。值不在 choices 內時後台下拉會顯示空白，
+    //   編輯者一存檔就把值洗掉——不是報錯，是靜默消失。
+    //
+    // ★ 涵蓋率（2026-09-10 實測 MAL 2024–2026 十二季、2,842 部去重樣本）：
+    //   status 100%、media_type 94.8%（其餘是 pv/cm，本來就不該匯入）、
+    //   source 100%（含 web_manga）。
+    // =========================================================================
+
+    /** MAL media_type → anime_format。未列出的一律不匯入（見 MAL_FORMAT_EXCLUDE）。 */
+    private const MAL_FORMAT_MAP = [
+        'tv'         => 'TV',
+        'movie'      => 'MOVIE',
+        'ova'        => 'OVA',
+        'ona'        => 'ONA',
+        'special'    => 'SPECIAL',
+        // MAL 有 tv_special、AniList 沒有；歸到最接近的 SPECIAL
+        'tv_special' => 'SPECIAL',
+        'music'      => 'MUSIC',
+    ];
+
+    /*
+     * 這些不是作品，是宣傳素材，整筆不匯入。
+     * 實測樣本中 pv 97 部、cm 51 部，合計 5.2%。
+     * 既有的 AniList 新登錄掃描也已用 format_not_in:[MUSIC] 排除同性質內容。
+     */
+    private const MAL_FORMAT_EXCLUDE = [ 'pv', 'cm' ];
+
+    /*
+     * MAL 沒有 TV_SHORT 這個分類，短篇一律叫 tv。
+     *
+     * 站上 anime_format_tax 的「TV短篇」是活的分類（19 篇），放著不管的話
+     * 新作品會全部擠進 TV。用每集時長推斷：實測站上 48 部 TV_SHORT 中
+     * MAL 標 tv 的有 46 部，時長全部 ≤15 分；反查「MAL tv 且 ≤15 分」共 45 部，
+     * 其中 43 部站上確實是 TV_SHORT（precision 95.6%、recall 93.5%）。
+     *
+     * MAL 沒給時長時不推斷，維持 TV——寧可漏標，不要猜錯。
+     */
+    private const MAL_TV_SHORT_MAX_MINUTES = 15;
+
+    /** MAL status → anime_status。實測 100% 涵蓋。 */
+    private const MAL_STATUS_MAP = [
+        'finished_airing'  => 'FINISHED',
+        'currently_airing' => 'RELEASING',
+        'not_yet_aired'    => 'NOT_YET_RELEASED',
+    ];
+
+    /*
+     * MAL source → anime_source。
+     *
+     * WEB_MANGA 不在 ACF 的 choices 裡，但 anime_sync_get_source_tax_map()
+     * 早就有「網路漫畫改編 / web-manga」——AniList 沒有這個值，所以那個設定
+     * 至今不可達。MAL 有（實測 196 筆，6.9%），因此一併把 ACF choices 補上。
+     */
+    private const MAL_SOURCE_MAP = [
+        'original'      => 'ORIGINAL',
+        'manga'         => 'MANGA',
+        '4_koma_manga'  => 'MANGA',
+        'web_manga'     => 'WEB_MANGA',
+        'light_novel'   => 'LIGHT_NOVEL',
+        'novel'         => 'NOVEL',
+        'web_novel'     => 'WEB_NOVEL',
+        'visual_novel'  => 'VISUAL_NOVEL',
+        'game'          => 'VIDEO_GAME',
+        'card_game'     => 'GAME',
+        'book'          => 'NOVEL',
+        'picture_book'  => 'PICTURE_BOOK',
+        'mixed_media'   => 'MULTIMEDIA_PROJECT',
+        'music'         => 'OTHER',
+        'radio'         => 'OTHER',
+        'other'         => 'OTHER',
+    ];
+
+    /*
+     * MAL 的 genres 陣列把三種東西混在一起：真正的類型（Action）、
+     * 題材（Anthropomorphic）與客群（Shounen）。AniList 是分開兩個欄位，
+     * 因此這裡要先分流，才能交給 class-import-manager.php 既有的兩張對照表：
+     *   'genre' → anime_genres → genre 分類法（有封存頁 /genre/{slug}/）
+     *   'tag'   → anime_tags   → post_tag
+     *
+     * 未列出的名稱走預設分流（見 route_mal_genre()）。
+     * 明確列出的是「預設會分錯」或「需要指定去處」的那些。
+     */
+    private const MAL_GENRE_ROUTE = [
+        /*
+         * ── 進 genre 分類法 ──
+         * 只放「站上這個詞已經存在」的，因此不會新增任何 genre 詞彙，
+         * 也不會生出沒有內容的封存頁。前四個是安裝種子詞（目前 0 篇），
+         * MAL 匯入正好讓它們有內容。
+         */
+        'School'         => 'genre',   // → 校園（已存在，0 篇）
+        'Suspense'       => 'genre',   // → 懸疑（已存在，0 篇）
+        'Boys Love'      => 'genre',   // → 耽美（已存在，0 篇）
+        'Girls Love'     => 'genre',   // → 百合（已存在，0 篇）
+        'Team Sports'    => 'genre',   // → 運動（已存在，43 篇）
+        'Combat Sports'  => 'genre',   // → 運動（已存在，43 篇）
+
+        /*
+         * 丟棄：「得過獎」不是題材，當標籤沒有瀏覽價值，
+         * 而且會把不相干的作品聚在一起。實測 9 次。
+         */
+        'Award Winning'  => '',
+    ];
+
+    /*
+     * MAL relation_type → AniList relationType。
+     *
+     * ★ 不能只用 strtoupper()：MAL 的 parent_story 會變成 PARENT_STORY，
+     *   而站上到處比對的是 PARENT（SERIES_RELATION_TYPES、
+     *   expand_series_tree() 的 PARENT 特例、handle_ajax_scan_series_gaps()）。
+     *   對不上的後果是系列樹少一條邊、系列缺口掃描漏掉一部——不會報錯。
+     *
+     * 兩個 alternative_* 都收斂到 ALTERNATIVE：站上沒有更細的分法。
+     * full_story 刻意不對到 PARENT——語意是「完整版」不是「母作品」，
+     * 硬對會讓系列樹把它當成擴散跳板，走 OTHER 比較安全。
+     */
+    private const MAL_RELATION_MAP = [
+        'sequel'              => 'SEQUEL',
+        'prequel'             => 'PREQUEL',
+        'side_story'          => 'SIDE_STORY',
+        'spin_off'            => 'SPIN_OFF',
+        'parent_story'        => 'PARENT',
+        'alternative_version' => 'ALTERNATIVE',
+        'alternative_setting' => 'ALTERNATIVE',
+        'summary'             => 'SUMMARY',
+        'character'           => 'CHARACTER',
+        'full_story'          => 'OTHER',
+        'other'               => 'OTHER',
+    ];
 
     private Anime_Sync_Rate_Limiter $rate_limiter;
     private ?Anime_Sync_ID_Mapper   $id_mapper;
@@ -423,6 +581,436 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
+    // PUBLIC – 核心資料（MAL 來源）
+    //
+    // AniList 停用期間的替代路徑。回傳結構與 get_core_anime_data() 完全一致，
+    // 因此 class-import-manager.php 之後的流程（寫 meta、分類法、系列、
+    // 排 enrich）一行都不用改。
+    //
+    // ★ 為什麼 enrich 不用另外寫一套：enrich_anime_data() 的資料全部來自
+    //   Bangumi / MAL / AnimeThemes / Wikipedia，用到 AniList 的次數是零。
+    //   只要這裡把 bangumi_id 解析出來，後面就跟 AniList 匯入完全同路。
+    // =========================================================================
+
+    /**
+     * 以 MAL ID 取得核心資料。
+     *
+     * @param int      $mal_id     MyAnimeList 動畫 ID。
+     * @param int      $post_id    已存在的文章 ID（供 animethemes meta 沿用）。
+     * @param int|null $bangumi_id 已知的 Bangumi ID；null 時自動反查。
+     * @return array|WP_Error
+     */
+    public function get_core_anime_data_from_mal( int $mal_id, int $post_id = 0, ?int $bangumi_id = null ): array|WP_Error {
+
+        if ( $mal_id <= 0 ) {
+            return new WP_Error( 'mal_invalid_id', "無效的 MAL ID：{$mal_id}" );
+        }
+
+        $media = $this->fetch_mal_anime( $mal_id );
+        if ( is_wp_error( $media ) ) {
+            return $media;
+        }
+
+        $media_type = strtolower( (string) ( $media['media_type'] ?? '' ) );
+
+        // 宣傳素材不是作品，在這裡就擋掉，不要浪費後面的 Bangumi 反查
+        if ( in_array( $media_type, self::MAL_FORMAT_EXCLUDE, true ) ) {
+            return new WP_Error(
+                'mal_not_an_anime',
+                sprintf( 'MAL %d 的 media_type 是 %s（宣傳素材），略過匯入。', $mal_id, $media_type )
+            );
+        }
+
+        $title_romaji  = (string) ( $media['title'] ?? '' );
+        $title_native  = (string) ( $media['alternative_titles']['ja'] ?? '' );
+        $title_english = (string) ( $media['alternative_titles']['en'] ?? '' );
+
+        $season_year = (int) ( $media['start_season']['year'] ?? 0 );
+        /*
+         * 季度必須有年份支撐才算數——與 get_core_anime_data() 同一條規則，
+         * 理由見該方法內的註解（會產生「冬季，第 0 年」這種假資料）。
+         */
+        $season   = $season_year > 0 ? strtoupper( (string) ( $media['start_season']['season'] ?? '' ) ) : '';
+        $episodes = (int) ( $media['num_episodes'] ?? 0 );
+
+        /*
+         * Bangumi ID 反查：走與 AniList 路徑同一支 id_mapper。
+         *
+         * ★ MAL 進來其實比 AniList 進來更順：get_bangumi_id() 的 Layer 1
+         *   （mal_index）、Layer 1.5（BangumiExtLinker）、Layer 1.7（Jikan）
+         *   三層吃的都是 mal_id。AniList 路徑得先 AniList→MAL 再 MAL→Bangumi，
+         *   這裡少一跳。
+         *
+         * external_links 傳空陣列：MAL 沒有這個欄位，Layer 1.8／2 會自然跳過。
+         */
+        if ( ! $bangumi_id || $bangumi_id <= 0 ) {
+            $bangumi_id = $this->id_mapper->get_bangumi_id( [
+                'anilist_id'     => 0,
+                'mal_id'         => $mal_id,
+                'post_id'        => $post_id,
+                'title_native'   => $this->build_season_aware_native( $title_native, $title_romaji ),
+                'title_romaji'   => $title_romaji,
+                'title_chinese'  => '',
+                'season_year'    => $season_year,
+                'season'         => $season,
+                'episodes'       => $episodes,
+                'external_links' => [],
+            ] );
+        }
+
+        // ── 中文標題／簡介／Bangumi 評分：與 AniList 路徑完全相同 ──
+        $bgm_data = null;
+        if ( $bangumi_id && $bangumi_id > 0 ) {
+            $this->rate_limiter->wait_if_needed( 'bangumi' );
+            $result = $this->get_bangumi_data( $bangumi_id );
+            if ( ! is_wp_error( $result ) && is_array( $result ) ) {
+                $bgm_data = $result;
+            }
+        }
+
+        $title_chinese_raw = '';
+        if ( $bgm_data ) {
+            $title_chinese_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+        }
+        if ( $title_chinese_raw === '' && $bangumi_id ) {
+            $cached = $this->id_mapper->get_chinese_title( $bangumi_id );
+            if ( $cached ) $title_chinese_raw = $cached;
+        }
+        $title_chinese = $title_chinese_raw !== ''
+            ? Anime_Sync_CN_Converter::static_convert( $title_chinese_raw )
+            : '';
+
+        $title_simplified = $bgm_data ? trim( (string) ( $bgm_data['name_cn'] ?? '' ) ) : '';
+
+        $synopsis_chinese = '';
+        if ( $bgm_data && ! empty( $bgm_data['summary'] ) ) {
+            $synopsis_chinese = $this->clean_synopsis( $bgm_data['summary'] );
+            if ( $synopsis_chinese !== '' ) {
+                $synopsis_chinese = Anime_Sync_CN_Converter::static_convert( $synopsis_chinese );
+            }
+        }
+        $synopsis_english = ! empty( $media['synopsis'] ) ? $this->clean_synopsis( (string) $media['synopsis'] ) : '';
+
+        $score_bangumi = 0;
+        if ( $bgm_data ) {
+            $raw = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+            if ( $raw !== null ) $score_bangumi = (int) round( (float) $raw * 10 );
+        }
+
+        /*
+         * MAL 評分可以當場填，不必等 enrich。
+         * mean 是 0–10，站上是 0–100，換算方式與 fetch_mal_score() 一致。
+         * （AniList 路徑此欄固定回 0，要等第二段才有值。）
+         */
+        $score_mal = isset( $media['mean'] ) ? (int) round( (float) $media['mean'] * 10 ) : 0;
+
+        $studios = [];
+        foreach ( $media['studios'] ?? [] as $studio ) {
+            if ( ! empty( $studio['name'] ) ) $studios[] = (string) $studio['name'];
+        }
+
+        /*
+         * 成人過濾的判斷依據。
+         * MAL 的 nsfw 有 white / gray / black 三值，rating 的 rx 是 Hentai。
+         * 實測季度端點預設就不回 nsfw 非 white 的作品，這裡仍照判，
+         * 因為單筆匯入（使用者自己貼 ID）不受季度端點的過濾保護。
+         */
+        $nsfw      = strtolower( (string) ( $media['nsfw'] ?? 'white' ) );
+        $rating    = strtolower( (string) ( $media['rating'] ?? '' ) );
+        $is_adult  = ( $nsfw !== '' && $nsfw !== 'white' ) || $rating === 'rx';
+
+        // ── genres 分流：MAL 把類型／題材／客群混在同一個陣列 ──
+        $genres = [];
+        $tags   = [];
+        foreach ( $media['genres'] ?? [] as $g ) {
+            $name = trim( (string) ( $g['name'] ?? '' ) );
+            if ( $name === '' ) continue;
+            $route = $this->route_mal_genre( $name );
+            if ( $route === 'genre' )    $genres[] = $name;
+            elseif ( $route === 'tag' )  $tags[]   = $name;
+            // '' = 明確丟棄
+        }
+
+        $animethemes_meta = $this->get_animethemes_meta( $post_id );
+
+        return [
+            /*
+             * ★ anilist_id 一律 0，反查結果另外放 _asp_anilist_id_hint。
+             *
+             * 離線對照表的 MAL→AniList 是一對多：AniList 把分割放送／續季拆成
+             * 多個條目，MAL 用同一條目。拿站上 1,522 筆已知配對實測，查得到的
+             * 當中有 0.46%（7 筆）指向錯的那一季——葬送的芙莉蓮 2期/3期、
+             * 夏日口袋三篇、JOJO 石之海第 2 部分都是。
+             *
+             * 寫錯的後果不是少一個 ID，是 AniList 恢復後每日同步會把「另一季」
+             * 的狀態／集數／評分寫進這部作品，而且沒有任何錯誤訊息。
+             * 因此改為存 hint，等 AniList 可用時以 Media(id:hint){idMal} 驗證
+             * idMal 是否等於本站的 anime_mal_id，確認後才寫入正式欄位。
+             */
+            'anilist_id'             => 0,
+            '_asp_anilist_id_hint'   => $this->id_mapper->get_anilist_id_by_mal( $mal_id ),
+            'mal_id'                 => $mal_id,
+            'bangumi_id'             => $bangumi_id,
+            'anime_animethemes_id'   => $animethemes_meta['id'],
+            'anime_animethemes_slug' => $animethemes_meta['slug'],
+            'animethemes_slug'       => $animethemes_meta['slug'],
+            'anime_title_chinese'    => $title_chinese,
+            'anime_title_simplified' => $title_simplified,
+            'anime_title_romaji'     => $title_romaji,
+            'anime_title_english'    => $title_english,
+            'anime_title_native'     => $title_native,
+            'anime_format'           => $this->map_mal_format( $media ),
+            'anime_status'           => self::MAL_STATUS_MAP[ strtolower( (string) ( $media['status'] ?? '' ) ) ] ?? '',
+            'anime_season'           => $season,
+            'anime_season_year'      => $season_year,
+            'anime_source'           => self::MAL_SOURCE_MAP[ strtolower( (string) ( $media['source'] ?? '' ) ) ] ?? '',
+            // MAL 沒有製作國與原作國別，留空；不猜。
+            'anime_country'          => '',
+            'anime_source_country'   => '',
+            'anime_episodes'         => $episodes,
+            // MAL 給秒，站上欄位是分鐘
+            'anime_duration'         => (int) round( (int) ( $media['average_episode_duration'] ?? 0 ) / 60 ),
+            'anime_studios'          => implode( ', ', $studios ),
+            'anime_score_anilist'    => 0,
+            'anime_score_bangumi'    => $score_bangumi,
+            'anime_score_mal'        => $score_mal,
+            /*
+             * ★ 一律 0，不填 num_list_users。
+             *
+             * MAL 的 popularity 是排名（越小越紅），與站上「收藏人數」語意相反。
+             * 語意正確的是 num_list_users，但它與 AniList 的尺度不同——實測 489 部
+             * 重疊樣本，MAL/AniList 比值中位數 2.51（IQR 2.16–2.82）。
+             *
+             * 係數雖穩定，仍是估算值，而 themes/wxacgtheme/page-bangumi.php 會把
+             * 這個數字原樣印給讀者看（「人氣 599,585」）。估算值不進資料庫。
+             * 該處上一行是 if ( popularity > 0 )，填 0 前台會自動隱藏這個標籤。
+             * AniList 恢復後由每日動態更新補上真值。
+             */
+            'anime_popularity'       => 0,
+            'anime_cover_image'      => (string) ( $media['main_picture']['large'] ?? $media['main_picture']['medium'] ?? '' ),
+            // MAL 沒有橫幅與預告片；留空等 AniList 恢復後由差異掃描補
+            'anime_banner_image'     => '',
+            'anime_trailer_url'      => '',
+            'anime_synopsis_chinese' => $synopsis_chinese,
+            'anime_synopsis_english' => $synopsis_english,
+            'anime_start_date'       => $this->parse_mal_date( (string) ( $media['start_date'] ?? '' ) ),
+            'anime_end_date'         => $this->parse_mal_date( (string) ( $media['end_date'] ?? '' ) ),
+            // MAL 沒有串流連結；由 anime_youranimes_url 觸發的同步負責補
+            'anime_streaming'        => '[]',
+            'anime_themes'           => '[]',
+            // staff / cast 一律交給 enrich 從 Bangumi 抓（站上既定政策）
+            'anime_staff_json'       => '[]',
+            'anime_cast_json'        => '[]',
+            'anime_relations_json'   => wp_json_encode( $this->parse_mal_relations( $media ), JSON_UNESCAPED_UNICODE ),
+            'anime_episodes_json'    => '[]',
+            'anime_official_site'    => '',
+            'anime_twitter_url'      => '',
+            'anime_tiktok_url'       => '',
+            'anime_wikipedia_url'    => '',
+            'anime_external_links'   => '[]',
+            // MAL 的 broadcast 是「星期幾幾點」，不是下一集的時間戳，換算不出來
+            'anime_next_airing'      => '',
+            'anime_genres'           => $genres,
+            'anime_tags'             => $tags,
+            'anime_is_adult'         => $is_adult,
+            '_bgm_raw'               => $bgm_data,
+            '_needs_enrich'          => true,
+        ];
+    }
+
+    /**
+     * 取單筆 MAL 作品資料。
+     *
+     * 重試策略比照既有的 fetch_mal_score()：cURL 錯誤與 429／5xx 才重試，
+     * 其他 4xx 直接放棄（404 代表這個 ID 不存在，重試一萬次也不會成功）。
+     *
+     * @return array|WP_Error
+     */
+    private function fetch_mal_anime( int $mal_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_mal_core_' . $mal_id;
+        $cached    = get_transient( $cache_key );
+        if ( is_array( $cached ) ) {
+            return $cached;
+        }
+
+        $client_id = defined( 'MAL_CLIENT_ID' ) ? MAL_CLIENT_ID : '';
+        if ( $client_id === '' ) {
+            return new WP_Error(
+                'mal_no_client_id',
+                'wp-config.php 未設定 MAL_CLIENT_ID，無法使用 MAL 匯入。'
+            );
+        }
+
+        $url = self::MAL_ANIME_URL . $mal_id . '?fields=' . self::MAL_CORE_FIELDS;
+
+        $max_attempts = 3;
+        $last_error   = null;
+
+        for ( $attempt = 1; $attempt <= $max_attempts; $attempt++ ) {
+
+            $this->rate_limiter->wait_if_needed( 'mal' );
+
+            $response = wp_remote_get( $url, [
+                'timeout' => 20,
+                'headers' => [
+                    'User-Agent'      => self::USER_AGENT,
+                    'X-MAL-CLIENT-ID' => $client_id,
+                ],
+            ] );
+
+            if ( is_wp_error( $response ) ) {
+                $last_error = $response;
+                $this->rate_limiter->record_stat( 'jikan', 'failed' );
+                if ( $attempt < $max_attempts ) {
+                    sleep( 3 );
+                    $this->rate_limiter->record_stat( 'jikan', 'retry' );
+                    continue;
+                }
+                return $last_error;
+            }
+
+            $code = (int) wp_remote_retrieve_response_code( $response );
+
+            if ( $code === 429 || $code >= 500 ) {
+                $this->rate_limiter->record_stat( 'jikan', 'rate_limited' );
+                if ( $attempt < $max_attempts ) {
+                    sleep( $code === 429 ? 5 : 3 );
+                    $this->rate_limiter->record_stat( 'jikan', 'retry' );
+                    continue;
+                }
+                $this->rate_limiter->record_stat( 'jikan', 'failed' );
+                return new WP_Error( 'mal_http_' . $code, "MAL 回應 HTTP {$code}（已重試 {$max_attempts} 次）。" );
+            }
+
+            if ( $code !== 200 ) {
+                $this->rate_limiter->record_stat( 'jikan', 'failed' );
+                return new WP_Error( 'mal_http_' . $code, "MAL 回應 HTTP {$code}（MAL ID {$mal_id}）。" );
+            }
+
+            $data = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( ! is_array( $data ) || empty( $data['id'] ) ) {
+                $this->rate_limiter->record_stat( 'jikan', 'failed' );
+                return new WP_Error( 'mal_decode_error', "MAL 回應無法解析（MAL ID {$mal_id}）。" );
+            }
+
+            $this->rate_limiter->record_stat( 'jikan', 'success' );
+            set_transient( $cache_key, $data, 6 * HOUR_IN_SECONDS );
+
+            return $data;
+        }
+
+        return $last_error ?: new WP_Error( 'mal_unknown', 'MAL 請求失敗。' );
+    }
+
+    /**
+     * MAL media_type → anime_format，含 TV_SHORT 的時長推斷。
+     */
+    private function map_mal_format( array $media ): string {
+        $type = strtolower( (string) ( $media['media_type'] ?? '' ) );
+        $mapped = self::MAL_FORMAT_MAP[ $type ] ?? '';
+
+        if ( $mapped !== 'TV' ) {
+            return $mapped;
+        }
+
+        // 見 MAL_TV_SHORT_MAX_MINUTES 的註解：沒給時長就不推斷
+        $seconds = (int) ( $media['average_episode_duration'] ?? 0 );
+        if ( $seconds <= 0 ) {
+            return 'TV';
+        }
+
+        $minutes = (int) round( $seconds / 60 );
+
+        return ( $minutes > 0 && $minutes <= self::MAL_TV_SHORT_MAX_MINUTES ) ? 'TV_SHORT' : 'TV';
+    }
+
+    /**
+     * 決定一個 MAL genre 名稱該進 genre 分類法還是 post_tag。
+     *
+     * 明確列在 MAL_GENRE_ROUTE 的照表走（含刻意丟棄的）；未列出的用預設：
+     * 名稱能對上 AniList 那套類型詞彙就當類型，否則當題材標籤。
+     * 兩張對照表都對不上時，class-import-manager.php 會自行略過，
+     * 不會建出英文詞彙。
+     *
+     * @return string 'genre' | 'tag' | ''（丟棄）
+     */
+    private function route_mal_genre( string $name ): string {
+        if ( array_key_exists( $name, self::MAL_GENRE_ROUTE ) ) {
+            return self::MAL_GENRE_ROUTE[ $name ];
+        }
+
+        /*
+         * 預設分流以 AniList 的類型詞彙為界。這份名單與
+         * class-import-manager.php 的 get_anilist_genre_map() 鍵值相同——
+         * 兩邊都是「AniList 的 genres 有哪些」這個事實的表述，
+         * 對不上時的後果只是歸到 post_tag，不會產生髒資料。
+         */
+        static $anilist_genres = [
+            'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Hentai',
+            'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological',
+            'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
+        ];
+
+        return in_array( $name, $anilist_genres, true ) ? 'genre' : 'tag';
+    }
+
+    /**
+     * MAL 日期字串 → 站上的 8 碼 Ymd。
+     *
+     * MAL 可能給 YYYY-MM-DD、YYYY-MM 或 YYYY。與 parse_fuzzy_date() 同一條規則：
+     * 年月日俱全才寫，精度不足回空字串——不要把「只知道 2026 年 10 月」
+     * 補成 20261001 而變成假的精確日期（站上已有 41 部處於這種狀態）。
+     */
+    private function parse_mal_date( string $date ): string {
+        if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', trim( $date ), $m ) ) {
+            return '';
+        }
+
+        return sprintf( '%04d%02d%02d', (int) $m[1], (int) $m[2], (int) $m[3] );
+    }
+
+    /**
+     * MAL related_anime → 站上的 anime_relations_json 結構。
+     *
+     * ★ MAL 給的 node.id 是 MAL ID，而站上這個欄位的 id 被當成 AniList ID 使用
+     *   （class-import-manager.php 的 resolve_series_root()、
+     *     admin/class-admin.php 的 handle_ajax_scan_series_gaps()）。
+     *   照抄會讓系列判定配到完全無關的作品。
+     *
+     *   因此逐筆用離線表反查成 AniList ID，查不到就整筆略過——
+     *   系列少一條關聯只是少一個連結，配錯則是實際的錯誤資料。
+     */
+    private function parse_mal_relations( array $media ): array {
+        $relations = [];
+
+        foreach ( $media['related_anime'] ?? [] as $rel ) {
+            $node_mal_id = (int) ( $rel['node']['id'] ?? 0 );
+            if ( $node_mal_id <= 0 ) {
+                continue;
+            }
+
+            $node_anilist_id = $this->id_mapper->get_anilist_id_by_mal( $node_mal_id );
+            if ( $node_anilist_id <= 0 ) {
+                continue;
+            }
+
+            $raw_type = strtolower( trim( (string) ( $rel['relation_type'] ?? '' ) ) );
+
+            $relations[] = [
+                'id'            => $node_anilist_id,
+                // related_anime 只回動畫，不會有 MANGA
+                'type'          => 'ANIME',
+                // 見 MAL_RELATION_MAP：不能只 strtoupper，parent_story 會對不上
+                'relation_type' => self::MAL_RELATION_MAP[ $raw_type ] ?? strtoupper( $raw_type ),
+                'title'         => (string) ( $rel['node']['title'] ?? '' ),
+            ];
+        }
+
+        return $relations;
+    }
+
+    // =========================================================================
     // PUBLIC – 補抓第二段資料（ACB）
     // =========================================================================
 
@@ -451,8 +1039,24 @@ class Anime_Sync_API_Handler {
         $title_romaji  = (string) get_post_meta( $post_id, 'anime_title_romaji',  true );
         $title_english = (string) get_post_meta( $post_id, 'anime_title_english', true );
 
-        if ( ! $anilist_id ) {
-            return new WP_Error( 'missing_anilist_id', "Post {$post_id} has no anime_anilist_id." );
+        /*
+         * ★ 入口守衛：要的是「有沒有可用的識別子」，不是「有沒有 AniList ID」。
+         *
+         * 原本這裡擋的是 ! $anilist_id。但本方法從頭到尾沒有再用過 $anilist_id
+         * 一次——資料全部來自 Bangumi（staff / cast / 集數）、MAL（評分）、
+         * AnimeThemes（主題曲）與 Wikipedia，AniList 的使用次數是零。
+         * 那個判斷是早期實作的殘留，現在唯一的作用是把「沒有 AniList ID 但
+         * 有 Bangumi／MAL ID」的作品整個擋在門外，而 AniList 停用期間由 MAL
+         * 匯入的作品正是這種。
+         *
+         * 改為「三個識別子有其一就放行」。三個都沒有才是真的無事可做——
+         * 那時連 Bangumi ID 的反查都沒有依據，回錯誤是正確的。
+         */
+        if ( ! $anilist_id && ! $bangumi_id && ! $mal_id ) {
+            return new WP_Error(
+                'missing_identifiers',
+                "Post {$post_id} has no anime_anilist_id / anime_bangumi_id / anime_mal_id."
+            );
         }
 
         // ★ [1.2.1] 讀取整欄鎖清單（與 save_post_meta / ajax_resync_bangumi 同一 meta key）。
