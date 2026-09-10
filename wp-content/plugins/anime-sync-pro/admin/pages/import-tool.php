@@ -459,6 +459,7 @@ $converter_stats = $cn_converter->get_stats();
                         <thead><tr>
                             <th class="asc-col-check"><input id="mal-select-all" type="checkbox" checked></th>
                             <th class="asc-col-id">MAL ID</th>
+                            <th class="asc-col-id" title="已匯入的顯示站上實際存的 AniList ID；未匯入的顯示離線對照表反查到的推測值（灰色），要等 AniList 恢復後核對 idMal 相符才會正式寫入。">AniList ID</th>
                             <th>名稱</th>
                             <th class="asc-col-sm">格式</th>
                             <th class="asc-col-md">檔期</th>
@@ -661,6 +662,9 @@ function asc_progress_block( $prefix ) {
     margin-left: 2px;
 }
 
+/* 尚未驗證的 AniList ID 推測值：視覺上要與確定的值有區別 */
+.asc-al-hint { color: #999; font-style: italic; }
+
 /* MAL 季度清單含跨季續播作品，標一下免得檔期看起來像錯的 */
 .asc-carryover-badge {
     display: inline-block;
@@ -738,8 +742,17 @@ function asc_progress_block( $prefix ) {
 .asc-info-box { background: #f0f7ff; border: 1px solid #b8d4f5; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 13px; }
 .status-imported { color: #46b450; font-weight: bold; }
 .status-new      { color: #2271b1; }
+/*
+ * ★ 新增分頁時務必把 tbody 的 id 加進這條規則。
+ *
+ * JS 只負責加 .format-hidden，真正隱藏是靠這裡。漏掉的話篩選看起來像
+ * 沒反應——而且後果不只是視覺：collectIds() 是用 :visible 判斷要送出哪些，
+ * 沒被隱藏的列會照樣被送去匯入（就是上面 collectIds 註解裡「畫面上只勾
+ * 6 部卻送出 54 部」那個情況）。
+ */
 #season-anime-tbody tr.format-hidden,
-#ranking-tbody tr.format-hidden { display: none; }
+#ranking-tbody tr.format-hidden,
+#mal-tbody tr.format-hidden { display: none; }
 /* 匯入開始後，沒勾選的列先收起來，畫面只留正在跑的那幾部 */
 #season-anime-tbody tr.asc-unselected-hidden,
 #season-anime-cards .asc-import-card.asc-unselected-hidden { display: none; }
@@ -1572,6 +1585,24 @@ function asc_progress_block( $prefix ) {
         });
     });
 
+    /*
+     * AniList ID 欄位。三種狀態要分清楚，否則使用者會以為推測值就是事實：
+     *   站上已有       正常顯示，可點去 AniList
+     *   只有推測值     灰字加問號，代表尚未驗證（AniList 恢復後才會核對）
+     *   兩者都沒有     顯示 —，代表離線表查不到，之後也接不回 AniList
+     */
+    function malAnilistCell(item) {
+        if (item.anilist_id) {
+            return '<a href="https://anilist.co/anime/' + escHtml(String(item.anilist_id)) +
+                   '" target="_blank" rel="noopener">' + escHtml(String(item.anilist_id)) + '</a>';
+        }
+        if (item.anilist_hint) {
+            return '<span class="asc-al-hint" title="離線對照表的推測值，尚未驗證。匯入後等 AniList 恢復，系統會核對 idMal 相符才寫入。">' +
+                   escHtml(String(item.anilist_hint)) + '?</span>';
+        }
+        return '<span class="na" title="離線對照表查不到，匯入後不會有 AniList ID">—</span>';
+    }
+
     function renderMalTable(list) {
         var tbody = $('#mal-tbody').empty();
         var cards = $('#mal-cards').empty();
@@ -1603,6 +1634,7 @@ function asc_progress_block( $prefix ) {
                 .html(
                     '<td>' + chk + '</td>' +
                     '<td>' + escHtml(String(id)) + '</td>' +
+                    '<td>' + malAnilistCell(item) + '</td>' +
                     '<td>' + escHtml(item.title || '') + '</td>' +
                     '<td>' + escHtml(item.format || '') + '</td>' +
                     '<td>' + seasonCell + '</td>' +

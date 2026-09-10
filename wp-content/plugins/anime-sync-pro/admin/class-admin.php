@@ -669,6 +669,15 @@ class Anime_Sync_Admin {
                 . '&fields=id,title,media_type,status,num_episodes,num_list_users,mean,start_season';
         }
 
+        /*
+         * 順便把離線表反查到的 AniList ID 一起帶回去顯示。
+         *
+         * 純本地查表（uploads/anime-sync-pro/mal_al_index.json），不打任何 API，
+         * 而且 mapper 內部有 static 快取，整批只讀一次檔。
+         * 讓使用者在匯入前就看得出哪些作品之後接得回 AniList、哪些接不回。
+         */
+        $mapper = class_exists( 'Anime_Sync_ID_Mapper' ) ? new Anime_Sync_ID_Mapper() : null;
+
         $all  = [];
         $page = 0;
 
@@ -716,8 +725,18 @@ class Anime_Sync_Admin {
                     'suppress_filters' => true,
                 ] );
 
+                /*
+                 * 已匯入的直接顯示站上實際存的 anilist_id（可能是人工填的、
+                 * 也可能是驗證通過寫入的）；沒匯入的顯示離線表的推測值。
+                 * 兩者語意不同，前端會分開標示。
+                 */
+                $al_stored = ! empty( $existing ) ? (int) get_post_meta( $existing[0], 'anime_anilist_id', true ) : 0;
+                $al_hint   = $mapper ? $mapper->get_anilist_id_by_mal( $id ) : 0;
+
                 $all[ $id ] = [
                     'mal_id'     => $id,
+                    'anilist_id' => $al_stored,
+                    'anilist_hint' => $al_hint,
                     'title'      => (string) ( $n['title'] ?? '' ),
                     'format'     => strtoupper( $type ),
                     'episodes'   => (int) ( $n['num_episodes'] ?? 0 ),
