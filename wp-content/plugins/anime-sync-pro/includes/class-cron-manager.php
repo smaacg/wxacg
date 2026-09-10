@@ -201,6 +201,16 @@ class Anime_Sync_Cron_Manager {
 
     const FALLBACK_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+    /*
+     * MAL 匯入留下的 AniList ID 推測值，等 AniList 可用時驗證後才寫入正式欄位。
+     * 一批 50 筆＝一次 GraphQL 請求（id_in 上限就是 perPage 50），
+     * 掛在每小時的動態更新裡，沒有待驗證項目時只是一次 meta_query。
+     */
+    const HINT_META             = '_asp_anilist_id_hint';
+    const HINT_VERIFY_FLAG_META = '_asp_needs_anilist_verify';
+    const HINT_REJECTED_META    = '_asp_anilist_hint_rejected';
+    const HINT_VERIFY_BATCH_SIZE = 50;
+
     const SCORE_BACKFILL_QUEUE_OPTION       = 'anime_sync_score_backfill_queue';
     const SCORE_BACKFILL_BATCH_SIZE_DEFAULT = 15;
     const SCORE_BACKFILL_REBUILD_INTERVAL   = 30 * DAY_IN_SECONDS;
@@ -503,8 +513,169 @@ class Anime_Sync_Cron_Manager {
         try {
             $this->_run_daily_score_update_inner();
             $this->run_score_backfill_batch();
+            $this->run_anilist_hint_verify_batch();
         } finally {
             delete_transient( 'anime_sync_lock_daily' );
+        }
+    }
+
+    /**
+     * 驗證 MAL 匯入留下的 AniList ID 推測值，確認後才寫入正式欄位。
+     *
+     * ★ 這支在做什麼
+     *   AniList 停用期間由 MAL 匯入的作品，anime_anilist_id 是空的，只在
+     *   _asp_anilist_id_hint 留下離線對照表反查來的推測值（見
+     *   Anime_Sync_API_Handler::get_core_anime_data_from_mal()）。
+     *   這裡等 AniList 可用時逐批確認，確認後才寫進正式欄位——寫進去之後
+     *   每日動態更新、緊急集數檢查、差異掃描就會自動接手這些作品。
+     *
+     * ★ 驗證方式是確定的，不是猜
+     *   問 AniList「id = hint 這筆的 idMal 是多少」，等於站上的 anime_mal_id
+     *   才算數。兩個上游各自獨立記錄同一組對應，對得上就沒有誤判空間。
+     *
+     * ★ 為什麼需要驗證：離線對照表的 MAL→AniList 是一對多
+     *   AniList 把分割放送／續季拆成多個條目、MAL 用同一條目。實測站上
+     *   1,522 筆已知配對，反查得到的當中有 0.49% 指向錯的那一季（葬送的
+     *   芙莉蓮 2期/3期、夏日口袋三篇、JOJO 石之海第 2 部分）。直接寫入的
+     *   後果是 AniList 恢復後把「另一季」的狀態／集數／評分同步進來，
+     *   而且不會有任何錯誤訊息。
+     *
+     *   多篇共用同一個 hint 時，這個驗證會自然收斂：idMal 最多只會對上
+     *   其中一篇，其餘一律被否決。
+     *
+     * ★ 掛在每小時那支任務裡，與 run_score_backfill_batch() 同一個模式
+     *   沒有待驗證項目時只是一次 meta_query，成本可忽略；AniList 還沒恢復
+     *   時熔斷器會讓它直接返回，不會空打。
+     */
+    private function run_anilist_hint_verify_batch(): void {
+
+        // AniList 還不能用就直接返回，等下一輪
+        if ( $this->anilist_circuit_is_open() ) {
+            return;
+        }
+
+        $post_ids = get_posts( [
+            'post_type'      => 'anime',
+            'post_status'    => 'any',
+            'posts_per_page' => self::HINT_VERIFY_BATCH_SIZE,
+            'fields'         => 'ids',
+            'orderby'        => 'ID',
+            'order'          => 'ASC',
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                [ 'key' => self::HINT_VERIFY_FLAG_META, 'value' => '1', 'compare' => '=' ],
+            ],
+        ] );
+
+        if ( empty( $post_ids ) ) {
+            return;
+        }
+
+        // hint → 文章（可能多篇共用同一個 hint，見上方說明）
+        $by_hint = [];
+        foreach ( $post_ids as $pid ) {
+            $pid  = (int) $pid;
+            $hint = (int) get_post_meta( $pid, self::HINT_META, true );
+
+            if ( $hint > 0 ) {
+                $by_hint[ $hint ][] = $pid;
+                continue;
+            }
+
+            // 沒有 hint 卻掛著旗標：清掉，避免每小時撈同一批空轉
+            delete_post_meta( $pid, self::HINT_VERIFY_FLAG_META );
+        }
+
+        if ( empty( $by_hint ) ) {
+            return;
+        }
+
+        $query = <<<'GQL'
+        query ($ids: [Int]) {
+            Page(perPage: 50) {
+                media(id_in: $ids, type: ANIME) {
+                    id
+                    idMal
+                }
+            }
+        }
+        GQL;
+
+        $this->rate_limiter->wait_if_needed( 'anilist' );
+        $body = $this->anilist_request( $query, [ 'ids' => array_keys( $by_hint ) ] );
+
+        if ( $body === null ) {
+            // 上游還沒好：不動任何資料，下一輪重試
+            $this->anilist_record_failure();
+            return;
+        }
+
+        $this->anilist_record_success();
+
+        // AniList 回來的 id → idMal
+        $upstream = [];
+        foreach ( (array) ( $body['data']['Page']['media'] ?? [] ) as $m ) {
+            $al = (int) ( $m['id'] ?? 0 );
+            if ( $al > 0 ) {
+                $upstream[ $al ] = (int) ( $m['idMal'] ?? 0 );
+            }
+        }
+
+        $confirmed = 0;
+        $rejected  = 0;
+
+        foreach ( $by_hint as $hint => $pids ) {
+            foreach ( $pids as $pid ) {
+                $site_mal  = (int) get_post_meta( $pid, 'anime_mal_id', true );
+                $upstream_mal = $upstream[ $hint ] ?? 0;
+                $title     = get_the_title( $pid ) ?: "ID {$pid}";
+
+                // 旗標一律清掉：這一輪已經有明確結論，不論確認或否決
+                delete_post_meta( $pid, self::HINT_VERIFY_FLAG_META );
+
+                if ( $site_mal > 0 && $upstream_mal === $site_mal ) {
+                    update_post_meta( $pid, 'anime_anilist_id', (int) $hint );
+                    delete_post_meta( $pid, self::HINT_META );
+                    $confirmed++;
+
+                    $this->logger->log( 'info', sprintf(
+                        'AniList ID 驗證通過〔%s〕：anilist_id = %d（idMal %d 相符）',
+                        $title,
+                        $hint,
+                        $site_mal
+                    ), [ 'post_id' => $pid ] );
+
+                    $this->purge_post_cache( $pid );
+                    continue;
+                }
+
+                /*
+                 * 否決。hint 搬到另一個 meta 留存，方便日後人工查是哪裡對錯；
+                 * 正式欄位維持空白，這篇作品繼續只靠 Bangumi / MAL 同步。
+                 */
+                delete_post_meta( $pid, self::HINT_META );
+                update_post_meta( $pid, self::HINT_REJECTED_META, (int) $hint );
+                $rejected++;
+
+                $this->logger->log( 'warning', sprintf(
+                    'AniList ID 驗證未通過〔%s〕：推測 %d 的 idMal 是 %s，站上是 %d，不予寫入',
+                    $title,
+                    $hint,
+                    $upstream_mal > 0 ? (string) $upstream_mal : '（AniList 查無此 ID）',
+                    $site_mal
+                ), [
+                    'post_id'  => $pid,
+                    'edit_url' => get_edit_post_link( $pid, 'raw' ),
+                ] );
+            }
+        }
+
+        if ( $confirmed > 0 || $rejected > 0 ) {
+            $this->logger->log( 'info', sprintf(
+                'AniList ID 驗證：本批確認 %d 筆、否決 %d 筆',
+                $confirmed,
+                $rejected
+            ) );
         }
     }
 
