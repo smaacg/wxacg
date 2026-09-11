@@ -341,6 +341,25 @@ class Anime_Sync_ID_Mapper {
         $modified  = filemtime( $path );
         $age_hours = $modified ? round( ( time() - $modified ) / 3600, 1 ) : null;
 
+        /*
+         * 反查索引筆數不能只信 meta。
+         *
+         * mal_al_count 是後來才加進 meta 的鍵，舊版產生的 meta 裡沒有；
+         * 但 mal_al_index.json 本身可能已經存在（例如以其他路徑產生過）。
+         * 只讀 meta 的話會把「有索引但 meta 沒記」誤報成「索引尚未產生」，
+         * 而設定頁正是靠這個數字告訴使用者要不要按更新——誤報會讓人白按，
+         * 或反過來以為已經好了。所以 meta 沒有就實際數檔案。
+         *
+         * 只在 meta 缺值時才讀檔，正常情況不會多這一次 JSON 解析。
+         */
+        $mal_al_count = (int) ( $meta['mal_al_count'] ?? 0 );
+        $mal_al_path  = $this->get_file_path( self::MAL_AL_INDEX_FILE );
+
+        if ( $mal_al_count <= 0 && file_exists( $mal_al_path ) ) {
+            $index        = $this->load_json_file( $mal_al_path );
+            $mal_al_count = is_array( $index ) ? count( $index ) : 0;
+        }
+
         return [
             'exists'           => true,
             'path'             => $path,
@@ -348,7 +367,7 @@ class Anime_Sync_ID_Mapper {
             'entry_count'      => $meta['entry_count']         ?? 0,
             'mal_count'        => $meta['mal_count']           ?? 0,
             'al_count'         => $meta['al_count']            ?? 0,
-            'mal_al_count'     => $meta['mal_al_count']        ?? 0,
+            'mal_al_count'     => $mal_al_count,
             'ext_total'        => $ext_meta['total']           ?? 0,
             'ext_mal_count'    => $ext_meta['mal_count']       ?? 0,
             'ext_anidb_count'  => $ext_meta['anidb_count']     ?? 0,

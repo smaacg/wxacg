@@ -397,12 +397,14 @@ $plugin_version = defined( 'ANIME_SYNC_PRO_VERSION' )
 /* ───────────────────────────────────────────────
    Bangumi ID 對照表狀態
 ─────────────────────────────────────────────── */
-$map_exists  = false;
-$map_count   = 0;
-$mal_count   = 0;
-$map_size    = 0;
-$map_updated = '—';
-$map_age_h   = 0;
+$map_exists   = false;
+$map_count    = 0;
+$mal_count    = 0;
+// MAL → AniList 反查索引（mal_al_index.json）的筆數，與上面 mal_count 是不同方向
+$mal_al_count = 0;
+$map_size     = 0;
+$map_updated  = '—';
+$map_age_h    = 0;
 
 if ( class_exists( 'Anime_Sync_ID_Mapper' ) ) {
     $mapper     = new Anime_Sync_ID_Mapper();
@@ -410,6 +412,7 @@ if ( class_exists( 'Anime_Sync_ID_Mapper' ) ) {
     $map_exists  = ! empty( $map_status['exists'] );
     $map_count   = (int) ( isset( $map_status['entry_count'] ) ? $map_status['entry_count'] : 0 );
     $mal_count   = (int) ( isset( $map_status['mal_count'] )   ? $map_status['mal_count']   : 0 );
+    $mal_al_count = (int) ( isset( $map_status['mal_al_count'] ) ? $map_status['mal_al_count'] : 0 );
     $map_size    = (int) ( isset( $map_status['size'] )        ? $map_status['size']         : 0 );
     $map_updated = ! empty( $map_status['last_updated'] ) ? $fmt_datetime( $map_status['last_updated'] ) : '—';
     $map_age_h   = (float) ( isset( $map_status['age_hours'] ) ? $map_status['age_hours'] : 0 );
@@ -1021,13 +1024,33 @@ $cron_rows = array(
                 <td>
                     <?php if ( $map_exists ) : ?>
                         <span class="asc-text-ok">✓</span>
-                        <?php printf(
-                            esc_html__( '存在 · %1$s 筆（MAL %2$s 筆）· %3$s · 更新：%4$s', 'anime-sync-pro' ),
+                        <?php
+                        /*
+                         * 反查筆數與上面的「MAL 筆數」是不同方向，不能混為一談：
+                         *   MAL 筆數 = AniList → MAL（anime_map.json，本來就有）
+                         *   反查     = MAL → AniList（mal_al_index.json，MAL 匯入回填用）
+                         *
+                         * 舊版程式產生的對照表沒有反查索引，這裡會顯示「尚未產生」，
+                         * 提示使用者按一次更新。沒有這個提示的話，MAL 匯入的作品
+                         * 補不到 AniList ID 時，分辨不出是索引沒生成還是真的查無對應。
+                         */
+                        $mal_al_frag = $mal_al_count > 0
+                            ? esc_html( sprintf(
+                                /* translators: %s: 反查索引筆數 */
+                                __( '反查 %s 筆', 'anime-sync-pro' ),
+                                number_format_i18n( $mal_al_count )
+                            ) )
+                            : '<span class="asc-text-err">' . esc_html__( '反查索引尚未產生', 'anime-sync-pro' ) . '</span>';
+
+                        printf(
+                            esc_html__( '存在 · %1$s 筆（MAL %2$s 筆・%3$s）· %4$s · 更新：%5$s', 'anime-sync-pro' ),
                             esc_html( number_format_i18n( $map_count ) ),
                             esc_html( number_format_i18n( $mal_count ) ),
+                            $mal_al_frag, // 已逐段轉義，且刻意含 <span> 標記顏色
                             esc_html( size_format( $map_size ) ),
                             esc_html( $map_updated )
-                        ); ?>
+                        );
+                        ?>
                         <?php if ( $map_age_h > 168 ) : ?>
                             <span class="asc-text-err asc-map-warn">
                                 ⚠️ <?php esc_html_e( '超過 7 天未更新', 'anime-sync-pro' ); ?>
@@ -1159,6 +1182,16 @@ $cron_rows = array(
             <tr>
                 <th scope="row"><?php esc_html_e( 'mal_index 筆數', 'anime-sync-pro' ); ?></th>
                 <td><?php echo esc_html( number_format_i18n( $mal_count ) ); ?></td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'mal_al_index 筆數', 'anime-sync-pro' ); ?></th>
+                <td>
+                    <?php if ( $mal_al_count > 0 ) : ?>
+                        <?php echo esc_html( number_format_i18n( $mal_al_count ) ); ?>
+                    <?php else : ?>
+                        <span class="asc-text-err"><?php esc_html_e( '尚未產生（請按「立即下載 / 更新對照表」）', 'anime-sync-pro' ); ?></span>
+                    <?php endif; ?>
+                </td>
             </tr>
             <tr>
                 <th scope="row"><?php esc_html_e( '對照表更新時間', 'anime-sync-pro' ); ?></th>
