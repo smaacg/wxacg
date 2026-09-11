@@ -569,7 +569,6 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
         $format     = $g( 'anime_format' );
         $status     = $g( 'anime_status' );
         $episodes   = (int) $g( 'anime_episodes' );
-        $popularity = (int) $g( 'anime_popularity' );
 
         $season_label = $season_labels[ strtoupper( $season ) ] ?? '';
         $format_label = $format_labels[ $format ] ?? $format;
@@ -619,7 +618,6 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
                         <?php if ( $season_str )   : ?><span class="aaa-meta-tag aaa-meta-season"><?php echo esc_html( $season_str ); ?></span><?php endif; ?>
                         <?php if ( $episodes )     : ?><span class="aaa-meta-tag aaa-meta-ep"><?php echo esc_html( $episodes ); ?> 集</span><?php endif; ?>
                     </div>
-                    <?php if ( $popularity ) : ?><div class="aaa-card-pop">👥 <?php echo esc_html( number_format( $popularity ) ); ?></div><?php endif; ?>
                 </div>
             </a>
         </article>
@@ -743,7 +741,6 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
 .aaa-meta-format{background:rgba(124,92,255,.2);color:#b8a0ff;border:1px solid rgba(124,92,255,.34);}
 .aaa-meta-season{background:rgba(52,211,153,.16);color:#34d399;border:1px solid rgba(52,211,153,.3);}
 .aaa-meta-ep{background:rgba(76,201,240,.16);color:#4cc9f0;border:1px solid rgba(76,201,240,.3);}
-.aaa-card-pop{font-size:11px;color:var(--faint);}
 .aaa-pagination{display:flex;justify-content:center;margin:36px 0;}
 .aaa-pagination ul{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:0;padding:0;justify-content:center;}
 .aaa-pagination .page-numbers{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:38px;padding:0 12px;border-radius:var(--pill);background:var(--surf);color:var(--muted);text-decoration:none;font-size:14px;font-weight:600;border:1px solid var(--bd);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);transition:all var(--tr);}
