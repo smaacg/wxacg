@@ -397,6 +397,50 @@ $converter_stats = $cn_converter->get_stats();
 
             <hr style="margin:20px 0;">
 
+            <?php /* ── 系列分析（MAL 版，對應 🔗 系列分析分頁）── */ ?>
+            <h4 style="margin:0 0 10px;">🔗 系列分析與匯入</h4>
+            <p class="description" style="margin:0 0 10px;">
+                輸入系列中任意一部的 MAL ID，系統會沿 prequel 追溯到最前面那一部，
+                列出完整系列並標記哪些已匯入。匯入時會一併歸入系列分類。
+            </p>
+            <div class="asc-query-row">
+                <div class="asc-query-field asc-query-field--grow">
+                    <label for="mal-series-id">MAL ID</label>
+                    <input type="number" id="mal-series-id" class="regular-text asc-input-full" placeholder="輸入任意一部的 MAL ID，例如 16498">
+                </div>
+                <div class="asc-query-field asc-query-field--btn">
+                    <label class="asc-label-hidden">分析</label>
+                    <button type="button" id="btn-mal-analyze-series" class="button button-primary asc-btn-full">🔍 分析系列</button>
+                </div>
+            </div>
+            <div id="mal-series-spinner" class="asc-spinner" style="display:none;">⏳ 分析中，正在遞迴追溯前作…（每部約 1 秒）</div>
+            <div id="mal-series-result" style="display:none;">
+                <div id="mal-series-info" class="asc-info-box"></div>
+                <div class="asc-table-wrap">
+                    <table class="wp-list-table widefat fixed striped asc-series-table asc-desktop-only">
+                        <thead><tr>
+                            <th class="asc-col-check"><input id="mal-series-select-all" type="checkbox" checked></th>
+                            <th class="asc-col-id">MAL ID</th>
+                            <th>作品名稱</th>
+                            <th class="asc-col-sm">格式</th>
+                            <th class="asc-col-sm">年份</th>
+                            <th class="asc-col-md">關聯類型</th>
+                            <th class="asc-col-md">站內狀態</th>
+                        </tr></thead>
+                        <tbody id="mal-series-tbody"></tbody>
+                    </table>
+                    <div id="mal-series-cards" class="asc-mobile-cards asc-mobile-only"></div>
+                </div>
+                <div class="asc-action-row">
+                    <button type="button" id="btn-mal-series-import" class="button button-primary">📥 匯入選中作品並歸入系列</button>
+                    <button type="button" id="btn-mal-series-stop" class="button asc-btn-danger" style="display:none;">停止</button>
+                    <span id="mal-series-throttle-notice" class="asc-throttle-notice" style="display:none;"></span>
+                </div>
+                <?php echo asc_progress_block('mal-series'); ?>
+            </div>
+
+            <hr style="margin:20px 0;">
+
             <?php /* ── 批次 ── */ ?>
             <h4 style="margin:0 0 10px;">批次匯入</h4>
             <div class="asc-query-row">
@@ -757,7 +801,9 @@ function asc_progress_block( $prefix ) {
 #season-anime-tbody tr.asc-unselected-hidden,
 #season-anime-cards .asc-import-card.asc-unselected-hidden,
 #mal-tbody tr.asc-unselected-hidden,
-#mal-cards .asc-import-card.asc-unselected-hidden { display: none; }
+#mal-cards .asc-import-card.asc-unselected-hidden,
+#mal-series-tbody tr.asc-unselected-hidden,
+#mal-series-cards .asc-import-card.asc-unselected-hidden { display: none; }
 #single-import-result.success { background: #edfaef; border: 1px solid #46b450; color: #235926; }
 #single-import-result.warning { background: #fff8e5; border: 1px solid #d97706; color: #7a4b00; }
 #single-import-result.error   { background: #fcf0f1; border: 1px solid #dc3232; color: #a42821; }
@@ -1413,7 +1459,7 @@ function asc_progress_block( $prefix ) {
     /* =========================================================================
        共用：循序匯入佇列
     ========================================================================= */
-    var stopFlags = { season: false, batch: false, series: false, ranking: false, announced: false, mal: false };
+    var stopFlags = { season: false, batch: false, series: false, ranking: false, announced: false, mal: false, 'mal-series': false };
 
     /*
      * opts.source = 'mal' 時改走 MAL 端點，送出的參數名也不同（mal_id）。
@@ -1466,6 +1512,13 @@ function asc_progress_block( $prefix ) {
             var payload = { action: ajaxAction, nonce: animeSyncAdmin.nonce, force: 0 };
             payload[idParam] = id;
 
+            // 系列匯入要多帶系列名稱與根源 ID；其餘呼叫端不傳就維持原樣
+            if (opts.payload) {
+                for (var k in opts.payload) {
+                    if (Object.prototype.hasOwnProperty.call(opts.payload, k)) { payload[k] = opts.payload[k]; }
+                }
+            }
+
             $.post(animeSyncAdmin.ajaxUrl, payload, function(res){
                 done++;
                 if (res.success) {
@@ -1476,6 +1529,10 @@ function asc_progress_block( $prefix ) {
                         success++;
                         var title = (res.data && res.data.title) ? res.data.title : idPrefix + id;
                         appendLog(prefix + '-import-log', '✅ ' + escHtml(title) + ' 匯入成功', 'log-success');
+
+                        if (res.data && res.data.series_assigned) {
+                            appendLog(prefix + '-import-log', '　　🔗 已歸入系列', 'log-info');
+                        }
 
                         // 台灣串流當場同步的結果（目前只有 MAL 路徑會回傳這個欄位）
                         var tw = res.data && res.data.tw_streaming;
@@ -1558,6 +1615,137 @@ function asc_progress_block( $prefix ) {
         }).always(function(){
             $b.prop('disabled', false).text('單筆匯入');
         });
+    });
+
+    /* ── 系列分析（MAL 版）──
+       與 AniList 版（admin.js 的 SERIES IMPORT）平行，但匯入沿用本檔的
+       runImportQueue，這樣系列匯入也會一起享有 MAL 路徑的 enrich 與
+       台灣串流同步，不必再寫一份佇列。 */
+    var malSeriesMeta = { series_name: '', root_id: 0, series_romaji: '' };
+
+    $('#btn-mal-analyze-series').on('click', function(){
+        var id = parseInt($('#mal-series-id').val(), 10);
+        if (!id || id <= 0) { alert('請輸入有效的 MAL ID。'); return; }
+
+        var $b = $(this).prop('disabled', true).text('分析中…');
+        $('#mal-series-spinner').show();
+        $('#mal-series-result').hide();
+
+        $.post(animeSyncAdmin.ajaxUrl, {
+            action: animeSyncAdmin.actions.mal_analyze_series,
+            nonce:  animeSyncAdmin.nonce,
+            mal_id: id
+        }, function(res){
+            if (!res.success || !res.data || !res.data.tree) {
+                alert((res.data && res.data.message) ? res.data.message : '分析失敗');
+                return;
+            }
+            var d = res.data;
+            malSeriesMeta = {
+                series_name:   d.series_name || '',
+                root_id:       d.root_id || 0,
+                series_romaji: d.series_romaji || ''
+            };
+
+            var $info = $('#mal-series-info').empty();
+            $info.append($('<strong>').text('🎯 系列名稱：' + String(d.series_name || '（未命名）')));
+            $info.append(document.createTextNode('　根源 MAL ID：' + d.root_id + '　共 ' + d.total + ' 部　'));
+            $info.append($('<span>').css('color', 'green').text('已匯入 ' + d.imported + ' 部'));
+            $info.append(document.createTextNode('　'));
+            $info.append($('<span>').css('color', '#d97706').text('待匯入 ' + (d.total - d.imported) + ' 部'));
+            if (d.incomplete) {
+                $info.append($('<br>'));
+                $info.append($('<span>').css({color:'#dc3232','font-weight':'bold'})
+                    .text('⚠ 資料不完整（達節點上限或部分節點抓取失敗），清單可能有缺漏。'));
+            }
+
+            renderMalSeriesTable(d.tree);
+            $('#mal-series-result').show();
+        }).fail(function(){
+            alert('網路錯誤，請重試。');
+        }).always(function(){
+            $('#mal-series-spinner').hide();
+            $b.prop('disabled', false).text('🔍 分析系列');
+        });
+    });
+
+    function renderMalSeriesTable(list) {
+        var tbody = $('#mal-series-tbody').empty();
+        var cards = $('#mal-series-cards').empty();
+
+        $.each(list, function(i, item){
+            var id = validId(item.mal_id);
+            if (id === null) { return true; }
+
+            var done = item.imported;
+            var chk  = done
+                ? '<input type="checkbox" class="mal-series-check" data-id="' + id + '" disabled>'
+                : '<input type="checkbox" class="mal-series-check" data-id="' + id + '" checked>';
+            var status = done
+                ? (item.edit_url
+                    ? '<a class="status-imported" href="' + escHtml(item.edit_url) + '" target="_blank" rel="noopener">✓ 已匯入 ↗</a>'
+                    : '<span class="status-imported">✓ 已匯入</span>')
+                : '<span class="status-new">未匯入</span>';
+
+            var title = item.title_chinese || item.title_romaji || '';
+            var year  = item.season_year ? String(item.season_year) : '—';
+
+            tbody.append($('<tr>').html(
+                '<td>' + chk + '</td>' +
+                '<td>' + escHtml(String(id)) + '</td>' +
+                '<td>' + escHtml(title) + '</td>' +
+                '<td>' + escHtml(item.format || '') + '</td>' +
+                '<td>' + escHtml(year) + '</td>' +
+                '<td>' + escHtml(item.relation_type || '根源') + '</td>' +
+                '<td>' + status + '</td>'
+            ));
+
+            cards.append(buildImportCard({
+                anilist_id:   id,          // buildImportCard 用這個當 data-id，這裡放 MAL ID
+                title_romaji: title,
+                format:       item.format || '',
+                meta1Label:   '關聯', meta1Val: item.relation_type || '根源',
+                meta2Label:   '年份', meta2Val: year,
+                imported:     done
+            }, 'mal-series-check'));
+        });
+    }
+
+    $('#mal-series-select-all').on('change', function(){
+        $('#mal-series-tbody .mal-series-check:not(:disabled), #mal-series-cards .mal-series-check:not(:disabled)')
+            .prop('checked', this.checked);
+    });
+
+    $('#btn-mal-series-import').on('click', function(){
+        var ids = collectIds('.mal-series-check');
+        if (!ids.length) { alert('請至少勾選一部作品。'); return; }
+        if (!malSeriesMeta.series_name) {
+            if (!confirm('這個系列沒有解析出名稱，匯入後不會歸入系列分類。仍要繼續嗎？')) { return; }
+        }
+
+        /* 開始後把沒勾的收起來，只留下正在處理的，與季度批次一致 */
+        $('#mal-series-tbody tr').each(function(){
+            var $c = $(this).find('.mal-series-check');
+            $(this).toggleClass('asc-unselected-hidden', !$c.prop('checked'));
+        });
+        $('#mal-series-cards .asc-import-card').each(function(){
+            var $c = $(this).find('.mal-series-check');
+            $(this).toggleClass('asc-unselected-hidden', !$c.prop('checked'));
+        });
+
+        runImportQueue('mal-series', ids, {
+            source: 'mal',
+            payload: {
+                series_name:   malSeriesMeta.series_name,
+                series_romaji: malSeriesMeta.series_romaji,
+                root_mal_id:   malSeriesMeta.root_id
+            }
+        });
+    });
+
+    $('#btn-mal-series-stop').on('click', function(){
+        stopFlags['mal-series'] = true;
+        $(this).prop('disabled', true).text('停止中…');
     });
 
     /* ── 批次（季度／動畫化決定）── */

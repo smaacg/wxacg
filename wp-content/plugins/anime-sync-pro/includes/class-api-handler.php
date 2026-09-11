@@ -2502,6 +2502,335 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
+    // MAL 版系列樹
+    //
+    // ★ 為什麼要另寫一份而不是共用：
+    //   AniList 版的每一層都以 anilist_id 為主鍵（find_existing_post()、
+    //   relation_map、節點欄位都是），MAL 這邊沒有 anilist_id 可用。
+    //   硬要共用會變成到處 if/else，反而更難讀。演算法（沿 PREQUEL 找根源
+    //   → BFS 展開 → PARENT 只收不展）與常數（MAX_SERIES_NODES、
+    //   SERIES_RELATION_TYPES）則完全沿用，避免兩套行為漂移。
+    //
+    // ★ 請求成本：MAL 的 related_anime 已包含在 MAL_CORE_FIELDS 裡，所以
+    //   fetch_mal_anime() 一次就同時拿到節點資料與關係，每個節點只要一次
+    //   請求。rate limiter 對 mal 是 1000ms，70 個節點上限約 70 秒，
+    //   在 AJAX 的 set_time_limit(180) 之內（AniList 那邊是 2000ms／140 秒）。
+    // =========================================================================
+
+    /**
+     * 從任意一部 MAL 作品取得完整系列樹。
+     *
+     * 回傳結構與 get_series_tree() 一致，差別只在節點帶的是 mal_id。
+     */
+    public function get_mal_series_tree( int $mal_id ): array|WP_Error {
+
+        $cache_key = 'anime_sync_mal_series_tree_' . $mal_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) {
+            return $cached;
+        }
+
+        $root_id = $this->find_mal_series_root( $mal_id );
+
+        $expanded = $this->expand_mal_series_tree( $root_id );
+        if ( is_wp_error( $expanded ) ) {
+            return $expanded;
+        }
+
+        $nodes       = $expanded['nodes'];
+        $has_failure = $expanded['has_failure'];
+
+        /*
+         * 命名節點的選法與 AniList 版相同：root 常常是前導短篇或劇場版第一部，
+         * 拿它命名會得到帶字尾的名稱。root 是 TV 就用 root，否則取樹中第一個
+         * TV 節點，整棵樹都沒有 TV 才退回 root。
+         */
+        $naming_node = null;
+        foreach ( $nodes as $node ) {
+            if ( (int) $node['mal_id'] === $root_id ) {
+                $naming_node = $node;
+                break;
+            }
+        }
+        if ( $naming_node !== null && ( $naming_node['format'] ?? '' ) !== 'TV' ) {
+            foreach ( $nodes as $node ) {
+                if ( ( $node['format'] ?? '' ) === 'TV' ) {
+                    $naming_node = $node;
+                    break;
+                }
+            }
+        }
+
+        $series_name   = '';
+        $series_romaji = '';
+
+        if ( is_array( $naming_node ) ) {
+
+            // 命名優先序與 AniList 版一致：站內中文標題 → YourAnimes 台灣譯名 → romaji
+            $series_name = (string) ( $naming_node['title_chinese'] ?? '' );
+
+            if ( $series_name === '' && class_exists( 'Anime_Sync_YourAnimes_Season_Index' ) ) {
+                $match = Anime_Sync_YourAnimes_Season_Index::resolve( [
+                    'anime_season'        => $naming_node['season']       ?? '',
+                    'anime_season_year'   => $naming_node['season_year']  ?? 0,
+                    'anime_title_native'  => $naming_node['title_native'] ?? '',
+                    'anime_title_romaji'  => $naming_node['title_romaji'] ?? '',
+                    'anime_title_english' => '',
+                ] );
+                if ( $match && ! empty( $match['tw_title_ok'] ) ) {
+                    $series_name = (string) $match['tw_title'];
+                }
+            }
+
+            if ( $series_name === '' ) {
+                $series_name = (string) ( $naming_node['title_romaji'] ?? '' );
+            }
+
+            if ( class_exists( 'Anime_Sync_TW_Titles' ) ) {
+                $series_name = Anime_Sync_TW_Titles::strip_season_suffix( $series_name );
+            }
+            $series_name   = trim( $series_name );
+            $series_romaji = $naming_node['title_romaji'] ?? '';
+        }
+
+        $result = [
+            'root_id'       => $root_id,
+            'series_name'   => $series_name,
+            'series_romaji' => $series_romaji,
+            'nodes'         => $nodes,
+            'incomplete'    => $has_failure,
+        ];
+
+        // 不完整的結果快取短一點，讓下一次重試有機會拿到完整的
+        set_transient( $cache_key, $result, $has_failure ? 5 * MINUTE_IN_SECONDS : HOUR_IN_SECONDS );
+
+        return $result;
+    }
+
+    /**
+     * 沿 prequel 一路往上找到系列最前面那一部。
+     *
+     * 抓取失敗就以目前這部當根源——回傳部分結果好過整個分析失敗。
+     */
+    private function find_mal_series_root( int $mal_id, array $visited = [] ): int {
+
+        if ( in_array( $mal_id, $visited, true ) ) {
+            return $mal_id;
+        }
+        $visited[] = $mal_id;
+
+        // 深度保險：MAL 的關聯是使用者維護的，理論上可能出現超長或異常的鏈
+        if ( count( $visited ) > self::MAX_SERIES_NODES ) {
+            return $mal_id;
+        }
+
+        $bundle = $this->fetch_mal_node_bundle( $mal_id );
+        if ( is_wp_error( $bundle ) ) {
+            return $mal_id;
+        }
+
+        foreach ( $bundle['relations'] as $rel ) {
+            if ( $rel['type'] === 'PREQUEL' && ! empty( $rel['node_id'] ) ) {
+                return $this->find_mal_series_root( (int) $rel['node_id'], $visited );
+            }
+        }
+
+        return $mal_id;
+    }
+
+    /**
+     * 從根源 BFS 展開整個系列。
+     *
+     * ★ PARENT 只收錄、不再往外展開，與 AniList 版同一個理由：
+     *   母作品是擴散的跳板，長壽 IP 會整串被拉進來。實測 MAL 這邊同樣會發生
+     *   ——從傷物語 II（MAL 31757）往外走，經由 parent_story 連到整個
+     *   〈物語〉系列，22 個節點裡混進了化物語、偽物語、憑物語等等。
+     *   收錄但不展開，母作品仍看得到，卻不會把整個宇宙拉進來。
+     */
+    private function expand_mal_series_tree( int $root_id ): array|WP_Error {
+
+        $queue        = [ [ $root_id, false ] ];
+        $visited      = [];
+        $nodes        = [];
+        $relation_map = [ $root_id => '' ];
+        $has_failure  = false;
+
+        while ( ! empty( $queue ) ) {
+
+            if ( count( $nodes ) >= self::MAX_SERIES_NODES ) {
+                $has_failure = true;
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( 'MAL 系列展開：達節點上限，結果不完整', [
+                        'root_id' => $root_id,
+                        'limit'   => self::MAX_SERIES_NODES,
+                    ] );
+                }
+                break;
+            }
+
+            [ $current_id, $via_parent ] = array_shift( $queue );
+            if ( in_array( $current_id, $visited, true ) ) {
+                continue;
+            }
+            $visited[] = $current_id;
+
+            $bundle = $this->fetch_mal_node_bundle( $current_id );
+            if ( is_wp_error( $bundle ) ) {
+                $has_failure = true;
+                if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                    Anime_Sync_Error_Logger::warning( 'MAL 系列展開：節點資料抓取失敗', [
+                        'mal_id' => $current_id,
+                        'error'  => $bundle->get_error_message(),
+                    ] );
+                }
+                continue;
+            }
+
+            $node_data = $bundle['node'];
+            $relations = $bundle['relations'];
+
+            /*
+             * 宣傳素材（pv / cm）不列進清單。
+             *
+             * map_mal_format() 對這些回空字串，而 get_core_anime_data_from_mal()
+             * 遇到它們會直接回 WP_Error「宣傳素材，略過匯入」。留在清單上只會
+             * 讓使用者勾了之後在匯入佇列看到一筆必然的失敗。實測〈物語〉系列
+             * 就混進 MAL 51068（Manga "Bakemonogatari" Shaft 製作特別篇 PV）。
+             *
+             * 它們不會是通往其他作品的橋樑，所以也不從這裡往外展開。
+             */
+            if ( ( $node_data['format'] ?? '' ) === '' ) {
+                continue;
+            }
+
+            $post_id = $this->find_existing_post_by_mal( $current_id );
+
+            // 已匯入的用站內中文標題，否則系列名稱會退回 romaji（理由見 AniList 版）
+            if ( $post_id > 0 ) {
+                $node_data['title_chinese'] = (string) (
+                    get_post_meta( $post_id, 'anime_title_chinese', true ) ?: get_the_title( $post_id )
+                );
+            }
+
+            $node_data['relation_type'] = $relation_map[ $current_id ] ?? '';
+            $node_data['imported']      = $post_id > 0;
+            $node_data['post_id']       = $post_id;
+            $node_data['edit_url']      = $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '';
+            $nodes[]                    = $node_data;
+
+            if ( $via_parent ) {
+                continue;
+            }
+
+            foreach ( $relations as $rel ) {
+                $nid = (int) ( $rel['node_id'] ?? 0 );
+                if (
+                    $nid > 0 &&
+                    in_array( $rel['type'], self::SERIES_RELATION_TYPES, true ) &&
+                    ! in_array( $nid, $visited, true )
+                ) {
+                    if ( ! isset( $relation_map[ $nid ] ) ) {
+                        $relation_map[ $nid ] = $rel['type'];
+                    }
+                    $queue[] = [ $nid, $rel['type'] === 'PARENT' ];
+                }
+            }
+        }
+
+        return [
+            'nodes'       => $nodes,
+            'has_failure' => $has_failure,
+        ];
+    }
+
+    /**
+     * 一次取回 MAL 節點的顯示資料與關係。
+     *
+     * MAL_CORE_FIELDS 已含 related_anime，所以這裡只是把 fetch_mal_anime()
+     * 的結果整理成與 AniList 節點相同的形狀，不會多打一次 API；
+     * fetch_mal_anime() 本身有 transient 快取，重複分析同一個系列不重抓。
+     */
+    private function fetch_mal_node_bundle( int $mal_id ): array|WP_Error {
+
+        $raw = $this->fetch_mal_anime( $mal_id );
+        if ( is_wp_error( $raw ) ) {
+            return $raw;
+        }
+
+        $season = strtoupper( (string) ( $raw['start_season']['season'] ?? '' ) );
+
+        $node = [
+            'mal_id'        => (int) ( $raw['id'] ?? $mal_id ),
+            'anilist_id'    => 0,   // MAL 這條路沒有；由匯入後的驗證批次回填
+            'title_chinese' => '',
+            'title_romaji'  => (string) ( $raw['title'] ?? '' ),
+            'title_native'  => (string) ( $raw['alternative_titles']['ja'] ?? '' ),
+            'cover_image'   => (string) ( $raw['main_picture']['large'] ?? $raw['main_picture']['medium'] ?? '' ),
+            'format'        => $this->map_mal_format( $raw ),
+            'season'        => $season,
+            'season_year'   => (int) ( $raw['start_season']['year'] ?? 0 ),
+        ];
+
+        $relations = [];
+        foreach ( (array) ( $raw['related_anime'] ?? [] ) as $rel ) {
+            $nid = (int) ( $rel['node']['id'] ?? 0 );
+            if ( $nid <= 0 ) {
+                continue;
+            }
+            $raw_type = (string) ( $rel['relation_type'] ?? '' );
+            $relations[] = [
+                // 見 MAL_RELATION_MAP：不能只 strtoupper，parent_story 會對不上
+                'type'    => self::MAL_RELATION_MAP[ $raw_type ] ?? strtoupper( $raw_type ),
+                'node_id' => $nid,
+            ];
+        }
+
+        return [
+            'node'      => $node,
+            'relations' => $relations,
+        ];
+    }
+
+    /**
+     * 以 MAL ID 查站內既有文章。
+     *
+     * 與 find_existing_post() 同樣用 wp_cache 擋住 BFS 途中的重複查詢。
+     */
+    private function find_existing_post_by_mal( int $mal_id ): int {
+
+        if ( $mal_id <= 0 ) {
+            return 0;
+        }
+
+        $cache_key = 'anime_sync_existing_post_mal_' . $mal_id;
+        $cached    = wp_cache_get( $cache_key, 'anime_sync' );
+        if ( $cached !== false ) {
+            return (int) $cached;
+        }
+
+        $q = new WP_Query( [
+            'post_type'      => 'anime',
+            'post_status'    => 'any',
+            'posts_per_page' => 1,
+            'orderby'        => 'ID',
+            'order'          => 'ASC',
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [ [
+                'key'     => 'anime_mal_id',
+                'value'   => $mal_id,
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            ] ],
+        ] );
+
+        $post_id = ! empty( $q->posts ) ? (int) $q->posts[0] : 0;
+        wp_cache_set( $cache_key, $post_id, 'anime_sync', 5 * MINUTE_IN_SECONDS );
+
+        return $post_id;
+    }
+
+    // =========================================================================
     // PRIVATE – 一次取回節點顯示資料 + 關係（供系列樹 BFS 使用）
     //
     // 節點資料與關係本來就同屬一個 Media(id, type: ANIME) 物件,分兩次請求

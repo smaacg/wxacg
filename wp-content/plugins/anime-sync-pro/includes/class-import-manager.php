@@ -451,6 +451,11 @@ class Anime_Sync_Import_Manager {
 		return $this->api_handler->get_series_tree( $anilist_id );
 	}
 
+	/** MAL 版系列分析。AniList 403 期間唯一可用的系列追溯入口。 */
+	public function analyze_mal_series( int $mal_id ): array|\WP_Error {
+		return $this->api_handler->get_mal_series_tree( $mal_id );
+	}
+
 	public function get_popularity_ranking( int $page = 1 ): array|\WP_Error {
 		return $this->api_handler->fetch_anilist_popularity( $page );
 	}
@@ -473,14 +478,53 @@ class Anime_Sync_Import_Manager {
 	 * 刻意不改既有 term 的名稱：人工命名過的（賽馬娘、南家三姐妹…）應該保持不動，
 	 * 這裡只負責「不再分裂」。
 	 */
-	public function assign_series_taxonomy( int $post_id, string $series_name, int $root_id = 0, string $series_romaji = '' ): bool {
+	public function assign_series_taxonomy( int $post_id, string $series_name, int $root_id = 0, string $series_romaji = '', int $root_mal_id = 0 ): bool {
 		if ( ! $post_id || $series_name === '' ) return false;
 
 		$series_name = trim( $series_name );
 		$term_id     = 0;
 
+		/*
+		 * ★ MAL 系列分析走這裡：根源是 MAL ID，沒有 AniList ID。
+		 *
+		 * 身分證用雙鍵，優先沿用既有 term：
+		 *   ⓪ 先用 _series_root_mal_id 找
+		 *   ⓪′ 找不到就用離線對照表把 MAL 根源換成 AniList ID，
+		 *       再走底下原本的 ① 去找既有 term
+		 *
+		 * 為什麼要多繞 ⓪′：系列 term 現有的身分證全都是 AniList 根源。
+		 * 只認 MAL 鍵的話，AniList 恢復後同一個系列再分析一次就會多一個 term
+		 * ——正是這支方法當初要解決的分裂問題（全站 720 個 term 有 250 個
+		 * 是這樣產生的孤兒）。離線對照表有約 0.46% 的配錯率（1,522 筆實測），
+		 * 極少數情況可能沿用到錯的 term，但那在分類頁看得見也改得掉，
+		 * 分裂則是靜默累積的。
+		 *
+		 * 兩個鍵最後都會補寫，之後從哪一邊來都找得到同一個 term。
+		 */
+		if ( $root_mal_id > 0 ) {
+			$found = get_terms( [
+				'taxonomy'   => 'anime_series_tax',
+				'hide_empty' => false,
+				'number'     => 1,
+				'fields'     => 'ids',
+				'meta_query' => [ [
+					'key'   => '_series_root_mal_id',
+					'value' => (string) $root_mal_id,
+				] ],
+			] );
+			if ( ! is_wp_error( $found ) && ! empty( $found ) ) {
+				$term_id = (int) $found[0];
+			}
+
+			// 還沒有 AniList 根源就用離線索引補一個，讓底下的 ① 有機會命中既有 term
+			if ( ! $term_id && $root_id <= 0 && class_exists( 'Anime_Sync_ID_Mapper' ) ) {
+				$mapper  = new Anime_Sync_ID_Mapper();
+				$root_id = $mapper->get_anilist_id_by_mal( $root_mal_id );
+			}
+		}
+
 		// ① 先用根源 ID 找既有 term
-		if ( $root_id > 0 ) {
+		if ( ! $term_id && $root_id > 0 ) {
 			$found = get_terms( [
 				'taxonomy'   => 'anime_series_tax',
 				'hide_empty' => false,
@@ -517,11 +561,20 @@ class Anime_Sync_Import_Manager {
 			update_term_meta( $term_id, '_series_root_anilist_id', (string) $root_id );
 		}
 
+		// MAL 根源同樣補上，之後 AniList 恢復或反過來從 MAL 分析都找得到同一個 term
+		if ( $root_mal_id > 0 && ! get_term_meta( $term_id, '_series_root_mal_id', true ) ) {
+			update_term_meta( $term_id, '_series_root_mal_id', (string) $root_mal_id );
+		}
+
 		$result = wp_set_post_terms( $post_id, [ $term_id ], 'anime_series_tax', false );
 		if ( is_wp_error( $result ) ) return false;
 
 		if ( $root_id > 0 ) {
 			update_post_meta( $post_id, '_series_root_anilist_id', $root_id );
+		}
+
+		if ( $root_mal_id > 0 ) {
+			update_post_meta( $post_id, '_series_root_mal_id', $root_mal_id );
 		}
 
 		return true;

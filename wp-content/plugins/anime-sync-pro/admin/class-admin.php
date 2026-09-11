@@ -99,6 +99,7 @@ class Anime_Sync_Admin {
         // ★ MAL 匯入（AniList 停用期間的替代路徑）
         add_action( 'wp_ajax_anime_sync_mal_import_single',  [ $this, 'handle_ajax_mal_import_single' ] );
         add_action( 'wp_ajax_anime_sync_mal_query_season',   [ $this, 'handle_ajax_mal_query_season'  ] );
+        add_action( 'wp_ajax_anime_sync_mal_analyze_series', [ $this, 'handle_ajax_mal_analyze_series' ] );
 
         // Meta box
                 // ★ 已移除「一鍵轉繁體」按鈕（保留方法備用，僅停用 meta box 註冊）
@@ -587,12 +588,33 @@ class Anime_Sync_Admin {
         $mal_id = isset( $_POST['mal_id'] ) ? intval( $_POST['mal_id'] ) : 0;
         $force  = ! empty( $_POST['force'] );
 
+        /*
+         * 系列參數（只有從 MAL 系列分析那一區送過來時才有）。
+         *
+         * 刻意不另開一個 mal_import_series 端點：匯入本身的流程一模一樣，
+         * 差別只在事後多指派一個分類。共用同一個端點，系列匯入才會一起享有
+         * 這裡既有的 enrich 與台灣串流同步，不必維護兩份。
+         */
+        $series_name   = sanitize_text_field( wp_unslash( $_POST['series_name']   ?? '' ) );
+        $series_romaji = sanitize_text_field( wp_unslash( $_POST['series_romaji'] ?? '' ) );
+        $root_mal_id   = isset( $_POST['root_mal_id'] ) ? intval( $_POST['root_mal_id'] ) : 0;
+
         if ( $mal_id <= 0 ) wp_send_json_error( [ 'message' => '無效的 MAL ID' ] );
 
         $result = $this->import_manager->import_single_from_mal( $mal_id, null, 'mal', [ 'force' => $force ] );
 
         if ( empty( $result['success'] ) ) {
             wp_send_json_error( [ 'message' => $result['message'] ?? '匯入失敗' ] );
+        }
+
+        if ( $series_name !== '' && ! empty( $result['post_id'] ) ) {
+            $result['series_assigned'] = $this->import_manager->assign_series_taxonomy(
+                (int) $result['post_id'],
+                $series_name,
+                0,                 // AniList 根源未知；由 assign_series_taxonomy() 用離線索引試著補
+                $series_romaji,
+                $root_mal_id
+            );
         }
 
         /*
@@ -670,6 +692,50 @@ class Anime_Sync_Admin {
     // 對應，但合成同一個端點——兩種模式的回應結構完全一樣，差別只在打哪個
     // MAL 端點。分成兩支只會讓前端也得複製一份表格繪製與匯入佇列。
     // =========================================================================
+
+    // =========================================================================
+    // AJAX: MAL 系列分析
+    //
+    // 與 handle_ajax_analyze_series()（AniList 版）平行。回傳結構刻意做成
+    // 一樣的形狀，前端表格才能照著同一套欄位畫，差別只在節點帶的是 mal_id。
+    // =========================================================================
+
+    public function handle_ajax_mal_analyze_series(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
+        if ( ! $this->require_import_manager() ) return;
+
+        if ( ! defined( 'MAL_CLIENT_ID' ) || MAL_CLIENT_ID === '' ) {
+            wp_send_json_error( [ 'message' => 'wp-config.php 未設定 MAL_CLIENT_ID，無法使用 MAL 匯入。' ] );
+        }
+
+        @set_time_limit( 180 );
+
+        $mal_id = isset( $_POST['mal_id'] ) ? intval( $_POST['mal_id'] ) : 0;
+        if ( $mal_id <= 0 ) wp_send_json_error( [ 'message' => '無效的 MAL ID' ] );
+
+        if ( ! method_exists( $this->import_manager, 'analyze_mal_series' ) ) {
+            wp_send_json_error( [ 'message' => '功能不可用，請確認外掛檔案是否完整部署。' ] );
+        }
+
+        $result = $this->import_manager->analyze_mal_series( $mal_id );
+
+        if ( is_wp_error( $result ) ) wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+        if ( empty( $result['nodes'] ) ) wp_send_json_error( [ 'message' => '找不到系列資料，請確認 MAL ID 是否正確' ] );
+
+        $nodes    = $result['nodes'];
+        $imported = count( array_filter( $nodes, static fn( $n ) => ! empty( $n['imported'] ) ) );
+
+        wp_send_json_success( [
+            'root_id'       => $result['root_id'],      // MAL 根源 ID
+            'series_name'   => $result['series_name'],
+            'series_romaji' => $result['series_romaji'] ?? '',
+            'tree'          => $nodes,
+            'total'         => count( $nodes ),
+            'imported'      => $imported,
+            'incomplete'    => ! empty( $result['incomplete'] ),
+        ] );
+    }
 
     public function handle_ajax_mal_query_season(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
@@ -1842,6 +1908,7 @@ class Anime_Sync_Admin {
                 'query_season'           => 'anime_sync_query_season',
                 'mal_import_single'      => 'anime_sync_mal_import_single',
                 'mal_query_season'       => 'anime_sync_mal_query_season',
+                'mal_analyze_series'     => 'anime_sync_mal_analyze_series',
                 'query_announced'        => 'anime_sync_query_announced',
                 'analyze_series'         => 'anime_sync_analyze_series',
                 'import_series'          => 'anime_sync_import_series',
