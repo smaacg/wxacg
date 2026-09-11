@@ -2744,6 +2744,39 @@ class Anime_Sync_API_Handler {
     }
 
     /**
+     * 供差異掃描 MAL 備援使用：取回可比對的三個欄位。
+     *
+     * ★ 為什麼放在這裡而不是掃描端
+     *   MAL 的詞彙對照（status → anime_status）已經寫在 MAL_STATUS_MAP，
+     *   掃描端再抄一份必然漂移。這裡負責「MAL 語彙 → 站上語彙」，
+     *   掃描端只負責比對，各司其職。
+     *
+     * ★ 只有這三個欄位
+     *   MAL 沒有橫幅圖，API 也沒有預告片；封面 main_picture 解析度低於
+     *   AniList 的 extraLarge，拿它驅動視覺圖事件會把站上封面換成較差的版本。
+     *   因此備援只做開播日／集數／狀態——這三項的值與來源無關，是真正可比的。
+     *
+     * 回傳的 start_date 格式與 AniList 版的 format_start_date() 一致
+     * （YYYY-MM-DD／YYYY-MM／YYYY），兩邊的快照才有相同的形狀。
+     */
+    public function get_mal_diff_fields( int $mal_id ): array|WP_Error {
+
+        $raw = $this->fetch_mal_anime( $mal_id );
+        if ( is_wp_error( $raw ) ) {
+            return $raw;
+        }
+
+        // MAL 的 start_date 可能是 YYYY、YYYY-MM 或 YYYY-MM-DD，三種都直接可比
+        $start = trim( (string) ( $raw['start_date'] ?? '' ) );
+
+        return [
+            'start_date' => $start,
+            'episodes'   => (int) ( $raw['num_episodes'] ?? 0 ),
+            'status'     => self::MAL_STATUS_MAP[ strtolower( (string) ( $raw['status'] ?? '' ) ) ] ?? '',
+        ];
+    }
+
+    /**
      * 一次取回 MAL 節點的顯示資料與關係。
      *
      * MAL_CORE_FIELDS 已含 related_anime，所以這裡只是把 fetch_mal_anime()

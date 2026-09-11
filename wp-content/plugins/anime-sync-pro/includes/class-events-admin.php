@@ -371,6 +371,16 @@ class Anime_Sync_Events_Admin {
 			$parts[] = '最後一輪：檢查 <strong>' . (int) $report['checked']
 				. '</strong> 部．新事件 <strong>' . (int) $report['events']
 				. '</strong>．建立基準 <strong>' . (int) $report['seeded'] . '</strong>';
+
+			/*
+			 * 走 MAL 備援時一定要講。備援只監看開播日／集數／狀態三項，
+			 * 沒有視覺圖與預告片；不標示的話會誤以為「這陣子沒有新視覺圖」，
+			 * 實際上是根本沒在看那一欄。
+			 */
+			if ( 'mal' === ( $report['source'] ?? '' ) ) {
+				$parts[] = '來源：<strong style="color:#d97706;">MAL 備援</strong>'
+					. '（AniList 不可用，本輪只比對開播日／集數／狀態）';
+			}
 		}
 
 		printf(

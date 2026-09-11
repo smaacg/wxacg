@@ -45,6 +45,33 @@ class Anime_Sync_Upstream_Diff_Scan {
 	const SWEEP_OPTION  = 'anime_sync_upstream_diff_last_sweep';
 	const SNAPSHOT_META = 'anime_upstream_snapshot';
 
+	/*
+	 * ── MAL 備援（AniList 不可用時）──────────────────────────────
+	 *
+	 * ★ 快照一定要分開存。
+	 *   同一包快照裡放 AniList 的值再拿 MAL 的值去比，等於每一欄都「變了」
+	 *   ——封面網址兩邊 CDN 不同、分割放送的集數兩邊算法也不同，一輪就會噴出
+	 *   幾百則假消息。這正是 2026-08-19 那次 227 則假 PV 消息的同型錯誤
+	 *   （快照形狀與比對對象不一致）。
+	 *
+	 *   分開存之後，第一次掃到會走既有的「沒有快照就只建基準、不產生事件」
+	 *   分支，第二輪起才是 MAL 對 MAL 的比對——「MAL 上集數從 12 變 13」
+	 *   是貨真價實的上游變更，不是來源差異。
+	 *
+	 * ★ 事件不會跟 AniList 重複。
+	 *   Anime_Sync_Anime_Events::record() 的 dedupe_key 是
+	 *   md5(anime_id|event_type|fingerprint)，不含來源。MAL 先報過
+	 *   「集數→13」之後，AniList 恢復再報同一筆會被 UNIQUE 擋掉。
+	 *
+	 * ★ 只在 AniList 不可用時跑，不並行。
+	 *   兩邊同時跑沒有額外好處，只會多打一份 API。
+	 */
+	const MAL_SNAPSHOT_META = 'anime_upstream_snapshot_mal';
+	const MAL_QUEUE_OPTION  = 'anime_sync_upstream_diff_mal_queue';
+
+	/** MAL 沒有批次查詢，限流 1 req/s，60 部約 60 秒／輪。 */
+	const MAL_ITEMS_PER_RUN = 60;
+
 	/** AniList 單次查詢的作品數上限（GraphQL perPage 上限即 50）。 */
 	const IDS_PER_REQUEST = 50;
 
@@ -157,9 +184,50 @@ class Anime_Sync_Upstream_Diff_Scan {
 	// =========================================================================
 
 	public function run_scheduled(): void {
+
+		/*
+		 * AniList 已知不可用就直接走 MAL 備援，省下必然失敗的那一批請求。
+		 * 熔斷狀態與 class-cron-manager.php 共用同一個 transient——各自記一份
+		 * 會出現「一邊認為掛了、一邊還在猛打」的矛盾。
+		 */
+		if ( $this->anilist_unavailable() ) {
+			$this->save_run_report( $this->run_mal_fallback( self::MAL_ITEMS_PER_RUN ) );
+			return;
+		}
+
 		$stats = $this->run( self::REQUESTS_PER_RUN );
 
+		/*
+		 * 熔斷還沒開、但這一輪 AniList 整批失敗（例如 403 剛開始）：
+		 * 當場改走 MAL，不白白浪費這個小時。checked 為 0 才算整批失敗，
+		 * 只有零星錯誤時維持原樣，不需要備援。
+		 */
+		if ( empty( $stats['checked'] ) && ! empty( $stats['errors'] ) ) {
+			$mal = $this->run_mal_fallback( self::MAL_ITEMS_PER_RUN );
+
+			$stats['checked'] += $mal['checked'];
+			$stats['seeded']  += $mal['seeded'];
+			$stats['events']  += $mal['events'];
+			$stats['skipped'] += $mal['skipped'];
+			$stats['errors']   = array_merge( $stats['errors'], $mal['errors'] );
+			$stats['source']   = 'mal';
+		}
+
 		$this->save_run_report( $stats );
+	}
+
+	/**
+	 * AniList 是不是已知不可用。
+	 *
+	 * 讀 class-cron-manager.php 的熔斷 transient。那支每小時打 AniList，
+	 * 連續失敗達門檻就開啟熔斷，是全站最早知道「上游掛了」的地方。
+	 */
+	private function anilist_unavailable(): bool {
+		if ( ! class_exists( 'Anime_Sync_Cron_Manager' ) ) {
+			return false;
+		}
+
+		return (bool) get_transient( Anime_Sync_Cron_Manager::ANILIST_CIRCUIT_OPEN_KEY );
 	}
 
 	/**
@@ -185,6 +253,8 @@ class Anime_Sync_Upstream_Diff_Scan {
 
 		$report = [
 			'time'      => time(),
+			// 走的是哪個上游。畫面要分得出「AniList 恢復了」和「還在備援」
+			'source'    => ( $stats['source'] ?? '' ) === 'mal' ? 'mal' : 'anilist',
 			'checked'   => (int) ( $stats['checked'] ?? 0 ),
 			'seeded'    => (int) ( $stats['seeded'] ?? 0 ),
 			'events'    => (int) ( $stats['events'] ?? 0 ),
@@ -431,6 +501,276 @@ class Anime_Sync_Upstream_Diff_Scan {
 		}
 
 		return $queue;
+	}
+
+	// =========================================================================
+	// MAL 備援
+	//
+	// AniList 不可用時維持「📰 消息審核」有東西可審。只做開播日／集數／狀態
+	// 三項——MAL 沒有橫幅圖與預告片，封面解析度又低於 AniList，不該由它驅動。
+	// =========================================================================
+
+	/**
+	 * 跑一輪 MAL 備援。
+	 *
+	 * 與 AniList 版最大的差別是沒有批次查詢：MAL 一次只能問一部，
+	 * 限流 1 req/s，所以用「每輪處理 N 部」而不是「每輪發 N 個 request」。
+	 */
+	private function run_mal_fallback( int $limit, bool $dry_run = false ): array {
+
+		$stats = [
+			'checked' => 0,
+			'seeded'  => 0,
+			'events'  => 0,
+			'skipped' => 0,
+			'errors'  => [],
+			'source'  => 'mal',
+		];
+
+		if ( ! class_exists( 'Anime_Sync_API_Handler' ) ) {
+			$stats['errors'][] = '找不到 Anime_Sync_API_Handler';
+			return $stats;
+		}
+
+		if ( ! defined( 'MAL_CLIENT_ID' ) || MAL_CLIENT_ID === '' ) {
+			$stats['errors'][] = 'wp-config.php 未設定 MAL_CLIENT_ID，MAL 備援無法執行';
+			return $stats;
+		}
+
+		$queue = $this->get_mal_queue();
+
+		if ( empty( $queue ) ) {
+			return $stats;
+		}
+
+		$api   = new Anime_Sync_API_Handler();
+		$batch = array_slice( $queue, 0, $limit );
+		$rest  = array_slice( $queue, $limit );
+
+		$consecutive_failures = 0;
+
+		foreach ( $batch as $idx => $row ) {
+
+			$post_id = (int) $row['post_id'];
+			$mal_id  = (int) $row['mal_id'];
+
+			if ( $post_id <= 0 || $mal_id <= 0 ) {
+				$stats['skipped']++;
+				continue;
+			}
+
+			$fields = $api->get_mal_diff_fields( $mal_id );
+
+			if ( is_wp_error( $fields ) ) {
+				$stats['errors'][] = sprintf( 'MAL %d：%s', $mal_id, $fields->get_error_message() );
+				$consecutive_failures++;
+
+				/*
+				 * MAL 也掛了就中止本輪，未處理的退回佇列前端。
+				 * 門檻沿用 AniList 版的精神：第一筆就足以判斷服務不可用，
+				 * 繼續打只會把有用的警告洗掉。
+				 */
+				if ( $consecutive_failures >= 5 ) {
+					$rest = array_merge( array_slice( $batch, $idx + 1 ), $rest );
+					break;
+				}
+
+				continue;
+			}
+
+			$consecutive_failures = 0;
+
+			$result = $this->compare_and_record_mal( $post_id, $fields, $dry_run );
+
+			$stats['checked']++;
+			$stats['seeded'] += $result['seeded'];
+			$stats['events'] += $result['events'];
+		}
+
+		if ( ! $dry_run ) {
+			update_option( self::MAL_QUEUE_OPTION, $rest, false );
+		}
+
+		return $stats;
+	}
+
+	/**
+	 * MAL 備援的佇列。用完就重建，不設冷卻期。
+	 *
+	 * 與 AniList 版的 SWEEP_INTERVAL_HOURS 冷卻不同：那是為了節省 AniList 的
+	 * 共用配額（多支 cron 分食 30/分鐘）。MAL 這邊是備援、只在 AniList 掛掉時
+	 * 跑，而且 1 req/s 的節流本身就是上限，沒有搶配額的問題。
+	 */
+	private function get_mal_queue(): array {
+
+		$queue = get_option( self::MAL_QUEUE_OPTION, null );
+
+		if ( is_array( $queue ) && ! empty( $queue ) ) {
+			return $queue;
+		}
+
+		$queue = $this->build_mal_queue();
+
+		update_option( self::MAL_QUEUE_OPTION, $queue, false );
+
+		return $queue;
+	}
+
+	/**
+	 * 條件與 build_queue() 相同，只是改以 anime_mal_id 為鍵。
+	 *
+	 * 本機實測掃描範圍 208 部中有 204 部有 MAL ID（98%），
+	 * 覆蓋率足以撐住整個停用期間。
+	 */
+	private function build_mal_queue(): array {
+		global $wpdb;
+
+		$rows = $wpdb->get_results(
+			"SELECT p.ID AS post_id, ml.meta_value AS mal_id
+			   FROM {$wpdb->posts} p
+			   JOIN {$wpdb->postmeta} ml ON ml.post_id = p.ID AND ml.meta_key = 'anime_mal_id'
+			   JOIN {$wpdb->postmeta} st ON st.post_id = p.ID AND st.meta_key = 'anime_status'
+			  WHERE p.post_type = 'anime'
+			    AND p.post_status = 'publish'
+			    AND ml.meta_value REGEXP '^[0-9]+$'
+			    AND CAST( ml.meta_value AS SIGNED ) > 0
+			    AND st.meta_value IN ( 'NOT_YET_RELEASED', 'RELEASING' )
+			  ORDER BY FIELD( st.meta_value, 'RELEASING', 'NOT_YET_RELEASED' ) DESC, p.ID ASC",
+			ARRAY_A
+		);
+
+		$queue = [];
+
+		foreach ( (array) $rows as $r ) {
+			$queue[] = [
+				'post_id' => (int) $r['post_id'],
+				'mal_id'  => (int) $r['mal_id'],
+			];
+		}
+
+		return $queue;
+	}
+
+	/**
+	 * 比對 MAL 快照並記錄事件。
+	 *
+	 * 結構刻意與 compare_and_record() 平行，但：
+	 *   - 讀寫的是 MAL_SNAPSHOT_META，與 AniList 快照互不干擾
+	 *   - 只處理 schedule／episodes／status 三種，沒有 visual／trailer／banner
+	 *   - 事件的 source 記 'mal'，之後回頭查得出哪些是備援期間產生的
+	 *
+	 * 回寫站上欄位沿用 write_back_field()：它已經處理欄位鎖定與精度檢查，
+	 * 而且全站的 class-meta-guard.php 會再擋一次邏輯上不可能的變更
+	 * （集數倒退、有值變 0），不需要在這裡另寫守衛。
+	 */
+	private function compare_and_record_mal( int $post_id, array $current, bool $dry_run ): array {
+
+		$raw      = get_post_meta( $post_id, self::MAL_SNAPSHOT_META, true );
+		$snapshot = is_string( $raw ) && '' !== $raw ? json_decode( $raw, true ) : null;
+
+		// 首次掃描：只建立基準，不產生事件（與 AniList 版同一個理由）
+		if ( ! is_array( $snapshot ) ) {
+			if ( ! $dry_run ) {
+				$this->save_mal_snapshot( $post_id, $current );
+			}
+
+			return [ 'seeded' => 1, 'events' => 0 ];
+		}
+
+		// 舊快照缺欄位視為該欄位首次建立基準，靜默補上（見 AniList 版的事故說明）
+		foreach ( $current as $key => $value ) {
+			if ( ! array_key_exists( $key, $snapshot ) ) {
+				$snapshot[ $key ] = $value;
+			}
+		}
+
+		$events = 0;
+		$next   = $snapshot;
+
+		foreach ( $this->diff_mal( $snapshot, $current ) as $type => $change ) {
+
+			if ( $dry_run ) {
+				$events++;
+				continue;
+			}
+
+			$recorded = Anime_Sync_Anime_Events::record( [
+				'anime_id'    => $post_id,
+				'event_type'  => $type,
+				'fingerprint' => (string) $change['new'],
+				'source'      => 'mal',
+				'payload'     => [
+					'old' => $change['old'],
+					'new' => $change['new'],
+				],
+			] );
+
+			$this->write_back_field( $post_id, $type, $change['new'] );
+
+			// -1 是寫入失敗（不是重複）：基準不動，下一輪重試
+			if ( -1 === $recorded ) {
+				continue;
+			}
+
+			if ( $recorded > 0 ) {
+				$events++;
+
+				if ( Anime_Sync_Anime_Events::is_auto_publish( $type ) ) {
+					$auto = Anime_Sync_Anime_Events::auto_summary( $type, $change['old'], $change['new'] );
+
+					if ( '' !== $auto ) {
+						Anime_Sync_Anime_Events::publish( $recorded, $auto );
+					}
+				}
+			}
+
+			$next[ $this->snapshot_key( $type ) ] = $change['new'];
+		}
+
+		foreach ( $current as $key => $value ) {
+			if ( ! array_key_exists( $key, $next ) ) {
+				$next[ $key ] = $value;
+			}
+		}
+
+		if ( ! $dry_run ) {
+			$this->save_mal_snapshot( $post_id, $next );
+		}
+
+		return [ 'seeded' => 0, 'events' => $events ];
+	}
+
+	/**
+	 * 只比對 MAL 給得出來的三個欄位。
+	 *
+	 * 空值一律不算變更——上游暫時查不到就把站上資料清掉是淨損失，
+	 * 與 AniList 版 diff() 的原則一致。
+	 */
+	private function diff_mal( array $old, array $new ): array {
+		$changes = [];
+
+		if ( '' !== $new['start_date'] && ( $old['start_date'] ?? '' ) !== $new['start_date'] ) {
+			$changes['schedule'] = [ 'old' => $old['start_date'] ?? '', 'new' => $new['start_date'] ];
+		}
+
+		if ( $new['episodes'] > 0 && (int) ( $old['episodes'] ?? 0 ) !== $new['episodes'] ) {
+			$changes['episodes'] = [ 'old' => (int) ( $old['episodes'] ?? 0 ), 'new' => $new['episodes'] ];
+		}
+
+		if ( '' !== $new['status'] && ( $old['status'] ?? '' ) !== $new['status'] ) {
+			$changes['status'] = [ 'old' => $old['status'] ?? '', 'new' => $new['status'] ];
+		}
+
+		return $changes;
+	}
+
+	/** 寫入 MAL 基準快照。JSON 必須先 wp_slash()，理由同 save_snapshot()。 */
+	private function save_mal_snapshot( int $post_id, array $snapshot ): void {
+		update_post_meta(
+			$post_id,
+			self::MAL_SNAPSHOT_META,
+			wp_slash( (string) wp_json_encode( $snapshot, JSON_UNESCAPED_UNICODE ) )
+		);
 	}
 
 	// =========================================================================
