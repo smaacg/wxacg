@@ -1476,6 +1476,18 @@ function asc_progress_block( $prefix ) {
                         success++;
                         var title = (res.data && res.data.title) ? res.data.title : idPrefix + id;
                         appendLog(prefix + '-import-log', '✅ ' + escHtml(title) + ' 匯入成功', 'log-success');
+
+                        // 台灣串流當場同步的結果（目前只有 MAL 路徑會回傳這個欄位）
+                        var tw = res.data && res.data.tw_streaming;
+                        if (tw) {
+                            appendLog(
+                                prefix + '-import-log',
+                                tw.length
+                                    ? '　　📺 台灣串流：' + escHtml(tw.join('、'))
+                                    : '　　📺 台灣串流：YourAnimes 頁面尚無平台資料',
+                                tw.length ? 'log-info' : 'log-skip'
+                            );
+                        }
                     }
                 } else {
                     failed++;
@@ -1526,6 +1538,13 @@ function asc_progress_block( $prefix ) {
                     $r.append($('<br>')).append(
                         $('<a>').attr('href', d.edit_url).attr('target','_blank').text('編輯文章 #' + d.post_id)
                     );
+                }
+                if (d.tw_streaming) {
+                    $r.append($('<br>')).append($('<small>').text(
+                        d.tw_streaming.length
+                            ? '📺 台灣串流：' + d.tw_streaming.join('、')
+                            : '📺 台灣串流：YourAnimes 頁面尚無平台資料'
+                    ));
                 }
                 if (d.enrich_error) {
                     $r.append($('<br>')).append($('<small>').css('color','#d63638').text('補抓失敗：' + d.enrich_error));
