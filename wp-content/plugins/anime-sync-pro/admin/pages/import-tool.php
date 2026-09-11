@@ -755,7 +755,9 @@ function asc_progress_block( $prefix ) {
 #mal-tbody tr.format-hidden { display: none; }
 /* 匯入開始後，沒勾選的列先收起來，畫面只留正在跑的那幾部 */
 #season-anime-tbody tr.asc-unselected-hidden,
-#season-anime-cards .asc-import-card.asc-unselected-hidden { display: none; }
+#season-anime-cards .asc-import-card.asc-unselected-hidden,
+#mal-tbody tr.asc-unselected-hidden,
+#mal-cards .asc-import-card.asc-unselected-hidden { display: none; }
 #single-import-result.success { background: #edfaef; border: 1px solid #46b450; color: #235926; }
 #single-import-result.warning { background: #fff8e5; border: 1px solid #d97706; color: #7a4b00; }
 #single-import-result.error   { background: #fcf0f1; border: 1px solid #dc3232; color: #a42821; }
@@ -1557,6 +1559,8 @@ function asc_progress_block( $prefix ) {
         $('#mal-query-spinner').show();
         $('#mal-preview').hide();
         $('#mal-import-field').hide();
+        // 把上一輪匯入時收起來的列還原，否則查詢失敗時舊清單會缺列
+        $('#mal-tbody tr, #mal-cards .asc-import-card').removeClass('asc-unselected-hidden');
         malData = [];
 
         $.post(animeSyncAdmin.ajaxUrl, {
@@ -1712,6 +1716,21 @@ function asc_progress_block( $prefix ) {
         var ids = collectIds('.mal-item-check');
         if (ids.length === 0) { alert('請勾選至少一部'); return; }
         if (ids.length > 10 && !confirm('即將從 MAL 匯入 ' + ids.length + ' 部，確定嗎？')) { return; }
+
+        /*
+         * 開始匯入後把沒勾的列收起來，畫面只剩正在跑的那幾部，好對照進度。
+         * 與季度分頁同一套做法。
+         *
+         * 順序不能顛倒：collectIds() 只取 :visible，先隱藏會把要匯入的項目
+         * 一起排除掉。還原時機在「重新查詢」，見 #btn-mal-query 的 click。
+         */
+        $('#mal-tbody tr').each(function(){
+            $(this).toggleClass('asc-unselected-hidden', !$(this).find('.mal-item-check').prop('checked'));
+        });
+        $('#mal-cards .asc-import-card').each(function(){
+            $(this).toggleClass('asc-unselected-hidden', !$(this).find('.mal-item-check').prop('checked'));
+        });
+
         runImportQueue('mal', ids, { source: 'mal' });
     });
 
