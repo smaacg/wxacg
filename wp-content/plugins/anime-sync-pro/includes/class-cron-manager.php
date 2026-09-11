@@ -211,6 +211,19 @@ class Anime_Sync_Cron_Manager {
     const HINT_REJECTED_META    = '_asp_anilist_hint_rejected';
     const HINT_VERIFY_BATCH_SIZE = 50;
 
+    /*
+     * 反查不到 AniList ID 時記下檢查時間，冷卻期內不再重試。
+     *
+     * ★ 沒有這道冷卻會餓死後面的作品：批次是 ID ASC 取前 50 筆，永遠查不到的
+     *   那些會一直佔住名額，排在後面的就再也輪不到——與實體回補那支遇過的
+     *   問題完全相同（見 _run_entity_backfill_inner() 的說明）。
+     *
+     * 冷卻 3 天：離線對照表本身是每週一更新，比它短一點即可，
+     * 新的索引到位後最慢三天會被重新撿起來。
+     */
+    const HINT_CHECKED_META = '_asp_anilist_hint_checked';
+    const HINT_RECHECK_AFTER = 3 * DAY_IN_SECONDS;
+
     const SCORE_BACKFILL_QUEUE_OPTION       = 'anime_sync_score_backfill_queue';
     const SCORE_BACKFILL_BATCH_SIZE_DEFAULT = 15;
     const SCORE_BACKFILL_REBUILD_INTERVAL   = 30 * DAY_IN_SECONDS;
@@ -554,6 +567,20 @@ class Anime_Sync_Cron_Manager {
             return;
         }
 
+        /*
+         * ★ 條件看的是「有 MAL ID 但沒有 AniList ID」，不是「匯入時有沒有存 hint」。
+         *
+         *   原本是查 _asp_needs_anilist_verify 旗標，而那個旗標只有在匯入當下
+         *   反查成功才會寫。正式站的 mal_al_index.json 要跑過一次對照表更新
+         *   才會產生，在那之前匯入的作品連 hint 都沒有，就永遠不會被撿起來
+         *   ——2026-09-11 實際發生：正式站沒有索引檔，匯入的草稿既沒有
+         *   anilist_id 也沒有 hint。
+         *
+         *   改成即時反查之後就沒有這個時序依賴：索引檔什麼時候到位，
+         *   下一輪就會補上，不需要重新匯入，也不需要另外寫一支回填。
+         *
+         *   已否決過的用 _asp_anilist_hint_rejected 排除，不會每小時重試。
+         */
         $post_ids = get_posts( [
             'post_type'      => 'anime',
             'post_status'    => 'any',
@@ -563,7 +590,36 @@ class Anime_Sync_Cron_Manager {
             'order'          => 'ASC',
             'no_found_rows'  => true,
             'meta_query'     => [
-                [ 'key' => self::HINT_VERIFY_FLAG_META, 'value' => '1', 'compare' => '=' ],
+                'relation' => 'AND',
+                [ 'key' => 'anime_mal_id', 'value' => 0, 'compare' => '>', 'type' => 'NUMERIC' ],
+                /*
+                 * 「沒有 AniList ID」有兩種型態，兩種都要涵蓋：
+                 *   a) meta 根本不存在 —— MAL 匯入的草稿（import manager 對
+                 *      anilist_id <= 0 是 continue，不寫入）。
+                 *   b) meta 存在但是空字串 —— anime_anilist_id 是 ACF number
+                 *      欄位且顯示在編輯畫面上，使用者一按更新，空值就會被寫成 ''。
+                 *      本機實測站上就有這種（#3779 工作細胞…，已發布、
+                 *      anime_mal_id=42387、anilist_id=''）。只寫 NOT EXISTS 的話
+                 *      這類作品一旦被人編輯過就永遠掉出佇列。
+                 *   CAST('' AS SIGNED) 是 0，所以 <= 0 同時蓋掉 ''、'0' 與負數。
+                 */
+                [
+                    'relation' => 'OR',
+                    [ 'key' => 'anime_anilist_id', 'compare' => 'NOT EXISTS' ],
+                    [ 'key' => 'anime_anilist_id', 'value' => 0, 'compare' => '<=', 'type' => 'NUMERIC' ],
+                ],
+                [ 'key' => self::HINT_REJECTED_META, 'compare' => 'NOT EXISTS' ],
+                // 上次查不到的先冷卻，理由見 HINT_RECHECK_AFTER
+                [
+                    'relation' => 'OR',
+                    [ 'key' => self::HINT_CHECKED_META, 'compare' => 'NOT EXISTS' ],
+                    [
+                        'key'     => self::HINT_CHECKED_META,
+                        'value'   => time() - self::HINT_RECHECK_AFTER,
+                        'compare' => '<',
+                        'type'    => 'NUMERIC',
+                    ],
+                ],
             ],
         ] );
 
@@ -571,19 +627,30 @@ class Anime_Sync_Cron_Manager {
             return;
         }
 
+        $mapper = class_exists( 'Anime_Sync_ID_Mapper' ) ? new Anime_Sync_ID_Mapper() : null;
+
         // hint → 文章（可能多篇共用同一個 hint，見上方說明）
         $by_hint = [];
         foreach ( $post_ids as $pid ) {
             $pid  = (int) $pid;
             $hint = (int) get_post_meta( $pid, self::HINT_META, true );
 
+            // 匯入當下沒存到就現在查；索引檔還沒到位時回 0，下一輪再試
+            if ( $hint <= 0 && $mapper ) {
+                $hint = $mapper->get_anilist_id_by_mal( (int) get_post_meta( $pid, 'anime_mal_id', true ) );
+            }
+
             if ( $hint > 0 ) {
                 $by_hint[ $hint ][] = $pid;
                 continue;
             }
 
-            // 沒有 hint 卻掛著旗標：清掉，避免每小時撈同一批空轉
+            /*
+             * 查不到：記下檢查時間進入冷卻，避免佔住每一批的名額而餓死後面的。
+             * 對照表更新後（每週一）冷卻期一到就會重新撿起來。
+             */
             delete_post_meta( $pid, self::HINT_VERIFY_FLAG_META );
+            update_post_meta( $pid, self::HINT_CHECKED_META, time() );
         }
 
         if ( empty( $by_hint ) ) {
