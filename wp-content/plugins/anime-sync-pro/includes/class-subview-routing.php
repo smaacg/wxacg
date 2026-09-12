@@ -451,14 +451,35 @@ class Anime_Sync_Subview_Routing {
 							break 2;
 						}
 
+						/*
+						 * ★ albumTypeOf 不是 Schema.org 的屬性，機器會直接忽略。
+						 *   「這是片頭曲」原本等於沒傳達出去，改放進 description。
+						 *   封面與站內連結也一併補上——只有 name 的標記，AI 讀到
+						 *   「有一張叫這個名字的專輯」之後就沒有下一步可做，
+						 *   自然也不會引用。
+						 */
+						$item = [
+							'@type'       => 'MusicAlbum',
+							'name'        => (string) $al['title'],
+							'description' => (string) $group['label'],
+						];
+
+						if ( ! empty( $al['sub'] ) ) {
+							$item['alternateName'] = (string) $al['sub'];
+						}
+
+						if ( ! empty( $al['cover'] ) ) {
+							$item['image'] = esc_url_raw( (string) $al['cover'] );
+						}
+
+						if ( ! empty( $al['url'] ) ) {
+							$item['url'] = esc_url_raw( (string) $al['url'] );
+						}
+
 						$elements[] = [
 							'@type'    => 'ListItem',
 							'position' => count( $elements ) + 1,
-							'item'     => [
-								'@type'      => 'MusicAlbum',
-								'name'       => (string) $al['title'],
-								'albumTypeOf' => (string) $group['label'],
-							],
+							'item'     => $item,
 						];
 					}
 				}
@@ -469,9 +490,19 @@ class Anime_Sync_Subview_Routing {
 			if ( class_exists( 'Anime_Sync_Subject_Relations_Repository' ) ) {
 				$repo = new Anime_Sync_Subject_Relations_Repository();
 
+				/*
+				 * ★ 真人版原本標成 CreativeWork——那是 Schema.org 最上層的
+				 *   泛用型別，等於只說了「這是一件作品」，機器判斷不出它是
+				 *   影視改編。「XX 有真人版嗎」是很典型的問句，改用 Movie
+				 *   才answerable。
+				 *
+				 *   這一格涵蓋真人電影與日劇兩種，Movie 不完全精確，但比
+				 *   CreativeWork 精確得多；要再細分得先在資料層區分電影／影集，
+				 *   目前 platform 欄位沒有這個資訊。
+				 */
 				$sets = [
 					Anime_Sync_Subject_Relations_Repository::TYPE_GAME => 'VideoGame',
-					Anime_Sync_Subject_Relations_Repository::TYPE_REAL => 'CreativeWork',
+					Anime_Sync_Subject_Relations_Repository::TYPE_REAL => 'Movie',
 				];
 
 				foreach ( $sets as $type => $schema_type ) {
@@ -481,13 +512,32 @@ class Anime_Sync_Subview_Routing {
 								break 3;
 							}
 
+							// 只有 name 的標記機器用不上，把畫面上有的資訊都給出去
+							$item = [
+								'@type' => $schema_type,
+								'name'  => (string) $it['title'],
+							];
+
+							if ( ! empty( $it['sub'] ) ) {
+								$item['alternateName'] = (string) $it['sub'];
+							}
+
+							if ( ! empty( $it['cover'] ) ) {
+								$item['image'] = esc_url_raw( (string) $it['cover'] );
+							}
+
+							if ( ! empty( $it['url'] ) ) {
+								$item['url'] = esc_url_raw( (string) $it['url'] );
+							}
+
+							if ( ! empty( $group['label'] ) ) {
+								$item['description'] = (string) $group['label'];
+							}
+
 							$elements[] = [
 								'@type'    => 'ListItem',
 								'position' => count( $elements ) + 1,
-								'item'     => [
-									'@type' => $schema_type,
-									'name'  => (string) $it['title'],
-								],
+								'item'     => $item,
 							];
 						}
 					}
