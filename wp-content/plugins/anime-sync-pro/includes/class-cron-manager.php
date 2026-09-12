@@ -672,8 +672,22 @@ class Anime_Sync_Cron_Manager {
         $body = $this->anilist_request( $query, [ 'ids' => array_keys( $by_hint ) ] );
 
         if ( $body === null ) {
-            // 上游還沒好：不動任何資料，下一輪重試
-            $this->anilist_record_failure();
+            /*
+             * 429 不計入熔斷。
+             *
+             * 理由與下方 404 那段一致（見 mark_anilist_id_404 附近的註解）：
+             * 熔斷判斷的是「上游整個不可用」，而 429 是上游明確回答
+             * 「你太快了」——服務百分之百活著，壞的是我們自己的節奏。
+             *
+             * 把限流算成故障會自我延續：跑 → 429 → 熔斷 60 分鐘 → 全部退到
+             * Bangumi 備援 → 熔斷關閉 → 再 429。2026-09-12 AniList 從長達
+             * 五天的 403 恢復後，五小時內就這樣熔斷了一次，30 部作品被迫走備援。
+             * 這個 bug 在 403 期間看不出來——那時所有請求本來就都失敗。
+             */
+            if ( $this->last_anilist_http_code !== 429 ) {
+                // 上游還沒好：不動任何資料，下一輪重試
+                $this->anilist_record_failure();
+            }
             return;
         }
 
@@ -851,8 +865,6 @@ class Anime_Sync_Cron_Manager {
                     $this->purge_post_cache( $post_id );
                     $consecutive_failures = 0; // 兜底成功，視為服務仍可用
                 } else {
-                    $failed++;
-
                     /*
                      * 404 不計入熔斷。
                      *
@@ -860,10 +872,27 @@ class Anime_Sync_Cron_Manager {
                      * 回答了「這個 ID 不存在」——服務是正常的，壞的是本地這一筆。
                      * 混在一起算會有兩個後果：連續幾筆 ID 失效會被誤判成 API 掛掉
                      * 而中止整批；而且這筆永遠不會成功，卻每輪都重試。
+                     *
+                     * 429 同理但收尾方式不同。
+                     *
+                     * 限流代表上游活著、只是這一分鐘的配額用完了，正確反應是
+                     * 「馬上停、下輪再來」，而不是「上游掛了、改用備援一小時」。
+                     * 所以這一筆不算 failed（它根本沒被服務到），也不計入
+                     * $consecutive_failures，而是直接把本批收掉——連同這一筆
+                     * 一起退回佇列（$aborted_at 用當前 $index 而非 $index+1）。
+                     *
+                     * anilist_request() 每遇到一次 429 已經 sleep 過建議秒數，
+                     * 繼續打下去只會把整批的時間預算耗在等待上。
                      */
                     if ( $this->last_anilist_http_code === 404 ) {
+                        $failed++;
                         $this->mark_anilist_id_404( $post_id, $anilist_id, $post_title );
+                    } elseif ( $this->last_anilist_http_code === 429 ) {
+                        $aborted_at   = $index;
+                        $abort_reason = 'AniList 配額用盡（HTTP 429）';
+                        break;
                     } else {
+                        $failed++;
                         $consecutive_failures++;
                         $this->logger->log( 'warning', "每日動態更新〔{$post_title}〕：失敗", [
                             'post_id'    => $post_id,
@@ -895,7 +924,16 @@ class Anime_Sync_Cron_Manager {
             $unprocessed = array_slice( $batch, $aborted_at );
             $remaining   = array_merge( $unprocessed, $remaining );
 
-            $this->logger->log( 'warning', sprintf(
+            /*
+             * 配額用盡是正常運作狀況，不是故障，記成 info。
+             *
+             * 每分鐘 30 次的額度由多支 cron 分食，429 本來就會常態發生；
+             * 全部記成 warning 會把事件頁洗滿，真正需要注意的上游故障
+             * 反而被埋掉——那正是這次熔斷被誤觸發時發生的事。
+             */
+            $abort_level = ( strpos( $abort_reason, '429' ) !== false ) ? 'info' : 'warning';
+
+            $this->logger->log( $abort_level, sprintf(
                 '每日動態更新：%s，本批提前中止（已處理 %d 部，%d 部退回佇列下批重試）',
                 $abort_reason,
                 $aborted_at,
@@ -1774,7 +1812,10 @@ class Anime_Sync_Cron_Manager {
 
         $body = $this->anilist_request( $query, [ 'id' => $anilist_id ] );
         if ( $body === null ) {
-            $this->anilist_record_failure();
+            // 429 不計入熔斷，理由同 run_anilist_hint_verify_batch() 內的註解
+            if ( $this->last_anilist_http_code !== 429 ) {
+                $this->anilist_record_failure();
+            }
             return null;
         }
 
