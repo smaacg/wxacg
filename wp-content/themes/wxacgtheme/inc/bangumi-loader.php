@@ -308,17 +308,44 @@ function smacg_bangumi_faq_schema( array $ctx, array $posts, string $canon ): ar
 		return [];
 	}
 
-	$label  = $ctx['label'];                       // 2026年10月新番表
-	$season = $ctx['season_label'] ?? $label;      // 2026年秋季新番
+	$label = $ctx['label'];   // 2026年7月新番表
+
+	/*
+	 * 問句裡不要「表」字。
+	 * 「2026年7月新番表在台灣哪裡看？」讀起來卡，也不是真實的搜尋語句；
+	 * 「2026年7月新番在台灣哪裡看？」才是。$ctx 這一份沒有 season_label，
+	 * 直接把結尾的「表」去掉最省事也最不會錯。
+	 */
+	$season = rtrim( $label, '表' );
 	$total  = count( $posts );
 
-	/* ---- 最早開播日與當月開播數 ---- */
+	/* ---- 本季最早開播日 ----
+	 *
+	 * ★ 一定要排除跨季續播的舊日期。
+	 *   新番表會把「這一季仍在播出」的作品一起列出，其中包含前幾季就開播、
+	 *   一路播到現在的長番。直接取清單裡最小的日期，7 月的頁面會拿到
+	 *   2025 年 10 月——實際輸出過「最早開播的作品在 10 月 20 日」這種
+	 *   在 7 月頁面上明顯錯誤的答案（年份被格式化丟掉，更看不出問題）。
+	 *
+	 *   只算「本季當月一號之後」的開播日，才是這一季真正的新作檔期。
+	 */
+	$season_start = preg_match( '/^\d{6}$/', (string) ( $ctx['ym'] ?? '' ) )
+		? $ctx['ym'] . '01'
+		: '';
+
 	$dates = [];
 	foreach ( $posts as $p ) {
 		$d = (string) ( $p['start_date'] ?? '' );
-		if ( preg_match( '/^\d{8}$/', $d ) ) {
-			$dates[] = $d;
+
+		if ( ! preg_match( '/^\d{8}$/', $d ) ) {
+			continue;
 		}
+
+		if ( $season_start !== '' && $d < $season_start ) {
+			continue;   // 跨季續播，不是本季的新開播
+		}
+
+		$dates[] = $d;
 	}
 	sort( $dates );
 
@@ -359,14 +386,19 @@ function smacg_bangumi_faq_schema( array $ctx, array $posts, string $canon ): ar
 
 	/* Q2：什麼時候開播 */
 	if ( $dates ) {
-		$first = $dates[0];
-		$fmt   = static fn( $d ) => (int) substr( $d, 4, 2 ) . ' 月 ' . (int) substr( $d, 6, 2 ) . ' 日';
+		// 帶年份輸出：跨季的資料若混進來，至少一眼看得出不對，不會像只寫月日那樣無聲出錯
+		$fmt = static fn( $d ) => sprintf(
+			'%d 年 %d 月 %d 日',
+			(int) substr( $d, 0, 4 ),
+			(int) substr( $d, 4, 2 ),
+			(int) substr( $d, 6, 2 )
+		);
 
 		$qa[] = [
 			$season . '什麼時候開播？',
 			sprintf(
-				'最早開播的作品在 %s，共 %d 部已公布確切檔期。本頁的「時間表」檢視可依日期查看每天有哪些作品開播。',
-				$fmt( $first ),
+				'本季最早開播的作品在 %s，共 %d 部已公布確切檔期。本頁的「時間表」檢視可依日期查看每天有哪些作品開播。',
+				$fmt( $dates[0] ),
 				count( $dates )
 			),
 		];

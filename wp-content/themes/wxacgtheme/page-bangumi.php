@@ -749,6 +749,8 @@ $seo_desc = sprintf(
 );
 
 $seo_ctx = [
+    // FAQ 需要季度本身，才能把跨季續播的舊開播日排除（見 smacg_bangumi_faq_schema）
+    'ym'          => $ym,
     'label'       => $kw_label,
     'canonical'   => $canonical,
     'title'       => $seo_title,
