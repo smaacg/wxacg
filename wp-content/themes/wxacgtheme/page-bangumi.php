@@ -856,14 +856,15 @@ get_header();
             <div class="bgm-hero-corner">
                 <a class="bgm-hero-corner-link is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
                 <a class="bgm-hero-corner-link is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
-                <?php if ( $bgm_feature ) : ?>
-                <a class="bgm-hero-feature" href="<?php echo esc_url( $bgm_feature['url'] ); ?>">
-                    <span class="bgm-hero-feature-tag">📖 完整報導</span>
-                    <span class="bgm-hero-feature-title"><?php echo esc_html( $bgm_feature['title'] ); ?></span>
-                    <span class="bgm-hero-feature-arrow" aria-hidden="true">→</span>
-                </a>
-                <?php endif; ?>
             </div>
+
+            <?php if ( $bgm_feature ) : ?>
+            <a class="bgm-hero-feature" href="<?php echo esc_url( $bgm_feature['url'] ); ?>">
+                <span class="bgm-hero-feature-tag">📖 完整報導</span>
+                <span class="bgm-hero-feature-title"><?php echo esc_html( $bgm_feature['title'] ); ?></span>
+                <span class="bgm-hero-feature-arrow" aria-hidden="true">→</span>
+            </a>
+            <?php endif; ?>
             <div class="bgm-hero-badge"><?php echo esc_html( $theme['icon'] ); ?> <?php echo esc_html( $ctx['season_zh'] ); ?>季</div>
             <h1 class="bgm-hero-title"><?php echo esc_html( $ctx['label'] ); ?></h1>
             <p class="bgm-hero-sub"><?php echo esc_html( $kw_season ); ?>，<?php echo esc_html( $seo_desc ); ?></p>

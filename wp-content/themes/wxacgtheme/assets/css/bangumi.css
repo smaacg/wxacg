@@ -295,18 +295,22 @@ body:has(.bgm-arc-main) .entry-content > * {
 ------------------------------------------------------------------ */
 .bgm-hero-feature {
     /*
-     * 它跟「歷年存檔／檔期未定」同在 .bgm-hero-corner 這個 flex 容器裡。
-     * flex-basis:100% 讓它自己佔一整排（換到那兩顆按鈕下方），
-     * 配合容器的 justify-content:flex-end 就會靠右對齊到留白處。
-     * max-width 限制寬度，標題再長也不會壓到左邊的主標。
+     * 定位在 hero 的右下角——那裡是整塊唯一的大片留白，
+     * 與左側的統計卡同高，視覺上剛好平衡。
+     * （放在右上角會跟「歷年存檔／檔期未定」擠成一排，右下才是空的。）
+     *
+     * 定位基準是 .bgm-hero-inner（它是 position:relative），不是 .bgm-hero，
+     * 所以用 0 而非 36px——hero 的左右內距已經由 inner 的邊界代表了，
+     * 再加一次會往內縮兩倍。
      */
-    flex: 0 0 100%;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
     display: inline-flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 10px;
-    max-width: 460px;
-    margin: 2px 0 0 auto;
+    max-width: 420px;
     padding: 11px 20px;
     border-radius: 999px;
     text-decoration: none;
@@ -2140,13 +2144,15 @@ body:not(.bgm-view-schedule-mode) .bgm-schedule {
         padding: 7px 14px;
     }
 
-    /* 手機版標題太長會擠掉箭頭，改成整行並限制寬度 */
+    /* 手機版沒有右下留白可用，取消絕對定位改回正常排版 */
     .bgm-hero-feature {
+        position: static;
         display: flex;
         width: 100%;
+        max-width: none;
         font-size: 13px;
         padding: 10px 16px;
-        margin-bottom: 14px;
+        margin: 0 0 14px;
     }
 
     .bgm-hero::after { animation-duration: 30s; opacity: .6; }
