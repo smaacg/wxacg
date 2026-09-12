@@ -98,6 +98,21 @@ class Anime_Sync_YourAnimes_Title_Index {
 	const ABORT_AFTER_FAILURES = 10;
 
 	/*
+	 * 執行鎖。做法與 class-cron-manager.php 的每一支任務一致
+	 * （get_transient 擋、set_transient 佔、finally 釋放）。
+	 *
+	 * ★ 為什麼一定要有
+	 *   一輪要跑 200 秒，而外部觸發的 wp-cron 有可能在前一輪還沒結束時
+	 *   又被呼叫一次。沒有鎖的話兩輪會同時跑：對 youranimes.tw 變成雙倍
+	 *   請求速率，索引檔又是「整個讀進來、改完整個寫回去」，兩邊同時寫
+	 *   會後者覆蓋前者，先寫的那幾十頁靜默消失。
+	 *
+	 *   TTL 設得比時間預算大一些，留收尾餘裕；萬一發生鎖洩漏也能自己過期。
+	 */
+	const LOCK_KEY = 'anime_sync_lock_ya_title_index';
+	const LOCK_TTL = 280;
+
+	/*
 	 * 全站掃完一輪之後，隔多久才重新掃。
 	 *
 	 * ★ 沒有這道冷卻會變成無止盡重抓。
@@ -198,7 +213,19 @@ class Anime_Sync_YourAnimes_Title_Index {
 	// -------------------------------------------------------------------------
 
 	public function run_build_batch(): void {
-		$this->build_batch( self::PAGES_PER_RUN );
+
+		if ( get_transient( self::LOCK_KEY ) ) {
+			self::log_warning( '上一輪還在執行，本次跳過' );
+			return;
+		}
+
+		set_transient( self::LOCK_KEY, 1, self::LOCK_TTL );
+
+		try {
+			$this->build_batch( self::PAGES_PER_RUN );
+		} finally {
+			delete_transient( self::LOCK_KEY );
+		}
 	}
 
 	/**
