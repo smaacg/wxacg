@@ -2926,6 +2926,76 @@ while ( have_posts() ) :
 		'name'  => 'Japan',
 	];
 
+	/* ---------------------------------------------------------
+	 * 台灣觀看選項 → WatchAction + Offer
+	 *
+	 * ★ 為什麼要加
+	 *   站上最獨特的資料就是「這部在台灣哪些平台看得到、要不要錢」，
+	 *   但原本只以圖示呈現，機器讀不到——Google 的「觀看選項」與各家
+	 *   AI 問答引擎在回答「XX 台灣哪裡看」時，找的正是這段標記。
+	 *   資料本來就有，缺的只是輸出。
+	 *
+	 * ★ 為什麼用 potentialAction 而不是 offers
+	 *   offers 表達的是「購買這個商品」，語意上指向單一標的物；
+	 *   影音的「在某平台觀看」對應的是 WatchAction，付費條件掛在
+	 *   expectsAcceptanceOf 底下的 Offer，這是 Google 影音標記的寫法。
+	 *
+	 * ★ eligibleRegion 一定要標 TW
+	 *   同一部作品在不同地區的平台完全不同。不標地區，等於告訴機器
+	 *   「全世界都能用這個連結看」，那是錯的資訊。
+	 * ------------------------------------------------------- */
+	$watch_actions = [];
+
+	$schema_stream_keys = is_array( $tw_streaming_raw )
+		? $tw_streaming_raw
+		: ( $tw_streaming_raw ? [ $tw_streaming_raw ] : [] );
+
+	$schema_billing_map = $has_streaming_registry
+		? Anime_Sync_Streaming_Registry::get_billing_map()
+		: [];
+
+	$schema_platform_labels = $has_streaming_registry
+		? Anime_Sync_Streaming_Registry::get_acf_choices()
+		: [];
+
+	foreach ( $schema_stream_keys as $stream_key ) {
+		$stream_key = trim( (string) $stream_key );
+		$stream_url = trim( (string) ( $tw_stream_url_map[ $stream_key ] ?? '' ) );
+
+		// 沒有實際連結就不輸出——標記一個點不進去的觀看選項比沒有更糟
+		if ( $stream_key === '' || $stream_url === '' ) {
+			continue;
+		}
+
+		$billing = (string) ( $schema_billing_map[ $stream_key ] ?? '' );
+
+		$watch_actions[] = [
+			'@type'  => 'WatchAction',
+			'target' => [
+				'@type'       => 'EntryPoint',
+				'urlTemplate' => esc_url_raw( $stream_url ),
+				'inLanguage'  => 'zh-TW',
+			],
+			'expectsAcceptanceOf' => [
+				'@type'    => 'Offer',
+				// free 之外一律當訂閱制；rent 也要付費，語意上比 free 接近
+				'category' => $billing === 'free' ? 'free' : 'subscription',
+				'seller'   => [
+					'@type' => 'Organization',
+					'name'  => (string) ( $schema_platform_labels[ $stream_key ] ?? $stream_key ),
+				],
+				'eligibleRegion' => [
+					'@type' => 'Country',
+					'name'  => 'TW',
+				],
+			],
+		];
+	}
+
+	if ( ! empty( $watch_actions ) ) {
+		$schema['potentialAction'] = $watch_actions;
+	}
+
 	if ( $end_date && $status === 'FINISHED' ) {
 		$schema['endDate'] = $end_date;
 	}
