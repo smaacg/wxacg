@@ -1218,9 +1218,10 @@ $cron_rows = array(
                         <?php if ( $ti['pending'] > 0 ) : ?>
                             <br><span class="description"><?php
                                 printf(
-                                    /* translators: %s: 剩餘頁數 */
-                                    esc_html__( '尚餘 %s 頁，每小時 300 頁，由新到舊抓；已抓到的部分現在就能用。', 'anime-sync-pro' ),
-                                    esc_html( number_format_i18n( $ti['pending'] ) )
+                                    /* translators: 1: 剩餘頁數 2: 沒有日期而略過的頁數 */
+                                    esc_html__( '尚餘 %1$s 頁，由新到舊抓；已抓到的部分現在就能用。另有 %2$s 頁尚未公布檔期（沒有上映日期就無法比對），下一輪會再看一次。', 'anime-sync-pro' ),
+                                    esc_html( number_format_i18n( $ti['pending'] ) ),
+                                    esc_html( number_format_i18n( $ti['dateless'] ) )
                                 );
                             ?></span>
                         <?php endif; ?>

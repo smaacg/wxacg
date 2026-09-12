@@ -238,6 +238,13 @@ class Anime_Sync_YourAnimes_Title_Index {
 			}
 
 			$state['last_sweep'] = time();
+
+			/*
+			 * 記下本輪的總量，供進度顯示用。
+			 * 不能靠 done + pending 現算——沒日期的頁面兩邊都不算，總數會縮水。
+			 */
+			$ids = get_transient( self::SITEMAP_CACHE_KEY );
+			$state['sweep_total'] = is_array( $ids ) ? count( $ids ) : count( $pending ) + count( $state['done'] );
 		}
 
 		$index = self::load_index();
@@ -336,26 +343,27 @@ class Anime_Sync_YourAnimes_Title_Index {
 			 * 部署重啟），只在最後存的話那些情況會整批白做。
 			 */
 			if ( $processed % self::SAVE_EVERY === 0 ) {
-				self::persist( $index, $pending, $done, (int) $state["last_sweep"] );
+				self::persist( $index, $pending, $done, (int) $state["last_sweep"], (int) $state["sweep_total"] );
 			}
 		}
 
 		$stats['remaining'] = count( $pending );
 
-		self::persist( $index, $pending, $done, (int) $state["last_sweep"] );
+		self::persist( $index, $pending, $done, (int) $state["last_sweep"], (int) $state["sweep_total"] );
 
 		return $stats;
 	}
 
 	/** 把索引與進度一起落地。兩者必須同時更新，否則會重抓或漏抓。 */
-	private static function persist( array $index, array $pending, array $done, int $last_sweep ): void {
+	private static function persist( array $index, array $pending, array $done, int $last_sweep, int $sweep_total ): void {
 		self::save_index( $index );
 		self::save_state( [
-			'pending'    => array_values( $pending ),
-			'done'       => $done,
-			'updated'    => time(),
-			'keys'       => count( $index ),
-			'last_sweep' => $last_sweep,
+			'pending'     => array_values( $pending ),
+			'done'        => $done,
+			'updated'     => time(),
+			'keys'        => count( $index ),
+			'last_sweep'  => $last_sweep,
+			'sweep_total' => $sweep_total,
 		] );
 	}
 
@@ -464,18 +472,37 @@ class Anime_Sync_YourAnimes_Title_Index {
 	public static function get_status(): array {
 
 		$state = self::get_state();
-		$ids   = get_transient( self::SITEMAP_CACHE_KEY );
 
-		$done  = count( $state['done'] );
-		$total = is_array( $ids ) ? count( $ids ) : $done + count( $state['pending'] );
+		$done    = count( $state['done'] );
+		$pending = count( $state['pending'] );
+
+		/*
+		 * 總數用開始掃描時記下的 sweep_total，不要用 done + pending 現算。
+		 *
+		 * 沒有 datePublished 的頁面會離開 pending 但不進 done（要留著下一輪
+		 * 重看），兩邊都不算它，現算的總數就會隨著掃描一直縮水——實測
+		 * 6,477 掃了一輪之後顯示成 6,376，進度看起來像在倒退。
+		 *
+		 * 記在 state 裡的值不受這個影響；還沒開始掃時退回 sitemap 快取或現算。
+		 */
+		$total = (int) $state['sweep_total'];
+
+		if ( $total <= 0 ) {
+			$ids   = get_transient( self::SITEMAP_CACHE_KEY );
+			$total = is_array( $ids ) ? count( $ids ) : $done + $pending;
+		}
+
+		// 掃過但沒日期的：待抓清單消化掉、卻還沒進索引的那些
+		$dateless = max( 0, $total - $done - $pending );
 
 		return [
-			'done'    => $done,
-			'total'   => $total,
-			'pending' => count( $state['pending'] ),
-			'keys'    => (int) $state['keys'],
-			'updated' => (int) $state['updated'],
-			'ready'   => $done > 0,
+			'done'     => $done,
+			'total'    => $total,
+			'pending'  => $pending,
+			'dateless' => $dateless,
+			'keys'     => (int) $state['keys'],
+			'updated'  => (int) $state['updated'],
+			'ready'    => $done > 0,
 		];
 	}
 
@@ -487,7 +514,9 @@ class Anime_Sync_YourAnimes_Title_Index {
 			'done'    => is_array( $state['done'] ?? null ) ? $state['done'] : [],
 			'updated'    => (int) ( $state['updated'] ?? 0 ),
 			'keys'       => (int) ( $state['keys'] ?? 0 ),
-			'last_sweep' => (int) ( $state['last_sweep'] ?? 0 ),
+			'last_sweep'  => (int) ( $state['last_sweep'] ?? 0 ),
+			// 本輪開始掃時 sitemap 的作品頁總數，供進度顯示用（見 get_status）
+			'sweep_total' => (int) ( $state['sweep_total'] ?? 0 ),
 		];
 	}
 
