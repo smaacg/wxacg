@@ -4344,3 +4344,215 @@
 
 
 
+
+/* =============================================================================
+   新番懶人包／季度專題用的版面元件
+   ---------------------------------------------------------------------------
+   每季都會寫一篇，做成可重用的 class，不要每次都在文章裡塞行內樣式
+   （行內樣式沒辦法寫 media query，手機版一定會爛）。
+
+   佈局刻意用 flex-wrap + flex-basis 而不是 media query 斷點：
+   容器窄到放不下時自己就會換行堆疊，不必猜手機寬度，
+   側邊欄變動或嵌在別的容器裡也不會失準。
+============================================================================= */
+
+/* ── 單部作品：海報 + 資料 ── */
+.wxa-work {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-start;
+    margin: 0 0 18px;
+}
+
+.wxa-work__poster {
+    flex: 0 0 180px;
+    width: 180px;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+}
+
+/*
+ * flex-basis 260px 是換行的觸發點：容器寬度不足 180+20+260 時，
+ * 這一欄就會掉到海報下方，自動變成手機版的堆疊排版。
+ * min-width:0 讓長標題能正常截斷而不是把版面撐開。
+ */
+.wxa-work__meta {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.wxa-work__facts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 15px;
+    line-height: 1.9;
+}
+
+.wxa-work__facts li {
+    margin: 0;
+    padding: 0 0 0 0;
+}
+
+.wxa-work__facts b {
+    display: inline-block;
+    min-width: 5.5em;
+    color: var(--smacg-muted, #9aa4b2);
+    font-weight: 600;
+}
+
+.wxa-work__syn {
+    margin: 12px 0 0;
+    font-size: 15px;
+    line-height: 1.85;
+    opacity: .9;
+}
+
+/* ── 待撰寫提示（發布前要刪掉）── */
+.wxa-todo {
+    margin: 18px 0;
+    padding: 14px 18px;
+    border-left: 4px solid #f59e0b;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, .1);
+    color: #fcd34d;
+    font-size: 14px;
+    line-height: 1.75;
+}
+
+.wxa-todo b { color: #fbbf24; }
+
+/* ── 「看完整資料」行動連結 ── */
+.wxa-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 28px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, .14);
+    border: 1px solid rgba(59, 130, 246, .4);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.wxa-more:hover {
+    background: rgba(59, 130, 246, .26);
+    border-color: rgba(59, 130, 246, .7);
+}
+
+/* ── 時間表：窄螢幕改成自己橫向捲動，不要把欄位擠爛 ── */
+.wxa-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 0 24px;
+}
+
+.wxa-table-wrap table {
+    width: 100%;
+    min-width: 480px;
+    border-collapse: collapse;
+    font-size: 15px;
+}
+
+.wxa-table-wrap th,
+.wxa-table-wrap td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, .18);
+    vertical-align: top;
+}
+
+.wxa-table-wrap th {
+    font-size: 14px;
+    white-space: nowrap;
+    color: var(--smacg-muted, #9aa4b2);
+}
+
+.wxa-table-wrap tbody tr:nth-child(odd) { background: rgba(148, 163, 184, .05); }
+
+.wxa-table-wrap td small { opacity: .65; }
+
+/* ── 類型推薦的作品清單：橫排標籤，比條列省空間也好掃視 ── */
+.wxa-taglist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 4px;
+    padding: 0;
+    list-style: none;
+}
+
+.wxa-taglist li { margin: 0; }
+
+.wxa-taglist a {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, .12);
+    border: 1px solid rgba(148, 163, 184, .22);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.wxa-taglist a:hover {
+    background: rgba(148, 163, 184, .22);
+    border-color: rgba(148, 163, 184, .45);
+}
+
+.wxa-taglist .is-plain {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, .06);
+    font-size: 14px;
+    opacity: .55;
+}
+
+@media (max-width: 600px) {
+    .wxa-work { gap: 14px; }
+    .wxa-work__poster { flex-basis: 130px; width: 130px; }
+    .wxa-work__facts { font-size: 14px; line-height: 1.8; }
+    .wxa-work__facts b { min-width: 4.6em; }
+    .wxa-work__syn { font-size: 14px; }
+    .wxa-taglist a, .wxa-taglist .is-plain { font-size: 13px; padding: 5px 12px; }
+}
+
+/* ── PV 影片：直接用 iframe，不靠 oEmbed ──
+   以 WP-CLI 之類的方式塞入原始 HTML 時，wp-block-embed 不會被 oEmbed
+   處理，畫面上會直接印出 YouTube 網址。改用 iframe 才保證渲染，
+   外層用 aspect-ratio 維持 16:9 並隨寬度縮放。 */
+.wxa-video {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 0 0 6px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+}
+
+.wxa-video iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.wxa-video-cap {
+    margin: 0 0 22px;
+    font-size: 13px;
+    opacity: .6;
+    text-align: center;
+}
+
+/* 工作室欄位常出現很長的英文公司名，限寬並允許斷行，
+   不要把整張表格撐開 */
+.wxa-table-wrap td:last-child {
+    max-width: 14em;
+    word-break: break-word;
+}
