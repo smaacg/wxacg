@@ -560,8 +560,25 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
         $g   = fn( $k ) => isset( $m[ $k ][0] ) ? $m[ $k ][0] : '';
 
         $cover      = $g( 'anime_cover_image' ) ?: get_the_post_thumbnail_url( $pid, 'medium' );
-        $title_zh   = $g( 'anime_title_chinese' ) ?: get_the_title();
-        $title_ro   = $g( 'anime_title_romaji' );
+        /*
+         * 主標：繁體 → 簡體 → 文章標題。
+         * 副標：日文原文（原本是羅馬字）。
+         *
+         * ★ 為什麼副標不用羅馬字
+         *   讀者是繁中使用者，「Karakai Jouzu no Takagi-san 3」對他們沒有
+         *   辨識作用；日文原名反而是查得到、認得出的那個名字。
+         *
+         * ★ 為什麼主標要有簡體這一層
+         *   繁體標題來自 Bangumi name_cn 逐字簡轉繁，少數作品沒有 name_cn
+         *   就會空白。與其掉回文章標題（常常是日文或羅馬字），不如先用簡體。
+         */
+        $title_zh   = $g( 'anime_title_chinese' ) ?: ( $g( 'anime_title_simplified' ) ?: get_the_title() );
+        $title_sub  = $g( 'anime_title_native' );
+
+        // 原文與主標一字不差時就不重複印（例如主標本來就退回了日文）
+        if ( $title_sub !== '' && $title_sub === $title_zh ) {
+            $title_sub = '';
+        }
         $score_raw  = $g( 'anime_score_anilist' );
         $score      = ( is_numeric( $score_raw ) && (float) $score_raw > 0 ) ? number_format( (float) $score_raw / 10, 1 ) : '';
         $season     = $g( 'anime_season' );
@@ -574,7 +591,16 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
         $format_label = $format_labels[ $format ] ?? $format;
         $status_label = $status_labels[ $status ] ?? '';
         $status_class = $status_classes[ $status ] ?? '';
-        $season_str   = ( $year && $season_label ) ? $year . ' ' . $season_label : ( $year ?: '' );
+
+        /*
+         * 卡片上的季度去掉「季」字：「2022 春季」→「2022 春」。
+         *
+         * 三個標籤（格式／季度／集數）在六欄版面的卡片寬度下會擠到換行，
+         * 換行的卡片就跟旁邊對不齊。少一個字加上縮小內距剛好排得下。
+         * $season_labels 本身不動——那份對照表的完整寫法別處還要用。
+         */
+        $season_short = $season_label !== '' ? rtrim( $season_label, '季' ) : '';
+        $season_str   = ( $year && $season_short ) ? $year . ' ' . $season_short : ( $year ?: '' );
 
         /*
          * [v1.7.1] 篩選用的 data-* 屬性，只在 /upcoming-anime/ 才算——
@@ -612,11 +638,11 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
                 </div>
                 <div class="aaa-card-body">
                     <h3 class="aaa-card-title"><?php echo esc_html( $title_zh ); ?></h3>
-                    <?php if ( $title_ro ) : ?><p class="aaa-card-romaji"><?php echo esc_html( $title_ro ); ?></p><?php endif; ?>
+                    <p class="aaa-card-romaji"><?php echo esc_html( $title_sub ); ?></p>
                     <div class="aaa-card-meta">
                         <?php if ( $format_label ) : ?><span class="aaa-meta-tag aaa-meta-format"><?php echo esc_html( $format_label ); ?></span><?php endif; ?>
                         <?php if ( $season_str )   : ?><span class="aaa-meta-tag aaa-meta-season"><?php echo esc_html( $season_str ); ?></span><?php endif; ?>
-                        <?php if ( $episodes )     : ?><span class="aaa-meta-tag aaa-meta-ep"><?php echo esc_html( $episodes ); ?> 集</span><?php endif; ?>
+                        <?php if ( $episodes )     : ?><span class="aaa-meta-tag aaa-meta-ep"><?php echo esc_html( $episodes ); ?>集</span><?php endif; ?>
                     </div>
                 </div>
             </a>
@@ -734,10 +760,23 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
 .s-can,.s-hia{background:rgba(251,113,133,.2);color:#fb7185;border:1px solid rgba(251,113,133,.36);}
 .aaa-score-badge{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fbbf24;padding:3px 9px;border-radius:var(--pill);font-size:12px;font-weight:800;border:1px solid rgba(251,191,36,.28);}
 .aaa-card-body{padding:12px 14px 14px;background:var(--surf2);}
-.aaa-card-title{font-size:13px;font-weight:700;margin:0 0 5px;line-height:1.45;color:#fff;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.aaa-card-romaji{font-size:11px;color:var(--faint);margin:0 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.aaa-card-meta{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px;}
-.aaa-meta-tag{font-size:11px;padding:2px 8px;border-radius:var(--pill);font-weight:600;}
+/*
+ * 卡片文字區塊一律固定高度，整排才會對齊。
+ *
+ * 原本標題 1～2 行、標籤 1～2 行都可能，於是每張卡的標籤落在不同高度，
+ * 整個列表看起來參差不齊。三個地方各鎖一個高度就解決：
+ *   標題   一律佔兩行（line-clamp 只管上限，min-height 補下限）
+ *   副標   即使沒有原文也保留一行的位置
+ *   標籤   禁止換行（配合縮短的季度字串與較小的內距）
+ */
+.aaa-card-title{font-size:13px;font-weight:700;margin:0 0 5px;line-height:1.45;color:#fff;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:calc(1.45em * 2);}
+.aaa-card-romaji{font-size:11px;color:var(--faint);margin:0 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.3em;}
+.aaa-card-meta{display:flex;flex-wrap:nowrap;gap:3px;margin-bottom:7px;overflow:hidden;}
+.aaa-meta-tag{font-size:11px;padding:2px 6px;border-radius:var(--pill);font-weight:600;white-space:nowrap;}
+/* 六欄版面在 1024～1199px 時卡片最窄，標籤再縮一點才塞得下三個 */
+@media(min-width:1024px) and (max-width:1199px){
+  .aaa-meta-tag{font-size:10px;padding:2px 5px;}
+}
 .aaa-meta-format{background:rgba(124,92,255,.2);color:#b8a0ff;border:1px solid rgba(124,92,255,.34);}
 .aaa-meta-season{background:rgba(52,211,153,.16);color:#34d399;border:1px solid rgba(52,211,153,.3);}
 .aaa-meta-ep{background:rgba(76,201,240,.16);color:#4cc9f0;border:1px solid rgba(76,201,240,.3);}
@@ -774,6 +813,8 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
   .aaa-card-cover-wrap{aspect-ratio:3/4;}
   .aaa-card-body{padding:8px 9px 9px;}
   .aaa-card-romaji{display:none;}
+  /* 兩欄版面在 320px 級距的手機上最窄，標籤同樣縮一級才不會被裁掉 */
+  .aaa-meta-tag{font-size:10px;padding:2px 5px;}
   .aaa-breadcrumb{padding:9px 14px;}
   .aaa-hero{aspect-ratio:16/8;}
 }
