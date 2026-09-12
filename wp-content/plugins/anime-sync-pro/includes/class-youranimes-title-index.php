@@ -97,6 +97,20 @@ class Anime_Sync_YourAnimes_Title_Index {
 	/** 連續失敗這麼多次就中止本輪，剩下的留到下一輪。 */
 	const ABORT_AFTER_FAILURES = 10;
 
+	/*
+	 * 全站掃完一輪之後，隔多久才重新掃。
+	 *
+	 * ★ 沒有這道冷卻會變成無止盡重抓。
+	 *   還沒公布檔期的頁面沒有 datePublished，配不了，所以刻意不記進 done
+	 *   ——留著等它日後有日期。但待抓清單一空就立刻從 sitemap 重建的話，
+	 *   那幾百個沒日期的每兩小時就被完整重抓一次，對 YourAnimes 是純粹的
+	 *   無謂流量，對這台共享主機也是白費的負載。
+	 *
+	 *   24 小時重掃一次已經夠頻繁：新作品公布檔期是以天為單位的事。
+	 *   做法比照 class-youranimes-season-index.php 的 SWEEP_INTERVAL_HOURS。
+	 */
+	const SWEEP_INTERVAL_HOURS = 24;
+
 	/** 記憶體中的索引，避免同一次請求重複讀檔。 */
 	private static ?array $index = null;
 
@@ -205,13 +219,25 @@ class Anime_Sync_YourAnimes_Title_Index {
 		$state   = self::get_state();
 		$pending = $state['pending'];
 
-		// 佇列空了就重新從 sitemap 建（新作品的 ID 會比既有的大）
+		/*
+		 * 佇列空了代表這一輪掃完了。冷卻期內不重建——理由見
+		 * SWEEP_INTERVAL_HOURS：否則沒日期的那幾百頁會被反覆重抓。
+		 */
 		if ( empty( $pending ) ) {
+
+			$since_sweep = time() - (int) $state['last_sweep'];
+
+			if ( $state['last_sweep'] > 0 && $since_sweep < self::SWEEP_INTERVAL_HOURS * HOUR_IN_SECONDS ) {
+				return $stats;
+			}
+
 			$pending = self::build_pending_from_sitemap( $state['done'] );
 
 			if ( empty( $pending ) ) {
 				return $stats;
 			}
+
+			$state['last_sweep'] = time();
 		}
 
 		$index = self::load_index();
@@ -310,25 +336,26 @@ class Anime_Sync_YourAnimes_Title_Index {
 			 * 部署重啟），只在最後存的話那些情況會整批白做。
 			 */
 			if ( $processed % self::SAVE_EVERY === 0 ) {
-				self::persist( $index, $pending, $done );
+				self::persist( $index, $pending, $done, (int) $state["last_sweep"] );
 			}
 		}
 
 		$stats['remaining'] = count( $pending );
 
-		self::persist( $index, $pending, $done );
+		self::persist( $index, $pending, $done, (int) $state["last_sweep"] );
 
 		return $stats;
 	}
 
 	/** 把索引與進度一起落地。兩者必須同時更新，否則會重抓或漏抓。 */
-	private static function persist( array $index, array $pending, array $done ): void {
+	private static function persist( array $index, array $pending, array $done, int $last_sweep ): void {
 		self::save_index( $index );
 		self::save_state( [
-			'pending' => array_values( $pending ),
-			'done'    => $done,
-			'updated' => time(),
-			'keys'    => count( $index ),
+			'pending'    => array_values( $pending ),
+			'done'       => $done,
+			'updated'    => time(),
+			'keys'       => count( $index ),
+			'last_sweep' => $last_sweep,
 		] );
 	}
 
@@ -458,8 +485,9 @@ class Anime_Sync_YourAnimes_Title_Index {
 		return [
 			'pending' => is_array( $state['pending'] ?? null ) ? $state['pending'] : [],
 			'done'    => is_array( $state['done'] ?? null ) ? $state['done'] : [],
-			'updated' => (int) ( $state['updated'] ?? 0 ),
-			'keys'    => (int) ( $state['keys'] ?? 0 ),
+			'updated'    => (int) ( $state['updated'] ?? 0 ),
+			'keys'       => (int) ( $state['keys'] ?? 0 ),
+			'last_sweep' => (int) ( $state['last_sweep'] ?? 0 ),
 		];
 	}
 
