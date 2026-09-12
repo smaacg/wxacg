@@ -837,35 +837,36 @@ get_header();
 
     <section class="bgm-hero bgm-season-<?php echo esc_attr( strtolower( $theme_key ) ); ?>">
         <div class="bgm-hero-inner">
-            <div class="bgm-hero-corner">
-                <a class="bgm-hero-corner-link is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
-                <a class="bgm-hero-corner-link is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
-            </div>
-            <div class="bgm-hero-badge"><?php echo esc_html( $theme['icon'] ); ?> <?php echo esc_html( $ctx['season_zh'] ); ?>季</div>
-            <h1 class="bgm-hero-title"><?php echo esc_html( $ctx['label'] ); ?></h1>
-            <p class="bgm-hero-sub"><?php echo esc_html( $kw_season ); ?>，<?php echo esc_html( $seo_desc ); ?></p>
-
             <?php
             /*
              * 本季的完整報導。
              *
-             * 這頁是資料表，回答「有哪些、什麼時候播」；專題文章回答
-             * 「該追哪幾部、為什麼」。兩者互補，但原本完全沒有互連——
-             * 讀者看完表格沒有下一步，搜尋引擎也看不出兩頁的關係。
+             * 這頁是資料表（有哪些、何時播），專題文章是判斷（該追哪部、為什麼），
+             * 兩者互補卻原本完全沒有互連——讀者看完表格沒有下一步，搜尋引擎
+             * 也看不出兩頁的關係。
              *
+             * 放進右上角這一組：那裡本來就是「這一頁之外還能去哪」的區塊，
+             * 而且右側大片留白正好容得下較長的文章標題。
              * 找不到對應文章就整塊不輸出，不留空殼按鈕。
              */
             $bgm_feature = function_exists( 'smacg_bangumi_feature_post' )
                 ? smacg_bangumi_feature_post( $ym )
                 : null;
-
-            if ( $bgm_feature ) : ?>
-            <a class="bgm-hero-feature" href="<?php echo esc_url( $bgm_feature['url'] ); ?>">
-                <span class="bgm-hero-feature-tag">📖 完整報導</span>
-                <span class="bgm-hero-feature-title"><?php echo esc_html( $bgm_feature['title'] ); ?></span>
-                <span class="bgm-hero-feature-arrow" aria-hidden="true">→</span>
-            </a>
-            <?php endif; ?>
+            ?>
+            <div class="bgm-hero-corner">
+                <a class="bgm-hero-corner-link is-archive" href="<?php echo esc_url( home_url( '/bangumi/archive/' ) ); ?>">📚 歷年存檔</a>
+                <a class="bgm-hero-corner-link is-upcoming" href="<?php echo esc_url( home_url( '/upcoming-anime/' ) ); ?>">🎬 檔期未定作品</a>
+                <?php if ( $bgm_feature ) : ?>
+                <a class="bgm-hero-feature" href="<?php echo esc_url( $bgm_feature['url'] ); ?>">
+                    <span class="bgm-hero-feature-tag">📖 完整報導</span>
+                    <span class="bgm-hero-feature-title"><?php echo esc_html( $bgm_feature['title'] ); ?></span>
+                    <span class="bgm-hero-feature-arrow" aria-hidden="true">→</span>
+                </a>
+                <?php endif; ?>
+            </div>
+            <div class="bgm-hero-badge"><?php echo esc_html( $theme['icon'] ); ?> <?php echo esc_html( $ctx['season_zh'] ); ?>季</div>
+            <h1 class="bgm-hero-title"><?php echo esc_html( $ctx['label'] ); ?></h1>
+            <p class="bgm-hero-sub"><?php echo esc_html( $kw_season ); ?>，<?php echo esc_html( $seo_desc ); ?></p>
 
             <div class="bgm-nav">
                 <?php if ( $prev_ym ) :

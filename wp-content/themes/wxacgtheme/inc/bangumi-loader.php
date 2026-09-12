@@ -376,10 +376,11 @@ function smacg_bangumi_faq_schema( array $ctx, array $posts, string $canon ): ar
 
 	/* Q1：有哪些／幾部 */
 	$qa[] = [
-		$label . '有哪些動畫？共幾部？',
+		$season . '有哪些動畫？共幾部？',
 		sprintf(
 			'%s共收錄 %d 部作品，本頁提供完整片單，可依開播日期、播出平台、作品類型與原作來源篩選，並支援作品名稱、配音與製作公司的即時搜尋。',
-			$season,
+			// 答案裡保留完整的「⋯新番表」，關鍵字不流失，但問句維持自然語序
+			$label,
 			$total
 		),
 	];

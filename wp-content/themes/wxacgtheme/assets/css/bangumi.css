@@ -294,11 +294,19 @@ body:has(.bgm-arc-main) .entry-content > * {
    報導用青綠，彼此分得開。
 ------------------------------------------------------------------ */
 .bgm-hero-feature {
+    /*
+     * 它跟「歷年存檔／檔期未定」同在 .bgm-hero-corner 這個 flex 容器裡。
+     * flex-basis:100% 讓它自己佔一整排（換到那兩顆按鈕下方），
+     * 配合容器的 justify-content:flex-end 就會靠右對齊到留白處。
+     * max-width 限制寬度，標題再長也不會壓到左邊的主標。
+     */
+    flex: 0 0 100%;
     display: inline-flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
-    max-width: 100%;
-    margin: 0 0 18px;
+    max-width: 460px;
+    margin: 2px 0 0 auto;
     padding: 11px 20px;
     border-radius: 999px;
     text-decoration: none;
