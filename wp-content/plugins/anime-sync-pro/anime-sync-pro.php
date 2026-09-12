@@ -149,6 +149,8 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/bgm-bbcode.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-meta-guard.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-dub-platform-link.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
+// 全站標題索引：季度新番表配不到的劇場版／OVA 由它補（見該檔檔頭的量測）
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-title-index.php';
 
 /* ============================================================
  * 1.2. AI 編輯短評批次產生工具
@@ -227,6 +229,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		ANIME_SYNC_PRO_DIR . 'includes/class-new-release-scan.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-upcoming-bgm-scan.php',
 		ANIME_SYNC_PRO_DIR . 'includes/class-mal-upcoming-scan.php',
+		ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-title-index.php',
 	];
 	foreach ( $anime_sync_cli_files as $anime_sync_cli_file ) {
 		if ( file_exists( $anime_sync_cli_file ) ) {
@@ -1091,6 +1094,10 @@ register_activation_hook( __FILE__, function (): void {
 		Anime_Sync_MAL_Upcoming_Scan::schedule();
 	}
 
+	if ( class_exists( 'Anime_Sync_YourAnimes_Title_Index' ) ) {
+		Anime_Sync_YourAnimes_Title_Index::schedule();
+	}
+
 	if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
 		Anime_Sync_Upstream_Diff_Scan::schedule();
 	}
@@ -1125,6 +1132,10 @@ register_deactivation_hook( __FILE__, function (): void {
 
 	if ( class_exists( 'Anime_Sync_MAL_Upcoming_Scan' ) ) {
 		Anime_Sync_MAL_Upcoming_Scan::unschedule();
+	}
+
+	if ( class_exists( 'Anime_Sync_YourAnimes_Title_Index' ) ) {
+		Anime_Sync_YourAnimes_Title_Index::unschedule();
 	}
 
 	if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
@@ -1424,6 +1435,16 @@ add_action( 'plugins_loaded', function (): void {
 			 * 啟用 hook 只有「後台停用再啟用外掛」才會觸發，git push 部署碰不到。
 			 */
 			Anime_Sync_MAL_Upcoming_Scan::schedule();
+		}
+
+		/*
+		 * YourAnimes 全站標題索引（每小時 300 頁，約 22 小時建完一輪）。
+		 * 由新到舊抓，所以建立期間就能用——近期作品第一輪就涵蓋到。
+		 * 同樣補一次排程註冊，理由同上。
+		 */
+		if ( class_exists( 'Anime_Sync_YourAnimes_Title_Index' ) ) {
+			new Anime_Sync_YourAnimes_Title_Index();
+			Anime_Sync_YourAnimes_Title_Index::schedule();
 		}
 
 		// 未播出作品的 Bangumi 班底輪掃（每小時一批，約一天輪完一圈）

@@ -1193,6 +1193,43 @@ $cron_rows = array(
                     <?php endif; ?>
                 </td>
             </tr>
+            <?php
+            /*
+             * YourAnimes 全站標題索引的建立進度。
+             *
+             * 這是每小時 300 頁、約 22 小時才建完的背景工作，沒有進度顯示的話
+             * 使用者只會覺得「劇場版還是配不到」，分不出是還沒抓到還是壞了。
+             */
+            if ( class_exists( 'Anime_Sync_YourAnimes_Title_Index' ) ) :
+                $ti = Anime_Sync_YourAnimes_Title_Index::get_status();
+            ?>
+            <tr>
+                <th scope="row"><?php esc_html_e( 'YourAnimes 標題索引', 'anime-sync-pro' ); ?></th>
+                <td>
+                    <?php if ( $ti['total'] > 0 && $ti['done'] > 0 ) : ?>
+                        <?php printf(
+                            /* translators: 1: 已抓頁數 2: 總頁數 3: 百分比 4: 索引鍵數 */
+                            esc_html__( '已抓 %1$s / %2$s 頁（%3$s%%）· 索引 %4$s 筆', 'anime-sync-pro' ),
+                            esc_html( number_format_i18n( $ti['done'] ) ),
+                            esc_html( number_format_i18n( $ti['total'] ) ),
+                            esc_html( number_format_i18n( round( $ti['done'] / max( 1, $ti['total'] ) * 100, 1 ), 1 ) ),
+                            esc_html( number_format_i18n( $ti['keys'] ) )
+                        ); ?>
+                        <?php if ( $ti['pending'] > 0 ) : ?>
+                            <br><span class="description"><?php
+                                printf(
+                                    /* translators: %s: 剩餘頁數 */
+                                    esc_html__( '尚餘 %s 頁，每小時 300 頁，由新到舊抓；已抓到的部分現在就能用。', 'anime-sync-pro' ),
+                                    esc_html( number_format_i18n( $ti['pending'] ) )
+                                );
+                            ?></span>
+                        <?php endif; ?>
+                    <?php else : ?>
+                        <span class="description"><?php esc_html_e( '尚未開始（每小時自動抓一批，用於補上季度表沒收的劇場版／OVA）', 'anime-sync-pro' ); ?></span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <?php endif; ?>
             <tr>
                 <th scope="row"><?php esc_html_e( '對照表更新時間', 'anime-sync-pro' ); ?></th>
                 <td><?php echo esc_html( $map_updated ); ?></td>

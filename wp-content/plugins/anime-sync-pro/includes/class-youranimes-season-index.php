@@ -185,7 +185,56 @@ class Anime_Sync_YourAnimes_Season_Index {
 		 *
 		 * 命中不了的維持原本的 Bangumi 譯名，與加這個功能之前完全一樣。
 		 */
-		return null;
+		return self::resolve_via_title_index( $anime_data );
+	}
+
+	/**
+	 * 最後一層：全站標題索引。
+	 *
+	 * ★ 為什麼要有這一層
+	 *   上面兩層都只看季度新番表，而那份表不收劇場版與 OVA。實測站上已有
+	 *   YourAnimes 網址的作品，MOVIE 49 部、OVA 8 部用上面兩層是 0% 命中
+	 *   ——那 57 部的網址全是人工補的。
+	 *
+	 * ★ 為什麼放在最後而不是取代前兩層
+	 *   TV 走季度表的命中率是 86.2%，而且季度表還能一併帶回台灣官方譯名、
+	 *   官方網站、Twitter，資訊比標題索引多。這一層只補前面漏掉的，
+	 *   不動既有行為。
+	 *
+	 * ★ 精度靠「標題＋上映日期＋唯一性」三重條件，理由見
+	 *   class-youranimes-title-index.php 檔頭（高木同學劇場版與 TV 版
+	 *   日文原名完全相同的那個例子）。
+	 *
+	 * 回傳結構與上面兩層一致，但沒有 tw_title——標題索引拿不到台灣官方譯名，
+	 * tw_title_ok 給 false，呼叫端就不會覆蓋站上的中文標題。
+	 */
+	private static function resolve_via_title_index( array $anime_data ): ?array {
+
+		if ( ! class_exists( 'Anime_Sync_YourAnimes_Title_Index' ) ) {
+			return null;
+		}
+
+		$url = Anime_Sync_YourAnimes_Title_Index::lookup(
+			[
+				(string) ( $anime_data['anime_title_native'] ?? '' ),
+				(string) ( $anime_data['anime_title_romaji'] ?? '' ),
+				(string) ( $anime_data['anime_title_english'] ?? '' ),
+			],
+			(string) ( $anime_data['anime_start_date'] ?? '' )
+		);
+
+		if ( $url === '' ) {
+			return null;
+		}
+
+		return [
+			'url'           => $url,
+			'tw_title'      => '',
+			'tw_title_ok'   => false,
+			'official_site' => '',
+			'twitter'       => '',
+			'match_method'  => 'title_index',
+		];
 	}
 
 	/**
@@ -250,7 +299,17 @@ class Anime_Sync_YourAnimes_Season_Index {
 			}
 		}
 
-		$url = 'https://youranimes.tw/bangumi/' . $code;
+		return self::fetch_html( 'https://youranimes.tw/bangumi/' . $code );
+	}
+
+	/**
+	 * 對 YourAnimes 發一次 GET，回傳 HTML 或 WP_Error。
+	 *
+	 * 從 fetch_season_page() 抽出來的，行為完全沒變——抽出的原因是
+	 * class-youranimes-title-index.php 也要抓該站的頁面，UA／逾時／熔斷計數
+	 * 這三件事只該有一份實作，兩份必然漂移。
+	 */
+	private static function fetch_html( string $url ) {
 
 		/*
 		 * 逾時設 15 秒，與 class-youranimes-fetcher.php 的 fetch_page() 一致。
@@ -287,6 +346,22 @@ class Anime_Sync_YourAnimes_Season_Index {
 
 		self::reset_failures();
 		return $body;
+	}
+
+	/** 給 class-youranimes-title-index.php 用：共用同一套抓取與熔斷。 */
+	public static function fetch_html_public( string $url ) {
+
+		if ( class_exists( 'Anime_Sync_YourAnimes_Fetcher' )
+			&& get_transient( Anime_Sync_YourAnimes_Fetcher::CIRCUIT_OPEN_KEY ) ) {
+			return new WP_Error( 'circuit_open', '熔斷中，暫停對 YourAnimes 的請求' );
+		}
+
+		return self::fetch_html( $url );
+	}
+
+	/** 給 class-youranimes-title-index.php 用：兩邊的比對字串必須同一套規則。 */
+	public static function normalize_public( string $s ): string {
+		return self::normalize( $s );
 	}
 
 	/**
