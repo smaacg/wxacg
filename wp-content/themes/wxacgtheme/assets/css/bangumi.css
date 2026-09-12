@@ -286,6 +286,62 @@ body:has(.bgm-arc-main) .entry-content > * {
     box-shadow: 0 8px 22px rgba(15,23,42,.5);
 }
 
+/* ------------------------------------------------------------------
+   本季完整報導
+   這頁是資料表（有哪些、何時播），專題文章是判斷（該追哪部、為什麼）。
+   兩者互補，所以做成醒目的橫幅而不是角落小徽章——它是這頁最主要的
+   下一步動作。配色接續既有語意：回顧＝石板藍、未來＝琥珀橙，
+   報導用青綠，彼此分得開。
+------------------------------------------------------------------ */
+.bgm-hero-feature {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    margin: 0 0 18px;
+    padding: 11px 20px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 14px;
+    color: #a7f3d0;
+    background: linear-gradient(135deg, rgba(16,185,129,.26), rgba(5,150,105,.18));
+    border: 1px solid rgba(16,185,129,.5);
+    box-shadow: 0 4px 18px rgba(16,185,129,.22);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all .2s;
+}
+
+.bgm-hero-feature:hover {
+    transform: translateY(-2px);
+    color: #fff;
+    background: linear-gradient(135deg, rgba(16,185,129,.42), rgba(5,150,105,.3));
+    border-color: rgba(16,185,129,.85);
+    box-shadow: 0 8px 24px rgba(16,185,129,.34);
+}
+
+.bgm-hero-feature-tag {
+    flex: 0 0 auto;
+    font-weight: 800;
+}
+
+/* 標題可能很長，讓它自己截斷而不是把按鈕撐爆版面 */
+.bgm-hero-feature-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: .92;
+}
+
+.bgm-hero-feature-arrow {
+    flex: 0 0 auto;
+    transition: transform .2s;
+}
+
+.bgm-hero-feature:hover .bgm-hero-feature-arrow {
+    transform: translateX(4px);
+}
+
 /* 檔期未定＝展望未來，用溫暖的琥珀橙 */
 .bgm-hero-corner-link.is-upcoming {
     color: #fed7aa;
@@ -2074,6 +2130,15 @@ body:not(.bgm-view-schedule-mode) .bgm-schedule {
     .bgm-hero-corner-link {
         font-size: 12px;
         padding: 7px 14px;
+    }
+
+    /* 手機版標題太長會擠掉箭頭，改成整行並限制寬度 */
+    .bgm-hero-feature {
+        display: flex;
+        width: 100%;
+        font-size: 13px;
+        padding: 10px 16px;
+        margin-bottom: 14px;
     }
 
     .bgm-hero::after { animation-duration: 30s; opacity: .6; }

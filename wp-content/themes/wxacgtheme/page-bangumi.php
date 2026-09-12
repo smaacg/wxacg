@@ -843,6 +843,28 @@ get_header();
             <h1 class="bgm-hero-title"><?php echo esc_html( $ctx['label'] ); ?></h1>
             <p class="bgm-hero-sub"><?php echo esc_html( $kw_season ); ?>，<?php echo esc_html( $seo_desc ); ?></p>
 
+            <?php
+            /*
+             * 本季的完整報導。
+             *
+             * 這頁是資料表，回答「有哪些、什麼時候播」；專題文章回答
+             * 「該追哪幾部、為什麼」。兩者互補，但原本完全沒有互連——
+             * 讀者看完表格沒有下一步，搜尋引擎也看不出兩頁的關係。
+             *
+             * 找不到對應文章就整塊不輸出，不留空殼按鈕。
+             */
+            $bgm_feature = function_exists( 'smacg_bangumi_feature_post' )
+                ? smacg_bangumi_feature_post( $ym )
+                : null;
+
+            if ( $bgm_feature ) : ?>
+            <a class="bgm-hero-feature" href="<?php echo esc_url( $bgm_feature['url'] ); ?>">
+                <span class="bgm-hero-feature-tag">📖 完整報導</span>
+                <span class="bgm-hero-feature-title"><?php echo esc_html( $bgm_feature['title'] ); ?></span>
+                <span class="bgm-hero-feature-arrow" aria-hidden="true">→</span>
+            </a>
+            <?php endif; ?>
+
             <div class="bgm-nav">
                 <?php if ( $prev_ym ) :
                     $prev_ctx = function_exists( 'smacg_bangumi_parse_ym' ) ? smacg_bangumi_parse_ym( $prev_ym ) : [ 'label' => '上一季' ]; ?>

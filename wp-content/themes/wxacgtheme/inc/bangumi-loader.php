@@ -233,6 +233,181 @@ function smacg_bangumi_render_og( array $ctx ): void {
 	}
 }
 
+/**
+ * 找出某一季對應的「完整報導」專題文章。
+ *
+ * ★ 關聯方式沿用站上既有的慣例，不另發明。
+ *   2026 年 7 月那篇（post 1269）的作法是：分類「專題」＋ 標籤「2026年7月新番」。
+ *   照這個規則反查就好——使用者寫新的一季時只要照樣下標籤，這裡自動接上，
+ *   不需要另外維護一份對照表，也不會有忘記更新的問題。
+ *
+ * 查詢結果快取 12 小時：這是每次載入新番表頁都會跑的查詢，而專題文章
+ * 一季只會發一篇，沒有即時性需求。
+ *
+ * @param string $ym 例如 '202610'。
+ * @return array{url:string,title:string}|null 找不到回 null。
+ */
+function smacg_bangumi_feature_post( string $ym ): ?array {
+
+	if ( ! preg_match( '/^(\d{4})(\d{2})$/', $ym, $m ) ) {
+		return null;
+	}
+
+	$cache_key = 'smacg_bgm_feature_' . $ym;
+	$cached    = get_transient( $cache_key );
+
+	if ( is_array( $cached ) ) {
+		return $cached ?: null;
+	}
+
+	// 標籤名稱月份不補零：站上是「2026年7月新番」不是「2026年07月新番」
+	$tag = sprintf( '%d年%d月新番', (int) $m[1], (int) $m[2] );
+
+	$found = get_posts( [
+		'post_type'        => 'post',
+		'post_status'      => 'publish',
+		'posts_per_page'   => 1,
+		'category_name'    => 'feature',
+		'tag'              => $tag,
+		'orderby'          => 'date',
+		'order'            => 'DESC',
+		'no_found_rows'    => true,
+		'suppress_filters' => false,
+	] );
+
+	$out = $found
+		? [ 'url' => get_permalink( $found[0] ), 'title' => get_the_title( $found[0] ) ]
+		: [];
+
+	set_transient( $cache_key, $out, 12 * HOUR_IN_SECONDS );
+
+	return $out ?: null;
+}
+
+/**
+ * 新番表頁的 FAQ 結構化資料。
+ *
+ * ★ 為什麼要加
+ *   這頁原本有 CollectionPage / ItemList / BreadcrumbList / TVSeries，
+ *   對「傳統搜尋」已經夠了，但 FAQPage 是 0——而問答引擎（Google AI
+ *   總覽、ChatGPT、Perplexity）在回答「2026年10月新番有哪些」「秋番
+ *   什麼時候開播」「台灣哪裡看」這類問題時，找的正是這段標記。
+ *
+ * ★ 答案一律由實際資料算出來，不寫死
+ *   數量、最早開播日、平台清單都從 $posts 現算。寫死的答案會在下一季
+ *   變成錯的，而錯的結構化資料比沒有更糟——Google 會判定為誤導性標記。
+ *
+ * ★ 只回答資料答得出來的問題
+ *   「哪幾部好看」這種需要判斷的問題不放進 FAQ，那屬於專題文章。
+ *
+ * @return array FAQPage 節點；資料不足時回傳空陣列（呼叫端會被 array_filter 濾掉）。
+ */
+function smacg_bangumi_faq_schema( array $ctx, array $posts, string $canon ): array {
+
+	if ( empty( $posts ) ) {
+		return [];
+	}
+
+	$label  = $ctx['label'];                       // 2026年10月新番表
+	$season = $ctx['season_label'] ?? $label;      // 2026年秋季新番
+	$total  = count( $posts );
+
+	/* ---- 最早開播日與當月開播數 ---- */
+	$dates = [];
+	foreach ( $posts as $p ) {
+		$d = (string) ( $p['start_date'] ?? '' );
+		if ( preg_match( '/^\d{8}$/', $d ) ) {
+			$dates[] = $d;
+		}
+	}
+	sort( $dates );
+
+	/* ---- 台灣平台：統計實際出現過的，取最常見的幾個 ---- */
+	$plat_count = [];
+	foreach ( $posts as $p ) {
+		$raw = $p['tw_platforms'] ?? '';
+		$arr = is_array( $raw ) ? $raw : (array) maybe_unserialize( $raw );
+
+		foreach ( $arr as $k ) {
+			$k = trim( (string) $k );
+			if ( $k !== '' ) {
+				$plat_count[ $k ] = ( $plat_count[ $k ] ?? 0 ) + 1;
+			}
+		}
+	}
+	arsort( $plat_count );
+
+	$plat_labels = [];
+	if ( class_exists( 'Anime_Sync_Streaming_Registry' ) ) {
+		foreach ( array_slice( array_keys( $plat_count ), 0, 6 ) as $k ) {
+			$info          = Anime_Sync_Streaming_Registry::get( $k );
+			$plat_labels[] = $info['label'] ?? $k;
+		}
+	}
+
+	$qa = [];
+
+	/* Q1：有哪些／幾部 */
+	$qa[] = [
+		$label . '有哪些動畫？共幾部？',
+		sprintf(
+			'%s共收錄 %d 部作品，本頁提供完整片單，可依開播日期、播出平台、作品類型與原作來源篩選，並支援作品名稱、配音與製作公司的即時搜尋。',
+			$season,
+			$total
+		),
+	];
+
+	/* Q2：什麼時候開播 */
+	if ( $dates ) {
+		$first = $dates[0];
+		$fmt   = static fn( $d ) => (int) substr( $d, 4, 2 ) . ' 月 ' . (int) substr( $d, 6, 2 ) . ' 日';
+
+		$qa[] = [
+			$season . '什麼時候開播？',
+			sprintf(
+				'最早開播的作品在 %s，共 %d 部已公布確切檔期。本頁的「時間表」檢視可依日期查看每天有哪些作品開播。',
+				$fmt( $first ),
+				count( $dates )
+			),
+		];
+	}
+
+	/* Q3：台灣哪裡看 —— 這題是本站的獨家價值，有資料才問 */
+	if ( $plat_labels ) {
+		$qa[] = [
+			$season . '在台灣哪裡看？',
+			sprintf(
+				'本季作品在台灣主要可透過 %s 等平台合法觀看。每部作品的頁面均列出該作實際上架的平台與連結，本頁也可直接依平台篩選片單。',
+				implode( '、', $plat_labels )
+			),
+		];
+	}
+
+	if ( count( $qa ) < 2 ) {
+		return [];
+	}
+
+	$entities = [];
+	foreach ( $qa as $i => [ $q, $a ] ) {
+		$entities[] = [
+			'@type'          => 'Question',
+			'@id'            => $canon . '#faq-' . ( $i + 1 ),
+			'name'           => $q,
+			'acceptedAnswer' => [
+				'@type' => 'Answer',
+				'text'  => $a,
+			],
+		];
+	}
+
+	return [
+		'@type'      => 'FAQPage',
+		'@id'        => $canon . '#faq',
+		'inLanguage' => 'zh-TW',
+		'mainEntity' => $entities,
+	];
+}
+
 function smacg_bangumi_render_schema( array $ctx, array $posts ): void {
 	$home    = home_url( '/' );
 	$canon   = $ctx['canonical'];
@@ -347,6 +522,7 @@ function smacg_bangumi_render_schema( array $ctx, array $posts ): void {
 			'numberOfItems'  => $total_items,
 			'itemListElement'=> $items,
 		],
+		smacg_bangumi_faq_schema( $ctx, $posts, $canon ),
 		[
 			'@type'           => 'BreadcrumbList',
 			'@id'             => $canon . '#breadcrumb',
@@ -357,6 +533,9 @@ function smacg_bangumi_render_schema( array $ctx, array $posts ): void {
 			],
 		],
 	];
+
+	// FAQ 在資料不足時回空陣列，濾掉才不會輸出一個沒有 @type 的空節點
+	$graph = array_values( array_filter( $graph ) );
 
 	echo '<script type="application/ld+json">'
 		. wp_json_encode( [ '@context' => 'https://schema.org', '@graph' => $graph ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES )
