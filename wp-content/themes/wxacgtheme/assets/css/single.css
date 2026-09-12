@@ -4356,21 +4356,30 @@
    側邊欄變動或嵌在別的容器裡也不會失準。
 ============================================================================= */
 
-/* ── 單部作品：海報 + 資料 ── */
+/* ── 單部作品：海報 + 資料 ──
+ *
+ * 做成一張卡片而不是裸排。一篇文章裡有 12 部作品，每部下面還接著
+ * 看點、網友期待、台灣觀看平台三段散文；資料區沒有邊界的話，
+ * 海報會像浮在文字裡，讀者也分不出「這裡是規格、下面是評論」。
+ */
 .wxa-work {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 22px;
     align-items: flex-start;
-    margin: 0 0 18px;
+    margin: 0 0 20px;
+    padding: 20px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 14px;
+    background: rgba(148, 163, 184, .05);
 }
 
 .wxa-work__poster {
-    flex: 0 0 180px;
-    width: 180px;
+    flex: 0 0 190px;
+    width: 190px;
     height: auto;
     border-radius: 10px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
 }
 
 /*
@@ -4383,31 +4392,50 @@
     min-width: 0;
 }
 
+/*
+ * 每列改用 flex，不再靠 b 的 min-width 湊齊。
+ *
+ * 舊寫法是 inline-block + min-width:5.5em，值超過一行時會折回到
+ * 標籤正下方（「類型」那列最常發生），看起來像跑版。flex 讓值自己
+ * 成為一欄，換行後仍然對齊在同一條線上。
+ * line-height 從 1.9 降到 1.65：六列規格用 1.9 排出來太空，
+ * 卡片有邊界之後也不需要靠行距去撐出區塊感。
+ */
 .wxa-work__facts {
     margin: 0;
     padding: 0;
     list-style: none;
     font-size: 15px;
-    line-height: 1.9;
+    line-height: 1.65;
 }
 
 .wxa-work__facts li {
+    display: flex;
+    gap: 12px;
     margin: 0;
-    padding: 0 0 0 0;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(148, 163, 184, .1);
 }
 
+.wxa-work__facts li:last-child { border-bottom: 0; }
+
 .wxa-work__facts b {
-    display: inline-block;
-    min-width: 5.5em;
+    flex: 0 0 5.2em;
     color: var(--smacg-muted, #9aa4b2);
     font-weight: 600;
 }
 
+/* 開播日與前作評分是讀者唯一會用眼睛找的兩個欄位，給它們亮一點 */
+.wxa-work__facts li.is-key { color: #fff; }
+.wxa-work__facts li.is-key b { color: #cbd5e1; }
+
 .wxa-work__syn {
-    margin: 12px 0 0;
-    font-size: 15px;
+    margin: 14px 0 0;
+    padding: 14px 0 0;
+    border-top: 1px solid rgba(148, 163, 184, .16);
+    font-size: 14.5px;
     line-height: 1.85;
-    opacity: .9;
+    opacity: .88;
 }
 
 /* ── 待撰寫提示（發布前要刪掉）── */
@@ -4512,11 +4540,34 @@
     opacity: .55;
 }
 
+/* ── 權重修正：把 .single-content 的底層規則擋回去 ──
+ *
+ * 上面每一條 .wxa-* 規則的權重都是 (0,1,0)，而佈景在檔案開頭有
+ *   .single-content ul,.single-content ol { margin:1em 0; padding-left:1.6em }
+ *   .single-content li  { margin:.45em 0 }
+ *   .single-content img { margin:1.6em auto; display:block }
+ * 這三條是 (0,1,1)，多一個元素選擇器就贏，所以元件自己寫的
+ * margin:0 / padding:0 全部沒生效。實際畫面上的症狀是：
+ *   ・資料表整塊被推右 1.6em，跟下方簡介對不齊
+ *   ・每一列多 .45em，六列規格被撐得又高又空
+ *   ・海報上下各多 1.6em
+ * 三個症狀看起來像三個排版問題，其實是同一個權重問題。
+ *
+ * 修法是用同樣的 .single-content 前綴把盒模型重新宣告一次，
+ * 不改元件本身的規則，元件被用在文章以外的地方也不受影響。
+ */
+.single-content .wxa-work__poster   { margin: 0; }
+.single-content .wxa-work__facts    { margin: 0; padding: 0; }
+.single-content .wxa-work__facts li { margin: 0; padding: 5px 0; }
+.single-content .wxa-taglist        { margin: 0 0 4px; padding: 0; }
+.single-content .wxa-taglist li     { margin: 0; }
+.single-content .wxa-toc li         { margin: 0; }
+
 @media (max-width: 600px) {
-    .wxa-work { gap: 14px; }
-    .wxa-work__poster { flex-basis: 130px; width: 130px; }
-    .wxa-work__facts { font-size: 14px; line-height: 1.8; }
-    .wxa-work__facts b { min-width: 4.6em; }
+    .wxa-work { gap: 14px; padding: 16px; }
+    .wxa-work__poster { flex-basis: 120px; width: 120px; }
+    .wxa-work__facts { font-size: 14px; }
+    .wxa-work__facts b { flex-basis: 4.6em; }
     .wxa-work__syn { font-size: 14px; }
     .wxa-taglist a, .wxa-taglist .is-plain { font-size: 13px; padding: 5px 12px; }
 }
