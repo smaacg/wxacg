@@ -56,8 +56,24 @@ class Anime_Sync_YourAnimes_Title_Index {
 	const STATE_OPTION = 'anime_sync_ya_title_index_state';
 	const HOOK_HOURLY  = 'anime_sync_ya_title_index_build';
 
-	/** 每輪抓幾頁。1 req/s，300 頁約 5 分鐘，全站 6,478 頁約 22 小時建完。 */
+	/** 每輪抓幾頁。1 req/s，300 頁約 6～7 分鐘，全站 6,478 頁約 22 小時建完。 */
 	const PAGES_PER_RUN = 300;
+
+	/*
+	 * 本輪的時間預算（秒）。
+	 *
+	 * ★ 沒有這道保險，索引會永遠建不起來。
+	 *   300 頁 × 約 1.3 秒 ≈ 390 秒，超過多數主機的 max_execution_time。
+	 *   而進度只在迴圈跑完後才寫檔——被硬中斷就什麼都沒存，下一輪重跑
+	 *   同樣的 300 頁，永遠停在原地。
+	 *
+	 *   預算用盡就正常收尾、存好進度，下一輪從斷點continue。做法與
+	 *   class-cron-manager.php 的 BATCH_TIME_BUDGET 一致。
+	 */
+	const TIME_BUDGET = 200;
+
+	/** 每處理這麼多頁就先存一次，硬中斷時已抓到的不會白費。 */
+	const SAVE_EVERY = 50;
 
 	/** 請求間隔（微秒）。對方是小站，1 秒一頁已是客氣的節奏。 */
 	const REQUEST_INTERVAL_US = 1000000;
@@ -168,6 +184,12 @@ class Anime_Sync_YourAnimes_Title_Index {
 
 		$stats = [ 'fetched' => 0, 'indexed' => 0, 'failed' => 0, 'remaining' => 0 ];
 
+		if ( class_exists( 'Anime_Sync_Performance' ) ) {
+			Anime_Sync_Performance::set_time_limit( self::TIME_BUDGET + 60 );
+		}
+
+		$started = microtime( true );
+
 		$state   = self::get_state();
 		$pending = $state['pending'];
 
@@ -189,6 +211,11 @@ class Anime_Sync_YourAnimes_Title_Index {
 		foreach ( $pending as $pos => $id ) {
 
 			if ( $processed >= $limit ) {
+				break;
+			}
+
+			// 時間預算用盡就收尾，已抓到的照樣存起來，下一輪從斷點繼續
+			if ( ( microtime( true ) - $started ) >= self::TIME_BUDGET ) {
 				break;
 			}
 
@@ -265,19 +292,32 @@ class Anime_Sync_YourAnimes_Title_Index {
 			}
 
 			$stats['indexed']++;
+
+			/*
+			 * 中途也存。時間預算擋不住所有情況（主機硬砍、記憶體不足、
+			 * 部署重啟），只在最後存的話那些情況會整批白做。
+			 */
+			if ( $processed % self::SAVE_EVERY === 0 ) {
+				self::persist( $index, $pending, $done );
+			}
 		}
 
 		$stats['remaining'] = count( $pending );
 
-		self::save_index( $index );
-		self::save_state( [
-			'pending'  => array_values( $pending ),
-			'done'     => $done,
-			'updated'  => time(),
-			'keys'     => count( $index ),
-		] );
+		self::persist( $index, $pending, $done );
 
 		return $stats;
+	}
+
+	/** 把索引與進度一起落地。兩者必須同時更新，否則會重抓或漏抓。 */
+	private static function persist( array $index, array $pending, array $done ): void {
+		self::save_index( $index );
+		self::save_state( [
+			'pending' => array_values( $pending ),
+			'done'    => $done,
+			'updated' => time(),
+			'keys'    => count( $index ),
+		] );
 	}
 
 	/**
