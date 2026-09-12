@@ -4556,3 +4556,63 @@
     max-width: 14em;
     word-break: break-word;
 }
+
+/* ── 文章目錄 ──
+   12 部作品加類型區塊，整篇很長，沒有目錄讀者會迷路。
+   桌機在寬螢幕下分兩欄，手機一欄。 */
+.wxa-toc {
+    margin: 0 0 32px;
+    padding: 20px 24px;
+    border: 1px solid rgba(148, 163, 184, .22);
+    border-radius: 12px;
+    background: rgba(148, 163, 184, .06);
+}
+
+.wxa-toc__title {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.wxa-toc ol {
+    margin: 0;
+    padding: 0 0 0 1.2em;
+    columns: 2;
+    column-gap: 32px;
+    font-size: 15px;
+    line-height: 2;
+}
+
+.wxa-toc ol ol {
+    columns: 1;
+    padding-left: 1.1em;
+    font-size: 14px;
+    line-height: 1.9;
+    opacity: .85;
+}
+
+.wxa-toc li {
+    margin: 0;
+    break-inside: avoid;
+}
+
+.wxa-toc a { text-decoration: none; }
+.wxa-toc a:hover { text-decoration: underline; }
+
+/* 從目錄跳過去時，標題不要被固定頁首擋住 */
+.wxa-anchor { scroll-margin-top: 90px; }
+
+@media (max-width: 700px) {
+    .wxa-toc { padding: 16px 18px; }
+    .wxa-toc ol { columns: 1; font-size: 14px; line-height: 1.95; }
+}
+
+/* ── 作品內的小節標題（看點／網友期待）── */
+.entry-content h4,
+.post-content h4 {
+    margin: 22px 0 8px;
+    font-size: 16px;
+    font-weight: 800;
+    padding-left: 10px;
+    border-left: 3px solid rgba(59, 130, 246, .7);
+}
