@@ -577,7 +577,68 @@ class Anime_Sync_Import_Manager {
 			update_post_meta( $post_id, '_series_root_mal_id', $root_mal_id );
 		}
 
+		$this->maybe_clear_series_noindex( $term_id );
+
 		return true;
+	}
+
+	/**
+	 * 系列長大到 2 部以上就解除「薄內容不索引」標記。
+	 *
+	 * ★ 為什麼需要這個
+	 *
+	 *   archive-series.php 對「成員 <= 1」的系列頁會動態輸出 noindex，
+	 *   理由是那種頁面內容與單一作品頁近乎重複。2026-09-13 為了讓
+	 *   Rank Math 的分類法 sitemap 也排除它們，替 217 個單一成員的系列
+	 *   寫入了 term meta rank_math_robots = noindex,follow。
+	 *
+	 *   問題是那個 meta 不會自己消失。系列一旦補進第二部作品，模板的
+	 *   runtime 判斷會認為可以索引，但殘留的 term meta 仍讓 Rank Math
+	 *   輸出 noindex、也繼續把它排除在 sitemap 外——頁面就這樣無聲地
+	 *   永遠不被收錄，不會報錯，只會看起來「一直沒被 Google 收」。
+	 *
+	 *   正式站實測：那 217 個裡有 35 個（16%）的成員本身帶 SEQUEL／
+	 *   PREQUEL 關聯，也就是續作一匯入就會踩到，不是罕見狀況。
+	 *
+	 * ★ 為什麼掛在這裡
+	 *
+	 *   單筆／系列／季度／人氣排行等所有匯入管道最後都會走到
+	 *   assign_series_taxonomy()，在這裡解除等於全部管道都涵蓋，
+	 *   不必每條路徑各補一次。
+	 *
+	 *   反向（成員掉回 1 部時重新標記）刻意不做：作品極少從系列移除，
+	 *   而誤標的代價是好頁面消失，比多留一頁可索引嚴重得多。
+	 */
+	private function maybe_clear_series_noindex( int $term_id ): void {
+		if ( $term_id <= 0 ) {
+			return;
+		}
+
+		$robots = get_term_meta( $term_id, 'rank_math_robots', true );
+		if ( ! is_array( $robots ) || ! in_array( 'noindex', $robots, true ) ) {
+			return;
+		}
+
+		/*
+		 * 用 term 自己的 count 判斷，與 archive-series.php 的門檻一致。
+		 * wp_set_post_terms() 之後 count 不一定已經重算，所以先強制更新。
+		 */
+		wp_update_term_count_now( [ $term_id ], 'anime_series_tax' );
+		$term = get_term( $term_id, 'anime_series_tax' );
+
+		if ( ! $term instanceof WP_Term || (int) $term->count < 2 ) {
+			return;
+		}
+
+		delete_term_meta( $term_id, 'rank_math_robots' );
+
+		if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+			Anime_Sync_Error_Logger::info( '系列已達 2 部，解除薄內容 noindex 標記', [
+				'term_id' => $term_id,
+				'name'    => $term->name,
+				'count'   => (int) $term->count,
+			] );
+		}
 	}
 
 	// =========================================================================
