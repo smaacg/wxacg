@@ -128,7 +128,6 @@ if ( ! function_exists( 'asa_build_post_row' ) ) {
             'episodes'   => (int) smacg_get_meta( $pid, 'episodes' ),
             'volumes'    => (int) smacg_get_meta( $pid, 'volumes' ),
             'chapters'   => (int) smacg_get_meta( $pid, 'chapters' ),
-            'score_raw'  => smacg_get_meta( $pid, 'score_anilist' ),
         ];
     }
 }
@@ -518,8 +517,11 @@ if ( ! function_exists( 'asa_render_card' ) ) {
         array $status_classes,
         array $season_labels
     ): void {
-        $score = ( is_numeric( $p['score_raw'] ) && (float) $p['score_raw'] > 0 )
-            ? number_format( (float) $p['score_raw'] / 10, 1 ) : '';
+        /*
+         * 卡片不再顯示評分（原本是封面右下角的 ⭐ 藥丸），與 /anime/ 列表一致。
+         * score_raw 也一併從 asa_build_post_row() 移除——留著只是每張卡
+         * 多讀一次 meta。評分仍在作品頁與排行榜顯示，資料本身沒有動。
+         */
 
         $format_label = $format_labels[ $p['format'] ] ?? $p['format'];
         $status_label = $status_labels[ $p['status'] ] ?? '';
@@ -564,9 +566,6 @@ if ( ! function_exists( 'asa_render_card' ) ) {
                     <?php endif; ?>
 
 
-                    <?php if ( $score ) : ?>
-                        <span class="asa-score-badge">⭐ <?php echo esc_html( $score ); ?></span>
-                    <?php endif; ?>
                 </div>
 
                 <div class="asa-card-body">

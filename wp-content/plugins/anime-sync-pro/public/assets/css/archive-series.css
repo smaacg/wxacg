@@ -461,21 +461,6 @@
 .s-can { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
 .s-hia { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
 
-/* 評分 Badge */
-.asa-score-badge {
-	position: absolute;
-	bottom: 8px;
-	right: 8px;
-	background: rgba(0,0,0,0.72);
-	backdrop-filter: blur(8px);
-	-webkit-backdrop-filter: blur(8px);
-	color: #fbbf24;
-	padding: 3px 8px;
-	border-radius: var(--asa-radius-pill);
-	font-size: 11px;
-	font-weight: 800;
-	border: 1px solid rgba(251,191,36,0.28);
-}
 
 /* 卡片內容 */
 .asa-card-body {
