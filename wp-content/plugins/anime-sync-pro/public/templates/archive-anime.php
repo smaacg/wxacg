@@ -766,8 +766,14 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
  * 原本 hidden 有兩個用途：切封面的 hover 縮放、切圓角。
  * 前者 .aaa-card-cover-wrap 自己就有 overflow:hidden，不受影響；
  * 後者改成直接給 cover-wrap 上緣圓角，效果一樣。
+ *
+ * ★ 必須同時補 min-width:0，否則整個格線會爆開。
+ *   CSS Grid 規範裡，grid item 的「自動最小尺寸」只有在 overflow:visible
+ *   時才會用 min-content 撐開；overflow 一旦不是 visible 就自動變 0。
+ *   也就是說原本的 overflow:hidden 一直兼職在做 min-width:0。改成 visible
+ *   之後這個隱性保護就沒了，長標題會把 1fr 欄位頂寬，卡片寬高全部跑掉。
  */
-.aaa-card{border-radius:var(--rmd);overflow:visible;background:var(--surf);border:1px solid var(--bd);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:var(--sh);transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr);}
+.aaa-card{border-radius:var(--rmd);overflow:visible;min-width:0;background:var(--surf);border:1px solid var(--bd);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:var(--sh);transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr);}
 .aaa-card:hover{transform:translateY(-6px);box-shadow:var(--sh2);border-color:rgba(124,92,255,.35);}
 .aaa-card-link{display:block;text-decoration:none;color:inherit;}
 /* 卡片改成 overflow:visible 之後，上緣圓角改由封面自己負責 */
