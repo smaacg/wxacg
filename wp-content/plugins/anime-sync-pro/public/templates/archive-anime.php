@@ -625,6 +625,9 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
     ?>
         <article class="aaa-card"<?php echo $card_data_attrs; ?>>
             <a href="<?php the_permalink(); ?>" class="aaa-card-link">
+                <?php if ( $status_label ) : ?>
+                    <span class="aaa-status-tag <?php echo esc_attr( $status_class ); ?>"><?php echo esc_html( $status_label ); ?></span>
+                <?php endif; ?>
                 <div class="aaa-card-cover-wrap">
                     <?php if ( $cover ) : ?>
                         <img class="aaa-card-cover" src="<?php echo esc_url( $cover ); ?>"
@@ -648,9 +651,6 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
                      * 不多包一層 DOM。
                      */
                     ?>
-                    <?php if ( $status_label ) : ?>
-                        <span class="aaa-status-tag <?php echo esc_attr( $status_class ); ?>"><?php echo esc_html( $status_label ); ?></span>
-                    <?php endif; ?>
                     <h3 class="aaa-card-title"><?php echo esc_html( $title_zh ); ?></h3>
                     <p class="aaa-card-romaji"><?php echo esc_html( $title_sub ); ?></p>
                     <div class="aaa-card-meta">
@@ -757,9 +757,10 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
 .aaa-year-toggle:checked~.aaa-year-head .aaa-year-arrow{transform:rotate(180deg);color:var(--p2);}
 .aaa-year-body{display:none;flex-wrap:wrap;gap:6px;padding:0 12px 12px;}
 .aaa-year-toggle:checked~.aaa-year-body{display:flex;}
-.aaa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:20px;margin-bottom:40px;}
+/* gap 要容得下框外的直式狀態牌（約 19px），否則會壓到隔壁卡片 */
+.aaa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:24px;margin-bottom:40px;}
 @media(min-width:600px){.aaa-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));}}
-@media(min-width:1024px){.aaa-grid{grid-template-columns:repeat(6,1fr);gap:16px;}}
+@media(min-width:1024px){.aaa-grid{grid-template-columns:repeat(6,1fr);gap:26px;}}
 /*
  * overflow 從 hidden 改成 visible，讓狀態掛牌能伸出卡片右緣。
  *
@@ -773,7 +774,7 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
  *   也就是說原本的 overflow:hidden 一直兼職在做 min-width:0。改成 visible
  *   之後這個隱性保護就沒了，長標題會把 1fr 欄位頂寬，卡片寬高全部跑掉。
  */
-.aaa-card{border-radius:var(--rmd);overflow:visible;min-width:0;background:var(--surf);border:1px solid var(--bd);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:var(--sh);transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr);}
+.aaa-card{position:relative;border-radius:var(--rmd);overflow:visible;min-width:0;background:var(--surf);border:1px solid var(--bd);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:var(--sh);transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr);}
 .aaa-card:hover{transform:translateY(-6px);box-shadow:var(--sh2);border-color:rgba(124,92,255,.35);}
 .aaa-card-link{display:block;text-decoration:none;color:inherit;}
 /* 卡片改成 overflow:visible 之後，上緣圓角改由封面自己負責 */
@@ -781,29 +782,34 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
 .aaa-card-cover{width:100%;height:100%;object-fit:cover;display:block;transition:transform .38s ease;}
 .aaa-card:hover .aaa-card-cover{transform:scale(1.06);}
 .aaa-no-cover{display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:13px;height:100%;background:linear-gradient(135deg,#0d1d38,#101d35);}
-/* ── 播映狀態掛牌 ──────────────────────────────────────────────
- * 掛在封面下緣，牌身落在封面外的文字區。
+/* ── 播映狀態直式掛牌 ──────────────────────────────────────────
+ * 直立在卡片右上角，整塊站在框格外。
  *
- * 為什麼移出封面：原本壓在左上角的半透明藥丸常常蓋到角色的臉，
- * 白底或雪景封面還會讓半透明底色失去對比。移出去之後底色固定，
- * 文字永遠讀得到。
+ * ★ 前三版都失敗，記錄一下踩過的坑：
+ *   v1 橫式＋畫 1px 掛繩與 5px 繩孔 —— 繩子在深色底上等於沒畫，
+ *      繩孔在 11px 字級旁邊被讀成項目符號。
+ *   v2 橫式貼在封面下緣 —— 和標題搶同一塊位置，兩者互相干擾。
+ *   v3 橫式伸出右緣 —— 突出量小到只像沒對齊，且仍壓在封面上。
  *
- * ★ 第一版畫了 1px 的掛繩加 5px 的繩孔，兩個都失敗：
- *   繩子在深色底上等於沒畫，繩孔在 11px 字級旁邊讀起來是項目符號。
- *   這個尺寸撐不起寫實的細節，硬加只會變雜訊。
+ *   共同的錯誤是想在 11px 的尺度上做寫實細節。改成直式之後，
+ *   形狀本身（窄長、貼在邊上、左緣切平右緣圓角）就足以讀成掛牌，
+ *   一個裝飾元素都不必加；中文直排也比橫排更像實體木牌。
  *
- *   改成整塊伸出卡片右緣：牌子從封面下緣的高度往右探出去，
- *   左側切齊卡片內緣、右側圓角，讀起來就是掛在卡片邊上的牌子。
- *   標題在左、牌子在右，兩者不搶同一塊位置。
+ * ★ 定位在 .aaa-card 而不是 .aaa-card-body
+ *   要掛在卡片右上角就必須以整張卡為基準，所以 .aaa-card 補了
+ *   position:relative，標記也從 card-body 搬到 card-link 底下。
  *
- * ★ 突出量必須小於格線間距，否則會壓到隔壁卡片。
- *   桌機 gap 16–20px，取 10px；手機 gap 只有 10px，另外縮到 6px。
+ * ★ right:-19px 是「完全在框格外」而不是壓在封面上
+ *   牌寬約 17px，所以 -19 會讓它整塊落在卡片外緣、還留 2px 空隙。
+ *   相對地格線 gap 必須加大（桌機 26px、手機 20px），否則會壓到
+ *   隔壁卡片；最後一欄則靠 .aaa-wrap 的 20px padding 容納。
  */
-.aaa-card-body{position:relative;padding:19px 14px 14px;background:var(--surf2);border-radius:0 0 calc(var(--rmd) - 1px) calc(var(--rmd) - 1px);}
-.aaa-status-tag{position:absolute;top:-11px;right:-10px;display:inline-block;
-  padding:3px 10px;border-radius:4px;
-  font-size:11px;font-weight:700;line-height:1.6;letter-spacing:.02em;white-space:nowrap;
-  box-shadow:0 4px 12px rgba(0,0,0,.5);}
+.aaa-status-tag{position:absolute;top:14px;right:-19px;z-index:2;
+  writing-mode:vertical-rl;text-orientation:upright;
+  padding:9px 3px;border-radius:0 5px 5px 0;
+  font-size:10px;font-weight:700;line-height:1;letter-spacing:.14em;
+  box-shadow:3px 3px 10px rgba(0,0,0,.45);}
+.aaa-card-body{position:relative;padding:12px 14px 14px;background:var(--surf2);border-radius:0 0 calc(var(--rmd) - 1px) calc(var(--rmd) - 1px);}
 .s-fin{background:rgba(52,211,153,.2);color:#34d399;border:1px solid rgba(52,211,153,.36);}
 .s-rel{background:rgba(76,201,240,.2);color:#4cc9f0;border:1px solid rgba(76,201,240,.36);}
 .s-pre{background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid rgba(251,191,36,.36);}
@@ -857,11 +863,11 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
   .aaa-filter-btn{flex:0 0 auto;}
 }
 @media(max-width:480px){
-  .aaa-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .aaa-grid{grid-template-columns:repeat(2,1fr);gap:20px;}
   .aaa-card-cover-wrap{aspect-ratio:3/4;}
-  /* 手機：格線 gap 只有 10px，掛牌突出量要跟著縮，否則會壓到隔壁卡片 */
-  .aaa-card-body{padding:15px 9px 9px;}
-  .aaa-status-tag{top:-9px;right:-5px;font-size:10px;padding:2px 7px;}
+  /* 手機：容器 padding 只有 14px，牌子突出量要縮，最後一欄才不會頂出畫面 */
+  .aaa-card-body{padding:10px 9px 9px;}
+  .aaa-status-tag{top:10px;right:-14px;font-size:9px;padding:7px 2px;letter-spacing:.1em;}
   .aaa-card-romaji{display:none;}
   /* 兩欄版面在 320px 級距的手機上最窄，標籤同樣縮一級才不會被裁掉 */
   .aaa-meta-tag{font-size:10px;padding:2px 5px;}
