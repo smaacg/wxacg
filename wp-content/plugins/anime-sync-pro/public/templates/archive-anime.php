@@ -579,8 +579,11 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
         if ( $title_sub !== '' && $title_sub === $title_zh ) {
             $title_sub = '';
         }
-        $score_raw  = $g( 'anime_score_anilist' );
-        $score      = ( is_numeric( $score_raw ) && (float) $score_raw > 0 ) ? number_format( (float) $score_raw / 10, 1 ) : '';
+        /*
+         * 卡片不再顯示評分（原本是封面右下角的 ⭐ 藥丸），
+         * 連帶把計算一併移除——留著只是每張卡多讀一次 meta。
+         * 評分仍在作品頁與排行榜顯示，資料本身沒有動。
+         */
         $season     = $g( 'anime_season' );
         $year       = (int) $g( 'anime_season_year' );
         $format     = $g( 'anime_format' );
@@ -629,14 +632,25 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
                     <?php else : ?>
                         <div class="aaa-card-cover aaa-no-cover">無封面</div>
                     <?php endif; ?>
-                    <?php if ( $status_label ) : ?>
-                        <span class="aaa-status-badge <?php echo esc_attr( $status_class ); ?>"><?php echo esc_html( $status_label ); ?></span>
-                    <?php endif; ?>
-                    <?php if ( $score ) : ?>
-                        <span class="aaa-score-badge">⭐ <?php echo esc_html( $score ); ?></span>
-                    <?php endif; ?>
                 </div>
                 <div class="aaa-card-body">
+                    <?php
+                    /*
+                     * 播映狀態改成掛牌，掛在封面下緣、文字區上方。
+                     *
+                     * 原本是壓在封面左上角的半透明藥丸。那個位置常常蓋到角色的臉，
+                     * 而且背景亮的封面（白底、雪景）會讓文字幾乎看不見——
+                     * 半透明底色救不了對比度。移到封面外之後底色是固定的卡片底，
+                     * 對比度不再受封面影響。
+                     *
+                     * 標籤本身在 .aaa-card-body 裡用絕對定位，靠上方的
+                     * padding 讓出位置；掛繩與繩孔是 ::before / ::after，
+                     * 不多包一層 DOM。
+                     */
+                    ?>
+                    <?php if ( $status_label ) : ?>
+                        <span class="aaa-status-tag <?php echo esc_attr( $status_class ); ?>"><?php echo esc_html( $status_label ); ?></span>
+                    <?php endif; ?>
                     <h3 class="aaa-card-title"><?php echo esc_html( $title_zh ); ?></h3>
                     <p class="aaa-card-romaji"><?php echo esc_html( $title_sub ); ?></p>
                     <div class="aaa-card-meta">
@@ -753,13 +767,31 @@ button.aaa-filter-btn{font:inherit;-webkit-appearance:none;appearance:none;curso
 .aaa-card-cover{width:100%;height:100%;object-fit:cover;display:block;transition:transform .38s ease;}
 .aaa-card:hover .aaa-card-cover{transform:scale(1.06);}
 .aaa-no-cover{display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:13px;height:100%;background:linear-gradient(135deg,#0d1d38,#101d35);}
-.aaa-status-badge{position:absolute;top:10px;left:10px;padding:3px 10px;border-radius:var(--pill);font-size:11px;font-weight:700;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+/* ── 播映狀態掛牌 ──────────────────────────────────────────────
+ * 掛在封面下緣、文字區上方，不再壓在封面上。
+ *
+ * 為什麼是掛牌而不是原本的藥丸：藥丸壓在左上角常常蓋到角色的臉，
+ * 白底或雪景封面還會讓半透明底色失去對比。移出封面後底色固定，
+ * 文字永遠讀得到。
+ *
+ * 繩子（::before）由文字區頂端垂下，接到牌子左側的繩孔（::after），
+ * 所以牌子左側 padding 要留出孔位（padding-left 18px）。
+ * currentColor 讓繩、孔、文字自動跟著狀態配色走，五種狀態不必各寫一次。
+ */
+.aaa-card-body{position:relative;padding:26px 14px 14px;background:var(--surf2);}
+.aaa-status-tag{position:absolute;top:9px;left:14px;display:inline-block;
+  padding:2px 9px 2px 18px;border-radius:3px;font-size:11px;font-weight:700;line-height:1.65;
+  box-shadow:0 2px 6px rgba(0,0,0,.35);}
+/* 掛繩 */
+.aaa-status-tag::before{content:'';position:absolute;left:9px;top:-9px;
+  width:1px;height:10px;background:currentColor;opacity:.55;}
+/* 繩孔 */
+.aaa-status-tag::after{content:'';position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  width:5px;height:5px;border-radius:50%;border:1px solid currentColor;opacity:.6;}
 .s-fin{background:rgba(52,211,153,.2);color:#34d399;border:1px solid rgba(52,211,153,.36);}
 .s-rel{background:rgba(76,201,240,.2);color:#4cc9f0;border:1px solid rgba(76,201,240,.36);}
 .s-pre{background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid rgba(251,191,36,.36);}
 .s-can,.s-hia{background:rgba(251,113,133,.2);color:#fb7185;border:1px solid rgba(251,113,133,.36);}
-.aaa-score-badge{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fbbf24;padding:3px 9px;border-radius:var(--pill);font-size:12px;font-weight:800;border:1px solid rgba(251,191,36,.28);}
-.aaa-card-body{padding:12px 14px 14px;background:var(--surf2);}
 /*
  * 卡片文字區塊一律固定高度，整排才會對齊。
  *
