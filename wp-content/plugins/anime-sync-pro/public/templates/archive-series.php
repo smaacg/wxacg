@@ -541,6 +541,17 @@ if ( ! function_exists( 'asa_render_card' ) ) {
         ?>
         <article class="asa-card" data-type="<?php echo esc_attr( $p['post_type'] ); ?>">
             <a href="<?php echo esc_url( $p['permalink'] ); ?>" class="asa-card-link">
+                <?php
+                /*
+                 * 狀態掛牌放在 .asa-card-link 底下、不放進 .asa-card-cover-wrap：
+                 * cover-wrap 有 overflow:hidden，放裡面會被裁掉、伸不出卡片外。
+                 * 定位基準是 .asa-card（該元素已補 position:relative）。
+                 */
+                ?>
+                <?php if ( $status_label ) : ?>
+                    <span class="asa-status-tag <?php echo esc_attr( $status_class ); ?>"><?php echo esc_html( $status_label ); ?></span>
+                <?php endif; ?>
+
 
                 <div class="asa-card-cover-wrap">
                     <?php if ( $p['cover'] ) : ?>
@@ -552,11 +563,6 @@ if ( ! function_exists( 'asa_render_card' ) ) {
                         <div class="asa-card-cover asa-no-cover">無封面</div>
                     <?php endif; ?>
 
-                    <?php if ( $status_label ) : ?>
-                        <span class="asa-status-badge <?php echo esc_attr( $status_class ); ?>">
-                            <?php echo esc_html( $status_label ); ?>
-                        </span>
-                    <?php endif; ?>
 
                     <?php if ( $score ) : ?>
                         <span class="asa-score-badge">⭐ <?php echo esc_html( $score ); ?></span>

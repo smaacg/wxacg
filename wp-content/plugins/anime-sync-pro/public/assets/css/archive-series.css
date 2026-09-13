@@ -351,7 +351,8 @@
 .asa-cards {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-	gap: 16px;
+	/* gap 要容得下框外的直式狀態牌（約 19px），否則會壓到隔壁卡片 */
+	gap: 26px;
 }
 
 @media (min-width: 600px) {
@@ -363,9 +364,21 @@
 /* ============================================================
    8. 卡片本體
 ============================================================ */
+/*
+ * overflow 由 hidden 改 visible，讓狀態掛牌能站在卡片框格外。
+ * hidden 原本負責封面 hover 縮放的裁切（.asa-card-cover-wrap 自己就有）
+ * 與圓角裁切（改由 cover-wrap 與 card-body 各自負責上下緣）。
+ *
+ * ★ min-width:0 不能漏。CSS Grid 裡 item 的自動最小尺寸只有在
+ *   overflow:visible 時才用 min-content 撐開，overflow 一旦不是 visible
+ *   就自動變 0——等於 hidden 一直兼職在做 min-width:0。少了它，
+ *   長標題會把欄位頂寬，整排卡片變形。
+ */
 .asa-card {
+	position: relative;
 	border-radius: var(--asa-radius-md);
-	overflow: hidden;
+	overflow: visible;
+	min-width: 0;
 	background: var(--asa-surface);
 	border: 1px solid var(--asa-border);
 	backdrop-filter: var(--asa-blur);
@@ -392,6 +405,7 @@
 	aspect-ratio: 2 / 3;
 	overflow: hidden;
 	background: var(--asa-bg-3);
+	border-radius: calc(var(--asa-radius-md) - 1px) calc(var(--asa-radius-md) - 1px) 0 0;
 }
 
 .asa-card-cover {
@@ -419,17 +433,26 @@
 }
 
 /* 狀態 Badge */
-.asa-status-badge {
+/* ── 播映狀態直式掛牌 ──
+ * 與 /anime/ 列表同一套：直立在卡片右上角、整塊站在框格外。
+ * 形狀本身（窄長、貼邊、左緣切平右緣圓角）就足以讀成掛牌，
+ * 不需要畫掛繩或繩孔——那些細節在 10px 尺度只會變成雜訊。
+ * right:-19px 對應牌寬約 17px，完全在卡片外還留 2px 空隙。
+ */
+.asa-status-tag {
 	position: absolute;
-	top: 8px;
-	left: 8px;
-	padding: 3px 9px;
-	border-radius: var(--asa-radius-pill);
-	font-size: 11px;
+	top: 14px;
+	right: -19px;
+	z-index: 2;
+	writing-mode: vertical-rl;
+	text-orientation: upright;
+	padding: 9px 3px;
+	border-radius: 0 5px 5px 0;
+	font-size: 10px;
 	font-weight: 700;
-	letter-spacing: 0.04em;
-	backdrop-filter: blur(8px);
-	-webkit-backdrop-filter: blur(8px);
+	line-height: 1;
+	letter-spacing: 0.14em;
+	box-shadow: 3px 3px 10px rgba(0,0,0,0.45);
 }
 
 .s-fin { background: rgba(52,211,153,0.20);  color: #34d399; border: 1px solid rgba(52,211,153,0.36); }
@@ -458,6 +481,7 @@
 .asa-card-body {
 	padding: 10px 12px 12px;
 	background: var(--asa-surface-2);
+	border-radius: 0 0 calc(var(--asa-radius-md) - 1px) calc(var(--asa-radius-md) - 1px);
 }
 
 .asa-card-title {
@@ -665,7 +689,7 @@
 }
 
 @media (max-width: 480px) {
-	.asa-cards     { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+	.asa-cards     { grid-template-columns: repeat(2, 1fr); gap: 20px; }
 	.asa-card-body { padding: 8px 9px 10px; }
 	.asa-card-title{ font-size: 12px; }
 	.asa-tab-count { display: none; }
