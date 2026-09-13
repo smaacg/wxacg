@@ -691,3 +691,175 @@
 	.asa-sidebar { display: none; }
 	.asa-layout  { grid-template-columns: 1fr; }
 }
+
+/* =============================================================================
+   [v1.6.0] 播出順序 / 建議觀看順序 ＋ 常見問題
+   -----------------------------------------------------------------------------
+   總集篇那一列刻意做得不一樣（左邊界變色、標題轉灰、多一行說明）：
+   讀者掃清單時多半只看標題，靠一個小徽章不夠——整列的視覺重量要跟著降下來，
+   才傳達得出「這部可以先跳過」。
+   ========================================================================== */
+
+.asa-order {
+	margin: 0 0 28px;
+	padding: 22px 24px;
+	background: var(--asa-surface);
+	border: 1px solid var(--asa-border);
+	border-radius: var(--asa-radius-md);
+	backdrop-filter: var(--asa-blur);
+}
+
+.asa-order__h2 {
+	margin: 0 0 10px;
+	font-size: 20px;
+	font-weight: 800;
+	color: var(--asa-text);
+	line-height: 1.4;
+}
+
+.asa-order__lead {
+	margin: 0 0 18px;
+	font-size: 14.5px;
+	line-height: 1.8;
+	color: var(--asa-text-soft);
+}
+
+.asa-order__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	counter-reset: none;
+}
+
+.asa-order__item {
+	display: flex;
+	gap: 14px;
+	align-items: flex-start;
+	padding: 12px 0;
+	border-bottom: 1px solid var(--asa-border);
+}
+
+.asa-order__item:last-child { border-bottom: 0; }
+
+.asa-order__num {
+	flex: 0 0 30px;
+	height: 30px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: var(--asa-primary);
+	color: #fff;
+	font-size: 13px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.asa-order__body {
+	min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 6px 10px;
+}
+
+.asa-order__title {
+	font-size: 15.5px;
+	font-weight: 700;
+	color: var(--asa-text);
+	text-decoration: none;
+}
+
+.asa-order__title:hover { text-decoration: underline; }
+
+.asa-order__meta {
+	font-size: 13px;
+	color: var(--asa-text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.asa-order__badge {
+	padding: 2px 9px;
+	border-radius: 999px;
+	background: rgba(251, 191, 36, .16);
+	border: 1px solid rgba(251, 191, 36, .40);
+	color: var(--asa-warning);
+	font-size: 12px;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+/* 總集篇整列降低視覺重量，不是只掛個徽章了事 */
+.asa-order__item.is-recap {
+	padding-left: 12px;
+	border-left: 3px solid rgba(251, 191, 36, .45);
+	background: rgba(251, 191, 36, .04);
+}
+
+.asa-order__item.is-recap .asa-order__num {
+	background: rgba(251, 191, 36, .22);
+	color: var(--asa-warning);
+}
+
+.asa-order__item.is-recap .asa-order__title { color: var(--asa-text-soft); }
+
+.asa-order__hint {
+	flex-basis: 100%;
+	font-size: 12.5px;
+	line-height: 1.6;
+	color: var(--asa-text-muted);
+}
+
+.asa-order__pending {
+	margin: 16px 0 0;
+	padding: 12px 14px;
+	border-radius: var(--asa-radius-sm);
+	background: rgba(255, 255, 255, .04);
+	border: 1px dashed var(--asa-border-strong);
+	font-size: 13.5px;
+	line-height: 1.75;
+	color: var(--asa-text-muted);
+}
+
+.asa-order__pending strong { color: var(--asa-text-soft); }
+
+/* ── 常見問題 ── */
+.asa-faq {
+	margin: 28px 0 8px;
+	padding: 22px 24px;
+	background: var(--asa-surface);
+	border: 1px solid var(--asa-border);
+	border-radius: var(--asa-radius-md);
+	backdrop-filter: var(--asa-blur);
+}
+
+.asa-faq__h2 {
+	margin: 0 0 6px;
+	font-size: 20px;
+	font-weight: 800;
+	color: var(--asa-text);
+}
+
+.asa-faq__q {
+	margin: 18px 0 6px;
+	font-size: 16px;
+	font-weight: 700;
+	color: var(--asa-text);
+	line-height: 1.5;
+}
+
+.asa-faq__a {
+	margin: 0;
+	font-size: 14.5px;
+	line-height: 1.85;
+	color: var(--asa-text-soft);
+}
+
+@media (max-width: 600px) {
+	.asa-order,
+	.asa-faq { padding: 18px 16px; }
+	.asa-order__h2,
+	.asa-faq__h2 { font-size: 18px; }
+	.asa-order__num { flex-basis: 26px; height: 26px; font-size: 12px; }
+	.asa-order__title { font-size: 15px; }
+}

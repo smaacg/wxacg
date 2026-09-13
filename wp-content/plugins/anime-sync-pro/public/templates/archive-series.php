@@ -45,7 +45,21 @@ $series_slug     = $series_term->slug   ?? '';
 $series_desc     = term_description( $series_term->term_id ?? 0 );
 $series_count    = (int) ( $series_term->count ?? 0 );
 $series_url      = get_term_link( $series_term );
-$root_anilist_id = get_term_meta( $series_term->term_id ?? 0, 'anime_series_root_id', true );
+/*
+ * [v1.6.0] 修正 term meta 鍵名。
+ *
+ * 這裡原本讀 'anime_series_root_id'，但寫入端
+ * （class-import-manager.php:561 的 assign_series_taxonomy()）存的是
+ * '_series_root_anilist_id'——兩邊從來沒對上。正式站實測：
+ * anime_series_root_id 0 筆、_series_root_anilist_id 487 筆，
+ * 也就是下方那個 AniList 外部連結區塊在 1,211 個系列頁上全部靜默不顯示。
+ *
+ * 舊鍵名保留為後備，避免有任何手動填過的資料被忽略。
+ */
+$root_anilist_id = get_term_meta( $series_term->term_id ?? 0, '_series_root_anilist_id', true );
+if ( ! $root_anilist_id ) {
+    $root_anilist_id = get_term_meta( $series_term->term_id ?? 0, 'anime_series_root_id', true );
+}
 
 /* ── meta 讀取 helper（向下相容）─────────────────────────── */
 if ( ! function_exists( 'smacg_get_meta' ) ) {
@@ -102,6 +116,15 @@ if ( ! function_exists( 'asa_build_post_row' ) ) {
             'status'     => smacg_get_meta( $pid, 'status' ),
             'season'     => smacg_get_meta( $pid, 'season' ),
             'year'       => $year,
+            /*
+             * 完整開播日（YYYYMMDD）。
+             *
+             * 觀看順序必須精確到「日」：《傷物語〈Ⅰ 鐵血篇〉》2016-01-08 與
+             * 《歷物語》2016-01-09 只差一天，只比年份的話兩者先後不定，
+             * 排出來的順序就是錯的。年份仍保留給篩選與分組用。
+             */
+            'sdate'      => preg_replace( '/\D/', '', (string) smacg_get_meta( $pid, 'start_date' ) ),
+            'anilist_id' => (int) smacg_get_meta( $pid, 'anilist_id' ),
             'episodes'   => (int) smacg_get_meta( $pid, 'episodes' ),
             'volumes'    => (int) smacg_get_meta( $pid, 'volumes' ),
             'chapters'   => (int) smacg_get_meta( $pid, 'chapters' ),
@@ -135,6 +158,24 @@ usort( $all_posts, static function ( array $a, array $b ): int {
 
     if ( $a_pending !== $b_pending ) {
         return $a_pending ? 1 : -1;
+    }
+
+    /*
+     * [v1.6.0] 先比完整開播日，再退回年份。
+     *
+     * 原本只比年份，同一年的作品之間順序取決於 SQL 回傳次序，等於不定。
+     * 這在一般列表看不太出來，但「播出順序」是一條有語意的清單，
+     * 排錯就是給讀者錯誤資訊——《傷物語〈Ⅰ 鐵血篇〉》(20160108) 與
+     * 《歷物語》(20160109) 差一天，年份相同時必須靠完整日期才分得出來。
+     *
+     * 漫畫／小說／遊戲多半沒有 start_date，這時 sdate 為空字串，
+     * 自動退回年份比較，行為與改動前一致。
+     */
+    $a_sdate = (string) ( $a['sdate'] ?? '' );
+    $b_sdate = (string) ( $b['sdate'] ?? '' );
+
+    if ( strlen( $a_sdate ) === 8 && strlen( $b_sdate ) === 8 && $a_sdate !== $b_sdate ) {
+        return $a_sdate <=> $b_sdate;
     }
 
     $a_year = (int) ( $a['year'] ?? 0 );
@@ -259,6 +300,110 @@ $season_labels = [
     'SUMMER' => '夏', 'FALL'   => '秋',
 ];
 
+/* ── [v1.6.0] 播出順序 ────────────────────────────────────────────────
+ *
+ * ★ 為什麼標題寫「播出順序」而不是「觀看順序」
+ *
+ *   程式能從資料算出來的只有「依日本首播日排列」。至於「該照什麼順序看」
+ *   是編輯判斷——有些系列的故事時間軸與播出順序不同（物語系列就是最有名的
+ *   例子）。把播出順序直接叫「觀看順序」會讓讀者以為那是我們的推薦，
+ *   而那是我們沒有做過的判斷。所以自動產生的一律標「播出順序」，
+ *   只有 term meta 填了人工排序時，才會顯示「本站建議觀看順序」。
+ *
+ * ★ 總集篇要標出來
+ *
+ *   《傷物語 -歷吸血鬼-》是前三部劇場版的總集篇，照日期排在第 15 位。
+ *   不標註的話讀者會當成新故事去看，這是這種清單最容易造成的誤解。
+ *
+ *   偵測方式只採「反向 SUMMARY 邊」：AniList 是由**原作**指向總集篇
+ *   （《進擊的巨人》→ Chronicle），總集篇本身不帶這個關聯，所以要反過來建索引。
+ *
+ *   刻意不用「MOVIE 且有多個 ANIME PARENT」這個看似合理的啟發法——
+ *   正式站實測 25 部符合，裡面《紅蓮之絆篇》《五等分的新娘 新作OVA》
+ *   《怪獸8號 番外篇》全是真新作。拿它判斷會把新作誤標成總集篇，
+ *   比不標更糟。查不到就不標。
+ */
+$recap_ids = [];   // 被其他作品列為 SUMMARY 目標的 AniList ID
+foreach ( $all_posts as $p ) {
+    $rel = json_decode( (string) get_post_meta( $p['id'], 'anime_relations_json', true ), true );
+    foreach ( (array) $rel as $r ) {
+        if ( ( $r['relation_type'] ?? '' ) === 'SUMMARY' && ! empty( $r['id'] ) ) {
+            $recap_ids[ (int) $r['id'] ] = true;
+        }
+    }
+}
+
+/* 觀看順序只收動畫：漫畫、小說、遊戲、音樂不屬於「照順序看」這件事 */
+$watch_aired   = [];
+$watch_pending = [];
+foreach ( $all_posts as $p ) {
+    if ( ( $p['post_type'] ?? '' ) !== 'anime' ) { continue; }
+    $p['is_recap'] = ! empty( $p['anilist_id'] ) && isset( $recap_ids[ $p['anilist_id'] ] );
+    if ( ( $p['status'] ?? '' ) === 'NOT_YET_RELEASED' || strlen( (string) $p['sdate'] ) !== 8 ) {
+        $watch_pending[] = $p;
+    } else {
+        $watch_aired[] = $p;
+    }
+}
+
+/*
+ * 人工排定的順序（沒有就不顯示）。
+ * term meta 存 post ID 陣列；只有編輯真的排過，才敢稱「建議觀看順序」。
+ */
+$manual_order = get_term_meta( $series_term->term_id ?? 0, '_series_watch_order', true );
+$manual_note  = (string) get_term_meta( $series_term->term_id ?? 0, '_series_watch_order_note', true );
+$has_manual   = false;
+if ( is_array( $manual_order ) && count( $manual_order ) >= 2 ) {
+    $by_id = [];
+    foreach ( $watch_aired as $p ) { $by_id[ $p['id'] ] = $p; }
+    $ordered = [];
+    foreach ( $manual_order as $mid ) {
+        if ( isset( $by_id[ (int) $mid ] ) ) { $ordered[] = $by_id[ (int) $mid ]; unset( $by_id[ (int) $mid ] ); }
+    }
+    // 沒被排到的補在後面，不讓人工清單漏掉作品
+    foreach ( $by_id as $p ) { $ordered[] = $p; }
+    if ( count( $ordered ) >= 2 ) { $watch_aired = $ordered; $has_manual = true; }
+}
+
+/* ≥2 部才有「順序」可言，1 部的頁面顯示順序清單只是噪音 */
+$show_watch_order = count( $watch_aired ) >= 2;
+
+/* 日期格式化：20160108 → 2016/01/08 */
+$asa_fmt_date = static function ( string $s ): string {
+    return strlen( $s ) === 8
+        ? substr( $s, 0, 4 ) . '/' . substr( $s, 4, 2 ) . '/' . substr( $s, 6, 2 )
+        : '';
+};
+
+/*
+ * ★ AEO：給 AI 一句可以整段引用的答案
+ *
+ * AI 概覽與聊天機器人引用的是「單獨拿出來也讀得懂」的句子。
+ * 所以這句話自帶主詞、自帶站名、自帶排序依據，不依賴上下文；
+ * 同時明講依據是首播日，避免被轉述成「本站推薦這樣看」。
+ */
+$aeo_answer = '';
+if ( $show_watch_order ) {
+    $seq = [];
+    foreach ( array_slice( $watch_aired, 0, 12 ) as $i => $p ) {
+        $seq[] = ( $i + 1 ) . '.《' . $p['title_zh'] . '》'
+               . ( $p['year'] ? '（' . $p['year'] . '）' : '' )
+               . ( ! empty( $p['is_recap'] ) ? '〔總集篇〕' : '' );
+    }
+    $aeo_answer = sprintf(
+        '%s：《%s》系列動畫共 %d 部，%s為 %s%s。',
+        $has_manual ? '微笑ACG 建議觀看順序' : '依日本首播日排列',
+        $series_name,
+        count( $watch_aired ) + count( $watch_pending ),
+        $has_manual ? '本站建議的觀看順序' : '播出順序',
+        implode( '、', $seq ),
+        count( $watch_aired ) > 12 ? '等' : ''
+    );
+    if ( $watch_pending ) {
+        $aeo_answer .= sprintf( '另有 %d 部尚未公布播出日期。', count( $watch_pending ) );
+    }
+}
+
 /* ── GEO/AEO 導言句（自動生成，無條件顯示）── */
 $geo_type_labels = [ 'anime' => '動畫', 'manga' => '漫畫', 'novel' => '小說', 'game' => '遊戲', 'music' => '音樂' ];
 $geo_parts       = [];
@@ -328,15 +473,41 @@ $schema_collection = [
     '@type'       => 'CollectionPage',
     'name'        => $series_name . ' 系列作品列表',
     'url'         => is_wp_error( $series_url ) ? '' : $series_url,
-    'description' => $geo_intro ?: ( $series_desc ? wp_strip_all_tags( $series_desc ) : '' ),
-    'mainEntity'  => [
+    /*
+     * description 優先給 AEO 那句可整段引用的答案。
+     * $geo_intro 只描述「有幾部、涵蓋哪些類型」，$aeo_answer 直接回答
+     * 「順序是什麼」——後者才是搜尋這個頁面的人真正要的答案。
+     */
+    'description' => $aeo_answer ?: ( $geo_intro ?: ( $series_desc ? wp_strip_all_tags( $series_desc ) : '' ) ),
+    'mainEntity'  => array_filter( [
         '@type'           => 'ItemList',
-        'name'            => $series_name . ' 系列作品',
+        'name'            => $series_name . ( $show_watch_order ? ( $has_manual ? ' 建議觀看順序' : ' 播出順序' ) : ' 系列作品' ),
+        /*
+         * itemListOrder 明講這份清單是有序的。
+         * 少了它，ItemList 在語意上等同「一堆東西」，position 只是流水號；
+         * 有了它，消費端才知道 1→N 的先後是刻意的。
+         */
+        'itemListOrder'   => $show_watch_order ? 'https://schema.org/ItemListOrderAscending' : null,
         'numberOfItems'   => count( $list_elements ),
         'itemListElement' => $list_elements,
-    ],
+    ], fn( $v ) => $v !== null ),
 ];
 $schema_collection = array_filter( $schema_collection, fn( $v ) => $v !== null && $v !== '' );
+
+/*
+ * BreadcrumbList：頁面上早就有視覺麵包屑（見下方 .asa-breadcrumb），
+ * 但一直沒有對應的結構化資料，搜尋結果裡就少一層階層資訊。
+ * 兩者的項目必須一致，否則等於自相矛盾。
+ */
+$schema_breadcrumb = [
+    '@context'        => 'https://schema.org',
+    '@type'           => 'BreadcrumbList',
+    'itemListElement' => [
+        [ '@type' => 'ListItem', 'position' => 1, 'name' => '首頁',     'item' => home_url( '/' ) ],
+        [ '@type' => 'ListItem', 'position' => 2, 'name' => '動漫列表', 'item' => home_url( '/anime/' ) ],
+        [ '@type' => 'ListItem', 'position' => 3, 'name' => $series_name ],
+    ],
+];
 
 /* ── 卡片渲染 helper ── */
 if ( ! function_exists( 'asa_render_card' ) ) {
@@ -480,6 +651,7 @@ if ( ! function_exists( 'asa_render_tab_panel' ) ) {
 ?>
 
 <script type="application/ld+json"><?php echo wp_json_encode( $schema_collection, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
+<script type="application/ld+json"><?php echo wp_json_encode( $schema_breadcrumb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
 
 <div class="asa-wrap">
 
@@ -525,6 +697,74 @@ if ( ! function_exists( 'asa_render_tab_panel' ) ) {
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if ( $show_watch_order ) : ?>
+    <?php
+    /*
+     * 播出順序 / 建議觀看順序。
+     *
+     * 三個防誤解的設計，每一個都對應一種實際會發生的誤讀：
+     *   1. 標題與說明句直說排序依據是「首播日」，不含糊稱「觀看順序」；
+     *   2. 總集篇掛牌並寫明「劇情與前作重複」，避免被當成新故事；
+     *   3. 未公布檔期的獨立成一區，不塞進編號裡假裝有先後。
+     */
+    ?>
+    <section class="asa-order" id="watch-order" aria-labelledby="asa-order-h2">
+        <h2 class="asa-order__h2" id="asa-order-h2">
+            <?php echo esc_html( $series_name ); ?>
+            <?php echo $has_manual ? '建議觀看順序' : '播出順序'; ?>
+        </h2>
+
+        <p class="asa-order__lead">
+            <?php if ( $has_manual ) : ?>
+                以下是本站編輯排定的建議觀看順序，共 <strong><?php echo count( $watch_aired ); ?></strong> 部。
+                <?php echo $manual_note ? esc_html( $manual_note ) : ''; ?>
+            <?php else : ?>
+                以下 <strong><?php echo count( $watch_aired ); ?></strong> 部依<strong>日本首播日期</strong>由早到晚排列。
+                部分系列的故事時間軸與播出順序不同，若你想照劇情時序觀看，請以官方或原作說明為準。
+            <?php endif; ?>
+        </p>
+
+        <ol class="asa-order__list">
+            <?php foreach ( $watch_aired as $wi => $p ) : ?>
+                <li class="asa-order__item<?php echo ! empty( $p['is_recap'] ) ? ' is-recap' : ''; ?>">
+                    <span class="asa-order__num"><?php echo (int) ( $wi + 1 ); ?></span>
+                    <span class="asa-order__body">
+                        <a class="asa-order__title" href="<?php echo esc_url( $p['permalink'] ); ?>"><?php echo esc_html( $p['title_zh'] ); ?></a>
+                        <?php if ( ! empty( $p['is_recap'] ) ) : ?>
+                            <span class="asa-order__badge">總集篇</span>
+                        <?php endif; ?>
+                        <span class="asa-order__meta">
+                            <?php
+                            $bits = array_filter( [
+                                $format_labels[ $p['format'] ] ?? $p['format'],
+                                $p['episodes'] > 0 ? $p['episodes'] . ' 集' : '',
+                                $asa_fmt_date( (string) $p['sdate'] ),
+                            ] );
+                            echo esc_html( implode( '｜', $bits ) );
+                            ?>
+                        </span>
+                        <?php if ( ! empty( $p['is_recap'] ) ) : ?>
+                            <span class="asa-order__hint">劇情與系列前作重複，初次觀看可略過。</span>
+                        <?php endif; ?>
+                    </span>
+                </li>
+            <?php endforeach; ?>
+        </ol>
+
+        <?php if ( $watch_pending ) : ?>
+            <p class="asa-order__pending">
+                <strong>尚未公布播出日期（<?php echo count( $watch_pending ); ?> 部）：</strong>
+                <?php
+                $pend = [];
+                foreach ( $watch_pending as $p ) { $pend[] = $p['title_zh']; }
+                echo esc_html( implode( '、', $pend ) );
+                ?>
+                　這幾部因為官方尚未公布檔期，無法排入上方順序；檔期公布後本頁會自動更新。
+            </p>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
     <div class="asa-layout">
 
@@ -695,6 +935,75 @@ if ( ! function_exists( 'asa_render_tab_panel' ) ) {
         </aside><!-- .asa-sidebar -->
 
     </div><!-- .asa-layout -->
+
+    <?php if ( $show_watch_order ) : ?>
+    <?php
+    /*
+     * 常見問題。
+     *
+     * ★ 為什麼答案寫得這麼「完整句」
+     *   AI 概覽與聊天機器人引用的是「單獨抽出來也讀得懂」的段落。
+     *   「共 18 部」這種答案被抽走就沒有主詞，AI 不會用；
+     *   「《物語系列》系列動畫在本站共收錄 18 部」才引用得動。
+     *
+     * ★ 不掛 FAQPage 結構化資料
+     *   Google 從 2023 年 8 月起只對政府與醫療類網站顯示 FAQ 複合式結果，
+     *   一般網站掛了不會有 rich result。但可見的問答本身仍有價值——
+     *   那正是 AI 概覽會抓的段落，所以留純 HTML。
+     *
+     * ★ 第二題刻意講「我們不知道」
+     *   沒有人工排序時，硬答「照播出順序看就對了」是我們沒把握的建議。
+     *   照實說明差別、把判斷權還給讀者，比裝作有答案更不會誤導。
+     */
+    $faq_total   = count( $watch_aired ) + count( $watch_pending );
+    $faq_first   = $watch_aired[0] ?? null;
+    $faq_recaps  = array_values( array_filter( $watch_aired, fn( $x ) => ! empty( $x['is_recap'] ) ) );
+    ?>
+    <section class="asa-faq" aria-labelledby="asa-faq-h2">
+        <h2 class="asa-faq__h2" id="asa-faq-h2"><?php echo esc_html( $series_name ); ?> 常見問題</h2>
+
+        <?php if ( $faq_first ) : ?>
+        <h3 class="asa-faq__q"><?php echo esc_html( $series_name ); ?>要從哪一部開始看？</h3>
+        <p class="asa-faq__a">
+            依日本首播日期，《<?php echo esc_html( $series_name ); ?>》系列動畫最早播出的是
+            《<?php echo esc_html( $faq_first['title_zh'] ); ?>》<?php
+            echo $faq_first['year'] ? '（' . esc_html( $faq_first['year'] ) . ' 年）' : ''; ?>。
+            <?php if ( $has_manual ) : ?>
+                本站建議的觀看順序已列在本頁「建議觀看順序」段落。
+            <?php else : ?>
+                本頁的順序是依首播日排列，並非依故事時間軸；
+                若該系列的劇情時序與播出順序不同，建議以官方或原作說明為準。
+            <?php endif; ?>
+        </p>
+        <?php endif; ?>
+
+        <h3 class="asa-faq__q"><?php echo esc_html( $series_name ); ?>總共有幾部？</h3>
+        <p class="asa-faq__a">
+            《<?php echo esc_html( $series_name ); ?>》系列動畫在本站共收錄
+            <strong><?php echo (int) $faq_total; ?></strong> 部，
+            其中 <?php echo count( $watch_aired ); ?> 部已公布播出日期<?php
+            if ( $watch_pending ) { echo '、' . count( $watch_pending ) . ' 部檔期未定'; } ?>。
+            <?php if ( count( $all_posts ) > $faq_total ) : ?>
+                另外本站也收錄了同系列的漫畫、小說、遊戲或音樂作品，合計
+                <?php echo count( $all_posts ); ?> 筆，可在本頁依類型切換瀏覽。
+            <?php endif; ?>
+        </p>
+
+        <?php if ( $faq_recaps ) : ?>
+        <h3 class="asa-faq__q"><?php echo esc_html( $series_name ); ?>有哪幾部是總集篇、可以略過？</h3>
+        <p class="asa-faq__a">
+            《<?php echo esc_html( $series_name ); ?>》系列中，
+            <?php
+            $rn = [];
+            foreach ( $faq_recaps as $r ) { $rn[] = '《' . $r['title_zh'] . '》'; }
+            echo esc_html( implode( '、', $rn ) );
+            ?>
+            屬於總集篇，內容重新剪輯自系列前作，劇情沒有新進展，初次觀看可以略過；
+            想快速回顧的人則可以拿它當複習。
+        </p>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
 </div><!-- .asa-wrap -->
 
