@@ -536,6 +536,22 @@ $weekday_labels = [
  *   要。開季前後讀者最想知道的就是「還有什麼要播、什麼時候播」。
  *   星期分組本來就會先讀 next_airing、沒有才退回 start_date，
  *   未開播作品有 start_date，一樣排得進星期，不需要額外處理。
+ *
+ * ★ 續播的長番必須留著（2026-09-13 補）
+ *
+ *   只用季度區間會把《ONE PIECE》（1999 開播）、《吉伊卡哇》（2022）、
+ *   《數碼寶貝 BEATBREAK》（2025-10）這類仍在播的長番整批踢掉——
+ *   它們在秋季照樣每週更新，是讀者每週會回來看的東西。
+ *
+ *   所以條件是聯集，不是單一區間：
+ *     本季新開播（start_date 落在季度區間，含尚未開播）
+ *     ∪ 仍在播（status = RELEASING，涵蓋跨季長番與二連續季度作品）
+ *
+ *   夏番收尾的那些會在自己的完結日翻成 FINISHED 而自動退場，
+ *   不需要另外排除；換季當週它們確實還在播，本來就該留在畫面上。
+ *
+ *   截斷風險仍然不存在：兩邊聯集上限約 124 部（RELEASING 76 ＋ 秋季 48，
+ *   且兩者有重疊），遠低於 posts_per_page 的 300。
  */
 $season_range   = wxacg_home_current_season_range();
 $season_query   = new WP_Query(
@@ -549,18 +565,26 @@ $season_query   = new WP_Query(
         'meta_query'             => [
             'relation' => 'AND',
             [
-                'key'     => 'anime_start_date',
-                'value'   => [ $season_range['from'], $season_range['to'] ],
-                'compare' => 'BETWEEN',
-                'type'    => 'CHAR',
-            ],
-            [
                 'key'     => 'anime_format',
                 'value'   => [
                     'TV',
                     'TV_SHORT',
                 ],
                 'compare' => 'IN',
+            ],
+            [
+                'relation' => 'OR',
+                [
+                    'key'     => 'anime_start_date',
+                    'value'   => [ $season_range['from'], $season_range['to'] ],
+                    'compare' => 'BETWEEN',
+                    'type'    => 'CHAR',
+                ],
+                [
+                    'key'     => 'anime_status',
+                    'value'   => 'RELEASING',
+                    'compare' => '=',
+                ],
             ],
         ],
     ]
