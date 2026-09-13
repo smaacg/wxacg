@@ -157,6 +157,36 @@ if ( ! function_exists( 'wxacg_home_article_card' ) ) {
 /* ============================================================
  * 共用：動漫卡片
  * ============================================================ */
+/**
+ * 現在是哪一季，回傳該季的 anime_start_date 區間（YYYYMMDD 字串）。
+ *
+ * 日本動畫的季度固定切在 1／4／7／10 月：
+ *   冬 1–3　春 4–6　夏 7–9　秋 10–12
+ *
+ * 所以 10 月 1 日零點一到，首頁就會自動換成秋番，不需要人工切換，
+ * 也不需要每季回來改一次常數。
+ *
+ * 回傳字串而不是時間戳，是為了直接餵給 anime_start_date 的 meta 比較——
+ * 該欄位存的是補零的 YYYYMMDD 字串，字串比較的大小順序與日期一致。
+ */
+if ( ! function_exists( 'wxacg_home_current_season_range' ) ) {
+    function wxacg_home_current_season_range(): array {
+        $year  = (int) wp_date( 'Y' );
+        $month = (int) wp_date( 'n' );
+
+        // 1→1、4→4、7→7、10→10：往下取整到季度的起始月
+        $start_month = (int) ( floor( ( $month - 1 ) / 3 ) * 3 + 1 );
+        $end_month   = $start_month + 2;
+
+        return [
+            'from'  => sprintf( '%04d%02d01', $year, $start_month ),
+            'to'    => sprintf( '%04d%02d%02d', $year, $end_month, (int) wp_date( 't', mktime( 0, 0, 0, $end_month, 1, $year ) ) ),
+            'year'  => $year,
+            'month' => $start_month,
+        ];
+    }
+}
+
 if ( ! function_exists( 'wxacg_home_anime_card' ) ) {
     function wxacg_home_anime_card( $post_object ) {
         if ( ! $post_object instanceof WP_Post ) {
@@ -478,7 +508,37 @@ $weekday_labels = [
  *   也不需要「本季／上一季」那套推算。語意也更直接——首頁要的就是現在
  *   正在播的。
  */
-$season_query = new WP_Query(
+/*
+ * ★ 2026-09-13：改回用「季度」定義本季，不再用 anime_status = RELEASING。
+ *
+ * 為什麼要改回來
+ *
+ *   RELEASING 的語意是「此刻正在播」，不等於「本季」。換季當下兩者差很多：
+ *   正式站在 2026-09-13 實測，這個查詢撈到 76 部，其中 58 部是七月番、
+ *   13 部是四月番；而十月番共 52 部，到 10 月 1 日當天只有 6 部會翻成
+ *   RELEASING，其餘 46 部要各自等到自己的開播日。
+ *
+ *   也就是說開季那一週——流量最重要的一週——首頁的「本季新番」會是
+ *   一整排即將完結的夏番，最該被看到的秋番反而幾乎不在。
+ *
+ * 那原本的截斷 bug 怎麼辦
+ *
+ *   當初改用 RELEASING 是為了避開「posts_per_page 300 在 SQL 階段就截斷、
+ *   PHP 才比對年份」導致本季作品隨機漏掉的問題。這一版不是把年份判斷搬
+ *   回 PHP，而是直接在 SQL 用 anime_start_date 的區間過濾——母體一開始
+ *   就只有本季，300 的上限根本碰不到（本季 52 部）。
+ *
+ *   anime_start_date 存的是 YYYYMMDD 字串且補零，字串比較的大小順序與
+ *   日期一致，所以 BETWEEN 可以直接用。
+ *
+ * 未開播的作品要不要顯示
+ *
+ *   要。開季前後讀者最想知道的就是「還有什麼要播、什麼時候播」。
+ *   星期分組本來就會先讀 next_airing、沒有才退回 start_date，
+ *   未開播作品有 start_date，一樣排得進星期，不需要額外處理。
+ */
+$season_range   = wxacg_home_current_season_range();
+$season_query   = new WP_Query(
     [
         'post_type'              => 'anime',
         'post_status'            => 'publish',
@@ -489,9 +549,10 @@ $season_query = new WP_Query(
         'meta_query'             => [
             'relation' => 'AND',
             [
-                'key'     => 'anime_status',
-                'value'   => 'RELEASING',
-                'compare' => '=',
+                'key'     => 'anime_start_date',
+                'value'   => [ $season_range['from'], $season_range['to'] ],
+                'compare' => 'BETWEEN',
+                'type'    => 'CHAR',
             ],
             [
                 'key'     => 'anime_format',
