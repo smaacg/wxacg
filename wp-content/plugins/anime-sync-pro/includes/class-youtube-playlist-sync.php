@@ -412,7 +412,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
             $this->maybe_fill_distributor_and_streaming( $post_id, $channel_name, $playlist_url );
         }
 
-        // 國際多語頻道（註冊表 yt_global）：清單混著片段剪輯，沒有集數的只收整季合輯
+        // 國際多語頻道（註冊表 yt_global）：清單混著片段剪輯，只收正片格式的集數與整季合輯
         $is_global_channel = false;
         if ( $channel_name !== '' && class_exists( 'Anime_Sync_Streaming_Registry' ) ) {
             $channel_key       = Anime_Sync_Streaming_Registry::match_youtube_channel( $channel_name );
@@ -456,16 +456,16 @@ class Anime_Sync_YouTube_Playlist_Sync {
             // 3) 通過黑名單的影片一律收:
             //    有集數 → 「第X話」;無集數 → 簡化短標籤(OVA/OAD/馬拉松…),認不出才用原標題
             $range = $this->extract_episode_range( $v['title'] );
-            if ( $range !== null ) {
-                [ $lo, $hi ] = $range;
-                $label = ( $lo === $hi ) ? sprintf( '第%d話', $lo ) : sprintf( '第%d-%d話', $lo, $hi );
-            } elseif ( $is_global_channel ) {
-                $label = $this->global_channel_special_label( $v['title'] );
+            if ( $is_global_channel ) {
+                $label = $this->global_channel_label( $v['title'], $range );
                 if ( $label === null ) {
                     // 國際頻道的片段剪輯（名場面、搞笑片段）不是正片，略過
                     $result['skipped']++;
                     continue;
                 }
+            } elseif ( $range !== null ) {
+                [ $lo, $hi ] = $range;
+                $label = ( $lo === $hi ) ? sprintf( '第%d話', $lo ) : sprintf( '第%d-%d話', $lo, $hi );
             } else {
                 $label = $this->guess_special_label( $v['title'] );
             }
@@ -663,14 +663,26 @@ class Anime_Sync_YouTube_Playlist_Sync {
     }
 
     /**
-     * 國際多語頻道（註冊表 yt_global，例如 It's Anime）沒有集數的影片怎麼處理。
+     * 國際多語頻道（註冊表 yt_global，例如 It's Anime）的影片標籤；回 null 代表略過。
      *
      * 這類頻道的播放清單除了正片，還混著大量片段剪輯（名場面、搞笑片段），
      * 標題是英文、也不含 PV／預告等黑名單字，交給 guess_special_label() 會以原標題
-     * 照單全收（2026-09-14 #53588 一次帶進 15 支）。所以只認整季合輯與 OVA／OAD，
-     * 其餘回 null 讓呼叫端略過。
+     * 照單全收（2026-09-14 #53588 一次帶進 15 支）。
+     *
+     * 而且剪輯標題也常帶集數——「The Most Watched Scene of EP4 - …」「… | Demon Sword S1E3 |」——
+     * 只看有沒有集數會把剪輯當成第 4 話、第 3 話。所以有集數還要符合正片的標題格式：
+     *   Full Episode 01 ｜ Full EP 01 ｜ EP11 • 標題 ｜ S1:E1 • 標題
+     * （2026-09-14 以站上 8 部 It's Anime 播放清單的全部標題歸納。）
+     * 沒有集數的只認整季合輯與 OVA／OAD。
+     *
+     * @param array|null $range extract_episode_range() 的結果
      */
-    private function global_channel_special_label( string $title ): ?string {
+    private function global_channel_label( string $title, ?array $range ): ?string {
+        if ( $range !== null
+            && preg_match( '/\bfull\s*ep(?:isode)?\b|(?:\bEP\.?\s*\d{1,4}|\bS\d{1,2}\s*[:：]\s*E\d{1,4})\s*[•・]/iu', $title ) ) {
+            [ $lo, $hi ] = $range;
+            return ( $lo === $hi ) ? sprintf( '第%d話', $lo ) : sprintf( '第%d-%d話', $lo, $hi );
+        }
         if ( preg_match( '/\bseason\s*\d+\s*complete\b|\(\s*\d+\s*episodes?\s*\)/i', $title ) ) {
             return '馬拉松'; // 例：Season 1 Complete (12 Episodes)
         }
