@@ -50,11 +50,13 @@ wp-content/themes/*
 # 例外保留：這款自製外掛沒有統一前綴
 !wp-content/plugins/anime-sync-pro/
 
-# 強制保留自製/修改的子佈景主題
-!wp-content/themes/blocksy-child/
-
-# 主題資料夾改名過渡期：新資料夾（獨立主題後改名用），驗證無誤後
-# 舊的 blocksy-child/ 會被移除，屆時上面那條規則也會一併拿掉
+# 強制保留自製的獨立佈景主題
+# （wp_options 的 stylesheet 與 template 都指向 wxacgtheme，
+#   它是獨立主題不是子主題，blocksy 父主題並不存在）
+#
+# 2026-09-15：改名過渡期結束。舊的 blocksy-child/ 已從 repo 移除，
+# 它原本的例外規則也一併拿掉，改由上面的 themes/* 忽略。
+# 本機仍保留一份未追蹤的副本，不會被刪。
 !wp-content/themes/wxacgtheme/
 
 # ���� LiteSpeed �֨��ɮ�
