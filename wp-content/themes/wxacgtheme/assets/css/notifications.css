@@ -168,15 +168,22 @@
 .smacg-bell-item:hover { background: rgba(255, 255, 255, 0.04); }
 .smacg-bell-item:last-child { border-bottom: 0; }
 .smacg-bell-item.is-unread { background: rgba(107, 182, 255, 0.06); }
-.smacg-bell-item.is-unread::before {
+/*
+ * 未讀圓點是實體 flex item，佔 6px 寬 + gap 10px = 16px。
+ * 原本只有 .is-unread 才產生 ::before，已讀的列少了這 16px，
+ * 圖示與文字會整排往左移，兩種列的左邊界對不齊。
+ * 改成每一列都產生等寬佔位，只有未讀才上色。
+ */
+.smacg-bell-item::before {
     content: '';
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #6bb6ff;
+    background: transparent;
     margin-top: 8px;
     flex-shrink: 0;
 }
+.smacg-bell-item.is-unread::before { background: #6bb6ff; }
 .smacg-bell-item-icon {
     width: 32px;
     height: 32px;
@@ -214,16 +221,31 @@
     display: block;
 }
 .smacg-bell-item-body { flex: 1; min-width: 0; }
-.smacg-bell-item-text {
+/*
+ * notifications.js 的 itemHTML() 實際輸出 -title / -excerpt / -time 三個 <p>，
+ * -text 是 v1.0 的遺留 class，JS 已不再輸出，這裡保留以免其他地方仍在引用。
+ * 主題沒有全域 p { margin: 0 }，因此沒指定 margin 的段落會吃瀏覽器預設的
+ * 1em，相鄰段落 margin collapse 會把列高撐開、上下間距忽大忽小。
+ */
+.smacg-bell-item-text,
+.smacg-bell-item-title {
     font-size: 13px;
     line-height: 1.5;
     color: #e6e9f2;
     margin: 0 0 4px;
     word-break: break-word;
 }
+.smacg-bell-item-excerpt {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #b6bdcc;
+    margin: 0 0 4px;
+    word-break: break-word;
+}
 .smacg-bell-item-time {
     font-size: 11px;
     color: #9ca3af;
+    margin: 0;
 }
 .smacg-bell-panel-footer {
     padding: 10px 16px;
