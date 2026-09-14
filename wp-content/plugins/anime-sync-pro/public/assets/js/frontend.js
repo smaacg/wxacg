@@ -1016,24 +1016,24 @@ function initToc() {
     var nav = document.createElement('nav');
     nav.className = 'asd-toc';
     nav.id = 'asd-toc';
-    nav.setAttribute('aria-label', '頁面目錄');
+    nav.setAttribute('aria-label', '頁面快速導覽');
 
     var btn = document.createElement('button');
     btn.className = 'asd-toc__btn';
     btn.type = 'button';
     btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = '<span class="asd-toc__icon" aria-hidden="true">☰</span><span>目錄</span>';
+    btn.innerHTML = '<span class="asd-toc__icon" aria-hidden="true">☰</span><span>快速導覽</span>';
 
     // 隱藏鈕。放在展開的清單裡，不佔收起狀態的空間。
     var close = document.createElement('button');
     close.className = 'asd-toc__close';
     close.type = 'button';
-    close.setAttribute('aria-label', '隱藏目錄');
+    close.setAttribute('aria-label', '隱藏快速導覽');
     close.textContent = '×';
 
     var head = document.createElement('div');
     head.className = 'asd-toc__head';
-    head.innerHTML = '<span>目錄</span>';
+    head.innerHTML = '<span>快速導覽</span>';
     head.appendChild(close);
 
     var list = document.createElement('ul');
@@ -1055,7 +1055,7 @@ function initToc() {
     var restore = document.createElement('button');
     restore.className = 'asd-toc-restore';
     restore.type = 'button';
-    restore.setAttribute('aria-label', '顯示目錄');
+    restore.setAttribute('aria-label', '顯示快速導覽');
     restore.textContent = '›';
     restore.hidden = true;
     document.body.appendChild(restore);
