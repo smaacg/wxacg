@@ -117,13 +117,29 @@ class Anime_Sync_YourAnimes_Season_Index {
 		$season = strtoupper( trim( (string) ( $anime_data['anime_season'] ?? '' ) ) );
 		$year   = (int) ( $anime_data['anime_season_year'] ?? 0 );
 
+		/*
+		 * 季度無效、或該季沒有季度表時，不直接放棄，改退到標題索引。
+		 *
+		 * 原本這兩處都是 return null，於是標題索引（本方法最後一層）只有在
+		 * 「季度表存在但比對不到」時才會被問到。劇場版常常沒有季度，
+		 * 1989 年《鎧傳》、2016 年《聲之形》這類舊作 YourAnimes 也沒有那一季的表——
+		 * 而那正是標題索引當初要解決的作品，結果它們永遠走不到那一層。
+		 *
+		 * 標題索引以「標題完全相同＋開播日完全相同＋唯一」比對，不需要季度，
+		 * 也不連網（本機索引檔），所以退過去不會多打 YourAnimes。
+		 * 呼叫端沒傳開播日時 lookup() 會在第一行回空，行為與原本的 null 相同。
+		 *
+		 * 其他三個呼叫端（class-api-handler.php 兩處、class-import-manager.php
+		 * 的系列命名）只採用 tw_title_ok 為真的結果，而標題索引固定回 false，
+		 * 所以它們的行為不受影響。
+		 */
 		if ( ! isset( self::SEASON_MONTH[ $season ] ) || $year < 1960 || $year > 2100 ) {
-			return null;
+			return self::resolve_via_title_index( $anime_data );
 		}
 
 		$index = self::get_season_index( $year, $season );
 		if ( empty( $index ) ) {
-			return null;
+			return self::resolve_via_title_index( $anime_data );
 		}
 
 		$native  = (string) ( $anime_data['anime_title_native']  ?? '' );

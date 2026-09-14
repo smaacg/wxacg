@@ -257,24 +257,39 @@ class Anime_Sync_YourAnimes_Backfill {
 			$year   = (int) get_post_meta( $id, 'anime_season_year', true );
 
 			/*
-			 * 沒有季度就查不了——季度表是以「年 + 季」為單位抓的。
-			 * 這類作品（多半是劇場版與很舊的作品）本檔處理不了，單獨計數，
-			 * 免得混進 no_match 讓可配對率看起來比實際差。
+			 * 沒有季度的作品（多半是劇場版與很舊的作品）季度表查不了——
+			 * 季度表是以「年 + 季」為單位抓的。
+			 *
+			 * 原本在這裡直接 continue 跳過。但 resolve() 現在會在季度無效時
+			 * 退到標題索引（以「標題＋開播日」比對，不需要季度），
+			 * 所以改成照樣交給 resolve()；只有「沒季度、也沒配到」的才計入 no_season，
+			 * 維持原本的用意：別混進 no_match，讓可配對率看起來比實際差。
 			 */
-			if ( $season === '' || $year < 1960 || $year > 2100 ) {
-				$stats['no_season']++;
-				continue;
-			}
+			$no_season = ( $season === '' || $year < 1960 || $year > 2100 );
 
+			/*
+			 * 一定要帶開播日。
+			 *
+			 * 標題索引以「標題＋開播日」比對，lookup() 第一行就是
+			 * 「開播日不是 8 碼就回空」。這裡原本沒傳，回補路徑上的標題索引
+			 * 因此從來沒有真正查過一次——2026-09-14 正式站 dry-run 掃 150 部、
+			 * 配到 0 部；帶上開播日後模擬全部 572 部，可配到 167 部。
+			 * 匯入流程傳的是完整 $anime_data（含開播日），所以匯入時配得到。
+			 */
 			$hit = Anime_Sync_YourAnimes_Season_Index::resolve( [
 				'anime_season'        => $season,
 				'anime_season_year'   => $year,
 				'anime_title_native'  => (string) get_post_meta( $id, 'anime_title_native', true ),
 				'anime_title_romaji'  => (string) get_post_meta( $id, 'anime_title_romaji', true ),
 				'anime_title_english' => (string) get_post_meta( $id, 'anime_title_english', true ),
+				'anime_start_date'    => (string) get_post_meta( $id, 'anime_start_date', true ),
 			] );
 
 			if ( ! $hit || empty( $hit['url'] ) ) {
+				if ( $no_season ) {
+					$stats['no_season']++;
+					continue;
+				}
 				$stats['no_match']++;
 				if ( count( $stats['unmatched'] ) < 20 ) {
 					$stats['unmatched'][] = sprintf(
@@ -304,6 +319,17 @@ class Anime_Sync_YourAnimes_Backfill {
 
 			if ( ! $dry_run ) {
 				update_post_meta( $id, 'anime_youranimes_url', $hit['url'] );
+
+				/*
+				 * 記下命中方式，與匯入流程（class-import-manager.php）寫的是同一個標記。
+				 *
+				 * 回補一次寫入上百筆，萬一日後發現錯配，得能分辨哪些是自動配的。
+				 * 以標題索引配到的全部是 'title_index'，可以一次撈出來檢查或還原：
+				 *   SELECT post_id FROM wp_postmeta
+				 *    WHERE meta_key = '_asp_ya_match' AND meta_value = 'title_index'
+				 * 確認過此欄位只有寫入端，沒有任何地方拿它當判斷條件，加上去不會觸發別的邏輯。
+				 */
+				update_post_meta( $id, '_asp_ya_match', $method );
 				$stats['written']++;
 
 				/*
