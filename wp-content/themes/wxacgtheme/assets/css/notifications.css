@@ -188,6 +188,30 @@
     flex-shrink: 0;
     color: #6bb6ff;
     font-size: 14px;
+    /* 頭像超出 32px 時裁在圓框內，不外溢到隔壁通知 */
+    overflow: hidden;
+}
+/*
+ * 鈴鐺下拉框的頭像尺寸限制。
+ *
+ * notifications.js 在鈴鐺下拉框輸出 <div class="smacg-bell-item-icon"><img></div>，
+ * 但這裡原本只給容器設了 32×32，沒有限制裡面的 img，也沒有 overflow:hidden，
+ * 圖片就用原始尺寸撐出去。頭像來源（wxacg-social 的 notifications-ajax.php）有兩種：
+ *   ・未上傳頭像 → Ultimate Member 預設頭像，正式站那張是 300×300 原圖
+ *   ・自訂頭像   → smacg_avatar_id 的 thumbnail 尺寸
+ * 兩者都遠大於 32px，都會蓋住整個通知框。
+ * 只有「其他使用者觸發」的通知（評分、留言…）才帶頭像；系統通知
+ * （新集數、升級）用的是圖示，所以不是每個人的通知框都會出現。
+ *
+ * 通知頁的 .smacg-notif-item-icon img 早就有同樣的限制（44px），
+ * 這裡比照辦理，只是尺寸跟著鈴鐺的 32px 走。
+ */
+.smacg-bell-item-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
 }
 .smacg-bell-item-body { flex: 1; min-width: 0; }
 .smacg-bell-item-text {
