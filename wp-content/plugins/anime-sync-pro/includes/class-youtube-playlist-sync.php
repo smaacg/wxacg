@@ -412,6 +412,13 @@ class Anime_Sync_YouTube_Playlist_Sync {
             $this->maybe_fill_distributor_and_streaming( $post_id, $channel_name, $playlist_url );
         }
 
+        // 國際多語頻道（註冊表 yt_global）：清單混著片段剪輯，沒有集數的只收整季合輯
+        $is_global_channel = false;
+        if ( $channel_name !== '' && class_exists( 'Anime_Sync_Streaming_Registry' ) ) {
+            $channel_key       = Anime_Sync_Streaming_Registry::match_youtube_channel( $channel_name );
+            $is_global_channel = $channel_key !== null && Anime_Sync_Streaming_Registry::is_yt_global( $channel_key );
+        }
+
         $current_raw = (string) get_post_meta( $post_id, 'anime_online_watch', true );
         $lines       = ( $current_raw !== '' ) ? preg_split( '/\r\n|\r|\n/', $current_raw ) : [];
 
@@ -452,6 +459,13 @@ class Anime_Sync_YouTube_Playlist_Sync {
             if ( $range !== null ) {
                 [ $lo, $hi ] = $range;
                 $label = ( $lo === $hi ) ? sprintf( '第%d話', $lo ) : sprintf( '第%d-%d話', $lo, $hi );
+            } elseif ( $is_global_channel ) {
+                $label = $this->global_channel_special_label( $v['title'] );
+                if ( $label === null ) {
+                    // 國際頻道的片段剪輯（名場面、搞笑片段）不是正片，略過
+                    $result['skipped']++;
+                    continue;
+                }
             } else {
                 $label = $this->guess_special_label( $v['title'] );
             }
@@ -573,6 +587,10 @@ class Anime_Sync_YouTube_Playlist_Sync {
         if ( preg_match( '/\bEP(?:isode)?\.?\s*0*(\d{1,4})\b/i', $t, $m ) ) {
             return (int) $m[1];
         }
+        // 國際頻道的「S1:E1」「S01E01」寫法（例：TASOKARE HOTEL S1:E1 • Twilight Girl）
+        if ( preg_match( '/\bS\d{1,2}\s*[:：]?\s*E0*(\d{1,4})\b/iu', $t, $m ) ) {
+            return (int) $m[1];
+        }
         return null;
     }
 
@@ -642,6 +660,27 @@ class Anime_Sync_YouTube_Playlist_Sync {
         }
 
         return $title; // 認不出 → 保留原標題
+    }
+
+    /**
+     * 國際多語頻道（註冊表 yt_global，例如 It's Anime）沒有集數的影片怎麼處理。
+     *
+     * 這類頻道的播放清單除了正片，還混著大量片段剪輯（名場面、搞笑片段），
+     * 標題是英文、也不含 PV／預告等黑名單字，交給 guess_special_label() 會以原標題
+     * 照單全收（2026-09-14 #53588 一次帶進 15 支）。所以只認整季合輯與 OVA／OAD，
+     * 其餘回 null 讓呼叫端略過。
+     */
+    private function global_channel_special_label( string $title ): ?string {
+        if ( preg_match( '/\bseason\s*\d+\s*complete\b|\(\s*\d+\s*episodes?\s*\)/i', $title ) ) {
+            return '馬拉松'; // 例：Season 1 Complete (12 Episodes)
+        }
+        if ( preg_match( '/\bOAD\b/i', $title ) ) {
+            return 'OAD';
+        }
+        if ( preg_match( '/\bOVA\b/i', $title ) ) {
+            return 'OVA';
+        }
+        return null;
     }
 
     private function parse_existing_episodes( string $raw ): array {

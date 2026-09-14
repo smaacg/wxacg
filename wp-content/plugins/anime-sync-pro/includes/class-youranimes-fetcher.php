@@ -778,9 +778,22 @@ class Anime_Sync_YourAnimes_Fetcher {
         $this->maybe_fill_distributor( $post_id, $checked );
 
         // ── 自動提取 YouTube 清單網址並立即觸發同步 ──
+        //
+        // ★ 國際多語頻道（註冊表 yt_global，例如 It's Anime）排最後：
+        //   YA 可能同時列出台灣代理商（木棉花、羚邦）與國際頻道。國際頻道標題是英文、
+        //   清單還混著片段剪輯，若它剛好先出現在頁面上，就會搶走中文播放清單。
+        //   順序：主要平台的台灣頻道 → 中文配音的台灣頻道 → 國際頻道。
         $yt_playlist_url = '';
+        $yt_global_url   = '';
         foreach ( $streams as $acf_key => $url ) {
             if ( is_string( $url ) && ( strpos( $url, 'youtube.com' ) !== false || strpos( $url, 'youtu.be' ) !== false ) && strpos( $url, 'list=' ) !== false ) {
+                if ( class_exists( 'Anime_Sync_Streaming_Registry' )
+                    && Anime_Sync_Streaming_Registry::is_yt_global( (string) $acf_key ) ) {
+                    if ( $yt_global_url === '' ) {
+                        $yt_global_url = $url;
+                    }
+                    continue;
+                }
                 $yt_playlist_url = $url;
                 break;
             }
@@ -793,9 +806,18 @@ class Anime_Sync_YourAnimes_Fetcher {
                 }
             }
         }
+        $yt_is_global = false;
+        if ( empty( $yt_playlist_url ) && $yt_global_url !== '' ) {
+            $yt_playlist_url = $yt_global_url;
+            $yt_is_global    = true;
+        }
 
         if ( ! empty( $yt_playlist_url ) ) {
             $current_yt_url = get_post_meta( $post_id, 'anime_yt_playlist_url', true );
+            // 國際頻道只補空白：已經有播放清單（可能是手動填的台灣頻道）就沿用，不覆蓋
+            if ( $yt_is_global && ! empty( $current_yt_url ) ) {
+                $yt_playlist_url = $current_yt_url;
+            }
             if ( $current_yt_url !== $yt_playlist_url ) {
                 if ( function_exists( 'update_field' ) ) {
                     update_field( 'field_anime_yt_playlist_url', $yt_playlist_url, $post_id );

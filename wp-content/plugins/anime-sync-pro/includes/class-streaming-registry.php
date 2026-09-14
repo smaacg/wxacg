@@ -278,6 +278,9 @@ class Anime_Sync_Streaming_Registry {
             // YA 圖示 alt 是「It's Anime」；YouTube API 回的頻道名是「It's Anime powered by REMOW」。
             'match'  => [],
             'yt_keywords' => ["It's Anime", 'Its Anime', 'REMOW'],
+            // 國際多語頻道：標題是英文、播放清單混著片段剪輯。
+            // fetcher 只在沒有台灣頻道時才用它的播放清單；YouTube 同步只收有集數的正片與整季合輯。
+            'yt_global' => true,
             'global' => false,
         ],
         [
@@ -439,6 +442,26 @@ class Anime_Sync_Streaming_Registry {
     public static function get( string $key ): ?array {
         foreach ( self::$PLATFORMS as $p ) {
             if ( $p['key'] === $key ) return $p;
+        }
+        return null;
+    }
+
+    /** 是否為國際多語 YouTube 頻道（平台設定 yt_global）：播放清單優先序最低、只收正片 */
+    public static function is_yt_global( string $key ): bool {
+        $p = self::get( $key );
+        return ! empty( $p['yt_global'] );
+    }
+
+    /**
+     * 用 YouTube 頻道名稱比對平台 key（依 yt_keywords，順序同註冊表）；找不到回 null。
+     */
+    public static function match_youtube_channel( string $channel_name ): ?string {
+        foreach ( self::get_youtube_keyword_map() as $key => $keywords ) {
+            foreach ( $keywords as $kw ) {
+                if ( mb_stripos( $channel_name, $kw ) !== false ) {
+                    return $key;
+                }
+            }
         }
         return null;
     }
