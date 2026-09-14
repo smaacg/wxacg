@@ -269,6 +269,18 @@ class Anime_Sync_Streaming_Registry {
             'global' => false,
         ],
         [
+            'key'    => 'its_anime',
+            'billing' => 'free',
+            'label'  => "It's Anime",
+            'color'  => '#1A1A1A',
+            'icon'   => 'its_anime_icon.webp',
+            // 只在 YouTube 上播，網址 host 分辨不出頻道，所以 match 留空、只靠 yt_keywords。
+            // YA 圖示 alt 是「It's Anime」；YouTube API 回的頻道名是「It's Anime powered by REMOW」。
+            'match'  => [],
+            'yt_keywords' => ["It's Anime", 'Its Anime', 'REMOW'],
+            'global' => false,
+        ],
+        [
             'key'    => 'renta',
             'billing' => 'rent',
             'label'  => 'renta! 亂搭',
@@ -344,6 +356,7 @@ class Anime_Sync_Streaming_Registry {
         'mighty'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
         'ani_mi'       => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
         'tropicsanime' => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'its_anime'    => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/channel/UCsj_CYajUSQ2ca8bYCMan9g' ],
         'garageplay'   => [ 'from' => 0,   'note' => '免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
         'anipass'      => [ 'from' => 0,   'note' => '免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
         'ptsplus'      => [ 'from' => 0,   'note' => '公共電視，免費', 'short' => '', 'url' => 'https://www.pts.org.tw/' ],

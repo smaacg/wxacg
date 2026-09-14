@@ -387,6 +387,7 @@ $tw_platform_labels = [
     'netflix'      => 'Netflix',     'disney'    => 'Disney+',     'litv'      => 'LiTV',
     'tropicsanime' => '回歸線娛樂',  'iqiyi'     => '愛奇藝',      'renta'     => 'renta!',
     'anipass'      => 'AniPASS',     'amazon'    => 'Prime Video', 'crunchyroll' => 'Crunchyroll',
+    'its_anime'    => "It's Anime",
 ];
 
 $source_labels = [

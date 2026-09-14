@@ -1278,6 +1278,7 @@ body:has(.bgm-arc-main) .entry-content > * {
 .bgm-plat-anipass      { background: rgba(217,70,239,.18);  color: #e879f9; border-color: rgba(217,70,239,.35); }
 .bgm-plat-amazon       { background: rgba(253,186,116,.18); color: #fdba74; border-color: rgba(253,186,116,.35); }
 .bgm-plat-crunchyroll  { background: rgba(251,146,60,.18);  color: #fdba74; border-color: rgba(251,146,60,.35); }
+.bgm-plat-its_anime    { background: rgba(229,231,235,.14); color: #e5e7eb; border-color: rgba(229,231,235,.30); }
 
 /* ============================================================
  * 10. List 視圖（橫向卡片）

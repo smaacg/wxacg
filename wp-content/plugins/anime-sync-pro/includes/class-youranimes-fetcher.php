@@ -626,6 +626,9 @@ class Anime_Sync_YourAnimes_Fetcher {
                     if ( empty( $alt ) ) {
                         continue;
                     }
+                    // YA 的 alt 會把撇號轉成 HTML 實體（It's Anime → It&#x27;s Anime），
+                    // 不先還原的話，含撇號的頻道關鍵字永遠比對不到。
+                    $alt = html_entity_decode( $alt, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 
                     foreach ( $youtube_map as $acf_key => $keywords ) {
                         foreach ( $keywords as $kw ) {
