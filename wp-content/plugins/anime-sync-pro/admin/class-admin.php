@@ -172,6 +172,63 @@ class Anime_Sync_Admin {
         return $result;
     }
 
+    /**
+     * 匯入後當場同步台灣串流（YourAnimes）；回傳中文平台名給匯入頁顯示，沒有 YA 網址回 null。
+     *
+     * 呼叫端：MAL 單筆匯入、AniList 單筆匯入、AniList 系列匯入——都是一次一部、
+     * 使用者在畫面前等的 AJAX。刻意不放進 import_and_enrich()：批次重新抓取也走
+     * 那裡，而且在同一個請求裡連跑多部，每部多幾秒會把整個請求拖到逾時。
+     *
+     * 台灣串流也當場抓，不等背景排程。
+     *
+     * ★ 為什麼要改成同步：
+     *   匯入時寫入 anime_youranimes_url 會觸發
+     *   Anime_Sync_YourAnimes_Fetcher::maybe_auto_sync_on_meta_change()，
+     *   排一個 10 秒後的單次事件去抓串流。那條路徑本身沒問題，但要靠
+     *   wp-cron 觸發——使用者匯入完立刻去看，看到的是「有 YourAnimes
+     *   網址、串流卻全空」，會以為匯入壞了。
+     *
+     *   註：抓到空的不一定是錯。未開播的作品 YourAnimes 本來就還沒列
+     *   平台（2026-09-11 用 8 篇站上已有串流的已播作品驗證，抓取結果
+     *   與站上現有資料 8/8 完全一致，可見抓取本身是準的）。所以下面
+     *   空陣列與有資料要分開顯示，讓使用者能分辨「還沒上架」和「壞了」。
+     *
+     *   這裡是「使用者站在畫面前等」的路徑，一次到位比較合理；季度自動
+     *   匯入那條仍然走背景排程，不會因為這個改動而變慢。
+     *
+     * ⚠ 取消排程必須在 run_single_sync() 之前。
+     *   run_single_sync() 抓取失敗時會自己排 5 分鐘後的重試，但前提是
+     *   `! wp_next_scheduled( AUTO_SYNC_HOOK, [ $post_id ] )`。若先同步再
+     *   取消，那個 +10 秒的事件會讓它判定「已經排過了」而不排重試，接著
+     *   被我取消掉——重試次數加了，重試卻不存在。先取消就沒這問題：
+     *   成功則沒有任何殘留事件，失敗則由它自己排重試。
+     */
+    private function sync_tw_streaming_now( int $post_id ): ?array {
+        if ( ! class_exists( 'Anime_Sync_YourAnimes_Fetcher' )
+            || trim( (string) get_post_meta( $post_id, 'anime_youranimes_url', true ) ) === '' ) {
+            return null;
+        }
+
+        $hook    = Anime_Sync_YourAnimes_Fetcher::AUTO_SYNC_HOOK;
+        $pending = wp_next_scheduled( $hook, [ $post_id ] );
+        if ( $pending ) {
+            wp_unschedule_event( $pending, $hook, [ $post_id ] );
+        }
+
+        ( new Anime_Sync_YourAnimes_Fetcher() )->run_single_sync( $post_id );
+
+        // 回傳中文平台名給前端顯示，使用者才知道「有沒有抓到、抓到哪些」
+        $tw     = get_post_meta( $post_id, 'anime_tw_streaming', true );
+        $labels = [];
+        foreach ( ( is_array( $tw ) ? $tw : [] ) as $key ) {
+            $p        = class_exists( 'Anime_Sync_Streaming_Registry' )
+                ? Anime_Sync_Streaming_Registry::get( (string) $key )
+                : null;
+            $labels[] = $p['label'] ?? (string) $key;
+        }
+        return $labels;
+    }
+
     // =========================================================================
     // Admin Menu
     // =========================================================================
@@ -563,6 +620,14 @@ class Anime_Sync_Admin {
             wp_send_json_error( [ 'message' => $result['message'] ?? '匯入失敗' ] );
         }
 
+        // 台灣串流當場同步（與 MAL 匯入一致，原因見 sync_tw_streaming_now()）；已存在而跳過的不重抓
+        if ( ! empty( $result['post_id'] ) && empty( $result['skip_enrich'] ) ) {
+            $tw_labels = $this->sync_tw_streaming_now( (int) $result['post_id'] );
+            if ( $tw_labels !== null ) {
+                $result['tw_streaming'] = $tw_labels;
+            }
+        }
+
         wp_send_json_success( $result );
     }
 
@@ -633,52 +698,10 @@ class Anime_Sync_Admin {
                 $result['enrich_error'] = $enrich->get_error_message();
             }
 
-            /*
-             * 台灣串流也當場抓，不等背景排程。
-             *
-             * ★ 為什麼要改成同步：
-             *   匯入時寫入 anime_youranimes_url 會觸發
-             *   Anime_Sync_YourAnimes_Fetcher::maybe_auto_sync_on_meta_change()，
-             *   排一個 10 秒後的單次事件去抓串流。那條路徑本身沒問題，但要靠
-             *   wp-cron 觸發——使用者匯入完立刻去看，看到的是「有 YourAnimes
-             *   網址、串流卻全空」，會以為匯入壞了。
-             *
-             *   註：抓到空的不一定是錯。未開播的作品 YourAnimes 本來就還沒列
-             *   平台（2026-09-11 用 8 篇站上已有串流的已播作品驗證，抓取結果
-             *   與站上現有資料 8/8 完全一致，可見抓取本身是準的）。所以下面
-             *   空陣列與有資料要分開顯示，讓使用者能分辨「還沒上架」和「壞了」。
-             *
-             *   這裡是「使用者站在畫面前等」的路徑，一次到位比較合理；季度自動
-             *   匯入那條仍然走背景排程，不會因為這個改動而變慢。
-             *
-             * ⚠ 取消排程必須在 run_single_sync() 之前。
-             *   run_single_sync() 抓取失敗時會自己排 5 分鐘後的重試，但前提是
-             *   `! wp_next_scheduled( AUTO_SYNC_HOOK, [ $post_id ] )`。若先同步再
-             *   取消，那個 +10 秒的事件會讓它判定「已經排過了」而不排重試，接著
-             *   被我取消掉——重試次數加了，重試卻不存在。先取消就沒這問題：
-             *   成功則沒有任何殘留事件，失敗則由它自己排重試。
-             */
-            if ( class_exists( 'Anime_Sync_YourAnimes_Fetcher' )
-                && trim( (string) get_post_meta( $post_id, 'anime_youranimes_url', true ) ) !== '' ) {
-
-                $hook    = Anime_Sync_YourAnimes_Fetcher::AUTO_SYNC_HOOK;
-                $pending = wp_next_scheduled( $hook, [ $post_id ] );
-                if ( $pending ) {
-                    wp_unschedule_event( $pending, $hook, [ $post_id ] );
-                }
-
-                ( new Anime_Sync_YourAnimes_Fetcher() )->run_single_sync( $post_id );
-
-                // 回傳中文平台名給前端顯示，使用者才知道「有沒有抓到、抓到哪些」
-                $tw     = get_post_meta( $post_id, 'anime_tw_streaming', true );
-                $labels = [];
-                foreach ( ( is_array( $tw ) ? $tw : [] ) as $key ) {
-                    $p        = class_exists( 'Anime_Sync_Streaming_Registry' )
-                        ? Anime_Sync_Streaming_Registry::get( (string) $key )
-                        : null;
-                    $labels[] = $p['label'] ?? (string) $key;
-                }
-                $result['tw_streaming'] = $labels;
+            // 台灣串流也當場抓，不等背景排程（原因見 sync_tw_streaming_now()）
+            $tw_labels = $this->sync_tw_streaming_now( $post_id );
+            if ( $tw_labels !== null ) {
+                $result['tw_streaming'] = $tw_labels;
             }
         }
 
@@ -1555,6 +1578,14 @@ class Anime_Sync_Admin {
         }
 
         if ( empty( $result['success'] ) ) wp_send_json_error( [ 'message' => $result['message'] ?? '系列匯入失敗' ] );
+
+        // 台灣串流當場同步（與 MAL 匯入一致，原因見 sync_tw_streaming_now()）；已存在而跳過的不重抓
+        if ( ! empty( $result['post_id'] ) && empty( $result['skip_enrich'] ) ) {
+            $tw_labels = $this->sync_tw_streaming_now( (int) $result['post_id'] );
+            if ( $tw_labels !== null ) {
+                $result['tw_streaming'] = $tw_labels;
+            }
+        }
 
         wp_send_json_success( $result );
     }

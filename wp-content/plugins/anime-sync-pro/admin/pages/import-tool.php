@@ -1534,7 +1534,7 @@ function asc_progress_block( $prefix ) {
                             appendLog(prefix + '-import-log', '　　🔗 已歸入系列', 'log-info');
                         }
 
-                        // 台灣串流當場同步的結果（目前只有 MAL 路徑會回傳這個欄位）
+                        // 台灣串流當場同步的結果（MAL 單筆、AniList 單筆與系列匯入都會回傳這個欄位）
                         var tw = res.data && res.data.tw_streaming;
                         if (tw) {
                             appendLog(

@@ -180,6 +180,14 @@
                                 .text( d.errors.map( String ).join( '；' ) )
                         );
                     }
+                    // 台灣串流當場同步的結果（沒有 YA 網址時後端不回傳這個欄位）
+                    if ( d.tw_streaming ) {
+                        $result.append( $( '<br>' ) ).append(
+                            $( '<span>' ).text( d.tw_streaming.length
+                                ? '📺 台灣串流：' + d.tw_streaming.map( String ).join( '、' )
+                                : '📺 台灣串流：YourAnimes 頁面尚無平台資料' )
+                        );
+                    }
                 } else {
                     $result.addClass( 'error' ).text(
                         '✗ ' + String( resp.data || t( 'import_failed', '匯入失敗。' ) )
@@ -355,6 +363,15 @@
                                 '✓ ' + String( d.title || 'AniList #' + anilistId ) + String( d.message || '' ) + extra,
                                 d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
                             );
+                            // 台灣串流當場同步的結果（沒有 YA 網址時後端不回傳這個欄位）
+                            if ( d.tw_streaming ) {
+                                logLine( $log,
+                                    d.tw_streaming.length
+                                        ? '　　📺 台灣串流：' + d.tw_streaming.map( String ).join( '、' )
+                                        : '　　📺 台灣串流：YourAnimes 頁面尚無平台資料',
+                                    d.tw_streaming.length ? 'info' : 'skip'
+                                );
+                            }
                         } else {
                             logLine( $log, '✗ AniList #' + anilistId + '：' + String( ( resp.data && resp.data.message ) || t( 'unknown_error', '未知錯誤' ) ), 'error' );
                         }
