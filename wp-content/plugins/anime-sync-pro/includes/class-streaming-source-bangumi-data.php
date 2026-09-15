@@ -8,7 +8,7 @@
  * 標題精確比對的召回率天花板約 74%（譯名差一個字就配不上）。
  * https://github.com/bangumi-data/bangumi-data 是社群維護的開源資料集，每部動畫列出
  * 各站點的 ID，站點包含台灣這幾家：gamer（動畫瘋）、muse_tw、ani_one、ani_one_asia、
- * tropics（回歸線）、mighty（曼迪）、bilibili_tw、netflix。每筆同時帶 bangumi 與 aniList ID，
+ * tropics（回歸線）、mighty（曼迪）、bilibili_tw（netflix 是全球站點、不標地區，不能用）。每筆同時帶 bangumi 與 aniList ID，
  * 站上 2,032 部已發布作品幾乎全有 anime_bangumi_id 與 anime_anilist_id ——
  * **用 ID 對應，零譯名問題**。
  *
@@ -21,7 +21,7 @@
  * 索引裡的鍵除了正規化後的標題，多放 `bgm:{id}` 與 `al:{id}`；基底 match_titles() 也帶上
  * 站上的兩個 ID；lookup() 先用 ID 鍵、有命中就以 ID 為準。寫入、來源標記、下架偵測、
  * 後台頁全部沿用。巴哈與 YouTube 頻道在既有收集之後 merge 進來（互補）；
- * Netflix 與 Bilibili 是只吃 bangumi-data 的來源（本檔下方兩個小類別）。
+ * Bilibili 台灣是只吃 bangumi-data 的來源（本檔下方的小類別）。
  *
  * 資料集一週更新一次，這裡快取 6 天；所有來源共用同一份快取，一週只下載一次。
  *
@@ -39,8 +39,11 @@ class Anime_Sync_Bangumi_Data_Feed {
 	const CACHE_TTL = 6 * DAY_IN_SECONDS;
 	const CIRCUIT   = 'asp_bgmdata_circuit';
 
-	/** 只保留這些站點，快取檔才小（不到 1MB）。 */
-	const SITES = [ 'gamer', 'muse_tw', 'ani_one', 'ani_one_asia', 'tropics', 'mighty', 'bilibili_tw', 'netflix' ];
+	/**
+	 * 只保留這些站點，快取檔才小（不到 1MB）。全部是 siteMeta 標了 TW 的站點；
+	 * netflix 沒有 regions（全球）所以不在這裡，見檔尾說明。
+	 */
+	const SITES = [ 'gamer', 'muse_tw', 'ani_one', 'ani_one_asia', 'tropics', 'mighty', 'bilibili_tw' ];
 
 	/** @var array<string,array<string,string>>|null  'bgm:123' / 'al:456' → [ site => id ] */
 	private static ?array $map = null;
@@ -231,12 +234,12 @@ abstract class Anime_Sync_Streaming_Source_Bangumi_Only extends Anime_Sync_Strea
 	}
 }
 
-/** Netflix：bangumi-data 的 netflix 站點，網址 https://www.netflix.com/title/{id}。 */
-class Anime_Sync_Streaming_Source_Netflix extends Anime_Sync_Streaming_Source_Bangumi_Only {
-	public function key(): string { return 'netflix'; }
-	protected function bangumi_sites(): array { return [ 'netflix' ]; }
-	protected function url_for( string $site, string $id ): string { return 'https://www.netflix.com/title/' . rawurlencode( $id ); }
-}
+/*
+ * ⚠ 這裡曾有 Netflix 來源，2026-09-15 當天撤掉：bangumi-data 的 netflix 站點 siteMeta **沒有 regions**
+ * （全球），其他台灣站點都標了 TW／HK-TW-MO。用它寫了 81 部，拿 TMDB 台灣資料反查：確認台灣有 20、
+ * 台灣沒有 28（在台灣是 CatchPlay／LINE TV）。已靠來源標記整批撤回。Netflix 維持 AniList 匯入＋YA。
+ * 要再接任何 bangumi-data 站點前，先看 siteMeta[站點]['regions'] 有沒有 TW。
+ */
 
 /** Bilibili 台灣區：bangumi-data 的 bilibili_tw，網址 https://www.bilibili.com/bangumi/media/md{id}/。 */
 class Anime_Sync_Streaming_Source_Bilibili extends Anime_Sync_Streaming_Source_Bangumi_Only {

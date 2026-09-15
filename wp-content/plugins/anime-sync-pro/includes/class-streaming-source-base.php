@@ -74,7 +74,6 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		'ani_mi'       => 'Anime_Sync_Streaming_Source_Ani_Mi',
 		'its_anime'    => 'Anime_Sync_Streaming_Source_Its_Anime',
 		// 只靠 bangumi-data ID 對應的來源（沒有自己的 sitemap／API；class-streaming-source-bangumi-data.php）
-		'netflix'      => 'Anime_Sync_Streaming_Source_Netflix',
 		'bilibili'     => 'Anime_Sync_Streaming_Source_Bilibili',
 	];
 

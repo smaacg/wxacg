@@ -101,7 +101,7 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 				<?php echo esc_html( wp_date( 'Y-m-d H:i', $bd['updated'] ) ); ?> 更新，
 				<?php
 				$parts = [];
-				foreach ( [ 'gamer' => '動畫瘋', 'muse_tw' => '木棉花', 'ani_one' => 'Ani-One', 'ani_one_asia' => 'Ani-One Asia', 'netflix' => 'Netflix', 'bilibili_tw' => 'Bilibili', 'tropics' => '回歸線', 'mighty' => '曼迪' ] as $site => $name ) {
+				foreach ( [ 'gamer' => '動畫瘋', 'muse_tw' => '木棉花', 'ani_one' => 'Ani-One', 'ani_one_asia' => 'Ani-One Asia', 'bilibili_tw' => 'Bilibili', 'tropics' => '回歸線', 'mighty' => '曼迪' ] as $site => $name ) {
 					if ( ! empty( $bd['sites'][ $site ] ) ) {
 						$parts[] = $name . ' ' . number_format_i18n( (int) $bd['sites'][ $site ] );
 					}
@@ -236,7 +236,7 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 	<h2 class="ass-h2">沒接直接來源的平台</h2>
 	<table class="wp-list-table widefat fixed ass-table ass-table--compact">
 		<tbody>
-			<tr><th>Crunchyroll、Disney+、Apple TV+、Prime、愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入，本來就不經 YourAnimes。（Netflix、Bilibili 已改由上表的 bangumi-data ID 對應接上）</td></tr>
+			<tr><th>Netflix、Crunchyroll、Disney+、Apple TV+、Prime、愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入，本來就不經 YourAnimes；Netflix 另有 YourAnimes 補。bangumi-data 的 netflix 站點不標地區（全球），不能拿來當台灣依據，2026-09-15 試過已撤回。（Bilibili 台灣已改由上表的 bangumi-data ID 對應接上）</td></tr>
 			<tr><th>Hami Video</th><td>robots.txt 對所有 UA 全站 Disallow，尊重對方，不抓。靠 YourAnimes。</td></tr>
 			<tr><th>CatchPlay+</th><td>作品頁是純前端渲染的空殼、無公開資料介面。靠 YourAnimes。</td></tr>
 			<tr><th>renta!、車庫娛樂、公視、AniPASS</th><td>收錄數少；車庫回 403、公視 robots 全站 Disallow。靠 YourAnimes。</td></tr>
