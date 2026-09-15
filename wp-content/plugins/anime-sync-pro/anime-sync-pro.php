@@ -151,6 +151,13 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-dub-platform-link.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
 // 全站標題索引：季度新番表配不到的劇場版／OVA 由它補（見該檔檔頭的量測）
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-title-index.php';
+/*
+ * 串流平台直接抓取（走 sitemap，不依賴 YourAnimes）。
+ * 基底檔內含 WP-CLI 指令註冊，所以要在啟動時就 require，不能等 autoload。
+ * 新增平台：加一個子類別檔 + 在基底 SOURCES 加一行 + 這裡加一行 require。
+ */
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
 
 /* ============================================================
  * 1.2. AI 編輯短評批次產生工具
@@ -1102,6 +1109,15 @@ register_activation_hook( __FILE__, function (): void {
 		Anime_Sync_Upstream_Diff_Scan::schedule();
 	}
 
+	if ( class_exists( 'Anime_Sync_Streaming_Source_Base' ) ) {
+		foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $asp_src_key ) {
+			$asp_src = Anime_Sync_Streaming_Source_Base::make( $asp_src_key );
+			if ( $asp_src ) {
+				$asp_src->schedule();
+			}
+		}
+	}
+
 	update_option( 'anime_sync_flush_rewrite', 1 );
 } );
 
@@ -1140,6 +1156,15 @@ register_deactivation_hook( __FILE__, function (): void {
 
 	if ( class_exists( 'Anime_Sync_Upstream_Diff_Scan' ) ) {
 		Anime_Sync_Upstream_Diff_Scan::unschedule();
+	}
+
+	if ( class_exists( 'Anime_Sync_Streaming_Source_Base' ) ) {
+		foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $asp_src_key ) {
+			$asp_src = Anime_Sync_Streaming_Source_Base::make( $asp_src_key );
+			if ( $asp_src ) {
+				$asp_src->unschedule();
+			}
+		}
 	}
 
 	if ( class_exists( 'Anime_Sync_Installer' ) ) {
@@ -1445,6 +1470,22 @@ add_action( 'plugins_loaded', function (): void {
 		if ( class_exists( 'Anime_Sync_YourAnimes_Title_Index' ) ) {
 			new Anime_Sync_YourAnimes_Title_Index();
 			Anime_Sync_YourAnimes_Title_Index::schedule();
+		}
+
+		/*
+		 * 串流平台直接抓取（每週一次，走 sitemap）。
+		 * ★ 這裡才是真正生效的註冊點：本站靠 git push 部署，activation hook
+		 *   不會觸發，上面 activation 那份只是保持一致。
+		 * 建構子會掛上 cron hook，schedule() 補排程；排程預設只建索引不寫入
+		 * （見該檔檔頭「寫入紀律」）。
+		 */
+		if ( class_exists( 'Anime_Sync_Streaming_Source_Base' ) ) {
+			foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $asp_src_key ) {
+				$asp_src = Anime_Sync_Streaming_Source_Base::make( $asp_src_key );
+				if ( $asp_src ) {
+					$asp_src->schedule();
+				}
+			}
 		}
 
 		// 未播出作品的 Bangumi 班底輪掃（每小時一批，約一天輪完一圈）
