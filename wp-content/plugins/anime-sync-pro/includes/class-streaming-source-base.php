@@ -161,40 +161,94 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	/** 記憶體中的索引，避免同一次請求重複讀檔。 */
 	private ?array $index = null;
 
-	/** 後台「立即執行」按鈕排的一次性事件；參數 ( string $key, bool $write )。所有來源共用一個 hook。 */
-	const ONCE_HOOK = 'anime_sync_streaming_source_run_once';
+	/**
+	 * 後台「立即執行」用的 admin-ajax 端點（nopriv，靠一次性 token）。
+	 *
+	 * 為什麼不用 wp-cron 排一次性事件：這台主機 DISABLE_WP_CRON、由外部每 ~10 分鐘踢一次，
+	 * 單事件排進去還要跟匯入產生的幾十個背景事件排隊；spawn_cron() 的 0.01 秒非阻塞回圈請求
+	 * 在 HTTPS 握手完成前就被切斷，根本沒送到。2026-09-15 實測按下去半小時都沒跑。
+	 * 改成自己對 admin-ajax 發一個**阻塞**回圈請求：對方驗過 token 後先把回應結束
+	 * （fastcgi_finish_request；沒有就靠 ignore_user_abort），再跑跟排程一模一樣的 run_locked()。
+	 */
+	const ASYNC_ACTION = 'anime_sync_streaming_source_async';
 
 	public function __construct() {
 		add_action( $this->hook(), [ $this, 'run_scheduled' ] );
-		if ( ! has_action( self::ONCE_HOOK ) ) {
-			add_action( self::ONCE_HOOK, [ self::class, 'run_once' ], 10, 2 );
+		if ( ! has_action( 'wp_ajax_nopriv_' . self::ASYNC_ACTION ) ) {
+			add_action( 'wp_ajax_nopriv_' . self::ASYNC_ACTION, [ self::class, 'handle_async' ] );
+			add_action( 'wp_ajax_' . self::ASYNC_ACTION, [ self::class, 'handle_async' ] );
 		}
 	}
 
 	/**
-	 * 後台按鈕的入口：由 wp_schedule_single_event() 排入、wp-cron 背景執行。
-	 * 走跟排程完全相同的鎖與流程，只差日誌標籤是 [後台]。
+	 * 後台按鈕：發回圈請求讓另一個 PHP 程序去跑。該來源正在執行（鎖住）時回 false。
+	 * 回圈請求最多等 5 秒——正常情況對方幾百毫秒就回「accepted」；等不到也沒關係，
+	 * 對方 ignore_user_abort 會繼續跑，這裡不吞錯只是不阻塞後台。
 	 */
-	public static function run_once( string $key, bool $write ): void {
-		$src = self::make( $key );
-		if ( $src ) {
-			$src->run_locked( '[後台]', $write );
-		}
-	}
+	public static function dispatch_async( string $key, bool $write ): bool {
 
-	/** 後台按鈕：排一個 5 秒後的一次性事件並踢 wp-cron。已排入未執行時回 false。 */
-	public static function queue_once( string $key, bool $write ): bool {
-		if ( wp_next_scheduled( self::ONCE_HOOK, [ $key, $write ] ) ) {
+		$src = self::make( $key );
+		if ( ! $src || $src->is_running() ) {
 			return false;
 		}
-		wp_schedule_single_event( time() + 5, self::ONCE_HOOK, [ $key, $write ] );
-		spawn_cron();
+
+		$token = wp_generate_password( 32, false );
+		set_transient( 'asp_src_async_' . $token, [ 'key' => $key, 'write' => $write ], 10 * MINUTE_IN_SECONDS );
+
+		$res = wp_remote_post( admin_url( 'admin-ajax.php' ), [
+			'timeout'   => 5,
+			'blocking'  => true,
+			'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+			'body'      => [ 'action' => self::ASYNC_ACTION, 'token' => $token ],
+		] );
+
+		if ( is_wp_error( $res ) && class_exists( 'Anime_Sync_Error_Logger' ) ) {
+			// 逾時是預期內（對方沒有 fastcgi_finish_request 時會等滿 5 秒），其他錯誤要留痕
+			if ( strpos( $res->get_error_message(), 'timed out' ) === false ) {
+				Anime_Sync_Error_Logger::warning( '串流來源[' . $key . ']：後台立即執行的回圈請求失敗：' . $res->get_error_message() );
+			}
+		}
+
 		return true;
 	}
 
-	/** 這個來源是否有後台按鈕排入、尚未執行的事件（dry-run 或寫入任一）。 */
-	public function has_queued_once(): bool {
-		return (bool) ( wp_next_scheduled( self::ONCE_HOOK, [ $this->key(), true ] ) || wp_next_scheduled( self::ONCE_HOOK, [ $this->key(), false ] ) );
+	/** admin-ajax 端點：驗 token → 先結束回應 → 跑 run_locked('[後台]')。 */
+	public static function handle_async(): void {
+
+		$token = preg_replace( '/[^A-Za-z0-9]/', '', (string) ( $_POST['token'] ?? '' ) );
+		$job   = $token !== '' ? get_transient( 'asp_src_async_' . $token ) : false;
+
+		if ( ! is_array( $job ) || empty( $job['key'] ) ) {
+			wp_die( 'bad token', '', [ 'response' => 403 ] );
+		}
+		delete_transient( 'asp_src_async_' . $token );   // 一次性，重放無效
+
+		$src = self::make( (string) $job['key'] );
+		if ( ! $src ) {
+			wp_die( 'bad key', '', [ 'response' => 400 ] );
+		}
+
+		ignore_user_abort( true );
+		set_time_limit( 0 );
+
+		// 先把回應送出去並結束連線，工作留在這個程序繼續跑
+		echo 'accepted';
+		if ( function_exists( 'fastcgi_finish_request' ) ) {
+			fastcgi_finish_request();
+		} else {
+			while ( ob_get_level() > 0 ) {
+				ob_end_flush();
+			}
+			flush();
+		}
+
+		$src->run_locked( '[後台]', ! empty( $job['write'] ) );
+		wp_die();
+	}
+
+	/** 這個來源現在是否正在執行（排程或後台按鈕都會上同一把鎖）。 */
+	public function is_running(): bool {
+		return (bool) get_transient( $this->lock_key() );
 	}
 
 	// =====================================================================
@@ -862,10 +916,24 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 		delete_transient( Anime_Sync_Streaming_Routing::COUNT_CACHE_KEY );
 
-		do_action( 'litespeed_purge_url', Anime_Sync_Streaming_Routing::index_url() );
-
+		$urls = [ Anime_Sync_Streaming_Routing::index_url() ];
 		foreach ( self::available_keys() as $key ) {
-			do_action( 'litespeed_purge_url', Anime_Sync_Streaming_Routing::platform_url( $key ) );
+			$urls[] = Anime_Sync_Streaming_Routing::platform_url( $key );
+		}
+
+		/*
+		 * 一定要靜音。`litespeed_purge_url` 這個 action 只接一個參數，每清一個網址就往後台塞一則
+		 * 「清除網址 /streaming/xxx/」通知，13 個來源 × 每次寫入 = 後台被 14 則綠色通知淹掉
+		 * （2026-09-15 使用者反映）。LiteSpeed 的 purge_url() 第三個參數 $quite 就是給這種背景清除用的，
+		 * 直接呼叫類別；LiteSpeed 不在或版本沒有這個方法時退回 action（會有通知，但至少有清）。
+		 */
+		$purge = class_exists( '\LiteSpeed\Purge' ) && method_exists( '\LiteSpeed\Purge', 'cls' ) ? \LiteSpeed\Purge::cls() : null;
+		foreach ( $urls as $url ) {
+			if ( $purge && method_exists( $purge, 'purge_url' ) ) {
+				$purge->purge_url( $url, false, true );
+			} else {
+				do_action( 'litespeed_purge_url', $url );
+			}
 		}
 	}
 

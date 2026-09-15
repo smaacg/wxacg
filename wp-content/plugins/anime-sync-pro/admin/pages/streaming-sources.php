@@ -59,7 +59,7 @@ foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $key ) {
 			"SELECT created_at, message FROM {$log_table} WHERE message LIKE %s ORDER BY id DESC LIMIT 1",
 			'%串流來源[' . $key . ']：[%'
 		), ARRAY_A ),
-		'queued'   => $src->has_queued_once(),
+		'running'  => $src->is_running(),
 		'bundle'   => ( $key === 'bahamut' && class_exists( 'Anime_Sync_Streaming_Source_Bahamut' ) ) ? ( static function (): ?array {
 			$path = Anime_Sync_Streaming_Source_Bahamut::bundle_path();
 			if ( ! is_readable( $path ) ) {
@@ -140,14 +140,14 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 	$asp_run  = sanitize_key( (string) ( $_GET['asp_run'] ?? '' ) );
 	$asp_src  = sanitize_key( (string) ( $_GET['asp_src'] ?? '' ) );
 	$asp_mode = sanitize_key( (string) ( $_GET['asp_mode'] ?? '' ) );
-	if ( $asp_run === 'queued' ) : ?>
+	if ( $asp_run === 'started' ) : ?>
 		<div class="notice notice-success inline"><p>
-			已排入 <code><?php echo esc_html( $asp_src ); ?></code> 的<?php echo $asp_mode === 'write' ? '重建索引並寫入' : '重建索引（dry-run，不寫入）'; ?>，
-			由 wp-cron 在背景執行。大來源（LiTV、MyVideo）約 1～3 分鐘，之後重新整理本頁看「上次執行結果」。
+			已開始 <code><?php echo esc_html( $asp_src ); ?></code> 的<?php echo $asp_mode === 'write' ? '重建索引並寫入' : '重建索引（dry-run，不寫入）'; ?>，
+			在背景執行中。小來源幾秒、大來源（LiTV、MyVideo）約 1～3 分鐘，之後重新整理本頁看「上次執行結果」。
 			<?php if ( $asp_mode !== 'write' && ! $write_on ) : ?>（排程寫入開關關著，寫入按鈕已降為 dry-run）<?php endif; ?>
 		</p></div>
-	<?php elseif ( $asp_run === 'dup' ) : ?>
-		<div class="notice notice-info inline"><p><code><?php echo esc_html( $asp_src ); ?></code> 已有一個排入、尚未執行的事件，不重複排。</p></div>
+	<?php elseif ( $asp_run === 'running' ) : ?>
+		<div class="notice notice-info inline"><p><code><?php echo esc_html( $asp_src ); ?></code> 正在執行中（排程或前一次按鈕），跑完再按。</p></div>
 	<?php elseif ( $asp_run === 'bad' ) : ?>
 		<div class="notice notice-error inline"><p>不認得的來源 key。</p></div>
 	<?php endif; ?>
@@ -225,8 +225,8 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 					<?php endif; ?>
 				</td>
 				<td>
-					<?php if ( $r['queued'] ) : ?>
-						<span class="ass-muted">⏳ 已排入，等 wp-cron 執行</span>
+					<?php if ( $r['running'] ) : ?>
+						<span class="ass-muted">⏳ 執行中，重新整理看結果</span>
 					<?php else : ?>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ass-run">
 							<?php wp_nonce_field( 'anime_sync_streaming_source_run' ); ?>
@@ -319,7 +319,7 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 
 	<p class="ass-foot">
 		巴哈由本機（台灣 IP）每週建索引包隨部署更新，主機被 Cloudflare 人機驗證擋。
-		上表「立即執行」按鈕會排一次性背景事件（等同排程那一輪，日誌標 [後台]）；命令列：<code>wp anime streaming-source --platform=&lt;key&gt; --dry-run</code>（不寫入）、<code>--write</code>（寫入，日誌標 [手動]）、<code>--status</code>。
+		上表「立即執行」按鈕會另起一個背景程序跑等同排程的那一輪（日誌標 [後台]）；命令列：<code>wp anime streaming-source --platform=&lt;key&gt; --dry-run</code>（不寫入）、<code>--write</code>（寫入，日誌標 [手動]）、<code>--status</code>。
 	</p>
 </div>
 

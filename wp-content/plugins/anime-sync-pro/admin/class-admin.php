@@ -308,9 +308,9 @@ class Anime_Sync_Admin {
     public function render_streaming_sources() { $this->safe_include_page( 'streaming-sources.php' ); }
 
     /**
-     * 串流來源頁「立即執行」：不在網頁請求裡直接跑（LiTV 14 萬條目會撞時間與記憶體上限），
-     * 排一個 5 秒後的一次性 cron 事件、踢 wp-cron，回頁面提示「已排入」。
-     * 寫入模式另外受全域寫入開關管——開關關著時按「寫入」等同 dry-run，跟排程一致。
+     * 串流來源頁「立即執行」：不在這個網頁請求裡直接跑（LiTV 14 萬條目會撞時間與記憶體上限），
+     * 交給基底 dispatch_async() 發回圈請求到 admin-ajax 端點背景執行（不用 wp-cron，原因見該方法註解），
+     * 回頁面提示「已開始」。寫入模式另外受全域寫入開關管——開關關著時按「寫入」等同 dry-run，跟排程一致。
      */
     public function handle_streaming_source_run(): void {
         if ( ! current_user_can( 'manage_options' ) ) {
@@ -331,10 +331,10 @@ class Anime_Sync_Admin {
             $write = false;   // 開關關著：降為 dry-run，頁面會說明
         }
 
-        $queued = Anime_Sync_Streaming_Source_Base::queue_once( $key, $write );
+        $started = Anime_Sync_Streaming_Source_Base::dispatch_async( $key, $write );
 
         wp_safe_redirect( add_query_arg( [
-            'asp_run'  => $queued ? 'queued' : 'dup',
+            'asp_run'  => $started ? 'started' : 'running',
             'asp_src'  => $key,
             'asp_mode' => $write ? 'write' : 'dry',
         ], $back ) );
