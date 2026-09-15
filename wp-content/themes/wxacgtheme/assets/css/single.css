@@ -4594,6 +4594,11 @@
     line-height: 1.8;
 }
 
+/* 裡面包 <p> 時要把段落自己的上下 margin 收掉，
+   否則框內上下會多出一段空白，看起來像沒對齊。 */
+.wxa-guide__note > :first-child { margin-top: 0; }
+.wxa-guide__note > :last-child { margin-bottom: 0; }
+
 /* ── 作品連結列：官網 / PV / 觀看平台 ──
  *
  * 七月那篇把這三種連結做成藥丸按鈕，比夾在散文裡的底線連結好點很多，
