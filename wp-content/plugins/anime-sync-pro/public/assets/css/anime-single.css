@@ -2490,6 +2490,19 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
 /* 直接來源下架偵測：連續配不到、尚未滿三輪移除期間的標記。
    放在 label 內部而不是另一個按鈕，讀者一眼看到「哪個平台」可能沒了。 */
+/* 平台公告的授權到期日（30 天內）：琥珀色，跟紅色的「可能已下架」區分——這是確定日期不是推論 */
+.asd-stream-end {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, .16);
+  color: #b45309;
+  font-size: 11px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
 .asd-stream-gone {
   display: inline-block;
   margin-left: 6px;

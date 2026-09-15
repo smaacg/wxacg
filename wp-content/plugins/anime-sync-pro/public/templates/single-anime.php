@@ -696,6 +696,11 @@ while ( have_posts() ) :
 	$tw_streaming_items = [];
 	$tw_streaming_keys  = [];
 
+	// 各平台 30 天內的授權到期日（平台公告），沒有就是空陣列
+	$tw_ending_soon = class_exists( 'Anime_Sync_Streaming_Source_Base' )
+		? Anime_Sync_Streaming_Source_Base::ending_soon_for_post( $post_id )
+		: [];
+
 	if ( ! empty( $tw_streaming_raw ) ) {
 		$raw_platforms = is_array( $tw_streaming_raw )
 			? $tw_streaming_raw
@@ -749,6 +754,11 @@ while ( have_posts() ) :
 				 * 照常顯示，但加「可能已下架」讓讀者知道點過去可能是空的。
 				 */
 				'gone'      => (string) get_post_meta( $post_id, '_anime_tw_streaming_gone_' . $platform_key, true ) !== '',
+				/*
+				 * 平台自己公告的授權到期日（目前 Hami 作品頁有寫）。30 天內到期才帶，
+				 * 前台在按鈕旁標「授權至 M/D」；到期後由排程覆核、真下架才移除。
+				 */
+				'end'       => $tw_ending_soon[ $platform_key ] ?? '',
 			];
 		}
 	}
@@ -5305,6 +5315,8 @@ while ( have_posts() ) :
 												<?php echo esc_html( $stream_label ); ?>
 												<?php if ( $stream_gone ) : ?>
 													<em class="asd-stream-gone" title="平台清單上已找不到本作，連續三週未出現將自動移除">可能已下架</em>
+												<?php elseif ( ! empty( $stream_item['end'] ) ) : ?>
+													<em class="asd-stream-end" title="平台公告的授權到期日 <?php echo esc_attr( $stream_item['end'] ); ?>，之後將從該平台下架">授權至 <?php echo esc_html( wp_date( 'n/j', strtotime( $stream_item['end'] . ' 12:00:00' ) ) ); ?></em>
 												<?php endif; ?>
 											</span>
 

@@ -66,6 +66,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		'friday'  => 'Anime_Sync_Streaming_Source_Friday',
 		'bahamut' => 'Anime_Sync_Streaming_Source_Bahamut',
 		'linetv'  => 'Anime_Sync_Streaming_Source_Linetv',
+		'hami'    => 'Anime_Sync_Streaming_Source_Hami',
 		// YouTube 頻道型（class-streaming-source-yt-channels.php）
 		'muse'         => 'Anime_Sync_Streaming_Source_Muse',
 		'ani_one'      => 'Anime_Sync_Streaming_Source_Ani_One',
@@ -322,10 +323,14 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			$this->log_warning( $tag . ' 建索引失敗：' . $r['error'] );
 			return;
 		}
+		$end = '';
+		if ( ! empty( $r['end'] ) && $r['end']['checked'] > 0 ) {
+			$end = sprintf( '；到期日查 %d、14 天內到期 %d、到期移除 %d', $r['end']['checked'], $r['end']['soon'], $r['end']['removed'] );
+		}
 		$this->log_info( sprintf(
-			'%s 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d',
+			'%s 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d%s',
 			$tag, $r['works'], $r['scanned'], $r['hit'], $r['multi'],
-			$write ? '已寫入' : '（dry-run，未寫入）', $r['written']
+			$write ? '已寫入' : '（dry-run，未寫入）', $r['written'], $end
 		) );
 	}
 
@@ -339,6 +344,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 */
 	public function run( array $args = [] ): array {
 
+		$started = microtime( true );
 		$write   = ! empty( $args['write'] );
 		$limit   = isset( $args['limit'] ) ? max( 0, (int) $args['limit'] ) : 0;
 		$rebuild = ! empty( $args['rebuild'] );
@@ -441,7 +447,13 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			$stats['gone'] = $this->check_gone( $write );
 		}
 
-		if ( $stats['written'] > 0 || $stats['gone']['removed'] > 0 ) {
+		// ── 4. 授權到期日：平台作品頁有明文到期日的來源才做（Hami），對站上全部該平台網址 ──
+		$stats['end'] = null;
+		if ( $this->provides_end_date() ) {
+			$stats['end'] = $this->refresh_end_dates( $write, $started );
+		}
+
+		if ( $stats['written'] > 0 || $stats['gone']['removed'] > 0 || ( $stats['end']['removed'] ?? 0 ) > 0 ) {
 			$this->purge_streaming_pages();
 		}
 
@@ -852,6 +864,346 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	}
 
 	// =====================================================================
+	// 授權到期日：平台自己宣告的下架日期（比「三輪配不到」準得多）
+	// =====================================================================
+
+	/*
+	 * 2026-09-15 發現 Hami 每個作品頁都寫「下架時間 2026年09月24日」，Ofiii／LiTV 的
+	 * JSON-LD 也有 expires。這是平台第一手的下架日期，而且站上該平台的網址（不管是
+	 * 我們配的、YA 給的、人工貼的）全部都能查，不像 check_gone() 只敢動自己寫過的。
+	 *
+	 * 機制通用、各來源只覆寫 provides_end_date() 與 parse_end_date()：
+	 *   - meta `_anime_tw_streaming_end_{key}` = 「到期日|上次查核日」，到期日可為空（頁面沒寫）
+	 *   - 每輪只查一批（END_BATCH）：沒查過的 → 45 天內到期的 → 超過 30 天沒再查的
+	 *   - 到期前 END_NOTIFY_DAYS 天發一則 streaming 事件通知追番者（指紋含日期，續約改期會再發一次）
+	 *   - 到期日過了才「覆核」：作品頁 404 或不再列日期 → 真下架，移除該平台（留 `_ended_` 標記可還原）；
+	 *     頁面給了新日期 → 續約，只更新日期。不到期不動、不推論。
+	 *   - dry-run 只抽 END_DRY_SAMPLE 部看得出解析對不對，不寫任何 meta、不發事件
+	 */
+	const END_BATCH        = 150;
+	const END_DRY_SAMPLE   = 20;
+	const END_INTERVAL_US  = 500000;
+	const END_SOON_DAYS    = 45;   // 這個範圍內到期的每輪重查（續約會改日期）
+	const END_RECHECK_DAYS = 30;   // 其餘至少每 30 天重查一次
+	const END_NOTIFY_DAYS  = 14;   // 到期前幾天發事件
+	const END_FRONT_DAYS   = 30;   // 前台顯示「授權至 M/D」與「即將下架」清單的範圍
+
+	/** 這個來源的作品頁有沒有明文到期日可解析。 */
+	protected function provides_end_date(): bool {
+		return false;
+	}
+
+	/**
+	 * 從作品頁取到期日。
+	 *
+	 * @return string|null 'Y-m-d'；''＝頁面正常但沒寫到期日（例如長期授權）；null＝頁面結構認不得
+	 */
+	protected function parse_end_date( string $html ): ?string {
+		return null;
+	}
+
+	/** 抓作品頁的 fetch() 選項（例如只要前 64KB）。 */
+	protected function end_date_fetch_opts(): array {
+		return [ 'accept' => 'text/html', 'allow_404' => true ];
+	}
+
+	public static function end_meta_key_for( string $key ): string {
+		return '_anime_tw_streaming_end_' . $key;
+	}
+
+	protected function end_meta_key(): string {
+		return self::end_meta_key_for( $this->key() );
+	}
+
+	/** 「到期日|查核日」拆開；缺的用空字串。 */
+	public static function split_end_meta( string $raw ): array {
+		$p = explode( '|', $raw, 2 );
+		return [ 'end' => trim( $p[0] ?? '' ), 'checked' => trim( $p[1] ?? '' ) ];
+	}
+
+	/**
+	 * 查一批作品頁、更新到期日、到期覆核、發到期前通知。
+	 *
+	 * @return array{checked:int,dated:int,undated:int,unparsed:int,soon:int,notified:int,renewed:int,removed:int,samples:string[]}
+	 */
+	protected function refresh_end_dates( bool $write, float $started ): array {
+		global $wpdb;
+
+		$r = [ 'checked' => 0, 'dated' => 0, 'undated' => 0, 'unparsed' => 0, 'soon' => 0, 'notified' => 0, 'renewed' => 0, 'removed' => 0, 'samples' => [] ];
+
+		$today  = current_time( 'Y-m-d' );
+		$soon   = gmdate( 'Y-m-d', strtotime( $today ) + self::END_SOON_DAYS * DAY_IN_SECONDS );
+		$stale  = gmdate( 'Y-m-d', strtotime( $today ) - self::END_RECHECK_DAYS * DAY_IN_SECONDS );
+
+		// 站上所有有這個平台網址的已發布作品（不限來源）＋現有到期 meta
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT p.ID, u.meta_value AS url, e.meta_value AS end_meta
+			   FROM {$wpdb->posts} p
+			   JOIN {$wpdb->postmeta} u ON u.post_id = p.ID AND u.meta_key = %s AND u.meta_value <> ''
+			   LEFT JOIN {$wpdb->postmeta} e ON e.post_id = p.ID AND e.meta_key = %s
+			  WHERE p.post_type = 'anime' AND p.post_status = 'publish'",
+			$this->url_meta_key(),
+			$this->end_meta_key()
+		) );
+
+		// 排優先序：到期已過或 45 天內到期 → 沒查過 → 超過 30 天沒查；其餘略過
+		$due = [];
+		foreach ( (array) $rows as $row ) {
+			$m = self::split_end_meta( (string) $row->end_meta );
+			if ( $m['checked'] === '' ) {
+				$prio = 1;
+			} elseif ( $m['end'] !== '' && $m['end'] <= $soon ) {
+				$prio = $m['end'] < $today ? 0 : 1;
+			} elseif ( $m['checked'] <= $stale ) {
+				$prio = 2;
+			} else {
+				continue;
+			}
+			$due[] = [ 'prio' => $prio, 'id' => (int) $row->ID, 'url' => (string) $row->url, 'end' => $m['end'] ];
+		}
+		usort( $due, static fn( $a, $b ) => $a['prio'] <=> $b['prio'] ?: $a['id'] <=> $b['id'] );
+
+		$limit = $write ? self::END_BATCH : self::END_DRY_SAMPLE;
+		$due   = array_slice( $due, 0, $limit );
+
+		foreach ( $due as $i => $job ) {
+
+			if ( ( microtime( true ) - $started ) >= self::TIME_BUDGET ) {
+				break;
+			}
+			if ( $i > 0 ) {
+				usleep( self::END_INTERVAL_US );
+			}
+
+			$id   = $job['id'];
+			$html = $this->fetch( $job['url'], $this->end_date_fetch_opts() );
+			$r['checked']++;
+
+			$label = sprintf( '#%d %s', $id, mb_substr( (string) get_the_title( $id ), 0, 24 ) );
+
+			// 頁面不存在：到期日已過才算真下架；還沒到期的 404 先當暫時異常，下輪再看
+			if ( is_wp_error( $html ) ) {
+				if ( $html->get_error_code() === 'circuit_open' ) {
+					break;
+				}
+				if ( $html->get_error_code() === 'not_found' && $job['end'] !== '' && $job['end'] < $today ) {
+					$r['removed']++;
+					if ( count( $r['samples'] ) < 10 ) {
+						$r['samples'][] = '到期且頁面 404，移除：' . $label . '（授權至 ' . $job['end'] . '）';
+					}
+					if ( $write ) {
+						$this->remove_ended( $id, $job['end'] );
+					}
+				}
+				continue;
+			}
+
+			$end = $this->parse_end_date( (string) $html );
+
+			if ( $end === null ) {
+				$r['unparsed']++;
+				if ( $write ) {
+					// 記查核日以免每輪都重抓同一批認不得的頁；解析錯了會在後台的 unparsed 計數看到
+					update_post_meta( $id, $this->end_meta_key(), $job['end'] . '|' . $today );
+				}
+				continue;
+			}
+
+			if ( $end === '' ) {
+				$r['undated']++;
+				// 之前有到期日、現在頁面不再列日期，而且已過期 → 平台把它拿掉了
+				if ( $job['end'] !== '' && $job['end'] < $today ) {
+					$r['removed']++;
+					if ( count( $r['samples'] ) < 10 ) {
+						$r['samples'][] = '到期且頁面已無日期，移除：' . $label;
+					}
+					if ( $write ) {
+						$this->remove_ended( $id, $job['end'] );
+					}
+					continue;
+				}
+				if ( $write ) {
+					update_post_meta( $id, $this->end_meta_key(), '|' . $today );
+				}
+				continue;
+			}
+
+			$r['dated']++;
+
+			if ( $job['end'] !== '' && $job['end'] < $today && $end > $job['end'] ) {
+				$r['renewed']++;
+				if ( count( $r['samples'] ) < 10 ) {
+					$r['samples'][] = '續約：' . $label . '（' . $job['end'] . ' → ' . $end . '）';
+				}
+			}
+
+			if ( $write ) {
+				update_post_meta( $id, $this->end_meta_key(), $end . '|' . $today );
+			}
+
+			// 到期日已過但頁面仍列同一個過去日期：平台還沒下架、只是沒更新，先不動
+			if ( $end < $today ) {
+				continue;
+			}
+
+			$days_left = (int) floor( ( strtotime( $end ) - strtotime( $today ) ) / DAY_IN_SECONDS );
+			if ( $days_left <= self::END_NOTIFY_DAYS ) {
+				$r['soon']++;
+				if ( count( $r['samples'] ) < 10 ) {
+					$r['samples'][] = sprintf( '%d 天後到期：%s（%s）', $days_left, $label, $end );
+				}
+				if ( $write && $this->notify_ending( $id, $end ) ) {
+					$r['notified']++;
+				}
+			}
+		}
+
+		if ( $r['unparsed'] >= 5 ) {
+			$this->log_warning( sprintf( '到期日解析：%d 頁認不得（本輪 %d 頁），作品頁結構可能改了', $r['unparsed'], $r['checked'] ) );
+		}
+		if ( $r['removed'] || $r['notified'] ) {
+			$this->log_info( sprintf( '到期日：查 %d、有日期 %d、14 天內到期 %d、發通知 %d、續約 %d、到期移除 %d', $r['checked'], $r['dated'], $r['soon'], $r['notified'], $r['renewed'], $r['removed'] ) );
+		}
+
+		return $r;
+	}
+
+	/**
+	 * 到期覆核確認真的下架：取消勾選、刪網址與各標記，留 `_anime_tw_streaming_ended_{key}`
+	 * （「到期日@移除日」）當還原線索。這裡會動到 YA／人工寫的網址——依據是平台明文日期加頁面覆核，
+	 * 不是推論，跟 check_gone() 的保守不同。
+	 */
+	protected function remove_ended( int $post_id, string $end ): void {
+		delete_post_meta( $post_id, $this->url_meta_key() );
+		delete_post_meta( $post_id, $this->src_meta_key() );
+		delete_post_meta( $post_id, $this->gone_meta_key() );
+		delete_post_meta( $post_id, $this->end_meta_key() );
+		update_post_meta( $post_id, '_anime_tw_streaming_ended_' . $this->key(), $end . '@' . current_time( 'Y-m-d' ) );
+		$checked = get_post_meta( $post_id, 'anime_tw_streaming', true );
+		if ( is_array( $checked ) ) {
+			update_post_meta( $post_id, 'anime_tw_streaming', array_values( array_filter( $checked, fn( $k ) => $k !== $this->key() ) ) );
+		}
+		do_action( 'litespeed_purge_post', $post_id );
+	}
+
+	/**
+	 * 到期前通知：一則 streaming 事件，指紋帶到期日，同一個日期只發一次；
+	 * 平台續約改了日期會再發（那也是讀者想知道的）。走事件系統既有的通知與前台顯示。
+	 */
+	protected function notify_ending( int $post_id, string $end ): bool {
+		if ( ! class_exists( 'Anime_Sync_Anime_Events' ) ) {
+			return false;
+		}
+		$ts      = strtotime( $end );
+		$summary = sprintf( '%s 授權至 %d 月 %d 日，之後將從該平台下架', $this->label(), (int) gmdate( 'n', $ts ), (int) gmdate( 'j', $ts ) );
+		$id      = Anime_Sync_Anime_Events::record( [
+			'anime_id'    => $post_id,
+			'event_type'  => 'streaming',
+			'fingerprint' => 'end:' . $this->key() . ':' . $end,
+			'summary'     => $summary,
+			'source'      => 'platform',
+			'payload'     => [ 'platform' => $this->key(), 'end_date' => $end ],
+		] );
+		if ( $id <= 0 ) {
+			return false;   // 0＝同一日期已發過，-1＝失敗；兩者都不算本輪新通知
+		}
+		return Anime_Sync_Anime_Events::publish( $id, $summary );
+	}
+
+	/**
+	 * 前台用：某作品各平台的未來到期日（只回 END_FRONT_DAYS 內的）。
+	 *
+	 * @return array<string,string> 平台 key → 'Y-m-d'
+	 */
+	public static function ending_soon_for_post( int $post_id ): array {
+		$out   = [];
+		$today = current_time( 'Y-m-d' );
+		$limit = gmdate( 'Y-m-d', strtotime( $today ) + self::END_FRONT_DAYS * DAY_IN_SECONDS );
+		foreach ( (array) get_post_meta( $post_id ) as $k => $v ) {
+			if ( strpos( (string) $k, '_anime_tw_streaming_end_' ) !== 0 ) {
+				continue;
+			}
+			$m = self::split_end_meta( (string) ( $v[0] ?? '' ) );
+			if ( $m['end'] !== '' && $m['end'] >= $today && $m['end'] <= $limit ) {
+				$out[ substr( (string) $k, strlen( '_anime_tw_streaming_end_' ) ) ] = $m['end'];
+			}
+		}
+		return $out;
+	}
+
+	const ENDING_CACHE_KEY = 'asp_streaming_ending_soon_v1';
+
+	/**
+	 * 前台總覽用：全站 END_FRONT_DAYS 內即將下架的清單（快取 6 小時，寫入／移除時一起清）。
+	 *
+	 * @return array<int,array{post_id:int,title:string,url:string,platform:string,end:string}>
+	 */
+	public static function ending_soon_list( int $limit = 60 ): array {
+		global $wpdb;
+
+		$cached = get_transient( self::ENDING_CACHE_KEY );
+		if ( is_array( $cached ) ) {
+			return array_slice( $cached, 0, $limit );
+		}
+
+		$today = current_time( 'Y-m-d' );
+		$until = gmdate( 'Y-m-d', strtotime( $today ) + self::END_FRONT_DAYS * DAY_IN_SECONDS );
+
+		$rows = $wpdb->get_results(
+			"SELECT m.post_id, m.meta_key, m.meta_value, p.post_title
+			   FROM {$wpdb->postmeta} m
+			   JOIN {$wpdb->posts} p ON p.ID = m.post_id AND p.post_type = 'anime' AND p.post_status = 'publish'
+			  WHERE m.meta_key LIKE '\_anime\_tw\_streaming\_end\_%' AND m.meta_value <> '' AND m.meta_value NOT LIKE '|%'"
+		);
+
+		$list = [];
+		foreach ( (array) $rows as $row ) {
+			$m = self::split_end_meta( (string) $row->meta_value );
+			if ( $m['end'] === '' || $m['end'] < $today || $m['end'] > $until ) {
+				continue;
+			}
+			$list[] = [
+				'post_id'  => (int) $row->post_id,
+				'title'    => (string) $row->post_title,
+				'url'      => (string) get_permalink( (int) $row->post_id ),
+				'platform' => substr( (string) $row->meta_key, strlen( '_anime_tw_streaming_end_' ) ),
+				'end'      => $m['end'],
+			];
+		}
+		usort( $list, static fn( $a, $b ) => strcmp( $a['end'], $b['end'] ) ?: strcmp( $a['title'], $b['title'] ) );
+
+		set_transient( self::ENDING_CACHE_KEY, $list, 6 * HOUR_IN_SECONDS );
+
+		return array_slice( $list, 0, $limit );
+	}
+
+	/**
+	 * 後台頁用：這個平台的到期日統計。
+	 *
+	 * @return array{known:int,soon:int,expired:int}
+	 */
+	public function end_stats(): array {
+		global $wpdb;
+		$today = current_time( 'Y-m-d' );
+		$until = gmdate( 'Y-m-d', strtotime( $today ) + self::END_FRONT_DAYS * DAY_IN_SECONDS );
+		$vals  = (array) $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", $this->end_meta_key() ) );
+		$s     = [ 'known' => 0, 'soon' => 0, 'expired' => 0, 'checked' => count( $vals ) ];
+		foreach ( $vals as $v ) {
+			$m = self::split_end_meta( (string) $v );
+			if ( $m['end'] === '' ) {
+				continue;
+			}
+			$s['known']++;
+			if ( $m['end'] < $today ) {
+				$s['expired']++;
+			} elseif ( $m['end'] <= $until ) {
+				$s['soon']++;
+			}
+		}
+		return $s;
+	}
+
+	// =====================================================================
 	// 單篇即時同步：新匯入的作品不必等週排程
 	// =====================================================================
 
@@ -915,6 +1267,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 
 		delete_transient( Anime_Sync_Streaming_Routing::COUNT_CACHE_KEY );
+		delete_transient( self::ENDING_CACHE_KEY );
 
 		$urls = [ Anime_Sync_Streaming_Routing::index_url() ];
 		foreach ( self::available_keys() as $key ) {
@@ -1120,9 +1473,12 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 * 標頭沿用 class-youranimes-fetcher.php::fetch_page() 那組（正式站實證可用）。
 	 * 不快取：sitemap 一週抓一次，快取 21MB 進 transient 不划算。
 	 *
-	 * @param array{range_bytes?:int,accept?:string} $opts
+	 * @param array{range_bytes?:int,accept?:string,method?:string,body?:array,allow_404?:bool} $opts
 	 *        range_bytes：只要前 N bytes（LINE TV 作品頁 500KB，<title> 在前 64KB 內；
 	 *        對方回 206，實測 2026-09-15）。accept：覆寫 Accept 標頭（抓 HTML 時用）。
+	 *        method／body：POST 表單（Hami 的翻頁端點 ui26_page.do 只吃 POST）。
+	 *        allow_404：404 回 WP_Error('not_found') 但**不計入熔斷**——到期日覆核時，
+	 *        作品真的下架了頁面就是 404，那是答案不是故障，連三個 404 不能把整個來源熔掉。
 	 * @return string|WP_Error
 	 */
 	protected function fetch( string $url, array $opts = [] ) {
@@ -1151,7 +1507,13 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 		$args['headers'] = $headers;
 
-		$res = wp_remote_get( $url, $args );
+		if ( strtoupper( (string) ( $opts['method'] ?? 'GET' ) ) === 'POST' ) {
+			$args['method'] = 'POST';
+			$args['body']   = (array) ( $opts['body'] ?? [] );
+			$res = wp_remote_post( $url, $args );
+		} else {
+			$res = wp_remote_get( $url, $args );
+		}
 
 		if ( is_wp_error( $res ) ) {
 			$this->record_failure();
@@ -1159,6 +1521,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 
 		$code = (int) wp_remote_retrieve_response_code( $res );
+		if ( $code === 404 && ! empty( $opts['allow_404'] ) ) {
+			return new WP_Error( 'not_found', 'HTTP 404' );
+		}
 		// 206 = Range 請求成功的部分內容
 		if ( $code !== 200 && $code !== 206 ) {
 			$this->record_failure();
@@ -1328,6 +1693,15 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 				$r['gone']['checked'], $r['gone']['marked'], $r['gone']['cleared'], $r['gone']['removed'],
 				$write ? '' : '（dry-run 只標記不移除）' ) );
 			foreach ( $r['gone']['samples'] as $line ) {
+				WP_CLI::log( '  ' . $line );
+			}
+		}
+		if ( ! empty( $r['end'] ) ) {
+			$e = $r['end'];
+			WP_CLI::log( sprintf( '授權到期日：查 %d 頁｜有日期 %d｜無日期 %d｜認不得 %d｜14 天內到期 %d｜發通知 %d｜續約 %d｜到期移除 %d%s',
+				$e['checked'], $e['dated'], $e['undated'], $e['unparsed'], $e['soon'], $e['notified'], $e['renewed'], $e['removed'],
+				$write ? '' : '（dry-run 只抽 ' . self::END_DRY_SAMPLE . ' 頁、不寫入）' ) );
+			foreach ( $e['samples'] as $line ) {
 				WP_CLI::log( '  ' . $line );
 			}
 		}

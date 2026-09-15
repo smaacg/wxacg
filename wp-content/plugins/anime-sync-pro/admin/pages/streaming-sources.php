@@ -60,6 +60,7 @@ foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $key ) {
 			'%串流來源[' . $key . ']：[%'
 		), ARRAY_A ),
 		'running'  => $src->is_running(),
+		'end'      => $src->end_stats(),
 		'bundle'   => ( $key === 'bahamut' && class_exists( 'Anime_Sync_Streaming_Source_Bahamut' ) ) ? ( static function (): ?array {
 			$path = Anime_Sync_Streaming_Source_Bahamut::bundle_path();
 			if ( ! is_readable( $path ) ) {
@@ -182,6 +183,11 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 						<br><small><?php echo esc_html( wp_date( 'Y/m/d H:i', $r['built'] ) ); ?> 建立</small>
 					<?php else : ?>
 						<span class="ass-err">尚未建立</span>
+					<?php endif; ?>
+					<?php if ( ! empty( $r['end']['checked'] ) ) : ?>
+						<br><small class="ass-muted" title="平台作品頁公告的授權到期日；到期後覆核，真下架才移除">
+							到期日：查過 <?php echo esc_html( number_format_i18n( $r['end']['checked'] ) ); ?>、有日期 <?php echo esc_html( number_format_i18n( $r['end']['known'] ) ); ?>、30 天內 <strong><?php echo esc_html( number_format_i18n( $r['end']['soon'] ) ); ?></strong><?php if ( $r['end']['expired'] > 0 ) : ?>、已過期待覆核 <?php echo esc_html( number_format_i18n( $r['end']['expired'] ) ); ?><?php endif; ?>
+						</small>
 					<?php endif; ?>
 					<?php if ( $r['key'] === 'bahamut' ) : ?>
 						<?php /* 巴哈唯一的失效模式是「本機週日建包沒跑／沒 push」，索引包日期要看得到 */ ?>

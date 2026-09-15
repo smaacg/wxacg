@@ -482,6 +482,34 @@ $schema = [
 	 * 後者每個平台都是進擊的巨人／鬼滅之刃，那是湊欄位不是比較。
 	 */
 	?>
+	<?php
+	/*
+	 * 即將下架：平台作品頁明文公告的授權到期日（目前 Hami），30 天內到期的作品。
+	 * YourAnimes 沒有這一塊；資料來自排程每週查作品頁，到期後覆核、真下架才移除。
+	 * 沒有資料時整段不輸出，不留空標題。
+	 */
+	$ending = class_exists( 'Anime_Sync_Streaming_Source_Base' ) ? Anime_Sync_Streaming_Source_Base::ending_soon_list( 60 ) : [];
+	if ( ! empty( $ending ) ) :
+		$label_of = [];
+		foreach ( $all as $p ) {
+			$label_of[ $p['key'] ] = (string) ( $p['label'] ?? $p['key'] );
+		}
+		?>
+	<section class="asp-st-section asp-st-ending">
+		<h2 class="asp-st-h2">30 天內即將下架</h2>
+		<p class="asp-st-lead">平台作品頁公告的授權到期日，想看要快。到期後我們會再確認一次，真的下架才從作品頁移除。</p>
+		<ul class="asp-st-ending-list">
+			<?php foreach ( $ending as $e ) : ?>
+				<li>
+					<time datetime="<?php echo esc_attr( $e['end'] ); ?>"><?php echo esc_html( wp_date( 'n/j', strtotime( $e['end'] . ' 12:00:00' ) ) ); ?></time>
+					<a href="<?php echo esc_url( $e['url'] ); ?>"><?php echo esc_html( $e['title'] ); ?></a>
+					<span class="asp-st-ending-platform"><?php echo esc_html( $label_of[ $e['platform'] ] ?? $e['platform'] ); ?></span>
+				</li>
+			<?php endforeach; ?>
+		</ul>
+	</section>
+	<?php endif; ?>
+
 	<section class="asp-st-section">
 		<h2 class="asp-st-h2">平台比較</h2>
 		<?php
@@ -591,6 +619,11 @@ $schema = [
 .asp-st-lead strong { font-weight: 700; }
 .asp-st-updated { font-size: 13px; opacity: .6; margin: 0; }
 .asp-st-section { margin-top: 40px; }
+.asp-st-ending-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 18px; }
+.asp-st-ending-list li { display: flex; align-items: baseline; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,.06); font-size: 14px; }
+.asp-st-ending-list time { flex: 0 0 3.2em; font-weight: 700; color: #b45309; font-variant-numeric: tabular-nums; }
+.asp-st-ending-list a { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asp-st-ending-platform { flex: 0 0 auto; font-size: 12px; color: #666; }
 .asp-st-h2 { font-size: 20px; font-weight: 700; margin: 0 0 16px; padding-left: 10px; border-left: 4px solid currentColor; }
 /* 卡片改成資訊卡：原本只有圖示＋名稱＋作品數，資訊量太少，
    使用者還是得跑去看表格。現在把決策要用的東西（價格、規模、計費）
