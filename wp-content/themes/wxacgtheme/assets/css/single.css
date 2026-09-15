@@ -94,6 +94,37 @@
 .single-content h2{font-size:24px;margin:1.7em 0 .6em;border-left:4px solid var(--accent-blue,#63A8FF);padding-left:12px;color:#fff;line-height:1.4}
 .single-content h3{font-size:19px;margin:1.4em 0 .5em;color:#fff;line-height:1.45}
 /*
+ * h3 用橫線分隔，不用直線。
+ *
+ * 2026-09-15：補了 h4 的直線之後出現階層倒置——h2 有 4px 直線、h4 有 3px
+ * 直線，夾在中間的 h3 反而什麼都沒有，子標題看起來比父標題還搶眼。
+ * 這篇文章的 h3 是「每一部作品」，是全文最重要的重複分界；讓它拿一條橫向
+ * 分隔線，既補回份量，又不會和 h2／h4 的直線互相打架。
+ * 三層各有記號且形狀不同：h2 粗直線、h3 橫線、h4 細直線。
+ */
+.single-content > h3{
+  border-top:1px solid rgba(255,255,255,.10);
+  padding-top:28px;
+  margin-top:48px;
+}
+
+/*
+ * 文字欄限寬，媒體與表格維持滿版。
+ *
+ * 2026-09-15 把容器加寬到 1360 之後，主文區來到 948px，實測內文變成
+ * 每行 54–62 字——中文舒適行長約 35–45 字，過長會讓眼睛回行時跑掉。
+ * 但表格、海報、影片嵌入是真的需要那個寬度，不能把容器縮回去。
+ *
+ * 所以只約束文字區塊：46em ≈ 736px，實測回到每行 41–49 字，
+ * 而 .wxa-table-wrap 與 .wxa-video 仍保持 948px 滿版。
+ * 只選直接子元素，元件內部（作品卡的簡介等）自有排版，不受影響。
+ */
+.single-content > p,
+.single-content > ul,
+.single-content > ol{
+  max-width:46em;
+}
+/*
  * h4 是作品內的小節標題（看點／網友期待／台灣觀看平台）。
  *
  * 2026-09-15：原本完全沒有規則，掉回瀏覽器預設的 h4——13px 粗體，
