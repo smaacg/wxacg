@@ -32,12 +32,105 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Base {
 
+	/**
+	 * 隨 repo 部署的索引包（相對外掛根目錄）。
+	 *
+	 * ★ 為什麼不從主機抓
+	 *   正式站主機在吉隆坡，巴哈對它回 403 `cf-mitigated: challenge`（Cloudflare
+	 *   人機驗證），連首頁都擋；台灣 IP 則正常。不繞驗證。
+	 *   最便宜的路：在台灣 IP 的電腦跑 tools/build-bahamut-bundle.php 抓 sitemap
+	 *   產出這個檔（約 250KB），git push 隨部署上去；主機端只讀檔，零外連。
+	 *   歸納好的作品清單放這裡，正規化與索引鍵仍在主機端用同一套 normalize()
+	 *   算，跟其他來源完全一致。
+	 */
+	const BUNDLE_FILE = 'data/source_bahamut_bundle.json';
+
 	public function key(): string {
 		return 'bahamut';
 	}
 
 	protected function sitemap_url(): string {
 		return 'https://ani.gamer.com.tw/sitemap/sitemap.xml';
+	}
+
+	/**
+	 * 主機端：從索引包讀；本機建包時（定義 ASP_BUNDLE_BUILD）才真的抓 sitemap。
+	 *
+	 * @param float $started
+	 * @return array{0:array<string,array>,1:int}|WP_Error
+	 */
+	protected function collect_entries( float $started ) {
+
+		if ( defined( 'ASP_BUNDLE_BUILD' ) && ASP_BUNDLE_BUILD ) {
+			return parent::collect_entries( $started );
+		}
+
+		$path = self::bundle_path();
+
+		if ( ! is_readable( $path ) ) {
+			return new WP_Error( 'no_bundle', '找不到巴哈索引包 ' . self::BUNDLE_FILE . '，請在台灣 IP 執行 tools/build-bahamut-bundle.php 後部署' );
+		}
+
+		$data = json_decode( (string) file_get_contents( $path ), true );
+
+		if ( ! is_array( $data ) || empty( $data['works'] ) || ! is_array( $data['works'] ) ) {
+			return new WP_Error( 'bad_bundle', '巴哈索引包格式不對或沒有作品' );
+		}
+
+		$grouped = [];
+		foreach ( $data['works'] as $w ) {
+			$n = trim( (string) ( $w['n'] ?? '' ) );
+			$u = trim( (string) ( $w['u'] ?? '' ) );
+			if ( $n === '' || $u === '' ) {
+				continue;
+			}
+			$grouped[ $n ] = [ 'title' => $n, 'url' => $u, 'date' => '' ];
+		}
+
+		return [ $grouped, (int) ( $data['entries'] ?? count( $grouped ) ) ];
+	}
+
+	/**
+	 * 給 tools/build-bahamut-bundle.php 用：在台灣 IP 抓 sitemap，輸出索引包。
+	 *
+	 * @return array{entries:int,works:int,bytes:int}|WP_Error
+	 */
+	public function export_bundle( string $path ) {
+
+		$collected = parent::collect_entries( microtime( true ) );
+
+		if ( is_wp_error( $collected ) ) {
+			return $collected;
+		}
+
+		[ $grouped, $entries ] = $collected;
+
+		if ( empty( $grouped ) ) {
+			return new WP_Error( 'no_entries', 'sitemap 解析不到任何作品' );
+		}
+
+		$works = [];
+		foreach ( $grouped as $name => $picked ) {
+			$works[] = [ 'n' => (string) $name, 'u' => (string) $picked['url'] ];
+		}
+
+		$json = wp_json_encode( [
+			'built'   => time(),
+			'source'  => $this->sitemap_url(),
+			'entries' => $entries,
+			'works'   => $works,
+		], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+
+		if ( file_put_contents( $path, (string) $json ) === false ) {
+			return new WP_Error( 'write_failed', '寫不進 ' . $path );
+		}
+
+		return [ 'entries' => $entries, 'works' => count( $works ), 'bytes' => strlen( (string) $json ) ];
+	}
+
+	public static function bundle_path(): string {
+		$dir = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : dirname( __DIR__ ) . '/';
+		return $dir . self::BUNDLE_FILE;
 	}
 
 	protected function parse_entry( string $block ): ?array {

@@ -55,17 +55,16 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	/**
 	 * @var array<string,string> 平台 key → 子類別名
 	 *
-	 * ★ 巴哈刻意不列。2026-09-15 部署後實測：正式站主機在吉隆坡，巴哈對它回
-	 *   403 `cf-mitigated: challenge`（Cloudflare 人機驗證），連首頁都擋。
-	 *   列進來只會讓週排程每週撞一次 403 留警告。子類別檔留著，日後要用走
-	 *   「在台灣 IP 建索引 JSON 再上傳」那條路，不是從主機抓。
-	 *   巴哈本來就是 YA 覆蓋 99%、淨增益只有 7 部的那家，損失最小。
+	 * 巴哈不從主機抓（正式站在吉隆坡，巴哈對它回 403 Cloudflare 人機驗證），
+	 * 而是讀隨 repo 部署的索引包 data/source_bahamut_bundle.json，
+	 * 由 tools/build-bahamut-bundle.php 在台灣 IP 的電腦產出。見該子類別檔頭。
 	 */
 	private const SOURCES = [
 		'myvideo' => 'Anime_Sync_Streaming_Source_Myvideo',
 		'ofiii'   => 'Anime_Sync_Streaming_Source_Ofiii',
 		'litv'    => 'Anime_Sync_Streaming_Source_Litv',
 		'friday'  => 'Anime_Sync_Streaming_Source_Friday',
+		'bahamut' => 'Anime_Sync_Streaming_Source_Bahamut',
 	];
 
 	/** @return string[] */
