@@ -162,6 +162,12 @@ class Anime_Sync_YourAnimes_News_Scan {
 					] );
 					if ( $id > 0 ) {
 						$r['events']++;
+						/*
+						 * YA 的上架／下架是編輯查證後寫的事實，文案就是原文，沒有需要人判斷的地方
+						 * ——使用者 2026-09-15 明確表示這類不需要他審。直接發布；追番會員通知沿用
+						 * 事件系統的 14 天防洗版規則。其他來源（AniList 視覺圖等）不受影響，照走待審。
+						 */
+						Anime_Sync_Anime_Events::publish( $id, $info, preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ? $date : '' );
 					}
 				} else {
 					$r['events']++;
