@@ -128,6 +128,38 @@ class Anime_Sync_Meta_Guard {
 
 		$old = get_post_meta( (int) $object_id, $meta_key, true );
 
+		/*
+		 * anime_episodes_aired 的不變量：狀態是「尚未播出」時，已播集數只能是 0。
+		 *
+		 * 2026-09-15 事故：《藥師少女的獨語 第三季》（2026-10-02 才開播）被寫入
+		 * aired = 24。成因是該篇 anime_bangumi_id 誤掛成第一季的條目，AniList
+		 * 熔斷期間 build_bgm_fallback_media() 取到第一季 24 集的集數表，合成出
+		 * nextAiringEpisode.episode = 25，於是算成 24。當時全站有 13 篇處於
+		 * 「狀態未播出、卻有已播集數」的矛盾狀態。
+		 *
+		 * 兩個方向都要處理：
+		 *   寫入 > 0  → 擋下。未播出卻有已播集數，邏輯上不可能，不管來源是誰。
+		 *   往下修正  → 放行。原本的 no_decrease 會讓錯誤的高值永久卡死，
+		 *               連上游更正了也寫不回去——這正是當時 24 降不下來的原因。
+		 *
+		 * 刻意放在「沒有舊值就放行」之前：第一次就寫入錯值的情況也要擋得住。
+		 */
+		if ( 'anime_episodes_aired' === $meta_key
+			&& is_numeric( $meta_value )
+			&& 'NOT_YET_RELEASED' === get_post_meta( (int) $object_id, 'anime_status', true ) ) {
+
+			if ( (int) $meta_value > 0 ) {
+				self::log_violation(
+					(int) $object_id,
+					(string) $meta_key,
+					sprintf( '狀態為尚未播出，已播集數不得為 %d', (int) $meta_value )
+				);
+				return self::mode() === 'observe' ? $check : false;
+			}
+
+			return $check;
+		}
+
 		// 沒有舊值就沒有東西要保護
 		if ( $old === '' || $old === null || $old === false ) {
 			return $check;
