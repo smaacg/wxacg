@@ -322,7 +322,8 @@ $season_filter_labels = [
     'SUMMER' => '夏季 7月',
     'FALL'   => '秋季 10月',
 ];
-$format_labels  = [ 'TV' => 'TV', 'TV_SHORT' => 'TV短篇', 'MOVIE' => '劇場版', 'OVA' => 'OVA', 'ONA' => 'ONA', 'SPECIAL' => '特別篇', 'MUSIC' => 'MV' ];
+// 對照表集中在 includes/class-format-registry.php，改名只需動那一處
+$format_labels  = Anime_Sync_Format_Registry::get_labels();
 $status_labels  = [ 'FINISHED' => '已完結', 'RELEASING' => '連載中', 'NOT_YET_RELEASED' => '尚未播出', 'CANCELLED' => '已取消', 'HIATUS' => '暫停中' ];
 $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELEASED' => 's-pre', 'CANCELLED' => 's-can', 'HIATUS' => 's-hia' ];
 ?>

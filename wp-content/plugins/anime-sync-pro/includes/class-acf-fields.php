@@ -738,15 +738,8 @@ class Anime_Sync_ACF_Fields {
 			'OTHER'              => '其他',
 		];
 
-		$format_labels = [
-			'TV'       => '電視動畫',
-			'TV_SHORT' => '電視短篇動畫',
-			'MOVIE'    => '劇場版',
-			'OVA'      => 'OVA',
-			'ONA'      => 'ONA（網路動畫）',
-			'SPECIAL'  => '特別篇',
-			'MUSIC'    => '音樂 MV',
-		];
+		// 對照表集中在 includes/class-format-registry.php；後台用較詳細的 long 風格
+		$format_labels = Anime_Sync_Format_Registry::get_labels( 'long', true );
 
 		foreach ( $extra_map as $label => $meta_key ) {
 			$value = get_post_meta( $post_id, $meta_key, true );
@@ -1062,15 +1055,9 @@ class Anime_Sync_ACF_Fields {
                     'type'          => 'select',
                     'instructions'  => '由 AniList format 欄位自動填入。',
                     'required'      => 0,
-                    'choices'       => [
-                        'TV'        => '電視動漫 (TV)',
-                        'TV_SHORT'  => '短篇電視動漫 (TV_SHORT)',
-                        'MOVIE'     => '劇場版 (MOVIE)',
-                        'SPECIAL'   => '特別篇 (SPECIAL)',
-                        'OVA'       => 'OVA',
-                        'ONA'       => '網路動漫 (ONA)',
-                        'MUSIC'     => '音樂 (MUSIC)',
-                    ],
+                    // 對照表集中在 includes/class-format-registry.php；
+                    // choice 風格會在名稱後附上 AniList 原始代碼，方便後台對照
+                    'choices'       => Anime_Sync_Format_Registry::get_acf_choices(),
                     'default_value' => 'TV',
                     'wrapper'       => [ 'width' => '33' ],
                 ],
@@ -1373,15 +1360,8 @@ class Anime_Sync_ACF_Fields {
                 'ANIME'        => '動畫',
                 'OTHER'        => '其他',
             ];
-            $format_label = [
-                'TV'       => '電視動畫',
-                'TV_SHORT' => '電視短篇動畫',
-                'MOVIE'    => '劇場版',
-                'OVA'      => 'OVA',
-                'ONA'      => 'ONA（網路動畫）',
-                'SPECIAL'  => '特別篇',
-                'MUSIC'    => '音樂 MV',
-            ];
+            // 對照表集中在 includes/class-format-registry.php；後台用較詳細的 long 風格
+            $format_label = Anime_Sync_Format_Registry::get_labels( 'long', true );
 
             foreach ( $extra_map as $label => $meta_key ) {
                 $val = get_post_meta( $pid, $meta_key, true );
@@ -1562,15 +1542,8 @@ $source_label = [
     'MULTIMEDIA_PROJECT' => '多媒體企劃',
     'PICTURE_BOOK'       => '繪本',
 ];
-            $format_label = [
-                'TV'       => '電視動畫',
-                'TV_SHORT' => '電視短篇動畫',
-                'MOVIE'    => '劇場版',
-                'OVA'      => 'OVA',
-                'ONA'      => 'ONA（網路動畫）',
-                'SPECIAL'  => '特別篇',
-                'MUSIC'    => '音樂 MV',
-            ];
+            // 對照表集中在 includes/class-format-registry.php；後台用較詳細的 long 風格
+            $format_label = Anime_Sync_Format_Registry::get_labels( 'long', true );
 
             foreach ( $extra_map as $label => $meta_key ) {
                 $val = get_post_meta( $pid, $meta_key, true );
@@ -2062,15 +2035,8 @@ $cast_prompt .= "以下是 JSON:\n";
                 'ANIME'        => '動畫',
                 'OTHER'        => '其他',
             ];
-            $format_label = [
-                'TV'       => '電視動畫',
-                'TV_SHORT' => '電視短篇動畫',
-                'MOVIE'    => '劇場版',
-                'OVA'      => 'OVA',
-                'ONA'      => 'ONA（網路動畫）',
-                'SPECIAL'  => '特別篇',
-                'MUSIC'    => '音樂 MV',
-            ];
+            // 對照表集中在 includes/class-format-registry.php；後台用較詳細的 long 風格
+            $format_label = Anime_Sync_Format_Registry::get_labels( 'long', true );
 
             foreach ( $extra_map as $label => $meta_key ) {
                 $val = get_post_meta( $pid, $meta_key, true );

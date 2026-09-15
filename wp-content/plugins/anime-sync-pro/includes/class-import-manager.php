@@ -1725,15 +1725,9 @@ class Anime_Sync_Import_Manager {
 	}
 
 	private function get_anilist_format_map(): array {
-		return [
-			'TV'       => [ 'name' => 'TV',     'slug' => 'tv'       ],
-			'TV_SHORT' => [ 'name' => 'TV短篇', 'slug' => 'tv-short' ],
-			'MOVIE'    => [ 'name' => '劇場版', 'slug' => 'movie'    ],
-			'OVA'      => [ 'name' => 'OVA',    'slug' => 'ova'      ],
-			'ONA'      => [ 'name' => 'ONA',    'slug' => 'ona'      ],
-			'SPECIAL'  => [ 'name' => '特別篇', 'slug' => 'special'  ],
-			'MUSIC'    => [ 'name' => '音樂MV', 'slug' => 'music'    ],
-		];
+		// 對照表集中在 includes/class-format-registry.php。
+		// 注意這只在「建立新 term」時生效；既有 term 的名稱要另外用 wp term update 改。
+		return Anime_Sync_Format_Registry::get_term_map();
 	}
 
 	private function map_streaming_to_tw_fields( int $post_id, string $external_links_json ): void {

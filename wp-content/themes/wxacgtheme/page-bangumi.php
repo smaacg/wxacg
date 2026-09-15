@@ -398,10 +398,17 @@ $source_labels = [
     'MULTIMEDIA_PROJECT' => '多媒體企劃', 'PICTURE_BOOK' => '繪本改編', 'OTHER' => '其他',
 ];
 
-$format_labels = [
-    'TV' => 'TV', 'TV_SHORT' => 'TV 短篇', 'MOVIE' => '劇場版',
-    'SPECIAL' => '特別篇', 'OVA' => 'OVA', 'ONA' => 'ONA', 'MUSIC' => '音樂',
-];
+/*
+ * 對照表集中在 anime-sync-pro 的 includes/class-format-registry.php，改名只需動那一處。
+ *
+ * 這裡是主題、類別在外掛裡，所以要 class_exists 防護。找不到時回空陣列，
+ * 徽章會退成顯示原始代碼（TV_SHORT）而不是白畫面——不另外留一份 fallback
+ * 對照表，那正是當初分裂成 11 份的原因。
+ * 實務上外掛停用時整頁都沒有 anime 資料可顯示，這個分支只是保險。
+ */
+$format_labels = class_exists( 'Anime_Sync_Format_Registry' )
+    ? Anime_Sync_Format_Registry::get_labels()
+    : [];
 
 $weekday_zh = [ 1 => '週一', 2 => '週二', 3 => '週三', 4 => '週四', 5 => '週五', 6 => '週六', 7 => '週日' ];
 

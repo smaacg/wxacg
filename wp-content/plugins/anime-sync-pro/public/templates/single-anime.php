@@ -2091,15 +2091,8 @@ while ( have_posts() ) :
 		'FALL'   => '秋季',
 	];
 
-	$format_labels = [
-		'TV'       => 'TV',
-		'TV_SHORT' => 'TV 短篇',
-		'MOVIE'    => '劇場版',
-		'OVA'      => 'OVA',
-		'ONA'      => 'ONA',
-		'SPECIAL'  => '特別篇',
-		'MUSIC'    => 'MV',
-	];
+	// 對照表集中在 includes/class-format-registry.php，改名只需動那一處
+	$format_labels = Anime_Sync_Format_Registry::get_labels();
 
 	$status_labels = [
 		'FINISHED'         => '已完結',

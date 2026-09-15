@@ -774,6 +774,18 @@ function wxacg_editorial_source_label_basic( $source ) {
 
 /**
  * AniList 播放形式代碼 → 中文。
+ *
+ * ★ 這份對照表刻意不併進 Anime_Sync_Format_Registry，不是漏改。
+ *
+ *   全站其他 10 處顯示用的對照表已在 2026-09-15 收斂到那支 Registry，
+ *   但這裡的輸出會進 AI 產文的事實清單（見下方 build 事實的地方：
+ *   `$facts[] = '形式：' . $format;`），需要的是中性敘述。
+ *
+ *   Registry 的 TV_SHORT 是社群俗稱「泡麵番」，帶戲謔語感；餵給模型會被
+ *   當成正式用詞寫進文章。所以這裡維持「短篇 TV 動畫」這類中性說法。
+ *
+ *   要改 AI 產文用的措辭就改這裡；要改站上顯示的標籤請改
+ *   includes/class-format-registry.php。
  */
 function wxacg_editorial_format_label( $format ) {
 	$map = array(

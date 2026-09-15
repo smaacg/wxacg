@@ -273,13 +273,8 @@ $year_span = ( $year_min && $year_max && $year_min !== $year_max )
     : ( $year_min ?: '—' );
 
 /* ── 格式 / 狀態 / 季節 對照表 ──────────────────────────── */
-$format_labels = [
-    'TV'       => 'TV',    'TV_SHORT' => 'TV短篇', 'MOVIE'   => '劇場版',
-    'OVA'      => 'OVA',   'ONA'      => 'ONA',    'SPECIAL' => '特別篇',
-    'MUSIC'    => 'MV',
-    'MANGA'    => '漫畫',  'ONE_SHOT' => '短篇',   'NOVEL'   => '小說',
-    'LIGHT_NOVEL' => '輕小說',
-];
+// 對照表集中在 includes/class-format-registry.php（含系列會用到的漫畫／小說格式）
+$format_labels = Anime_Sync_Format_Registry::get_labels();
 $status_labels = [
     'FINISHED'         => '已完結',
     'RELEASING'        => '連載中',
