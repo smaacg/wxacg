@@ -1700,7 +1700,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			$e = $r['end'];
 			WP_CLI::log( sprintf( '授權到期日：查 %d 頁｜有日期 %d｜無日期 %d｜認不得 %d｜14 天內到期 %d｜發通知 %d｜續約 %d｜到期移除 %d%s',
 				$e['checked'], $e['dated'], $e['undated'], $e['unparsed'], $e['soon'], $e['notified'], $e['renewed'], $e['removed'],
-				$write ? '' : '（dry-run 只抽 ' . self::END_DRY_SAMPLE . ' 頁、不寫入）' ) );
+				$write ? '' : '（dry-run 只抽 ' . Anime_Sync_Streaming_Source_Base::END_DRY_SAMPLE . ' 頁、不寫入）' ) );
 			foreach ( $e['samples'] as $line ) {
 				WP_CLI::log( '  ' . $line );
 			}
