@@ -33,7 +33,8 @@ class Anime_Sync_Subject_Relations_Repository {
 	private $table;
 
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
-	const CACHE_VER = 'v3';
+	/* v4（2026-09-15）：列裡多了 matched_post_id / local_title，舊快取的形狀對不上，必須升版 */
+	const CACHE_VER = 'v4';
 
 	/**
 	 * 總數不超過這個值就攤平成單一面封面牆，不分組。
@@ -329,10 +330,29 @@ class Anime_Sync_Subject_Relations_Repository {
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT bgm_id, relation_type, platform, name, name_cn, local_post_id, cover_url
-				 FROM {$this->table}
-				 WHERE post_id = %d AND subject_type = %d
-				 ORDER BY relation_type ASC, id ASC",
+				/*
+				 * matched_post_id：用 bgm_id 回頭找站上是否已有這部作品。
+				 *
+				 * 刻意用純量子查詢而不是 JOIN——站上有 175 個 bgm_id 被多篇文章
+				 * 共用（2026-09-15 實測），JOIN 會讓同一筆關聯被複製成多列。
+				 * 子查詢加 LIMIT 1 保證一對一，ORDER BY p.ID 讓結果穩定。
+				 */
+				"SELECT r.bgm_id, r.relation_type, r.platform, r.name, r.name_cn,
+				        r.local_post_id, r.cover_url,
+				        (
+				            SELECT p.ID
+				              FROM {$wpdb->postmeta} lm
+				              INNER JOIN {$wpdb->posts} p ON p.ID = lm.post_id
+				             WHERE lm.meta_key = 'anime_bangumi_id'
+				               AND lm.meta_value = r.bgm_id
+				               AND p.post_type = 'anime'
+				               AND p.post_status = 'publish'
+				             ORDER BY p.ID ASC
+				             LIMIT 1
+				        ) AS matched_post_id
+				 FROM {$this->table} r
+				 WHERE r.post_id = %d AND r.subject_type = %d
+				 ORDER BY r.relation_type ASC, r.id ASC",
 				$post_id,
 				$subject_type
 			),
@@ -372,6 +392,53 @@ class Anime_Sync_Subject_Relations_Repository {
 			unset( $row );
 		}
 
+		/*
+		 * 站上已經有這部作品時，改用站上的中文標題。
+		 *
+		 * ★ 為什麼要這樣做
+		 *   Bangumi 的 name_cn 是中國譯名，簡繁轉換只換字不換譯名，所以
+		 *   「药屋少女的呢喃」會變成「藥屋少女的呢喃」——字對了，但台灣官方
+		 *   譯名是「藥師少女的獨語」。2026-09-15 使用者回報這個問題。
+		 *   實測還有更誇張的：
+		 *     站上「魔法帽的工作室」      → 關聯顯示「尖帽子的魔法工房」
+		 *     站上「終末起點 第二季」      → 關聯顯示「最強王者的第二人生 第二季」
+		 *     站上「Dr.STONE 新石紀…」    → 關聯顯示「石紀元 科學與未來 第3部分」
+		 *   全站 17,495 列關聯裡有 3,221 列（1,260 部作品）站上本來就有正確譯名。
+		 *
+		 *   資料表的 local_post_id 欄位本來就是為此設計的，但
+		 *   class-relation-cover-backfill.php 一直把它寫死成 0，從沒生效過。
+		 *   這裡改成查詢時即時對應，不動既有資料，也就不需要批次回填。
+		 *
+		 * 先一次 update_meta_cache 把 meta 撈進來，避免每列各打一次查詢。
+		 */
+		$matched_ids = [];
+		foreach ( $rows as $row ) {
+			$mid = (int) ( $row['matched_post_id'] ?? 0 );
+			if ( $mid > 0 ) {
+				$matched_ids[ $mid ] = true;
+			}
+		}
+
+		if ( $matched_ids ) {
+			update_meta_cache( 'post', array_keys( $matched_ids ) );
+		}
+
+		foreach ( $rows as &$row ) {
+			$row['local_title'] = '';
+			$mid                = (int) ( $row['matched_post_id'] ?? 0 );
+
+			if ( $mid > 0 ) {
+				$local = trim( (string) get_post_meta( $mid, 'anime_title_chinese', true ) );
+				if ( '' === $local ) {
+					/* 沒填中文標題的退回文章標題，仍然比 BGM 的中國譯名貼近站上用語 */
+					$local = trim( (string) get_the_title( $mid ) );
+				}
+				$row['local_title'] = $local;
+			}
+		}
+
+		unset( $row );
+
 		set_transient( $cache_key, $rows, self::CACHE_TTL );
 
 		return $rows;
@@ -383,13 +450,32 @@ class Anime_Sync_Subject_Relations_Repository {
 	private function format_item( array $row, int $subject_type ): array {
 		$name_cn = trim( (string) $row['name_cn'] );
 		$name    = trim( (string) $row['name'] );
+		$local   = trim( (string) ( $row['local_title'] ?? '' ) );
 
-		/* 中文名優先,沒有才退回原文;兩個都有才顯示副標題 */
-		$title = '' !== $name_cn ? $name_cn : $name;
-		$sub   = ( '' !== $name_cn && '' !== $name && $name_cn !== $name ) ? $name : '';
+		/*
+		 * 站上譯名 > BGM 中文名 > 原文。
+		 *
+		 * BGM 的中文名是中國譯名，站上有同一部作品時一律以站上為準，
+		 * 理由見 get_rows() 裡 local_title 那段的註解。
+		 */
+		$title = '' !== $local
+			? $local
+			: ( '' !== $name_cn ? $name_cn : $name );
+
+		/* 原文與顯示標題不同才給副標題，避免同一行出現兩次一樣的字 */
+		$sub = ( '' !== $name && $title !== $name ) ? $name : '';
 
 		$rel  = (int) $row['relation_type'];
 		$post = (int) $row['local_post_id'];
+
+		/*
+		 * local_post_id 長年被寫死成 0（見 class-relation-cover-backfill.php），
+		 * 導致整頁關聯都點不動。查詢時對應到的站內文章可以直接補上這個角色，
+		 * 順便讓這些項目變成站內連結。
+		 */
+		if ( $post <= 0 ) {
+			$post = (int) ( $row['matched_post_id'] ?? 0 );
+		}
 
 		/*
 		 * badge 只在「不是分組依據」時才有意義。
