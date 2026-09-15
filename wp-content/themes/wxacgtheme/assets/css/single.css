@@ -4691,6 +4691,18 @@
  * 本來是要修「YouTube 縮圖被裁」，結果自己畫的縮圖又被裁一次。
  */
 .single-content .wxa-video__thumb   { margin: 0; height: 100%; }
+/*
+ * 影片 iframe 同樣中招，而且這才是「PV 底部被裁」的真正原因。
+ *
+ * .single-content iframe（162 行）有 height:auto 與 margin:1.6em auto，
+ * 權重 (0,1,1) 跟 .wxa-video iframe 相同，但 margin 那條元件根本沒宣告，
+ * 所以照樣生效：iframe 被往下推 25.6px，加上 inset:0 已經給足高度，
+ * 整個往下溢出 26px，被外層 overflow:hidden 切掉。
+ *
+ * 先前誤判成「YouTube 挑了 4:3 縮圖」——當時只量了 iframe 的寬高比例
+ * （確實是正確的 16:9）就下結論，沒量它的 top 位置。比例對不代表位置對。
+ */
+.single-content .wxa-video iframe   { margin: 0; height: 100%; }
 
 @media (max-width: 600px) {
     .wxa-work { gap: 14px; padding: 16px; }
