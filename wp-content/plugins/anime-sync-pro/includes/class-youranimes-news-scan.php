@@ -280,12 +280,22 @@ class Anime_Sync_YourAnimes_News_Scan {
 	}
 
 	/**
-	 * kind → Anime_Sync_Anime_Events 的 event_type（全部是既有類型，不新增）。
-	 * visual 沒有附件時 promote_visual() 會直接略過、不動封面，只發布文字，安全。
+	 * 從 YA 收哪幾類。
+	 *
+	 * ★ 只收 AniList 差異掃描給不了的：串流上下架（只有 YA 有）、播出時程（YA 是台灣
+	 *   視角，「木棉花宣布 10/16 在台灣上映」AniList 沒有）、播出狀態（動畫化、停播）。
+	 *   視覺圖／PV／聲優 AniList 那條已經自動發布、而且有真的圖和影片——YA 再發一則
+	 *   純文字的「公開主視覺圖」就是同一件事兩則消息、追番的人收到兩次通知。
+	 *   要開回來只需把 key 加進這個陣列。
+	 */
+	private const PUBLISH_KINDS = [ 'gone' => 'streaming', 'live' => 'streaming', 'schedule' => 'schedule', 'status' => 'status' ];
+
+	/**
+	 * kind → Anime_Sync_Anime_Events 的 event_type（全部是既有類型，不新增）；
+	 * 不在 PUBLISH_KINDS 的回空字串，呼叫端跳過。
 	 */
 	public static function event_type_for( string $kind ): string {
-		$map = [ 'gone' => 'streaming', 'live' => 'streaming', 'schedule' => 'schedule', 'trailer' => 'trailer', 'visual' => 'visual', 'cast' => 'cast', 'status' => 'status' ];
-		return $map[ $kind ] ?? '';
+		return self::PUBLISH_KINDS[ $kind ] ?? '';
 	}
 
 	/** 只收這麼多天內的公告；YA 一部作品會留好幾年的歷史，第一次掃不該把它們全灌進待審。 */
