@@ -20,6 +20,7 @@
     initTocHighlight();
     initJobTabs();
     initSeasonCountdown();
+    initHashLanding();
   });
 
   /* ---------- 固定頁首高度 ---------- */
@@ -27,14 +28,21 @@
    * 章節導覽要吸附在頁首正下方，但 #site-header 是 position:sticky top:0
    * 且高度由內容撐出來（實測桌機 155px、手機 60px），
    * 寫死任何一個值在另一個斷點都會錯位，所以量完寫進 --lg-header-h 給 CSS 用。
+   *
+   * 順便算出錨點要讓開的總高度（頁首 + 吸附導覽列 + 一點餘裕）寫進
+   * --lg-anchor-offset，給 .guide-section 的 scroll-margin-top 用——
+   * 沒有它的話跳到某一節，該節標題會整個被導覽列蓋住。
    */
   function initHeaderOffset() {
     var header = document.getElementById('site-header');
-    if (!header) return;
+    var toc    = document.querySelector('.level-guide-page .guide-toc');
 
     function apply() {
-      var h = Math.round(header.getBoundingClientRect().height);
-      document.documentElement.style.setProperty('--lg-header-h', h + 'px');
+      var hh = header ? Math.round(header.getBoundingClientRect().height) : 0;
+      var th = toc ? Math.round(toc.getBoundingClientRect().height) : 0;
+      var root = document.documentElement;
+      root.style.setProperty('--lg-header-h', hh + 'px');
+      root.style.setProperty('--lg-anchor-offset', (hh + th + 12) + 'px');
     }
 
     apply();
@@ -154,10 +162,39 @@
         b.setAttribute('aria-selected', on ? 'true' : 'false');
         b.tabIndex = on ? 0 : -1;
       });
+      revealTab(buttons[idx]);
+    }
+
+    /*
+     * 分頁列在手機是橫向捲動的，選中的那個可能落在畫面外。
+     * 只有真的沒完整露出時才捲，免得點一個本來就看得到的分頁還被推來推去。
+     */
+    function revealTab(btn) {
+      if (!btn || tabs.scrollWidth <= tabs.clientWidth) return;
+      var left  = tabs.scrollLeft;
+      var right = left + tabs.clientWidth;
+      if (btn.offsetLeft >= left && btn.offsetLeft + btn.offsetWidth <= right) return;
+      tabs.scrollLeft = Math.max(0, btn.offsetLeft - (tabs.clientWidth - btn.offsetWidth) / 2);
+    }
+
+    /*
+     * 捲軸在這裡是隱藏的，沒有「可以往右拉」的視覺提示，
+     * 使用者會以為溢出的分頁不見了（2026-09-15 回報）。
+     * 有溢出時掛上 is-scrollable，由 CSS 在右緣加漸層；捲到底就拿掉。
+     */
+    function syncScrollHint() {
+      var overflow = tabs.scrollWidth > tabs.clientWidth + 1;
+      tabs.classList.toggle('is-scrollable', overflow);
+      tabs.classList.toggle(
+        'is-at-end',
+        overflow && tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 1
+      );
     }
 
     grid.parentNode.insertBefore(tabs, grid);
     grid.classList.add('is-tabbed');
+    tabs.addEventListener('scroll', syncScrollHint, { passive: true });
+    window.addEventListener('resize', syncScrollHint);
 
     // 預設顯示自己的職業，未登入或還沒選職業就顯示第一個
     var mine = -1;
@@ -165,6 +202,63 @@
       if (mine === -1 && c.classList.contains('is-mine')) mine = i;
     });
     activate(mine > -1 ? mine : 0);
+    syncScrollHint();
+  }
+
+  /* ---------- 錨點落點修正 ---------- */
+  /*
+   * 帶 #section 進站時落點會差很多——實測 #achievements 差 3,193px，
+   * 整個停在上一節。原因是瀏覽器在頁面還沒載完時就跳了，之後上方
+   * 延遲載入的圖片與廣告把版面撐開，目標早就被推到別的位置。
+   *
+   * 這是既有問題（修改前後誤差分別是 3,193px 與 3,120px，幾乎一樣），
+   * 不是分頁或吸附導覽列造成的，但既然會讓人以為新功能壞掉，一併修掉。
+   *
+   * 載入完成後重對一次，400ms 後再對一次（廣告通常會再撐一輪）。
+   * 使用者只要自己動過捲軸就不再插手，免得跟他搶。
+   */
+  function initHashLanding() {
+    var id = (location.hash || '').replace('#', '');
+    if (!id) return;
+
+    var target = document.getElementById(decodeURIComponent(id));
+    if (!target) return;
+
+    var userMoved = false;
+    var expired   = false;
+
+    function markMoved() { userMoved = true; }
+    ['wheel', 'touchmove', 'keydown', 'mousedown'].forEach(function (ev) {
+      window.addEventListener(ev, markMoved, { passive: true, once: true });
+    });
+
+    function settle() {
+      if (userMoved || expired) return;
+      /*
+       * behavior 必須指定 instant。glass.css 對 html 下了 scroll-behavior:smooth，
+       * 預設的 auto 會沿用它變成平滑捲動，而下面每次版面變動都會再呼叫一次，
+       * 動畫還沒跑到就被重啟——實測落點永遠差兩千多 px，就是卡在這裡。
+       *
+       * scrollIntoView 會套用 CSS 的 scroll-margin-top，標題才不會被導覽列蓋住。
+       */
+      target.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }
+
+    /*
+     * 只在 load 校正一次不夠：實測廣告與延遲圖片在 load 之後還會再撐開版面，
+     * 校正完目標又被推走（第一版只補 load + 400ms，落點仍差 3,169px）。
+     * 改成盯著版面高度變化跟著校正，3 秒後收手，使用者一動就不再插手。
+     */
+    window.addEventListener('load', settle);
+    setTimeout(function () { expired = true; }, 3000);
+
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(settle);
+      ro.observe(document.body);
+      setTimeout(function () { ro.disconnect(); }, 3000);
+    } else {
+      [200, 600, 1200, 2400].forEach(function (ms) { setTimeout(settle, ms); });
+    }
   }
 
   /* ---------- 賽季倒數 ---------- */
