@@ -280,6 +280,29 @@
             .always( function () { $btn.prop( 'disabled', false ).text( '🔍 分析系列' ); $( '#series-analyze-spinner' ).hide(); } );
         } );
 
+        /*
+         * 站內狀態標籤（2026-09-15 新增）。
+         *
+         * 後端 find_existing_post() 用 post_status=any，草稿也算「已匯入」，
+         * 原本一律顯示「✅ 已匯入」，看不出它其實還沒上線——正式站的
+         * 「少女與戰車 lovelove大作戰！」就是這樣被當成已經好了。
+         * 後端現在多帶 post_status，這裡依它分開標。
+         *
+         * .status-draft 的樣式定義在 import-tool.php 的 inline <style>，同一頁載入。
+         * default 分支是給拿不到 post_status 的舊回應用的，退回原本的講法。
+         */
+        function seriesStatusLabel( node ) {
+            if ( ! node || ! node.imported ) { return { cls: 'status-new', text: '⬜ 未匯入' }; }
+            switch ( node.post_status ) {
+                case 'publish': return { cls: 'status-imported', text: '✅ 已發布' };
+                case 'draft':   return { cls: 'status-draft',    text: '📝 草稿'  };
+                case 'pending': return { cls: 'status-draft',    text: '⏳ 待審'  };
+                case 'private': return { cls: 'status-draft',    text: '🔒 私密'  };
+                case 'future':  return { cls: 'status-draft',    text: '🕒 排程'  };
+                default:        return { cls: 'status-imported', text: '✅ 已匯入' };
+            }
+        }
+
         function renderSeriesTable( tree ) {
             const labelMap = { PREQUEL:'前作', SEQUEL:'續作', SIDE_STORY:'外傳', SPIN_OFF:'衍生', ALTERNATIVE:'平行', PARENT:'主作品' };
             const $tbody   = $( '#series-tbody' ).empty();
@@ -299,9 +322,8 @@
                     );
                 }
 
-                const $impSpan = $( '<span>' )
-                    .addClass( node.imported ? 'status-imported' : 'status-new' )
-                    .text( node.imported ? '✅ 已匯入' : '⬜ 未匯入' );
+                const impLabel = seriesStatusLabel( node );
+                const $impSpan = $( '<span>' ).addClass( impLabel.cls ).text( impLabel.text );
 
                 const $tr = $( '<tr>' );
                 $tr.append( $( '<td>' ).append( $chk ) );

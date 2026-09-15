@@ -900,6 +900,8 @@ class Anime_Sync_Admin {
                              && (int) ( $n['start_season']['year'] ?? 0 ) === $q_year ),
                     'imported'   => ! empty( $existing ),
                     'edit_url'   => ! empty( $existing ) ? (string) get_edit_post_link( $existing[0], 'raw' ) : '',
+                    // 查詢用 post_status=any，草稿也算已匯入；帶上文章狀態讓前端分開標
+                    'post_status' => ! empty( $existing ) ? (string) get_post_status( $existing[0] ) : '',
                 ];
             }
 
@@ -1049,6 +1051,9 @@ class Anime_Sync_Admin {
                     'popularity'   => (int)    ( $item['popularity']      ?? 0  ),
                     'status'       => (string) ( $item['status']          ?? '' ),
                     'imported'     => ! empty( $existing_ids ),
+                    // 查詢用 post_status=any，草稿也算已匯入；帶上文章狀態讓前端分開標。
+                    // 鍵名不能用 status——上面那個是 AniList 的播出狀態。
+                    'post_status'  => ! empty( $existing_ids ) ? (string) get_post_status( $existing_ids[0] ) : '',
                 ];
             }
 
@@ -1217,6 +1222,8 @@ class Anime_Sync_Admin {
                         'popularity'   => (int)    ( $item['popularity']      ?? 0  ),
                         'start_date'   => $start,
                         'imported'     => ! empty( $existing_ids ),
+                        // 查詢用 post_status=any，草稿也算已匯入；帶上文章狀態讓前端分開標
+                        'post_status'  => ! empty( $existing_ids ) ? (string) get_post_status( $existing_ids[0] ) : '',
                     ];
                 }
 

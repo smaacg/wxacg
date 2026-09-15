@@ -786,6 +786,8 @@ function asc_progress_block( $prefix ) {
 .asc-info-box { background: #f0f7ff; border: 1px solid #b8d4f5; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 13px; }
 .status-imported { color: #46b450; font-weight: bold; }
 .status-new      { color: #2271b1; }
+/* 已匯入但還沒上線（草稿／待審／私密／排程）——跟已發布用不同顏色區隔 */
+.status-draft    { color: #d97706; font-weight: bold; }
 /*
  * ★ 新增分頁時務必把 tbody 的 id 加進這條規則。
  *
@@ -873,15 +875,51 @@ function asc_progress_block( $prefix ) {
         return dateStr;
     }
 
+    /*
+     * 站內狀態標籤（2026-09-15 新增）。
+     *
+     * 後端查既有文章一律用 post_status=any，所以草稿也算「已匯入」。
+     * 原本一律顯示「✓ 已匯入」，看不出它其實還沒上線——正式站的
+     * 「少女與戰車 lovelove大作戰！」就是這樣被當成已經好了。
+     * 後端現在多帶 post_status，這裡依它分開標。
+     *
+     * default 分支是給拿不到 post_status 的舊資料用的（例如瀏覽器還存著
+     * 改版前的 AJAX 回應），退回原本的講法，不會變成空白。
+     */
+    function ascStatusLabel(item) {
+        if (!item || !item.imported) { return { cls: 'status-new', text: '未匯入' }; }
+        switch (item.post_status) {
+            case 'publish': return { cls: 'status-imported', text: '✓ 已發布' };
+            case 'draft':   return { cls: 'status-draft',    text: '📝 草稿'  };
+            case 'pending': return { cls: 'status-draft',    text: '⏳ 待審'  };
+            case 'private': return { cls: 'status-draft',    text: '🔒 私密'  };
+            case 'future':  return { cls: 'status-draft',    text: '🕒 排程'  };
+            default:        return { cls: 'status-imported', text: '✓ 已匯入' };
+        }
+    }
+
+    /** 同上，回傳 HTML 字串版，給用字串拼表格的渲染器用。 */
+    function ascStatusHtml(item) {
+        var s = ascStatusLabel(item);
+        return '<span class="' + s.cls + '">' + escHtml(s.text) + '</span>';
+    }
+
+    /** 有 edit_url 就把標籤做成開新分頁的編輯連結，否則退回純標籤。 */
+    function ascStatusHtmlLinked(item) {
+        var s = ascStatusLabel(item);
+        if (!item || !item.imported || !item.edit_url) { return ascStatusHtml(item); }
+        return '<a class="' + s.cls + '" href="' + escHtml(item.edit_url) +
+               '" target="_blank" rel="noopener">' + escHtml(s.text) + ' ↗</a>';
+    }
+
     function buildImportCard(item, checkClass) {
         var isImported = item.imported;
         var chk = $('<input type="checkbox">').addClass(checkClass).attr('data-id', item.anilist_id);
         if (isImported) chk.prop('disabled', true);
         else chk.prop('checked', true);
 
-        var status = isImported
-            ? $('<span class="status-imported">').text('✓ 已匯入')
-            : $('<span class="status-new">').text('未匯入');
+        var lbl    = ascStatusLabel(item);
+        var status = $('<span>').addClass(lbl.cls).text(lbl.text);
 
         var meta = $('<div class="asc-import-card__meta">');
         if (item.format) meta.append('<span class="asc-import-card__meta-item">' + escHtml(item.format) + '</span>');
@@ -993,9 +1031,7 @@ function asc_progress_block( $prefix ) {
             var chkCell   = imported
                 ? '<input type="checkbox" class="season-item-check" data-id="' + aid + '" disabled>'
                 : '<input type="checkbox" class="season-item-check" data-id="' + aid + '" checked>';
-            var statusBadge = imported
-                ? '<span class="status-imported">✓ 已匯入</span>'
-                : '<span class="status-new">未匯入</span>';
+            var statusBadge = ascStatusHtml(item);
 
             // data-imported 供「只顯示未匯入」篩選使用（卡片改用 is-imported class）
             var tr = $('<tr>')
@@ -1020,7 +1056,8 @@ function asc_progress_block( $prefix ) {
                 meta1Label:   '集數', meta1Val: item.episodes || '—',
                 meta2Label:   '狀態', meta2Val: item.status || '',
                 popularity:   item.popularity,
-                imported:     imported
+                imported:     imported,
+                post_status:  item.post_status
             }, 'season-item-check');
             card.attr('data-format', item.format || '');
             cards.append(card);
@@ -1266,14 +1303,7 @@ function asc_progress_block( $prefix ) {
                 ? '<input type="checkbox" class="ranking-item-check" data-id="' + aid + '" disabled>'
                 : '<input type="checkbox" class="ranking-item-check" data-id="' + aid + '" checked>';
             // 已匯入的接上後端本來就有回傳、但先前被丟掉的 edit_url，直接跳去編輯
-            var status;
-            if (imported && item.edit_url) {
-                status = '<a class="status-imported" href="' + escHtml(item.edit_url) + '" target="_blank" rel="noopener">✓ 已匯入 ↗</a>';
-            } else if (imported) {
-                status = '<span class="status-imported">✓ 已匯入</span>';
-            } else {
-                status = '<span class="status-new">未匯入</span>';
-            }
+            var status = ascStatusHtmlLinked(item);
             var coverSrc  = item.cover_image ? escHtml(item.cover_image) : '';
             var coverHtml = coverSrc ? '<img src="' + coverSrc + '" class="asc-cover-thumb" alt="">' : '—';
 
@@ -1301,6 +1331,7 @@ function asc_progress_block( $prefix ) {
                 meta2Label:   '排名', meta2Val: String(rank),
                 popularity:   item.popularity,
                 imported:     imported,
+                post_status:  item.post_status,
                 cover_image:  item.cover_image || ''
             }, 'ranking-item-check'));
         });
@@ -1389,9 +1420,7 @@ function asc_progress_block( $prefix ) {
                 var chk = isImported
                     ? '<input type="checkbox" class="announced-item-check" data-id="' + aid + '" disabled>'
                     : '<input type="checkbox" class="announced-item-check" data-id="' + aid + '" checked>';
-                var status = isImported
-                    ? '<span class="status-imported">✓ 已匯入</span>'
-                    : '<span class="status-new">未匯入</span>';
+                var status = ascStatusHtml(item);
 
                 tbody.append($('<tr>').toggleClass('status-imported-row', !!isImported).html(
                     '<td>' + chk + '</td>' +
@@ -1411,7 +1440,8 @@ function asc_progress_block( $prefix ) {
                     meta1Label:   '集數',    meta1Val: item.episodes || '—',
                     meta2Label:   '預計開播', meta2Val: formatStartDateText(item.start_date),
                     popularity:   item.popularity,
-                    imported:     isImported
+                    imported:     isImported,
+                    post_status:  item.post_status
                 }, 'announced-item-check'));
             });
 
@@ -1681,11 +1711,7 @@ function asc_progress_block( $prefix ) {
             var chk  = done
                 ? '<input type="checkbox" class="mal-series-check" data-id="' + id + '" disabled>'
                 : '<input type="checkbox" class="mal-series-check" data-id="' + id + '" checked>';
-            var status = done
-                ? (item.edit_url
-                    ? '<a class="status-imported" href="' + escHtml(item.edit_url) + '" target="_blank" rel="noopener">✓ 已匯入 ↗</a>'
-                    : '<span class="status-imported">✓ 已匯入</span>')
-                : '<span class="status-new">未匯入</span>';
+            var status = ascStatusHtmlLinked(item);
 
             var title = item.title_chinese || item.title_romaji || '';
             var year  = item.season_year ? String(item.season_year) : '—';
@@ -1706,7 +1732,8 @@ function asc_progress_block( $prefix ) {
                 format:       item.format || '',
                 meta1Label:   '關聯', meta1Val: item.relation_type || '根源',
                 meta2Label:   '年份', meta2Val: year,
-                imported:     done
+                imported:     done,
+                post_status:  item.post_status
             }, 'mal-series-check'));
         });
     }
@@ -1827,11 +1854,7 @@ function asc_progress_block( $prefix ) {
             var chk  = done
                 ? '<input type="checkbox" class="mal-item-check" data-id="' + id + '" disabled>'
                 : '<input type="checkbox" class="mal-item-check" data-id="' + id + '" checked>';
-            var status = done
-                ? (item.edit_url
-                    ? '<a class="status-imported" href="' + escHtml(item.edit_url) + '" target="_blank" rel="noopener">✓ 已匯入 ↗</a>'
-                    : '<span class="status-imported">✓ 已匯入</span>')
-                : '<span class="status-new">未匯入</span>';
+            var status = ascStatusHtmlLinked(item);
 
             /* 續播作品的檔期會早於查詢的季度，標一下免得看起來像資料錯誤 */
             var seasonCell = item.season
@@ -1862,7 +1885,8 @@ function asc_progress_block( $prefix ) {
                 meta1Label:   '集數',  meta1Val: item.episodes || '—',
                 meta2Label:   'MAL 分', meta2Val: item.score ? String(item.score) : '—',
                 popularity:   item.members,
-                imported:     done
+                imported:     done,
+                post_status:  item.post_status
             }, 'mal-item-check');
             card.attr('data-format', item.format || '');
             card.attr('data-new', item.is_new === false ? '0' : '1');

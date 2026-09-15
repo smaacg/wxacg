@@ -2019,6 +2019,12 @@ class Anime_Sync_API_Handler {
             $item['imported'] = $post_id > 0;
             $item['post_id']  = $post_id;
             $item['edit_url'] = $post_id > 0 ? (string) get_edit_post_link( $post_id, 'raw' ) : '';
+            /*
+             * 查詢條件是 post_status NOT IN (trash, auto-draft)，草稿也算「已匯入」，
+             * 但前端只顯示「已匯入」看不出它其實還沒上線。多帶一個文章狀態讓前端分開標。
+             * 注意不能叫 status——那個鍵已經被 AniList 的播出狀態佔用了。
+             */
+            $item['post_status'] = $post_id > 0 ? (string) get_post_status( $post_id ) : '';
         }
         unset( $item );
 
@@ -2472,6 +2478,9 @@ class Anime_Sync_API_Handler {
             $node_data['imported']      = $post_id > 0;
             $node_data['post_id']       = $post_id;
             $node_data['edit_url']      = $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '';
+            // find_existing_post() 用 post_status=any，草稿也算已匯入；
+            // 多帶文章狀態，前端才分得出「已發布」與「還是草稿」。
+            $node_data['post_status']   = $post_id > 0 ? (string) get_post_status( $post_id ) : '';
             $nodes[]                    = $node_data;
 
             // 經由 PARENT 抵達的母作品:已收錄,但不從它繼續展開（理由見上方註解）。
@@ -2716,6 +2725,8 @@ class Anime_Sync_API_Handler {
             $node_data['imported']      = $post_id > 0;
             $node_data['post_id']       = $post_id;
             $node_data['edit_url']      = $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : '';
+            // 同 AniList 版：草稿也算已匯入，多帶文章狀態讓前端分開標
+            $node_data['post_status']   = $post_id > 0 ? (string) get_post_status( $post_id ) : '';
             $nodes[]                    = $node_data;
 
             if ( $via_parent ) {
