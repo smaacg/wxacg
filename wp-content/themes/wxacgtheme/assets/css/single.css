@@ -71,6 +71,25 @@
 .single-content img{max-width:100%;height:auto;border-radius:0;display:block;margin:1.6em auto}
 .single-content h2{font-size:24px;margin:1.7em 0 .6em;border-left:4px solid var(--accent-blue,#63A8FF);padding-left:12px;color:#fff;line-height:1.4}
 .single-content h3{font-size:19px;margin:1.4em 0 .5em;color:#fff;line-height:1.45}
+/*
+ * h4 是作品內的小節標題（看點／網友期待／台灣觀看平台）。
+ *
+ * 2026-09-15：原本完全沒有規則，掉回瀏覽器預設的 h4——13px 粗體，
+ * 比 15.5px 的內文還小，讀起來像加粗的句子而不是標題，整篇的
+ * 三層結構在視覺上是斷的。
+ *
+ * 用比 h2 更細更淡的左側線：維持同一套視覺語言，但不搶 h2 的戲。
+ * 刻意不用 accent-blue 當文字色——內文的連結就是藍的，會被誤認成連結。
+ */
+.single-content h4{
+  font-size:17px;
+  font-weight:700;
+  color:#fff;
+  line-height:1.5;
+  margin:1.9em 0 .6em;
+  padding-left:10px;
+  border-left:3px solid rgba(99,168,255,.38);
+}
 .single-content blockquote{border-left:4px solid rgba(99,168,255,.5);padding:10px 18px;color:#cfd6df;background:rgba(255,255,255,.04);margin:1.2em 0;border-radius:0 8px 8px 0}
 .single-content a{color:var(--accent-blue,#63A8FF);text-decoration:underline;text-underline-offset:3px}
 .single-content a:hover{filter:brightness(1.2)}
@@ -237,6 +256,7 @@
   .single-content{font-size:15.5px;line-height:1.8}
   .single-content h2{font-size:20px}
   .single-content h3{font-size:18px}
+  .single-content h4{font-size:16px;margin:1.6em 0 .5em}
   .single-meta{gap:12px;font-size:13px}
   .single-share{gap:12px}
   .share-btn span{display:none}
@@ -4602,9 +4622,19 @@
 }
 
 /* 工作室欄位常出現很長的英文公司名，限寬並允許斷行，
-   不要把整張表格撐開 */
+   不要把整張表格撐開。
+
+   2026-09-15：14em → 22em。這條是為「工作室」欄位寫的，但它套用到
+   每一張 .wxa-table-wrap 的最後一欄，而新番整理那種表格的最後一欄是
+   「前作在台灣上架過的平台」——一長串逗號分隔的平台名。壓在 14em 裡
+   會折成五、六行，實測《轉生就是劍》那一列的高度是其他列的三倍，
+   整張表看起來參差不齊。
+
+   放寬到 22em：工作室名稱本來就短，不受影響（max-width 只設上限）；
+   長清單則少掉一半以上的折行。仍然保留上限，避免單一超長內容把
+   整張表撐到要橫向捲動。 */
 .wxa-table-wrap td:last-child {
-    max-width: 14em;
+    max-width: 22em;
     word-break: break-word;
 }
 
