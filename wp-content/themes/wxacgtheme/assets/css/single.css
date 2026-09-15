@@ -4568,10 +4568,22 @@
 }
 
 /* ── 時間表：窄螢幕改成自己橫向捲動，不要把欄位擠爛 ── */
+/*
+ * 2026-09-15：表格改成一張卡片。
+ *
+ * 原本只有列與列之間的分隔線，沒有外框也沒有底色，整張表在深色背景上
+ * 像一堆散落的文字，使用者反映「很醜」。加上邊框、圓角與表頭底色之後
+ * 才看得出這是一個獨立的資料區塊。
+ *
+ * overflow:hidden 是讓圓角吃得到表頭的底色，橫向捲動改由 overflow-x 負責。
+ */
 .wxa-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin: 0 0 24px;
+    border: 1px solid rgba(148, 163, 184, .20);
+    border-radius: 12px;
+    background: rgba(148, 163, 184, .03);
 }
 
 .wxa-table-wrap table {
@@ -4583,19 +4595,34 @@
 
 .wxa-table-wrap th,
 .wxa-table-wrap td {
-    padding: 10px 12px;
+    /* 10px→14px：原本太擠，多行的欄位（平台清單）讀起來會黏在一起 */
+    padding: 14px 16px;
     text-align: left;
     border-bottom: 1px solid rgba(148, 163, 184, .18);
     vertical-align: top;
+    line-height: 1.65;
 }
 
+/* 表頭給底色與較亮的字，明確跟內容分開，不再只是一行灰字 */
 .wxa-table-wrap th {
-    font-size: 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
     white-space: nowrap;
-    color: var(--smacg-muted, #9aa4b2);
+    color: rgba(233, 238, 245, .92);
+    background: rgba(148, 163, 184, .10);
+    border-bottom: 1px solid rgba(148, 163, 184, .26);
 }
 
-.wxa-table-wrap tbody tr:nth-child(odd) { background: rgba(148, 163, 184, .05); }
+/* 第一欄是作品名，給它份量，掃視時才有著力點 */
+.wxa-table-wrap td:first-child { font-weight: 600; }
+
+/* 最後一列不要留一條孤零零的底線貼著卡片下緣 */
+.wxa-table-wrap tbody tr:last-child td { border-bottom: 0; }
+
+/* 斑馬紋改淡（有卡片邊界之後不需要那麼強），滑過時才給明顯回饋 */
+.wxa-table-wrap tbody tr:nth-child(odd) { background: rgba(148, 163, 184, .035); }
+.wxa-table-wrap tbody tr:hover { background: rgba(99, 168, 255, .07); }
 
 .wxa-table-wrap td small { opacity: .65; }
 
