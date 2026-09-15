@@ -136,15 +136,20 @@ class Anime_Sync_YourAnimes_News_Scan {
 				$platform = self::platform_from_text( $info );
 				$kind     = self::kind_of( $info );
 
-				// 只收串流異動；「公開主視覺圖」「宣布播出日」那些另有 AniList 差異掃描
+				// 視覺圖、PV 那些另有 AniList 差異掃描在管
 				if ( $kind === 'other' ) {
+					continue;
+				}
+
+				// 太舊的不收（見 MAX_AGE_DAYS）
+				if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) && ( time() - strtotime( $date ) ) > self::MAX_AGE_DAYS * DAY_IN_SECONDS ) {
 					continue;
 				}
 
 				if ( ! $dry_run ) {
 					$id = Anime_Sync_Anime_Events::record( [
 						'anime_id'    => $post_id,
-						'event_type'  => 'streaming',
+						'event_type'  => self::event_type_for( $kind ),
 						'fingerprint' => $date . '|' . $info,
 						'event_date'  => preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ? $date : '',
 						'summary'     => $info,
@@ -232,8 +237,11 @@ class Anime_Sync_YourAnimes_News_Scan {
 	}
 
 	/**
-	 * 「下架」→ gone；「上架」→ live；其他（視覺圖、PV、播出時間…）→ other。
-	 * 只有 gone／live 是串流異動；other 已有 AniList 差異掃描在管，這裡不重複記。
+	 * 公告分類：
+	 *   gone      「下架」                         → 事件類型 streaming ＋ 下架訊號
+	 *   live      「上架」                         → streaming
+	 *   schedule  「播出／上映／開播／停播／順延」 → 事件類型 schedule（進待審，不自動發）
+	 *   other     視覺圖、PV、配音名單…            → 不記，AniList 差異掃描已在管
 	 */
 	public static function kind_of( string $info ): string {
 		if ( preg_match( '/下架/u', $info ) ) {
@@ -242,8 +250,19 @@ class Anime_Sync_YourAnimes_News_Scan {
 		if ( preg_match( '/上架/u', $info ) ) {
 			return 'live';
 		}
+		if ( preg_match( '/播出|上映|開播|停播|順延|延後|提前/u', $info ) ) {
+			return 'schedule';
+		}
 		return 'other';
 	}
+
+	/** kind → Anime_Sync_Anime_Events 的 event_type。 */
+	public static function event_type_for( string $kind ): string {
+		return $kind === 'schedule' ? 'schedule' : 'streaming';
+	}
+
+	/** 只收這麼多天內的公告；YA 一部作品會留好幾年的歷史，第一次掃不該把它們全灌進待審。 */
+	const MAX_AGE_DAYS = 90;
 
 	/**
 	 * 從公告文字推平台 key：用登錄表的 yt_keywords（木棉花→muse、曼迪→mighty、
@@ -279,15 +298,21 @@ class Anime_Sync_YourAnimes_News_Scan {
 	// WP 相依
 	// =====================================================================
 
-	/** 站上哪篇作品的 anime_youranimes_url 指向這個 YA id。 */
+	/**
+	 * 站上哪篇作品的 anime_youranimes_url 指向這個 YA id。
+	 * 草稿、待審、排程也算——使用者匯入後常先放草稿，公告照樣要進消息審核。
+	 * 已發布的優先（同一 YA id 若草稿與正式並存，取正式那篇）。
+	 */
 	protected static function post_for_ya_id( int $ya_id ): int {
 		global $wpdb;
 
 		return (int) $wpdb->get_var( $wpdb->prepare(
 			"SELECT pm.post_id FROM {$wpdb->postmeta} pm
-			   JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_type = 'anime' AND p.post_status = 'publish'
+			   JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_type = 'anime'
+			    AND p.post_status IN ('publish','draft','pending','future')
 			  WHERE pm.meta_key = 'anime_youranimes_url'
 			    AND ( pm.meta_value LIKE %s OR pm.meta_value LIKE %s )
+			  ORDER BY FIELD(p.post_status,'publish','future','pending','draft'), p.ID DESC
 			  LIMIT 1",
 			'%/animes/' . $ya_id,
 			'%/animes/' . $ya_id . '/%'
