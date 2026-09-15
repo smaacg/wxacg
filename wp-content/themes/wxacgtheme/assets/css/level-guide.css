@@ -86,13 +86,49 @@
 }
 .guide-hero-sub { color: #d4d8e1; font-size: 15px; margin-bottom: 22px; }
 
-/* ============ TOC（Hero 內的章節導覽）============ */
+/* ============ TOC（章節導覽，捲動時吸附在頁首下方）============
+ *
+ * 2026-09-15：這排 chip 原本放在 .guide-hero 裡面，position:sticky 會被
+ * 父元素的高度關住（hero 只有 213px），一捲就跟著消失。markup 已把 <nav>
+ * 移出 hero 成為 .container 的直接子元素，sticky 才吃得到整頁的高度。
+ *
+ * top 用 --lg-header-h：#site-header 是 sticky top:0 且高度由內容決定
+ * （實測桌機 155px、手機 60px），由 level-guide.js 量完寫進來；
+ * 變數還沒寫入時用 60px 墊著，至少不會貼在頁首底下被蓋住。
+ */
 .guide-toc {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
   margin-top: 14px;
+}
+.level-guide-page .guide-toc {
+  position: sticky;
+  top: var(--lg-header-h, 60px);
+  z-index: 50;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  background: rgba(16, 18, 32, .92);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, .10);
+  border-radius: 14px;
+  /* 手機：7 顆 chip 換行會疊成三排把版面推高，改成單排橫向捲動 */
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.level-guide-page .guide-toc::-webkit-scrollbar { display: none; }
+
+@media (min-width: 901px) {
+  /* 桌機寬度夠，維持原本置中換行的樣子 */
+  .level-guide-page .guide-toc {
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow-x: visible;
+  }
 }
 .guide-toc-chip {
   display: inline-flex;
@@ -113,6 +149,14 @@
   border-color: var(--lg-primary);
   color: #fff !important;
   transform: translateY(-1px);
+}
+/* 橫向捲動時 chip 不能被壓扁 */
+.level-guide-page .guide-toc-chip { flex-shrink: 0; }
+/* 目前捲到的章節（由 level-guide.js 的 IntersectionObserver 標記） */
+.guide-toc-chip.is-active {
+  background: var(--lg-primary);
+  border-color: var(--lg-primary);
+  color: #fff !important;
 }
 
 /* ============ 我的進度卡（登入者）============ */
@@ -376,6 +420,50 @@
   gap: 14px;
   margin-top: 14px;
 }
+
+/* ── 職業分頁列（2026-09-15 新增）──
+ *
+ * 9 張卡全部攤開時手機要滑 7 個螢幕，是整頁最長的一段。
+ * 分頁列由 level-guide.js 動態插在 .guide-job-grid 前面，
+ * 沒有 JS 時不會出現，卡片也維持全部展開的原樣。
+ */
+.guide-job-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding-bottom: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.guide-job-tabs::-webkit-scrollbar { display: none; }
+.guide-job-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--lg-card-bg-2);
+  border: 1px solid var(--lg-card-border);
+  border-radius: 999px;
+  color: var(--lg-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.guide-job-tab:hover { border-color: var(--lg-primary); }
+.guide-job-tab.is-active {
+  background: var(--lg-primary);
+  border-color: var(--lg-primary);
+  color: #fff;
+}
+.guide-job-tab-icon { font-size: 16px; line-height: 1; }
+/* 自己的職業在還沒點開時也要認得出來 */
+.guide-job-tab.is-mine .guide-job-tab-name::after { content: ' ⭐'; }
+
+/* 分頁模式下同時只有一張卡可見，讓它佔滿整列而不是縮在 260px 欄寬裡 */
+.guide-job-grid.is-tabbed { grid-template-columns: 1fr; }
+.guide-job-card[hidden] { display: none; }
 .guide-job-card {
   background: var(--lg-card-bg-2);
   border: 1px solid var(--lg-card-border);

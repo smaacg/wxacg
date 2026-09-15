@@ -120,15 +120,6 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
       <p class="guide-hero-sub">
         了解微笑動漫的會員成長系統 — 從新進會員到黑卡會員，從學生到逍遙之神。
       </p>
-      <nav class="guide-toc" aria-label="目錄">
-        <a href="#exp"          class="guide-toc-chip">⚡ EXP 來源</a>
-        <a href="#season-score" class="guide-toc-chip">🏆 段位積分</a>
-        <a href="#level"        class="guide-toc-chip">📊 等級稱號</a>
-        <a href="#career"       class="guide-toc-chip">🎯 職業天命</a>
-        <a href="#tier"         class="guide-toc-chip">🏅 賽季段位</a>
-        <a href="#season"       class="guide-toc-chip">🗓️ 賽季時程</a>
-        <a href="#achievements" class="guide-toc-chip">🎖️ 成就收集</a>
-      </nav>
 
       <?php if ( $me_lvl ): ?>
         <aside class="guide-me-card" aria-label="我的目前進度">
@@ -160,6 +151,21 @@ if ( ! empty( $rank_tiers ) && is_array( $rank_tiers ) ) {
         </aside>
       <?php endif; ?>
     </header>
+
+    <!--
+      章節導覽：必須留在 .guide-hero 外面、當 .container 的直接子元素。
+      放回 hero 裡面的話 position:sticky 會被 hero 的高度關住（只有 213px），
+      一捲就跟著消失，等於沒有吸附效果。
+    -->
+    <nav class="guide-toc" aria-label="目錄">
+      <a href="#exp"          class="guide-toc-chip">⚡ EXP 來源</a>
+      <a href="#season-score" class="guide-toc-chip">🏆 段位積分</a>
+      <a href="#level"        class="guide-toc-chip">📊 等級稱號</a>
+      <a href="#career"       class="guide-toc-chip">🎯 職業天命</a>
+      <a href="#tier"         class="guide-toc-chip">🏅 賽季段位</a>
+      <a href="#season"       class="guide-toc-chip">🗓️ 賽季時程</a>
+      <a href="#achievements" class="guide-toc-chip">🎖️ 成就收集</a>
+    </nav>
 
     <!-- ===== §1 EXP 來源 ===== -->
     <section id="exp" class="guide-section">
