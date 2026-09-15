@@ -281,6 +281,7 @@ class Anime_Sync_Admin {
         add_submenu_page( 'anime-sync-pro', '審核佇列', '📋 審核佇列', $cap, 'anime-sync-queue',     [ $this, 'render_review_queue'   ] );
         add_submenu_page( 'anime-sync-pro', '查看動漫', '📚 查看動漫', $cap, 'anime-sync-published', [ $this, 'render_published_page' ] );
         add_submenu_page( 'anime-sync-pro', '錯誤日誌', '🐞 錯誤日誌', $cap, 'anime-sync-logs',      [ $this, 'render_logs_page'      ] );
+        add_submenu_page( 'anime-sync-pro', '串流來源', '📡 串流來源', $cap, 'anime-sync-streaming', [ $this, 'render_streaming_sources' ] );
         add_submenu_page( 'anime-sync-pro', '插件設定', '🔧 插件設定', $cap, 'anime-sync-settings',  [ $this, 'render_settings'       ] );
         add_submenu_page( 'anime-sync-pro', '操作紀錄', '🕘 操作紀錄', $view_cap, 'anime-sync-activity', [ $this, 'render_activity_page' ] );
     }
@@ -301,6 +302,7 @@ class Anime_Sync_Admin {
     public function render_review_queue()   { $this->safe_include_page( 'review-queue.php'   ); }
     public function render_published_page() { $this->safe_include_page( 'published-list.php' ); }
     public function render_logs_page()      { $this->safe_include_page( 'logs.php'           ); }
+    public function render_streaming_sources() { $this->safe_include_page( 'streaming-sources.php' ); }
     public function render_settings()       { $this->safe_include_page( 'settings.php'       ); }
     public function render_activity_page() { $this->safe_include_page( 'activity-log.php' ); }
     
