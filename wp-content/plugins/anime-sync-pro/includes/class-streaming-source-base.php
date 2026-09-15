@@ -334,9 +334,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			}
 		}
 
-		// 有寫入就讓 /streaming/ 的計數重算（沿用該處的快取鍵，不另外發明）
-		if ( $stats['written'] > 0 && class_exists( 'Anime_Sync_Streaming_Routing' ) ) {
-			delete_transient( Anime_Sync_Streaming_Routing::COUNT_CACHE_KEY );
+		if ( $stats['written'] > 0 ) {
+			$this->purge_streaming_pages();
 		}
 
 		return $stats;
@@ -625,11 +624,36 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			}
 		}
 
-		if ( $written && class_exists( 'Anime_Sync_Streaming_Routing' ) ) {
-			delete_transient( Anime_Sync_Streaming_Routing::COUNT_CACHE_KEY );
+		if ( $written ) {
+			self::purge_streaming_pages();
 		}
 
 		return $written;
+	}
+
+	/**
+	 * 寫入後讓公開頁面反映新資料。
+	 *
+	 * 兩層快取都要清：
+	 *   1. 外掛自己的計數 transient（/streaming/ 各平台收錄數，6 小時）
+	 *   2. LiteSpeed 頁面快取。/streaming/ 是虛擬路由、作品頁的 meta 又是直接
+	 *      update_post_meta 寫的，兩者都不會觸發 LiteSpeed 隨文章儲存的自動清除，
+	 *      不清的話用戶最多看 7 天舊頁（max-age=604800）。
+	 *      LiteSpeed 沒啟用時 do_action 沒人接，什麼都不會發生。
+	 */
+	protected static function purge_streaming_pages(): void {
+
+		if ( ! class_exists( 'Anime_Sync_Streaming_Routing' ) ) {
+			return;
+		}
+
+		delete_transient( Anime_Sync_Streaming_Routing::COUNT_CACHE_KEY );
+
+		do_action( 'litespeed_purge_url', Anime_Sync_Streaming_Routing::index_url() );
+
+		foreach ( self::available_keys() as $key ) {
+			do_action( 'litespeed_purge_url', Anime_Sync_Streaming_Routing::platform_url( $key ) );
+		}
 	}
 
 	// =====================================================================
@@ -667,6 +691,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			$checked[] = $this->key();
 			update_post_meta( $post_id, 'anime_tw_streaming', $checked );
 		}
+
+		// 作品頁的串流區塊要立刻反映，見 purge_streaming_pages() 的說明
+		do_action( 'litespeed_purge_post', $post_id );
 
 		return true;
 	}
