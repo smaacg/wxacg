@@ -397,6 +397,17 @@ class Anime_Sync_Import_Manager {
 			update_post_meta( $post_id, 'anime_last_sync', current_time( 'mysql' ) );
 			delete_post_meta( $post_id, '_enriched_at' );
 
+			/*
+			 * 台灣串流直接來源（巴哈、MyVideo、Ofiii、LiTV、friDay、LINE TV）當場比對。
+			 * 這裡是所有匯入路徑的匯流點（後台單筆、系列、MAL、季度自動匯入都經過），
+			 * 不必等下一次週排程才補上。只讀 uploads 裡現成的索引 JSON、零外連、幾十毫秒，
+			 * 所以放進這裡不會拖慢批次匯入（YourAnimes 那段要打外站，才刻意留在 admin 的 AJAX 路徑）。
+			 * 只補空白、留來源標記，受 anime_sync_streaming_source_write 開關管。
+			 */
+			if ( class_exists( 'Anime_Sync_Streaming_Source_Base' ) ) {
+				Anime_Sync_Streaming_Source_Base::sync_post_from_indexes( $post_id );
+			}
+
 			if ( ! wp_next_scheduled( 'anime_sync_enrich_post', [ $post_id ] ) ) {
 				$slot  = ( $post_id % 40 );
 				$delay = 60 + ( $slot * 90 );

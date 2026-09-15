@@ -65,6 +65,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		'litv'    => 'Anime_Sync_Streaming_Source_Litv',
 		'friday'  => 'Anime_Sync_Streaming_Source_Friday',
 		'bahamut' => 'Anime_Sync_Streaming_Source_Bahamut',
+		'linetv'  => 'Anime_Sync_Streaming_Source_Linetv',
 	];
 
 	/** @return string[] */
@@ -119,6 +120,20 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		return false;
 	}
 
+	/**
+	 * 索引是「每次整份重建」還是「增量合併」。
+	 * sitemap／清單頁一輪就能拿到全目錄的來源用重建；LINE TV 這種要逐頁抓
+	 * 7,000 多頁、一輪只做得完一批的來源用增量：本輪抓到的併進既有索引。
+	 */
+	protected function incremental(): bool {
+		return false;
+	}
+
+	/** 排程頻率。重建型一週一次夠；增量型要每小時推進一批。 */
+	protected function recurrence(): string {
+		return 'weekly';
+	}
+
 	// =====================================================================
 	// 常數
 	// =====================================================================
@@ -157,7 +172,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 	public function schedule(): void {
 		if ( ! wp_next_scheduled( $this->hook() ) ) {
-			wp_schedule_event( time() + 900, 'weekly', $this->hook() );
+			wp_schedule_event( time() + 900, $this->recurrence(), $this->hook() );
 		}
 	}
 
@@ -350,6 +365,21 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 
 		[ $grouped, $entries ] = $collected;
+
+		/*
+		 * 增量型來源：本輪只抓到一批，要把既有索引裡的作品併回來再重算索引，
+		 * 否則每輪都會把上一輪的成果洗掉。以作品名為鍵、本輪的新條目優先。
+		 */
+		if ( $this->incremental() ) {
+			foreach ( $this->load_index() as $rows ) {
+				foreach ( (array) $rows as $row ) {
+					$n = (string) ( $row['n'] ?? '' );
+					if ( $n !== '' && ! isset( $grouped[ $n ] ) ) {
+						$grouped[ $n ] = [ 'title' => $n, 'url' => (string) ( $row['u'] ?? '' ), 'date' => (string) ( $row['d'] ?? '' ) ];
+					}
+				}
+			}
+		}
 
 		if ( empty( $grouped ) ) {
 			return new WP_Error( 'no_entries', '解析不到任何作品條目，平台可能改版' );
@@ -551,6 +581,58 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	}
 
 	// =====================================================================
+	// 單篇即時同步：新匯入的作品不必等週排程
+	// =====================================================================
+
+	/**
+	 * 用磁碟上現有的索引對一篇作品比對五家平台，有命中且欄位空白就寫。
+	 *
+	 * 零外連：只讀 uploads 裡的索引 JSON（每家幾百 KB～2MB），幾十毫秒。
+	 * 給匯入流程當場呼叫，讀者匯入完馬上看得到直接來源補上的平台；
+	 * 週排程照常跑，負責把索引更新到最新。
+	 *
+	 * 尊重 WRITE_OPTION：那是整條線的安全閘，關著就只回報命中不寫。
+	 *
+	 * @return array<string,string> 有寫入的平台 key → 網址
+	 */
+	public static function sync_post_from_indexes( int $post_id ): array {
+
+		$written = [];
+		$write   = (string) get_option( self::WRITE_OPTION, '0' ) === '1';
+
+		$titles = array_values( array_filter( array_unique( [
+			(string) get_the_title( $post_id ),
+			(string) get_post_meta( $post_id, 'anime_title_chinese', true ),
+		] ) ) );
+
+		if ( empty( $titles ) ) {
+			return $written;
+		}
+
+		$start = (string) get_post_meta( $post_id, 'anime_start_date', true );
+
+		foreach ( self::available_keys() as $key ) {
+			$src = self::make( $key );
+			if ( ! $src || empty( $src->load_index() ) ) {
+				continue;
+			}
+			$r = $src->lookup( $titles, $start );
+			if ( $r['status'] !== 'hit' ) {
+				continue;
+			}
+			if ( $write && $src->write( $post_id, $r['url'] ) ) {
+				$written[ $key ] = $r['url'];
+			}
+		}
+
+		if ( $written && class_exists( 'Anime_Sync_Streaming_Routing' ) ) {
+			delete_transient( Anime_Sync_Streaming_Routing::COUNT_CACHE_KEY );
+		}
+
+		return $written;
+	}
+
+	// =====================================================================
 	// 寫入：只補空白
 	// =====================================================================
 
@@ -730,23 +812,38 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 * 標頭沿用 class-youranimes-fetcher.php::fetch_page() 那組（正式站實證可用）。
 	 * 不快取：sitemap 一週抓一次，快取 21MB 進 transient 不划算。
 	 *
+	 * @param array{range_bytes?:int,accept?:string} $opts
+	 *        range_bytes：只要前 N bytes（LINE TV 作品頁 500KB，<title> 在前 64KB 內；
+	 *        對方回 206，實測 2026-09-15）。accept：覆寫 Accept 標頭（抓 HTML 時用）。
 	 * @return string|WP_Error
 	 */
-	protected function fetch( string $url ) {
+	protected function fetch( string $url, array $opts = [] ) {
 
 		if ( $this->is_circuit_open() ) {
 			return new WP_Error( 'circuit_open', '熔斷中，暫停對 ' . $this->label() . ' 的請求' );
 		}
 
-		$res = wp_remote_get( $url, [
+		$headers = [
+			'Accept'          => (string) ( $opts['accept'] ?? 'application/xml,text/xml;q=0.9,*/*;q=0.8' ),
+			'Accept-Language' => 'zh-TW,zh;q=0.9,en;q=0.8',
+		];
+
+		$args = [
 			'timeout'     => self::HTTP_TIMEOUT,
 			'redirection' => 3,
 			'user-agent'  => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-			'headers'     => [
-				'Accept'          => 'application/xml,text/xml;q=0.9,*/*;q=0.8',
-				'Accept-Language' => 'zh-TW,zh;q=0.9,en;q=0.8',
-			],
-		] );
+		];
+
+		$range = (int) ( $opts['range_bytes'] ?? 0 );
+		if ( $range > 0 ) {
+			$headers['Range'] = 'bytes=0-' . ( $range - 1 );
+			// 對方不理 Range 照樣回整頁時，至少在這裡截斷，不把 500KB 全讀進來
+			$args['limit_response_size'] = $range;
+		}
+
+		$args['headers'] = $headers;
+
+		$res = wp_remote_get( $url, $args );
 
 		if ( is_wp_error( $res ) ) {
 			$this->record_failure();
@@ -754,7 +851,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 
 		$code = (int) wp_remote_retrieve_response_code( $res );
-		if ( $code !== 200 ) {
+		// 206 = Range 請求成功的部分內容
+		if ( $code !== 200 && $code !== 206 ) {
 			$this->record_failure();
 			return new WP_Error( 'http_error', 'HTTP ' . $code );
 		}
@@ -872,6 +970,11 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 		if ( isset( $assoc_args['status'] ) ) {
 			$s = $src->status();
+			// 增量型來源多印抓取進度（已抓／待抓／sitemap 總數）
+			if ( method_exists( $src, 'progress' ) ) {
+				$p = $src->progress();
+				WP_CLI::log( sprintf( '爬取進度：已抓 %d／待抓 %d／sitemap 共 %d', $p['done'], $p['pending'], $p['total'] ) );
+			}
 			WP_CLI::log( empty( $s ) ? '尚未建立索引' : sprintf(
 				'索引建立於 %s：%d 條目 → %d 部作品 → %d 個鍵；排程寫入=%s',
 				// 用站台時區顯示，主機是 UTC+8，gmdate 會少 8 小時讓人以為索引是半夜建的

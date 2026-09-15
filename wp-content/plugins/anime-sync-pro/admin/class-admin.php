@@ -204,21 +204,31 @@ class Anime_Sync_Admin {
      *   成功則沒有任何殘留事件，失敗則由它自己排重試。
      */
     private function sync_tw_streaming_now( int $post_id ): ?array {
-        if ( ! class_exists( 'Anime_Sync_YourAnimes_Fetcher' )
-            || trim( (string) get_post_meta( $post_id, 'anime_youranimes_url', true ) ) === '' ) {
-            return null;
-        }
+        /*
+         * 2026-09-15：台灣串流不再只有 YouRAnimes 一個來源。直接抓取的五家
+         * （巴哈、MyVideo、Ofiii、LiTV、friDay、LINE TV）在 import_single() 裡已用
+         * 磁碟索引當場比對寫入。所以「沒有 YA 網址」不再等於「沒有台灣串流」，
+         * 這裡改成：有 YA 網址才跑 YA 那段，最後一律讀勾選結果回報；
+         * 真的什麼都沒有才回 null，前端顯示邏輯不變。
+         */
+        $has_ya = class_exists( 'Anime_Sync_YourAnimes_Fetcher' )
+            && trim( (string) get_post_meta( $post_id, 'anime_youranimes_url', true ) ) !== '';
 
-        $hook    = Anime_Sync_YourAnimes_Fetcher::AUTO_SYNC_HOOK;
-        $pending = wp_next_scheduled( $hook, [ $post_id ] );
-        if ( $pending ) {
-            wp_unschedule_event( $pending, $hook, [ $post_id ] );
-        }
+        if ( $has_ya ) {
+            $hook    = Anime_Sync_YourAnimes_Fetcher::AUTO_SYNC_HOOK;
+            $pending = wp_next_scheduled( $hook, [ $post_id ] );
+            if ( $pending ) {
+                wp_unschedule_event( $pending, $hook, [ $post_id ] );
+            }
 
-        ( new Anime_Sync_YourAnimes_Fetcher() )->run_single_sync( $post_id );
+            ( new Anime_Sync_YourAnimes_Fetcher() )->run_single_sync( $post_id );
+        }
 
         // 回傳中文平台名給前端顯示，使用者才知道「有沒有抓到、抓到哪些」
         $tw     = get_post_meta( $post_id, 'anime_tw_streaming', true );
+        if ( ! $has_ya && ( ! is_array( $tw ) || empty( $tw ) ) ) {
+            return null;
+        }
         $labels = [];
         foreach ( ( is_array( $tw ) ? $tw : [] ) as $key ) {
             $p        = class_exists( 'Anime_Sync_Streaming_Registry' )
