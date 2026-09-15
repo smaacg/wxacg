@@ -160,6 +160,9 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-myvideo.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-ofiii.php';
+// LiTV 繼承 Ofiii（同集團、同格式），必須排在它後面載入
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-litv.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-friday.php';
 
 /* ============================================================
  * 1.2. AI 編輯短評批次產生工具

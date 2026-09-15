@@ -64,6 +64,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	private const SOURCES = [
 		'myvideo' => 'Anime_Sync_Streaming_Source_Myvideo',
 		'ofiii'   => 'Anime_Sync_Streaming_Source_Ofiii',
+		'litv'    => 'Anime_Sync_Streaming_Source_Litv',
+		'friday'  => 'Anime_Sync_Streaming_Source_Friday',
 	];
 
 	/** @return string[] */
@@ -324,14 +326,41 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	// =====================================================================
 
 	/**
-	 * 抓 sitemap（含展開 sitemapindex）→ 解析 → 歸納成作品 → 存 JSON。
+	 * 收集條目 → 歸納成作品 → 存 JSON。
+	 *
+	 * 收集方式由 collect_entries() 決定：預設走 sitemap（巴哈、MyVideo、Ofiii、
+	 * LiTV），沒有 sitemap 的平台（friDay 只有分頁清單頁）覆寫它改爬 HTML。
+	 * 歸納、索引、比對、寫入全部共用，不因收集方式不同而分兩套。
 	 *
 	 * @return array{entries:int,works:int}|WP_Error
 	 */
 	public function build_index() {
 
-		$started = microtime( true );
-		$root    = $this->fetch( $this->sitemap_url() );
+		$started   = microtime( true );
+		$collected = $this->collect_entries( $started );
+
+		if ( is_wp_error( $collected ) ) {
+			return $collected;
+		}
+
+		[ $grouped, $entries ] = $collected;
+
+		if ( empty( $grouped ) ) {
+			return new WP_Error( 'no_entries', '解析不到任何作品條目，平台可能改版' );
+		}
+
+		return $this->finish_index( $grouped, $entries );
+	}
+
+	/**
+	 * 預設收集方式：sitemap（含展開 sitemapindex）。
+	 *
+	 * @param float $started microtime，供時間預算判斷
+	 * @return array{0:array<string,array<int,array>>,1:int}|WP_Error  [作品名 → entries[], 條目數]
+	 */
+	protected function collect_entries( float $started ) {
+
+		$root = $this->fetch( $this->sitemap_url() );
 
 		if ( is_wp_error( $root ) ) {
 			return $root;
@@ -406,9 +435,16 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			unset( $blocks );
 		}
 
-		if ( empty( $grouped ) ) {
-			return new WP_Error( 'no_entries', 'sitemap 解析不到任何作品條目，平台可能改版' );
-		}
+		return [ $grouped, $entries ];
+	}
+
+	/**
+	 * 把「作品名 → entries[]」歸納成索引並落地。收集方式無關，所有來源共用。
+	 *
+	 * @param array<string,array<int,array>> $grouped
+	 * @return array{entries:int,works:int}
+	 */
+	protected function finish_index( array $grouped, int $entries ): array {
 
 		// 歸納成索引：正規化鍵 → [ {u: 網址, n: 作品名, d?: 開播日} ]
 		$index = [];
