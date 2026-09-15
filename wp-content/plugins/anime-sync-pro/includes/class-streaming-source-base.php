@@ -673,8 +673,16 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 	/**
 	 * 一個作品名要建立哪幾個索引鍵。
-	 * 與 class-youranimes-title-index.php::index_keys() 同一個用意：劇場版條目
-	 * 常寫成『劇場版「作品名」』，去掉前後綴才配得到。精度仍由候選唯一把關。
+	 *
+	 * 「去掉劇場版前後綴當別名」抄自 class-youranimes-title-index.php，但那邊
+	 * 安全的前提是 lookup() 還有**開播日**當第二道條件：TV 版與劇場版共用同一個
+	 * 鍵，靠日期分開。直接抓取的來源全部沒有日期，去掉前綴後只要平台剛好沒有
+	 * TV 版那部，劇場版就成了「唯一候選」被錯配——2026-09-15 巴哈 dry-run 抽查
+	 * 就抓到兩筆：《少女與戰車》配到劇場版、《擅長捉弄人的高木同學》配到劇場版
+	 * （後者正是那份 memo 舉的例子，我抄了機制沒抄前提）。
+	 *
+	 * 所以這個別名只在 provides_start_date() 為 true 時才建。目前沒有任何直接
+	 * 來源提供開播日，等於全部關閉；精度靠「完全相符＋候選唯一」。
 	 *
 	 * @return string[]
 	 */
@@ -685,6 +693,10 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 		if ( $base !== '' ) {
 			$keys[] = $base;
+		}
+
+		if ( ! $this->provides_start_date() ) {
+			return $keys;
 		}
 
 		$stripped = preg_replace( '/^(?:劇場版|劇场版|映画|電影|gekijouban|gekijoban|themovie|movie)/u', '', (string) $base );
