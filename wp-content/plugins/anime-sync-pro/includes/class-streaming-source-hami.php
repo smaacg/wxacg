@@ -44,6 +44,15 @@ class Anime_Sync_Streaming_Source_Hami extends Anime_Sync_Streaming_Source_Base 
 		return 'hami';
 	}
 
+	/**
+	 * 每日而不是每週：到期日每輪只查約 90 頁（時間預算 200 秒），站上 1,169 部 Hami 網址
+	 * 週跑要三個月才輪完一遍、續約與到期覆核也會慢；日跑 13 天首輪查完、之後每天只查
+	 * 「45 天內到期＋超過 30 天沒查」的幾十部。索引重建 112 次請求／天，對方負擔很小。
+	 */
+	protected function recurrence(): string {
+		return 'daily';
+	}
+
 	/** 沒有 sitemap，收集全在 collect_entries()。 */
 	protected function sitemap_url(): string {
 		return '';
