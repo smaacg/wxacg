@@ -20,6 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Anime_Sync_Streaming_Source_Muse extends Anime_Sync_Streaming_Source_Youtube {
 	public function key(): string { return 'muse'; }
+	protected function bangumi_sites(): array { return [ 'muse_tw' ]; }
 	protected function channel_id(): string { return 'UCgdwtyqBunlRb-i-7PnCssQ'; }
 }
 
@@ -32,6 +33,7 @@ class Anime_Sync_Streaming_Source_Muse extends Anime_Sync_Streaming_Source_Youtu
  */
 class Anime_Sync_Streaming_Source_Ani_One extends Anime_Sync_Streaming_Source_Youtube {
 	public function key(): string { return 'ani_one'; }
+	protected function bangumi_sites(): array { return [ 'ani_one', 'ani_one_asia' ]; }
 	protected function channel_id(): string { return 'UC45ONEZZfMDZCnEhgYmVu-A'; }
 
 	protected function parse_title( string $title ): string {
@@ -47,6 +49,7 @@ class Anime_Sync_Streaming_Source_Ani_One extends Anime_Sync_Streaming_Source_Yo
  */
 class Anime_Sync_Streaming_Source_Tropicsanime extends Anime_Sync_Streaming_Source_Youtube {
 	public function key(): string { return 'tropicsanime'; }
+	protected function bangumi_sites(): array { return [ 'tropics' ]; }
 	protected function channel_id(): string { return 'UCBxsPpM2YiwN6phyYgvc4Pw'; }
 
 	protected function parse_title( string $title ): string {
@@ -63,6 +66,7 @@ class Anime_Sync_Streaming_Source_Tropicsanime extends Anime_Sync_Streaming_Sour
  */
 class Anime_Sync_Streaming_Source_Mighty extends Anime_Sync_Streaming_Source_Youtube {
 	public function key(): string { return 'mighty'; }
+	protected function bangumi_sites(): array { return [ 'mighty' ]; }
 	protected function channel_id(): string { return 'UCCrpNwDnc_ULP3tjUQsCkag'; }
 
 	protected function parse_title( string $title ): string {

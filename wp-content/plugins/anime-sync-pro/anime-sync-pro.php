@@ -159,6 +159,8 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-news-scan.php';
  * 新增平台：加一個子類別檔 + 在基底 SOURCES 加一行 + 這裡加一行 require。
  */
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
+// bangumi-data 共用 ID 對照表＋只靠它的 Netflix、Bilibili；要在基底之後、各子類別之前
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bangumi-data.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-myvideo.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-ofiii.php';

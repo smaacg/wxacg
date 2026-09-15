@@ -170,7 +170,21 @@ abstract class Anime_Sync_Streaming_Source_Youtube extends Anime_Sync_Streaming_
 			}
 		}
 
+		// bangumi-data 直接給這家頻道的播放清單 ID（用 Bangumi／AniList ID 對應，不比標題）
+		$entries += $this->merge_bangumi_data( $grouped, $this->bangumi_sites(), static function ( string $site, string $id ): string {
+			return 'https://www.youtube.com/playlist?list=' . rawurlencode( $id );
+		} );
+
 		return [ $grouped, $entries ];
+	}
+
+	/**
+	 * 這家頻道在 bangumi-data 裡的站點 key（可多個，前面的優先）；空陣列＝不合併。
+	 *
+	 * @return string[]
+	 */
+	protected function bangumi_sites(): array {
+		return [];
 	}
 
 	/**

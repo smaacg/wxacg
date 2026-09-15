@@ -103,20 +103,31 @@ function wp_remote_get( $url, $args = [] ) {
 	return [ 'body' => (string) $body, 'response' => [ 'code' => $code ] ];
 }
 
+// bangumi-data 對照表快取（Anime_Sync_Bangumi_Data_Feed 用 wp_upload_dir 找位置）放系統暫存目錄
+function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
+function wp_upload_dir() { return [ 'basedir' => sys_get_temp_dir() . '/asp-bundle-build' ]; }
+function wp_mkdir_p( $d ) { return is_dir( $d ) || mkdir( $d, 0777, true ); }
+
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
+require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bangumi-data.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
 
 $out = Anime_Sync_Streaming_Source_Bahamut::bundle_path();
 $src = new Anime_Sync_Streaming_Source_Bahamut();
 
 echo "抓取 https://ani.gamer.com.tw/sitemap/sitemap.xml（約 21MB）…\n";
+echo "接著把 bangumi-data 的巴哈 ACG 編號解析成動畫瘋 sn（只抓上一包沒有的；第一次約 1,700 頁、每頁間隔 0.4 秒）…\n";
 $t0 = microtime( true );
-$r  = $src->export_bundle( $out );
+$r  = $src->export_bundle( $out, static function ( int $done, int $total, string $id, ?int $sn ): void {
+	if ( $done === 1 || $done % 50 === 0 || $done === $total ) {
+		printf( "  ACG 對照 %d/%d（s=%s → %s）\n", $done, $total, $id, $sn === null ? '抓取失敗' : ( $sn > 0 ? 'sn=' . $sn : '無動畫瘋' ) );
+	}
+} );
 
 if ( is_wp_error( $r ) ) {
 	fwrite( STDERR, '失敗：' . $r->get_error_code() . '：' . $r->get_error_message() . "\n" );
 	exit( 1 );
 }
 
-printf( "完成：%d 條目 → %d 部作品，%d KB，%.1f 秒\n寫入 %s\n", $r['entries'], $r['works'], $r['bytes'] / 1024, microtime( true ) - $t0, $out );
+printf( "完成：%d 條目 → %d 部作品；ACG 對照 %d 筆（上一包 %d）；%d KB，%.1f 秒\n寫入 %s\n", $r['entries'], $r['works'], $r['acg'], $r['acg_prev'], $r['bytes'] / 1024, microtime( true ) - $t0, $out );
 echo "下一步：git add 這個檔 → commit → push，部署後主機端週排程會讀它。\n";

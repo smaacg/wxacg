@@ -73,6 +73,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		'mighty'       => 'Anime_Sync_Streaming_Source_Mighty',
 		'ani_mi'       => 'Anime_Sync_Streaming_Source_Ani_Mi',
 		'its_anime'    => 'Anime_Sync_Streaming_Source_Its_Anime',
+		// 只靠 bangumi-data ID 對應的來源（沒有自己的 sitemap／API；class-streaming-source-bangumi-data.php）
+		'netflix'      => 'Anime_Sync_Streaming_Source_Netflix',
+		'bilibili'     => 'Anime_Sync_Streaming_Source_Bilibili',
 	];
 
 	/** @return string[] */
@@ -548,10 +551,50 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 * @return string[]
 	 */
 	public function match_titles( int $post_id ): array {
-		return array_values( array_filter( array_unique( [
-			(string) get_the_title( $post_id ),
-			(string) get_post_meta( $post_id, 'anime_title_chinese', true ),
-		] ) ) );
+		return array_values( array_filter( array_unique( array_merge(
+			// ID 鍵放前面：lookup() 先用 ID，有命中就以 ID 為準（見 lookup 的說明）
+			class_exists( 'Anime_Sync_Bangumi_Data_Feed' ) ? Anime_Sync_Bangumi_Data_Feed::post_id_keys( $post_id ) : [],
+			[
+				(string) get_the_title( $post_id ),
+				(string) get_post_meta( $post_id, 'anime_title_chinese', true ),
+			]
+		) ) ) );
+	}
+
+	/**
+	 * 把 bangumi-data 對照表裡屬於這個平台的條目併進 $grouped，鍵是 `bgm:{id}`／`al:{id}`。
+	 *
+	 * 這些鍵經 normalize() 會變成 `bgm123`——兩邊（索引與 match_titles）走同一個
+	 * normalize，所以一致；標題不可能正規化成這種形狀，不會撞。
+	 *
+	 * @param string[] $sites   bangumi-data 站點 key，多個時前面的優先
+	 * @param callable $url_for fn( string $site, string $id ): string
+	 * @return int 併入的條目數
+	 */
+	protected function merge_bangumi_data( array &$grouped, array $sites, callable $url_for ): int {
+
+		if ( ! class_exists( 'Anime_Sync_Bangumi_Data_Feed' ) ) {
+			return 0;
+		}
+
+		$n = 0;
+		foreach ( Anime_Sync_Bangumi_Data_Feed::map() as $id_key => $site_ids ) {
+			foreach ( $sites as $site ) {
+				if ( empty( $site_ids[ $site ] ) ) {
+					continue;
+				}
+				$url = (string) $url_for( $site, (string) $site_ids[ $site ] );
+				if ( $url === '' ) {
+					break;
+				}
+				// 鍵本身就是作品名，add_entry 保留第一筆（前面的站點優先）
+				$this->add_entry( $grouped, $id_key, [ 'title' => $id_key, 'url' => $url, 'date' => '' ] );
+				$n++;
+				break;
+			}
+		}
+
+		return $n;
 	}
 
 	/**
@@ -572,21 +615,34 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		$date = preg_replace( '/[^0-9]/', '', $start_date );
 		$date = strlen( (string) $date ) === 8 ? (string) $date : '';
 
+		/*
+		 * 兩段：先 ID 鍵（bgm:／al:，來自 bangumi-data），再標題。
+		 * ID 有命中就以 ID 為準、不跟標題混算唯一性——否則「ID 配到播放清單 A、標題配到
+		 * 播放清單 B」會被判成多重候選而放棄，等於白接了 ID 對照。
+		 */
+		$id_titles = array_values( array_filter( $titles, static fn( $t ) => preg_match( '/^(bgm|al):\d+$/', (string) $t ) ) );
+		$tx_titles = array_values( array_diff( $titles, $id_titles ) );
+
 		$hits = [];
 
-		foreach ( $titles as $t ) {
+		foreach ( [ $id_titles, $tx_titles ] as $pass ) {
+			foreach ( $pass as $t ) {
 
-			$k = $this->normalize( (string) $t );
-			if ( $k === '' || ! isset( $index[ $k ] ) ) {
-				continue;
-			}
-
-			foreach ( (array) $index[ $k ] as $row ) {
-				// 索引條目有日期才比日期；沒有日期時唯一性是唯一的防線，不因此放寬
-				if ( isset( $row['d'] ) && $date !== '' && (string) $row['d'] !== $date ) {
+				$k = $this->normalize( (string) $t );
+				if ( $k === '' || ! isset( $index[ $k ] ) ) {
 					continue;
 				}
-				$hits[ (string) $row['u'] ] = true;
+
+				foreach ( (array) $index[ $k ] as $row ) {
+					// 索引條目有日期才比日期；沒有日期時唯一性是唯一的防線，不因此放寬
+					if ( isset( $row['d'] ) && $date !== '' && (string) $row['d'] !== $date ) {
+						continue;
+					}
+					$hits[ (string) $row['u'] ] = true;
+				}
+			}
+			if ( ! empty( $hits ) ) {
+				break;   // ID 那段有結果就不看標題
 			}
 		}
 

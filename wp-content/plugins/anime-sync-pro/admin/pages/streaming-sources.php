@@ -94,6 +94,27 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 		</div>
 	</div>
 
+	<?php if ( class_exists( 'Anime_Sync_Bangumi_Data_Feed' ) ) : $bd = Anime_Sync_Bangumi_Data_Feed::cache_info(); ?>
+		<p class="ass-lead">
+			<strong>bangumi-data ID 對照表</strong>（<a href="https://github.com/bangumi-data/bangumi-data" target="_blank" rel="noopener noreferrer">開源資料集</a>，用 Bangumi／AniList ID 對應各站，不比標題）：
+			<?php if ( $bd['exists'] ) : ?>
+				<?php echo esc_html( wp_date( 'Y-m-d H:i', $bd['updated'] ) ); ?> 更新，
+				<?php
+				$parts = [];
+				foreach ( [ 'gamer' => '動畫瘋', 'muse_tw' => '木棉花', 'ani_one' => 'Ani-One', 'ani_one_asia' => 'Ani-One Asia', 'netflix' => 'Netflix', 'bilibili_tw' => 'Bilibili', 'tropics' => '回歸線', 'mighty' => '曼迪' ] as $site => $name ) {
+					if ( ! empty( $bd['sites'][ $site ] ) ) {
+						$parts[] = $name . ' ' . number_format_i18n( (int) $bd['sites'][ $site ] );
+					}
+				}
+				echo esc_html( implode( '、', $parts ) );
+				?>
+				部（6 天快取，各來源重建索引時共用）。
+			<?php else : ?>
+				<span class="ass-muted">尚未下載，第一個來源重建索引時會抓（7.6MB）。</span>
+			<?php endif; ?>
+		</p>
+	<?php endif; ?>
+
 	<?php if ( ! $write_on ) : ?>
 		<div class="notice notice-warning inline"><p>
 			排程寫入目前關閉：排程只更新索引、不寫入作品。開啟：<code>wp option update anime_sync_streaming_source_write 1</code>
@@ -215,11 +236,10 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 	<h2 class="ass-h2">沒接直接來源的平台</h2>
 	<table class="wp-list-table widefat fixed ass-table ass-table--compact">
 		<tbody>
-			<tr><th>Netflix、Crunchyroll、Disney+、Apple TV+、Prime、Bilibili、愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入，本來就不經 YourAnimes。</td></tr>
+			<tr><th>Crunchyroll、Disney+、Apple TV+、Prime、愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入，本來就不經 YourAnimes。（Netflix、Bilibili 已改由上表的 bangumi-data ID 對應接上）</td></tr>
 			<tr><th>Hami Video</th><td>robots.txt 對所有 UA 全站 Disallow，尊重對方，不抓。靠 YourAnimes。</td></tr>
 			<tr><th>CatchPlay+</th><td>作品頁是純前端渲染的空殼、無公開資料介面。靠 YourAnimes。</td></tr>
-			<tr><th>Ani-One、木棉花、曼迪、回歸線、Ani-Mi、It's Anime、YouTube</th><td>YouTube 頻道；目前由 YouTube 播放清單同步與 YourAnimes 補。可用 YouTube Data API 列各頻道播放清單另接直接來源（尚未做）。</td></tr>
-			<tr><th>renta!、車庫娛樂、公視、AniPASS</th><td>收錄數少，尚未探測。</td></tr>
+			<tr><th>renta!、車庫娛樂、公視、AniPASS</th><td>收錄數少；車庫回 403、公視 robots 全站 Disallow。靠 YourAnimes。</td></tr>
 		</tbody>
 	</table>
 

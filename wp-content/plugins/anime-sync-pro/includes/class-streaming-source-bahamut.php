@@ -45,6 +45,10 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 	 */
 	const BUNDLE_FILE = 'data/source_bahamut_bundle.json';
 
+	/** 巴哈 ACG 資料庫作品頁（bangumi-data gamer 站點的 id 就是這個 s=）與動畫瘋作品頁 */
+	const ACG_DETAIL_URL  = 'https://acg.gamer.com.tw/acgDetail.php?s=';
+	const ANIME_VIDEO_URL = 'https://ani.gamer.com.tw/animeVideo.php?sn=';
+
 	public function key(): string {
 		return 'bahamut';
 	}
@@ -87,7 +91,116 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 			$grouped[ $n ] = [ 'title' => $n, 'url' => $u, 'date' => '' ];
 		}
 
-		return [ $grouped, (int) ( $data['entries'] ?? count( $grouped ) ) ];
+		$entries = (int) ( $data['entries'] ?? count( $grouped ) );
+
+		/*
+		 * bangumi-data 的 gamer 站點給的是巴哈「ACG 編號」（acgDetail.php?s=），不是動畫瘋的 sn。
+		 * 索引包裡的 acg 對照（本機建包時從 acgDetail 頁「動畫瘋線上看」區塊解析，見 resolve_acg_sn）
+		 * 把它換成動畫瘋作品頁；0 代表那頁沒有動畫瘋區塊（不在動畫瘋上）→ 不收。
+		 * 還沒解析到的（bangumi-data 新增、本機還沒建包）也不收：2026-09-15 首次解析 1,691 個編號
+		 * 有 42 個（2.5%）沒有動畫瘋區塊，若先用 acgDetail 網址頂著，這 2.5% 會被寫成錯的巴哈連結，
+		 * 而且 write() 只補空白、之後不會自己換成動畫瘋網址。寧可等下週建包。
+		 */
+		$acg      = is_array( $data['acg'] ?? null ) ? $data['acg'] : [];
+		$entries += $this->merge_bangumi_data( $grouped, [ 'gamer' ], static function ( string $site, string $id ) use ( $acg ): string {
+			$sn = (int) ( $acg[ $id ] ?? 0 );
+			return $sn > 0 ? self::ANIME_VIDEO_URL . $sn : '';
+		} );
+
+		return [ $grouped, $entries ];
+	}
+
+	/**
+	 * ACG 編號 → 動畫瘋第一集 sn 的對照表。沿用上一包已解析出的（>0），只抓新出現的
+	 * 與上次沒有動畫瘋區塊的（0，可能後來上架）。本機建包專用。
+	 *
+	 * @param array<string,int> $prev     上一包的 acg 對照
+	 * @param callable|null     $progress fn( int $done, int $total, string $acg_id, ?int $sn )
+	 * @return array<string,int>
+	 */
+	protected function resolve_acg_map( array $prev, ?callable $progress = null ): array {
+
+		if ( ! class_exists( 'Anime_Sync_Bangumi_Data_Feed' ) ) {
+			return $prev;
+		}
+
+		$ids = [];
+		foreach ( Anime_Sync_Bangumi_Data_Feed::map() as $sites ) {
+			if ( ! empty( $sites['gamer'] ) ) {
+				$ids[ (string) $sites['gamer'] ] = true;
+			}
+		}
+
+		$acg  = [];
+		$todo = [];
+		foreach ( array_keys( $ids ) as $id ) {
+			$id = (string) $id;
+			if ( isset( $prev[ $id ] ) && (int) $prev[ $id ] > 0 ) {
+				$acg[ $id ] = (int) $prev[ $id ];
+			} else {
+				$todo[] = $id;
+			}
+		}
+
+		$done = 0;
+		foreach ( $todo as $id ) {
+			$sn = $this->resolve_acg_sn( $id );
+			if ( $sn === null ) {
+				// 抓不到就保留上一包的值（若有），下次建包再試；不把失敗當成「不在動畫瘋」
+				if ( isset( $prev[ $id ] ) ) {
+					$acg[ $id ] = (int) $prev[ $id ];
+				}
+			} else {
+				$acg[ $id ] = $sn;
+			}
+			$done++;
+			if ( $progress ) {
+				$progress( $done, count( $todo ), $id, $sn );
+			}
+			usleep( 400000 );
+		}
+
+		ksort( $acg, SORT_NATURAL );   // 順序固定，沒新資料的那週 git diff 才會是空的
+
+		return $acg;
+	}
+
+	/**
+	 * 讀 acgDetail 頁，取「動畫瘋線上看」區塊第一個 animeVideo sn（就是第 1 集）。
+	 *
+	 * 2026-09-15 實測 s=142899：`<h4>…動畫瘋線上看</h4><div class="ACG-list5"><div class="seasonACG">
+	 * <ul><li><a href="//ani.gamer.com.tw/animeVideo.php?sn=49914">1</a>…`；沒上動畫瘋的作品
+	 * （s=103776）整頁沒有這個區塊。ani.gamer.com.tw/animeRef.php?sn= 不能用，回的是系統訊息頁。
+	 *
+	 * @return int|null 第一集 sn；0＝該頁沒有動畫瘋區塊；null＝抓取失敗或頁面不是作品頁
+	 */
+	protected function resolve_acg_sn( string $acg_id ): ?int {
+
+		$res = wp_remote_get( self::ACG_DETAIL_URL . rawurlencode( $acg_id ), [
+			'timeout'    => 30,
+			'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36',
+		] );
+
+		if ( is_wp_error( $res ) || (int) wp_remote_retrieve_response_code( $res ) !== 200 ) {
+			return null;
+		}
+
+		$html = (string) wp_remote_retrieve_body( $res );
+
+		// 系統訊息頁、Cloudflare 驗證頁都是 200，但不是作品頁；不能把它們當成「沒有動畫瘋」
+		if ( strpos( $html, '系統訊息' ) !== false || strpos( $html, 'ACG-' ) === false ) {
+			return null;
+		}
+
+		$pos = strpos( $html, '動畫瘋線上看' );
+		if ( $pos === false ) {
+			return 0;
+		}
+		if ( preg_match( '#animeVideo\.php\?sn=(\d+)#', $html, $m, 0, $pos ) ) {
+			return (int) $m[1];
+		}
+
+		return 0;
 	}
 
 	/**
@@ -95,7 +208,7 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 	 *
 	 * @return array{entries:int,works:int,bytes:int}|WP_Error
 	 */
-	public function export_bundle( string $path ) {
+	public function export_bundle( string $path, ?callable $progress = null ) {
 
 		$collected = parent::collect_entries( microtime( true ) );
 
@@ -114,6 +227,14 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 			$works[] = [ 'n' => (string) $name, 'u' => (string) $picked['url'] ];
 		}
 
+		// ACG 編號 → 動畫瘋 sn：沿用上一包，只補新的（見 resolve_acg_map）
+		$prev = [];
+		if ( is_readable( $path ) ) {
+			$old  = json_decode( (string) file_get_contents( $path ), true );
+			$prev = is_array( $old['acg'] ?? null ) ? $old['acg'] : [];
+		}
+		$acg = $this->resolve_acg_map( $prev, $progress );
+
 		/*
 		 * 刻意不放時間戳。索引包由本機排程每週產出並自動 commit，
 		 * 有時間戳就每週必產生一個內容其實沒變的 commit；拿掉之後
@@ -123,13 +244,14 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 			'source'  => $this->sitemap_url(),
 			'entries' => $entries,
 			'works'   => $works,
+			'acg'     => $acg,
 		], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
 
 		if ( file_put_contents( $path, (string) $json ) === false ) {
 			return new WP_Error( 'write_failed', '寫不進 ' . $path );
 		}
 
-		return [ 'entries' => $entries, 'works' => count( $works ), 'bytes' => strlen( (string) $json ) ];
+		return [ 'entries' => $entries, 'works' => count( $works ), 'acg' => count( $acg ), 'acg_prev' => count( $prev ), 'bytes' => strlen( (string) $json ) ];
 	}
 
 	public static function bundle_path(): string {

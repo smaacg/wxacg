@@ -40,7 +40,12 @@ $billing = $billing_label[ $platform['billing'] ?? 'sub' ] ?? '訂閱制';
 $pricing = Anime_Sync_Streaming_Registry::pricing( $key );
 
 $per_page = 60;
-$paged    = max( 1, (int) get_query_var( 'paged' ) ?: ( isset( $_GET['p'] ) ? (int) $_GET['p'] : 1 ) );
+/*
+ * 分頁參數用 pg，不能用 p：p 是 WordPress 保留的 post ID 參數，
+ * ?p=2 會讓 WP 先去找 ID=2 的文章、找不到就把整頁標成 404（內容照樣渲染，
+ * 但 HTTP 狀態是 404，Google 把 15 頁分頁全當不存在）。2026-09-15 實測發現。
+ */
+$paged    = max( 1, (int) get_query_var( 'paged' ) ?: ( isset( $_GET['pg'] ) ? (int) $_GET['pg'] : 1 ) );
 
 $q = new WP_Query( [
 	'post_type'      => 'anime',
@@ -240,11 +245,11 @@ $schema = [
 			?>
 			<nav class="asp-sp-pager" aria-label="分頁">
 				<?php if ( $paged > 1 ) : ?>
-					<a href="<?php echo esc_url( $paged - 1 === 1 ? $base : add_query_arg( 'p', $paged - 1, $base ) ); ?>">← 上一頁</a>
+					<a href="<?php echo esc_url( $paged - 1 === 1 ? $base : add_query_arg( 'pg', $paged - 1, $base ) ); ?>">← 上一頁</a>
 				<?php endif; ?>
 				<span><?php echo esc_html( $paged . ' / ' . $pages ); ?></span>
 				<?php if ( $paged < $pages ) : ?>
-					<a href="<?php echo esc_url( add_query_arg( 'p', $paged + 1, $base ) ); ?>">下一頁 →</a>
+					<a href="<?php echo esc_url( add_query_arg( 'pg', $paged + 1, $base ) ); ?>">下一頁 →</a>
 				<?php endif; ?>
 			</nav>
 		<?php endif; ?>
