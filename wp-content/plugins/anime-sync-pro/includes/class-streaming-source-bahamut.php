@@ -114,8 +114,12 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 			$works[] = [ 'n' => (string) $name, 'u' => (string) $picked['url'] ];
 		}
 
+		/*
+		 * 刻意不放時間戳。索引包由本機排程每週產出並自動 commit，
+		 * 有時間戳就每週必產生一個內容其實沒變的 commit；拿掉之後
+		 * 巴哈沒新作品的那週 git diff 為空、不 commit。建包時間看 git log。
+		 */
 		$json = wp_json_encode( [
-			'built'   => time(),
 			'source'  => $this->sitemap_url(),
 			'entries' => $entries,
 			'works'   => $works,
