@@ -164,6 +164,9 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-ofiii.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-litv.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-friday.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-linetv.php';
+// YouTube 頻道型來源：子基底要先於各頻道子類別載入
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-youtube.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-yt-channels.php';
 
 /* ============================================================
  * 1.2. AI 編輯短評批次產生工具

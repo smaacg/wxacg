@@ -66,6 +66,13 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		'friday'  => 'Anime_Sync_Streaming_Source_Friday',
 		'bahamut' => 'Anime_Sync_Streaming_Source_Bahamut',
 		'linetv'  => 'Anime_Sync_Streaming_Source_Linetv',
+		// YouTube 頻道型（class-streaming-source-yt-channels.php）
+		'muse'         => 'Anime_Sync_Streaming_Source_Muse',
+		'ani_one'      => 'Anime_Sync_Streaming_Source_Ani_One',
+		'tropicsanime' => 'Anime_Sync_Streaming_Source_Tropicsanime',
+		'mighty'       => 'Anime_Sync_Streaming_Source_Mighty',
+		'ani_mi'       => 'Anime_Sync_Streaming_Source_Ani_Mi',
+		'its_anime'    => 'Anime_Sync_Streaming_Source_Its_Anime',
 	];
 
 	/** @return string[] */
@@ -295,18 +302,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 			$stats['scanned']++;
 
-			/*
-			 * 比對用的標題以中文為主：平台列表只有中文譯名。
-			 * post_title 排第一——匯入寫進去的 anime_title_chinese 是大陸譯名
-			 * 逐字簡轉繁，而站上多數標題已被人工改成台灣官方譯名，改的結果
-			 * 在 post_title（見 class-import-manager.php import_single()）。
-			 */
-			$titles = array_values( array_filter( array_unique( [
-				(string) get_the_title( $id ),
-				(string) get_post_meta( $id, 'anime_title_chinese', true ),
-			] ) ) );
-
-			$r     = $this->lookup( $titles, (string) get_post_meta( $id, 'anime_start_date', true ) );
+			$titles = $this->match_titles( $id );
+			$r      = $this->lookup( $titles, (string) get_post_meta( $id, 'anime_start_date', true ) );
 			$label = sprintf( '#%d %s', $id, mb_substr( (string) get_the_title( $id ), 0, 30 ) );
 
 			if ( $r['status'] === 'hit' ) {
@@ -534,6 +531,24 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	// =====================================================================
 
 	/**
+	 * 這個來源要拿站上哪些標題去比對。
+	 *
+	 * 預設以中文為主：台灣平台的列表只有中文譯名。post_title 排第一——匯入
+	 * 寫進去的 anime_title_chinese 是大陸譯名逐字簡轉繁，而站上多數標題已被
+	 * 人工改成台灣官方譯名，改的結果在 post_title（見 class-import-manager.php）。
+	 *
+	 * 清單名稱是英文的來源（It's Anime）覆寫這裡改用英文／羅馬字欄位。
+	 *
+	 * @return string[]
+	 */
+	public function match_titles( int $post_id ): array {
+		return array_values( array_filter( array_unique( [
+			(string) get_the_title( $post_id ),
+			(string) get_post_meta( $post_id, 'anime_title_chinese', true ),
+		] ) ) );
+	}
+
+	/**
 	 * 回傳狀態而不是單純字串：「配不到」與「配到多個所以放棄」是兩件事，
 	 * 前者要改召回、後者要補第二道條件，報告必須分得開。
 	 *
@@ -599,20 +614,15 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		$written = [];
 		$write   = (string) get_option( self::WRITE_OPTION, '0' ) === '1';
 
-		$titles = array_values( array_filter( array_unique( [
-			(string) get_the_title( $post_id ),
-			(string) get_post_meta( $post_id, 'anime_title_chinese', true ),
-		] ) ) );
-
-		if ( empty( $titles ) ) {
-			return $written;
-		}
-
 		$start = (string) get_post_meta( $post_id, 'anime_start_date', true );
 
 		foreach ( self::available_keys() as $key ) {
 			$src = self::make( $key );
 			if ( ! $src || empty( $src->load_index() ) ) {
+				continue;
+			}
+			$titles = $src->match_titles( $post_id );
+			if ( empty( $titles ) ) {
 				continue;
 			}
 			$r = $src->lookup( $titles, $start );
