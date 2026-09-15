@@ -3,9 +3,13 @@
  * Dashboard Page
  *
  * @package Anime_Sync_Pro
- * @version 1.3.1
+ * @version 1.4.0
  *
  * Changelog:
+ *  - 1.4.0 (2026-09-15):
+ *      • 新增「📡 串流直接來源」區塊：五家台灣平台的索引狀態、LINE TV 爬取進度、
+ *        下次排程、帶來源標記的已寫入筆數、上次排程結果、寫入開關。純讀取，
+ *        不放執行按鈕（LiTV 一輪 90MB、LINE TV 一批 300 頁，瀏覽器觸發會逾時）。
  *  - 1.3.1 (2026-07-20):
  *      • 修正 media query 與 grid 函式語法：移除括號內外空格
  *        （( max-width )→(max-width)、repeat( 4, 1fr )→repeat(4, 1fr)），
@@ -285,6 +289,103 @@ $level_config = array(
             <?php endif; ?>
         </div>
     </div>
+
+    <!-- ───────────────── 串流直接來源 ───────────────── -->
+    <?php if ( class_exists( 'Anime_Sync_Streaming_Source_Base' ) ) : ?>
+    <div class="asc-section">
+        <h2 class="asc-section-title">📡 串流直接來源（台灣平台，不經 YourAnimes）</h2>
+        <div class="asc-section-body">
+            <?php
+            /*
+             * 純讀取：索引狀態、爬取進度、上次排程結果、已寫入筆數。
+             * 刻意不放「立即執行」按鈕——LiTV 一輪要抓 90MB、LINE TV 一批 300 頁，
+             * 從瀏覽器觸發會逾時。執行走週／時排程或 WP-CLI：
+             *   wp anime streaming-source --platform=<key> --dry-run
+             */
+            global $wpdb;
+            $ss_write_on  = (string) get_option( Anime_Sync_Streaming_Source_Base::WRITE_OPTION, '0' ) === '1';
+            $ss_log_table = $wpdb->prefix . 'anime_sync_logs';
+            $ss_rows      = [];
+
+            foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $ss_key ) {
+                $ss_src = Anime_Sync_Streaming_Source_Base::make( $ss_key );
+                if ( ! $ss_src ) {
+                    continue;
+                }
+                $ss_state = $ss_src->status();
+                $ss_rows[] = [
+                    'key'      => $ss_key,
+                    'label'    => $ss_src->label(),
+                    'built'    => (int) ( $ss_state['built'] ?? 0 ),
+                    'works'    => (int) ( $ss_state['works'] ?? 0 ),
+                    'progress' => method_exists( $ss_src, 'progress' ) ? $ss_src->progress() : null,
+                    'next'     => (int) wp_next_scheduled( $ss_src->hook() ),
+                    'written'  => (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s",
+                        '_anime_tw_streaming_src_' . $ss_key
+                    ) ),
+                    'last'     => $wpdb->get_row( $wpdb->prepare(
+                        "SELECT created_at, message FROM {$ss_log_table} WHERE message LIKE %s ORDER BY id DESC LIMIT 1",
+                        '%串流來源[' . $ss_key . ']：[排程]%'
+                    ), ARRAY_A ),
+                ];
+            }
+            ?>
+            <p style="margin:0 0 10px;">
+                排程寫入：
+                <?php if ( $ss_write_on ) : ?>
+                    <span class="asc-status-ok">✓ 開啟</span>（排程配到且欄位空白就寫、留來源標記）
+                <?php else : ?>
+                    <span class="asc-status-err">✗ 關閉</span>（排程只更新索引不寫入；<code>wp option update anime_sync_streaming_source_write 1</code> 開啟）
+                <?php endif; ?>
+                　新匯入作品會用現有索引當場比對。
+            </p>
+            <table class="wp-list-table widefat fixed striped asc-info-table">
+                <thead>
+                    <tr>
+                        <th>平台</th>
+                        <th>索引</th>
+                        <th>下次排程</th>
+                        <th>已寫入</th>
+                        <th>上次排程結果</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ( $ss_rows as $r ) : ?>
+                    <tr>
+                        <td><strong><?php echo esc_html( $r['label'] ); ?></strong><br><code><?php echo esc_html( $r['key'] ); ?></code></td>
+                        <td>
+                            <?php if ( $r['built'] > 0 ) : ?>
+                                <?php echo esc_html( number_format_i18n( $r['works'] ) ); ?> 部<br>
+                                <small><?php echo esc_html( wp_date( 'm/d H:i', $r['built'] ) ); ?> 建立</small>
+                            <?php else : ?>
+                                <span class="asc-status-err">尚未建立</span>
+                            <?php endif; ?>
+                            <?php if ( is_array( $r['progress'] ) ) : ?>
+                                <br><small>爬取 <?php echo esc_html( number_format_i18n( $r['progress']['done'] ) ); ?> / <?php echo esc_html( number_format_i18n( $r['progress']['total'] ) ); ?>（待 <?php echo esc_html( number_format_i18n( $r['progress']['pending'] ) ); ?>）</small>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo $r['next'] > 0 ? esc_html( wp_date( 'm/d H:i', $r['next'] ) ) : '<span class="asc-status-err">未排程</span>'; ?></td>
+                        <td><?php echo esc_html( number_format_i18n( $r['written'] ) ); ?> 部</td>
+                        <td class="asc-log-message">
+                            <?php if ( ! empty( $r['last'] ) ) : ?>
+                                <small><?php echo esc_html( $r['last']['created_at'] ); ?></small><br>
+                                <?php echo esc_html( preg_replace( '/^.*\[排程\]\s*/u', '', (string) $r['last']['message'] ) ); ?>
+                            <?php else : ?>
+                                <span style="color:#888;">尚未執行過排程</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <p style="margin:8px 0 0;color:#666;font-size:12px;">
+                巴哈由本機每週建索引包隨部署更新（主機被 Cloudflare 擋）；CatchPlay、Hami 無公開資料，維持靠 YourAnimes。
+                完整日誌在「錯誤日誌」搜「串流來源」。
+            </p>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- ───────────────── 最近日誌 ───────────────── -->
     <div class="asc-section">
