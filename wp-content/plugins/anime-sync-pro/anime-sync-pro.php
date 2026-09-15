@@ -158,6 +158,8 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-title-index.php';
  */
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-myvideo.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-ofiii.php';
 
 /* ============================================================
  * 1.2. AI 編輯短評批次產生工具

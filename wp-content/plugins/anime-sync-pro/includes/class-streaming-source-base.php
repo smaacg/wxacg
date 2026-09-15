@@ -52,9 +52,18 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	// 已接上的平台。新增平台在這裡加一行。
 	// =====================================================================
 
-	/** @var array<string,string> 平台 key → 子類別名 */
+	/**
+	 * @var array<string,string> 平台 key → 子類別名
+	 *
+	 * ★ 巴哈刻意不列。2026-09-15 部署後實測：正式站主機在吉隆坡，巴哈對它回
+	 *   403 `cf-mitigated: challenge`（Cloudflare 人機驗證），連首頁都擋。
+	 *   列進來只會讓週排程每週撞一次 403 留警告。子類別檔留著，日後要用走
+	 *   「在台灣 IP 建索引 JSON 再上傳」那條路，不是從主機抓。
+	 *   巴哈本來就是 YA 覆蓋 99%、淨增益只有 7 部的那家，損失最小。
+	 */
 	private const SOURCES = [
-		'bahamut' => 'Anime_Sync_Streaming_Source_Bahamut',
+		'myvideo' => 'Anime_Sync_Streaming_Source_Myvideo',
+		'ofiii'   => 'Anime_Sync_Streaming_Source_Ofiii',
 	];
 
 	/** @return string[] */
@@ -175,7 +184,13 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 		try {
 			$write = (string) get_option( self::WRITE_OPTION, '0' ) === '1';
-			$r     = $this->run( [ 'write' => $write ] );
+
+			/*
+			 * ★ 排程一定要 rebuild。run() 預設沿用既有索引（讓 CLI dry-run 不必
+			 *   每次重抓 90MB），但排程的意義就是「平台這週新上架的作品要進來」，
+			 *   不重建等於永遠停在第一次建索引的那一天。
+			 */
+			$r = $this->run( [ 'write' => $write, 'rebuild' => true ] );
 
 			$this->log_info( sprintf(
 				'[排程] 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d',
