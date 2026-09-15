@@ -455,7 +455,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			$stats['end'] = $this->refresh_end_dates( $write, $started );
 		}
 
-		if ( $stats['written'] > 0 || $stats['gone']['removed'] > 0 || ( $stats['end']['removed'] ?? 0 ) > 0 ) {
+		// 到期日有更新也要清：/streaming/ 的「即將下架」清單與作品頁的「授權至」標籤都吃這份資料
+		if ( $stats['written'] > 0 || $stats['gone']['removed'] > 0 || ( $write && ( ( $stats['end']['dated'] ?? 0 ) + ( $stats['end']['removed'] ?? 0 ) ) > 0 ) ) {
 			$this->purge_streaming_pages();
 		}
 
