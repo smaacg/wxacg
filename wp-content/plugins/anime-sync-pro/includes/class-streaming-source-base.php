@@ -331,7 +331,13 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			}
 		}
 
-		if ( $stats['written'] > 0 ) {
+		// ── 3. 下架偵測：只針對我們自己寫過的作品，索引完整時才做 ──
+		$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'removed' => 0, 'samples' => [] ];
+		if ( $this->index_is_complete() ) {
+			$stats['gone'] = $this->check_gone( $write );
+		}
+
+		if ( $stats['written'] > 0 || $stats['gone']['removed'] > 0 ) {
 			$this->purge_streaming_pages();
 		}
 
@@ -592,6 +598,100 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 		// 兩個以上代表分不出是哪一部，寧可不配也不要把別部作品的串流寫進來
 		return [ 'status' => $n > 1 ? 'multi' : 'miss', 'url' => '', 'candidates' => $n ];
+	}
+
+	// =====================================================================
+	// 下架偵測
+	// =====================================================================
+
+	/** 連續幾輪配不到才視為下架並移除。防平台暫時抽片或改名一週。 */
+	const GONE_STRIKES = 3;
+
+	/**
+	 * 這一輪的索引是不是「平台現在全部有什麼」的完整快照。
+	 * 重建型來源每輪都是；增量型（LINE TV）只有佇列清空時才是，
+	 * 否則會把還沒爬到的當成下架。
+	 */
+	protected function index_is_complete(): bool {
+		return ! $this->incremental();
+	}
+
+	protected function gone_meta_key(): string {
+		return '_anime_tw_streaming_gone_' . $this->key();
+	}
+
+	/**
+	 * 反向檢查：我們寫過的作品，這輪索引裡還配得到嗎？
+	 *
+	 * ★ 只看帶來源標記的（我們自己寫的）。那些當初是「完全相符＋唯一」配到的，
+	 *   同一套規則現在配不到，才有理由相信是平台拿掉了。YA 或人工寫的沒有這個
+	 *   前提——譯名差異就會配不到（召回率天花板 74%），不能拿來判下架；
+	 *   那些只在後台列成「疑似」給人看，不自動動。
+	 *
+	 * 第一次配不到：記 gone meta「YYYY-MM-DD|1」，前台顯示「可能已下架」。
+	 * 連續 GONE_STRIKES 輪：取消勾選、刪網址與標記。中間任何一輪又配到：清掉 gone。
+	 *
+	 * @return array{checked:int,marked:int,cleared:int,removed:int,samples:string[]}
+	 */
+	protected function check_gone( bool $write ): array {
+		global $wpdb;
+
+		$r = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'removed' => 0, 'samples' => [] ];
+
+		$ids = array_map( 'intval', (array) $wpdb->get_col( $wpdb->prepare(
+			"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s",
+			$this->src_meta_key()
+		) ) );
+
+		foreach ( $ids as $id ) {
+
+			$r['checked']++;
+			$hit  = $this->lookup( $this->match_titles( $id ), (string) get_post_meta( $id, 'anime_start_date', true ) );
+			$gone = (string) get_post_meta( $id, $this->gone_meta_key(), true );
+
+			if ( $hit['status'] === 'hit' ) {
+				if ( $gone !== '' ) {
+					delete_post_meta( $id, $this->gone_meta_key() );
+					$r['cleared']++;
+				}
+				continue;
+			}
+
+			// 配不到：累計 strike
+			$strike = 1;
+			if ( $gone !== '' && preg_match( '/\|(\d+)$/', $gone, $m ) ) {
+				$strike = (int) $m[1] + 1;
+			}
+
+			if ( $strike >= self::GONE_STRIKES && $write ) {
+				delete_post_meta( $id, $this->url_meta_key() );
+				delete_post_meta( $id, $this->src_meta_key() );
+				delete_post_meta( $id, $this->gone_meta_key() );
+				$checked = get_post_meta( $id, 'anime_tw_streaming', true );
+				if ( is_array( $checked ) ) {
+					update_post_meta( $id, 'anime_tw_streaming', array_values( array_filter( $checked, fn( $k ) => $k !== $this->key() ) ) );
+				}
+				do_action( 'litespeed_purge_post', $id );
+				$r['removed']++;
+				if ( count( $r['samples'] ) < 10 ) {
+					$r['samples'][] = sprintf( '移除 #%d %s', $id, get_the_title( $id ) );
+				}
+				continue;
+			}
+
+			update_post_meta( $id, $this->gone_meta_key(), gmdate( 'Y-m-d' ) . '|' . $strike );
+			do_action( 'litespeed_purge_post', $id );
+			$r['marked']++;
+			if ( count( $r['samples'] ) < 10 ) {
+				$r['samples'][] = sprintf( '疑似下架 #%d %s（第 %d 輪）', $id, get_the_title( $id ), $strike );
+			}
+		}
+
+		if ( $r['marked'] || $r['removed'] ) {
+			$this->log_warning( sprintf( '下架偵測：檢查 %d、疑似 %d、移除 %d、恢復 %d', $r['checked'], $r['marked'], $r['removed'], $r['cleared'] ) );
+		}
+
+		return $r;
 	}
 
 	// =====================================================================
@@ -1046,6 +1146,14 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::log( sprintf( '  唯一命中 %d｜多重候選（放棄）%d｜未命中 %d', $r['hit'], $r['multi'], $r['miss'] ) );
 		if ( $write ) {
 			WP_CLI::log( sprintf( '  已寫入 %d 部', $r['written'] ) );
+		}
+		if ( ! empty( $r['gone'] ) && $r['gone']['checked'] > 0 ) {
+			WP_CLI::log( sprintf( '下架偵測：檢查 %d｜疑似 %d｜恢復 %d｜移除 %d%s',
+				$r['gone']['checked'], $r['gone']['marked'], $r['gone']['cleared'], $r['gone']['removed'],
+				$write ? '' : '（dry-run 只標記不移除）' ) );
+			foreach ( $r['gone']['samples'] as $line ) {
+				WP_CLI::log( '  ' . $line );
+			}
 		}
 
 		foreach ( [ 'hit_samples' => '命中樣本', 'multi_samples' => '多重候選樣本', 'miss_samples' => '未命中樣本' ] as $k => $t ) {

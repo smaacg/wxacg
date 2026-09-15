@@ -720,6 +720,12 @@ while ( have_posts() ) :
 					? $provider_icon_base . $provider_icon_map[ $platform_key ]
 					: '',
 				'icon_only' => false,
+				/*
+				 * 直接來源的下架偵測：連續配不到會先留 _anime_tw_streaming_gone_{key}
+				 * （「YYYY-MM-DD|第幾輪」），滿 3 輪才真的移除。中間這段期間按鈕
+				 * 照常顯示，但加「可能已下架」讓讀者知道點過去可能是空的。
+				 */
+				'gone'      => (string) get_post_meta( $post_id, '_anime_tw_streaming_gone_' . $platform_key, true ) !== '',
 			];
 		}
 	}
@@ -5225,6 +5231,9 @@ while ( have_posts() ) :
 											$stream_icon_only =
 												! empty( $stream_item['icon_only'] );
 
+											// 直接來源連續配不到、尚未滿三輪移除的，標「可能已下架」（見 $tw_streaming_items 的說明）
+											$stream_gone = ! empty( $stream_item['gone'] );
+
 											if ( $stream_label === '' ) {
 												continue;
 											}
@@ -5271,6 +5280,9 @@ while ( have_posts() ) :
 
 											<span class="asd-stream-label">
 												<?php echo esc_html( $stream_label ); ?>
+												<?php if ( $stream_gone ) : ?>
+													<em class="asd-stream-gone" title="平台清單上已找不到本作，連續三週未出現將自動移除">可能已下架</em>
+												<?php endif; ?>
 											</span>
 
 											<?php if ( $stream_url ) : ?>

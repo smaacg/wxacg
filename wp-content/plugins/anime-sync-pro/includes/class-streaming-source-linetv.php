@@ -66,6 +66,12 @@ class Anime_Sync_Streaming_Source_Linetv extends Anime_Sync_Streaming_Source_Bas
 		return 'hourly';
 	}
 
+	/** 佇列清空（首輪爬完、之後每次補新 ID 也清空）才算完整快照，否則沒爬到的會被當下架。 */
+	protected function index_is_complete(): bool {
+		$q = $this->queue();
+		return $q['total'] > 0 && empty( $q['pending'] );
+	}
+
 	/** 條目由 collect_entries() 直接組好，這裡不會被呼叫。 */
 	protected function parse_entry( string $block ): ?array {
 		return null;

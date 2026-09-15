@@ -2467,6 +2467,21 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: #fbbf24;
 }
 
+/* 直接來源下架偵測：連續配不到、尚未滿三輪移除期間的標記。
+   放在 label 內部而不是另一個按鈕，讀者一眼看到「哪個平台」可能沒了。 */
+.asd-stream-gone {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, .14);
+  color: #ef4444;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .asd-stream-list {
   display: flex;
   flex-wrap: wrap;

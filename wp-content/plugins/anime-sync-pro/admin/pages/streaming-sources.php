@@ -163,6 +163,78 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 		</tbody>
 	</table>
 
+	<?php
+	/*
+	 * 疑似下架（下架偵測的產出）。
+	 *   自動：我們寫的、連續配不到的，有 _anime_tw_streaming_gone_{key}「日期|第幾輪」；滿 3 輪自動移除。
+	 *   人工：YA／人工寫的、這輪索引配不到的，只列出來給人判斷，程式不動它——譯名差異就會配不到。
+	 * 人工那份要逐部查索引，結果快取 1 小時。
+	 */
+	$gone_rows = $wpdb->get_results(
+		"SELECT g.post_id, g.meta_key, g.meta_value, p.post_title
+		   FROM {$wpdb->postmeta} g JOIN {$wpdb->posts} p ON p.ID = g.post_id
+		  WHERE g.meta_key LIKE '_anime_tw_streaming_gone_%'
+		  ORDER BY g.meta_value DESC LIMIT 100",
+		ARRAY_A
+	);
+
+	$suspects = get_transient( 'asp_streaming_gone_suspects' );
+	if ( ! is_array( $suspects ) ) {
+		$suspects = [];
+		foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $key ) {
+			$src = Anime_Sync_Streaming_Source_Base::make( $key );
+			if ( ! $src || empty( $src->load_index() ) ) {
+				continue;
+			}
+			$ids = $wpdb->get_col( $wpdb->prepare(
+				"SELECT u.post_id FROM {$wpdb->postmeta} u
+				   LEFT JOIN {$wpdb->postmeta} s ON s.post_id = u.post_id AND s.meta_key = %s
+				  WHERE u.meta_key = %s AND u.meta_value <> '' AND s.post_id IS NULL",
+				'_anime_tw_streaming_src_' . $key, 'anime_tw_streaming_url_' . $key
+			) );
+			foreach ( $ids as $pid ) {
+				$r = $src->lookup( $src->match_titles( (int) $pid ) );
+				if ( $r['status'] === 'miss' ) {
+					$suspects[] = [ 'key' => $key, 'label' => $src->label(), 'id' => (int) $pid ];
+				}
+			}
+		}
+		set_transient( 'asp_streaming_gone_suspects', $suspects, HOUR_IN_SECONDS );
+	}
+	?>
+	<h2 class="ass-h2">疑似下架</h2>
+	<p class="ass-lead">
+		自動：直接來源寫入過、這輪索引配不到的作品，前台已標「可能已下架」，連續 3 輪未出現自動移除。
+		人工：YourAnimes 或手動填的網址在該平台索引裡配不到——<strong>可能是譚名差異不是下架</strong>，程式不會動它，請人工確認。
+	</p>
+	<table class="wp-list-table widefat fixed striped ass-table">
+		<thead><tr><th style="width:14%">平台</th><th>作品</th><th style="width:22%">狀態</th></tr></thead>
+		<tbody>
+		<?php if ( $gone_rows ) : foreach ( $gone_rows as $g ) :
+			$gk = str_replace( '_anime_tw_streaming_gone_', '', $g['meta_key'] );
+			[ $gd, $gn ] = array_pad( explode( '|', (string) $g['meta_value'] ), 2, '1' ); ?>
+			<tr>
+				<td><code><?php echo esc_html( $gk ); ?></code></td>
+				<td><a href="<?php echo esc_url( get_edit_post_link( (int) $g['post_id'] ) ); ?>">#<?php echo esc_html( $g['post_id'] ); ?> <?php echo esc_html( $g['post_title'] ); ?></a></td>
+				<td><span class="ass-err">自動偵測 第 <?php echo esc_html( $gn ); ?>/3 輪</span><br><small><?php echo esc_html( $gd ); ?> 起配不到</small></td>
+			</tr>
+		<?php endforeach; endif; ?>
+		<?php if ( $suspects ) : foreach ( array_slice( $suspects, 0, 150 ) as $s ) : ?>
+			<tr>
+				<td><code><?php echo esc_html( $s['key'] ); ?></code></td>
+				<td><a href="<?php echo esc_url( get_edit_post_link( $s['id'] ) ); ?>">#<?php echo esc_html( $s['id'] ); ?> <?php echo esc_html( get_the_title( $s['id'] ) ); ?></a></td>
+				<td><span class="ass-muted">人工確認（非直接來源寫入）</span></td>
+			</tr>
+		<?php endforeach; endif; ?>
+		<?php if ( ! $gone_rows && ! $suspects ) : ?>
+			<tr><td colspan="3" class="ass-muted">目前沒有疑似下架的作品</td></tr>
+		<?php endif; ?>
+		</tbody>
+	</table>
+	<?php if ( count( $suspects ) > 150 ) : ?>
+		<p class="ass-foot">人工確認清單共 <?php echo esc_html( count( $suspects ) ); ?> 筆，只顯示前 150。</p>
+	<?php endif; ?>
+
 	<h2 class="ass-h2">沒接直接來源的平台</h2>
 	<table class="wp-list-table widefat fixed ass-table ass-table--compact">
 		<tbody>
