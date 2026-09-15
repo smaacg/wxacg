@@ -80,8 +80,17 @@
  *
  * 用比 h2 更細更淡的左側線：維持同一套視覺語言，但不搶 h2 的戲。
  * 刻意不用 accent-blue 當文字色——內文的連結就是藍的，會被誤認成連結。
+ *
+ * ★ 必須用直接子選擇器 >，不能寫成 .single-content h4。
+ *   站上已發布的文章裡，h4 幾乎都是元件內部的元素，各自有樣式：
+ *     進擊的巨人影評      12 個 <h4 class="tt-char-name">，在 .tt-char-card 角色卡裡
+ *     合法串流平台評比     5 個，走 .single-content .platform-guide h4
+ *     AI 助理評測          4 個，同樣包在元件裡
+ *   那些規則都沒設 border-left，所以寬選擇器會讓藍線漏進角色卡等元件中。
+ *   實測：三篇的 h4 直接子元素都是 0，而新番懶人包的 36 個全是直接子元素——
+ *   一個 > 就能精準隔離，不必寫 :not() 逐一排除。
  */
-.single-content h4{
+.single-content > h4{
   font-size:17px;
   font-weight:700;
   color:#fff;
@@ -256,7 +265,7 @@
   .single-content{font-size:15.5px;line-height:1.8}
   .single-content h2{font-size:20px}
   .single-content h3{font-size:18px}
-  .single-content h4{font-size:16px;margin:1.6em 0 .5em}
+  .single-content > h4{font-size:16px;margin:1.6em 0 .5em}
   .single-meta{gap:12px;font-size:13px}
   .single-share{gap:12px}
   .share-btn span{display:none}
