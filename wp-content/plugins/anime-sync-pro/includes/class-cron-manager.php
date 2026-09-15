@@ -1225,6 +1225,47 @@ class Anime_Sync_Cron_Manager {
             return null;
         }
 
+        /*
+         * ★ 本篇還沒開播就不要用備援算已播集數（2026-09-15 新增）。
+         *
+         * 為什麼需要這道：
+         *   Bangumi 常用「一個條目」涵蓋 TV 本篇加上它的 SP／OVA／網路版／特典
+         *   （實測站上 183 組 bgm_id 被多篇文章共用，多數屬於這種合理共用），
+         *   再加上偶爾會有掛錯季的情況，抓回來的集數表未必屬於這一篇。
+         *
+         *   事故：《藥師少女的獨語 第三季》（2026-10-02 才開播）的
+         *   anime_bangumi_id 誤指第一季，備援取到第一季 24 集、日期全在過去的
+         *   集數表，合成出 nextAiringEpisode.episode = 25，寫成「已播 24 集」。
+         *   當時全站有 13 篇處於「狀態未播出、卻有已播集數」的矛盾狀態。
+         *
+         * 為什麼是這條而不是別的：
+         *   試過「共用 bgm_id 就視為錯誤」與「開播日差距超過 180 天就視為錯誤」，
+         *   兩者都會誤傷上面那種合理共用（OVA 排在 2026、TV 條目是 2023，
+         *   日期本來就差很多）。這條規則不去判斷映射對不對，只判斷「能不能用
+         *   這份資料算這一篇的已播集數」——即使共用是合理的，拿 TV 的集數去算
+         *   OVA 的已播集數仍然是錯的，所以永遠成立。
+         *
+         * 放在 fetch 之前：這種情況連請求都不必發，省一次 Bangumi API。
+         */
+        $status     = (string) get_post_meta( $post_id, 'anime_status', true );
+        $start_date = (string) get_post_meta( $post_id, 'anime_start_date', true );
+
+        if ( 'NOT_YET_RELEASED' === $status
+            || ( 8 === strlen( $start_date ) && $start_date > current_time( 'Ymd' ) ) ) {
+
+            $this->logger->log(
+                'info',
+                sprintf(
+                    'BGM 備援跳過：post_id=%d 尚未開播（status=%s start=%s），不以集數表推算已播集數',
+                    $post_id,
+                    $status,
+                    $start_date
+                )
+            );
+
+            return null;
+        }
+
         $eps = $this->api_handler->fetch_bgm_episodes( $bgm_id, false, $post_id );
         if ( ! is_array( $eps ) || ! $eps ) {
             return null;
