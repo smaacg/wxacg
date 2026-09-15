@@ -87,12 +87,32 @@
 .single-cover img{width:100%;height:auto;display:block}
 
 /* ── 內文（巴哈閱讀密度：16px / 1.85） ── */
-.single-content{font-size:16px;line-height:1.85;color:rgba(255,255,255,.92);min-width:0}
+/*
+ * 內文配色：暗色版不要用接近純白的字。
+ *
+ * 2026-09-15：原本是 rgba(255,255,255,.92)，在站上的底色 #1E242B 上量到
+ * 對比 14.54:1——WCAG 的 AAA 門檻是 7:1，這個數字是「過強」不是「不足」。
+ * 高亮度字在深底上會產生光暈（halation），筆畫邊緣糊開，長文讀久了很累；
+ * 暗色模式的實務建議是改用 #E0E0E0 一帶的柔白，而不是 #FFF。
+ *
+ * 改成 #D6DCE2（11.32:1），仍遠高於 AAA，但少掉那層刺眼感。
+ * 另加 .02em 字距——深底上的字視覺上會比淺底「肥」一點，
+ * 稍微拉開字距可以讓中日英混排更好辨識。
+ *
+ * 只作用在 .single-content，站上其他地方的 #F5F7F6 不動。
+ */
+.single-content{
+  font-size:16px;
+  line-height:1.85;
+  color:#D6DCE2;
+  letter-spacing:.02em;
+  min-width:0;
+}
 .single-content p{margin:1.05em 0}
 /* 內文圖片：最大不超過欄寬，但不強制放大（避免小圖被拉糊） */
 .single-content img{max-width:100%;height:auto;border-radius:0;display:block;margin:1.6em auto}
-.single-content h2{font-size:24px;margin:1.7em 0 .6em;border-left:4px solid var(--accent-blue,#63A8FF);padding-left:12px;color:#fff;line-height:1.4}
-.single-content h3{font-size:19px;margin:1.4em 0 .5em;color:#fff;line-height:1.45}
+.single-content h2{font-size:24px;margin:1.7em 0 .6em;border-left:4px solid var(--accent-blue,#63A8FF);padding-left:12px;color:#F0F3F5;line-height:1.4}
+.single-content h3{font-size:19px;margin:1.4em 0 .5em;color:#F0F3F5;line-height:1.45}
 /*
  * h3 用橫線分隔，不用直線。
  *
@@ -115,14 +135,18 @@
  * 每行 54–62 字——中文舒適行長約 35–45 字，過長會讓眼睛回行時跑掉。
  * 但表格、海報、影片嵌入是真的需要那個寬度，不能把容器縮回去。
  *
- * 所以只約束文字區塊：46em ≈ 736px，實測回到每行 41–49 字，
- * 而 .wxa-table-wrap 與 .wxa-video 仍保持 948px 滿版。
+ * 所以只約束文字區塊，而 .wxa-table-wrap 與 .wxa-video 仍保持 948px 滿版。
  * 只選直接子元素，元件內部（作品卡的簡介等）自有排版，不受影響。
+ *
+ * 2026-09-15 再收一次：46em 實測是每行 41–49 字，中文的舒適區間是 35–45，
+ * 上緣還是偏長。改成 42em ≈ 672px，落在區間內。
+ * （業界常引用的 50–75 字元是以西文為準；中文一個字約佔兩個字元寬，
+ *   所以換算過來大約就是 35–45 字。）
  */
 .single-content > p,
 .single-content > ul,
 .single-content > ol{
-  max-width:46em;
+  max-width:42em;
 }
 /*
  * h4 是作品內的小節標題（看點／網友期待／台灣觀看平台）。
@@ -146,7 +170,8 @@
 .single-content > h4{
   font-size:17px;
   font-weight:700;
-  color:#fff;
+  /* 與 h2／h3 一致改用柔白，理由見 .single-content 的配色註解 */
+  color:#F0F3F5;
   line-height:1.5;
   margin:1.9em 0 .6em;
   padding-left:10px;
