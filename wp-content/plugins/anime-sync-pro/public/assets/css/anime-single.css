@@ -2467,6 +2467,11 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: #fbbf24;
 }
 
+/* 消息更新搬進側欄後的緊湊版：側欄寬度只有主欄一半，沿用主欄字級會一則佔三行。 */
+.asd-events--side .asd-event-date { font-size: 12px; }
+.asd-events--side .asd-event-summary { font-size: 13px; line-height: 1.5; }
+.asd-events--side .asd-event { padding: 8px 0; }
+
 /* 直接來源下架偵測：連續配不到、尚未滿三輪移除期間的標記。
    放在 label 內部而不是另一個按鈕，讀者一眼看到「哪個平台」可能沒了。 */
 .asd-stream-gone {

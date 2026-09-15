@@ -5487,15 +5487,7 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
-					<?php
-					/*
-					 * 消息更新：上游偵測到的資料異動，經後台人工補寫說明並發布後才會出現。
-					 * 沒有已發布事件時整個區塊不輸出——絕大多數作品在累積初期都是 0 筆。
-					 *
-					 * $asd_events 已在頁首（視覺圖切換器）取過，此處沿用不重複查詢。
-					 */
-					?>
-
+					<?php /* 「📰 消息更新」2026-09-15 移到右側欄「作品標籤」上方，見 <aside> 開頭。 */ ?>
 
 					<?php if ( ! empty( $show['trailer'] ) && ( $has_trailer ) ) : ?>
 						<section class="asd-section" id="asd-sec-trailer">
@@ -5672,33 +5664,6 @@ while ( have_posts() ) :
 						</section>
 					<?php endif; ?>
 
-					<?php if ( ! empty( $show['events'] ) && ( ! empty( $asd_events_news ) ) ) : ?>
-						<section class="asd-section" id="asd-sec-events">
-							<h2 class="asd-section-title">📰 消息更新</h2>
-
-							<ol class="asd-events">
-								<?php foreach ( $asd_events_news as $asd_event ) : ?>
-									<li class="asd-event">
-										<time class="asd-event-date" datetime="<?php echo esc_attr( $asd_event->event_date ); ?>">
-											<?php echo esc_html( $asd_event->event_date ); ?>
-										</time>
-
-										<div class="asd-event-body">
-											<p class="asd-event-summary"><?php echo esc_html( $asd_event->summary ); ?></p>
-
-											<?php
-											/*
-											 * 刻意不放圖：視覺圖統一在頁首的切換器呈現。
-											 * 消息列表插大圖會把時間軸拉得很長，一則消息就佔掉一個螢幕，
-											 * 反而看不出「這部作品最近發生了哪些事」。
-											 */
-											?>
-										</div>
-									</li>
-								<?php endforeach; ?>
-							</ol>
-						</section>
-					<?php endif; ?>
 
 					</div><!-- /.asd-panel -->
 
@@ -6701,6 +6666,47 @@ while ( have_posts() ) :
 				</main><!-- /.asd-main -->
 
 				<aside class="asd-sidebar" aria-label="作品補充資訊">
+					<?php
+					/*
+					 * 消息更新：上游偵測到的資料異動（AniList 差異掃描、YourAnimes 公告）發布後才會出現。
+					 * 沒有已發布事件時整個區塊不輸出——絕大多數作品在累積初期都是 0 筆。
+					 * $asd_events_news 在頁首（視覺圖切換器）取過，此處沿用不重複查詢。
+					 *
+					 * 2026-09-15 從主欄搬到側欄最上方（作品標籤之前）：YA 公告開始直接發布後
+					 * 消息會變多，放主欄會把串流、集數這些主要內容往下推；側欄時間軸更適合掃讀。
+					 * 保留 id="asd-sec-events" 讓既有的頁內錨點不失效。
+					 */
+					?>
+					<?php if ( ! empty( $show['events'] ) && ( ! empty( $asd_events_news ) ) ) : ?>
+						<div class="asd-side-section asd-side-section--events" id="asd-sec-events">
+							<div class="asd-side-section__head">
+								<h3>📰 消息更新</h3>
+							</div>
+
+							<ol class="asd-events asd-events--side">
+								<?php foreach ( $asd_events_news as $asd_event ) : ?>
+									<li class="asd-event">
+										<time class="asd-event-date" datetime="<?php echo esc_attr( $asd_event->event_date ); ?>">
+											<?php echo esc_html( $asd_event->event_date ); ?>
+										</time>
+
+										<div class="asd-event-body">
+											<p class="asd-event-summary"><?php echo esc_html( $asd_event->summary ); ?></p>
+
+											<?php
+											/*
+											 * 刻意不放圖：視覺圖統一在頁首的切換器呈現。
+											 * 消息列表插大圖會把時間軸拉得很長，一則消息就佔掉一個螢幕，
+											 * 反而看不出「這部作品最近發生了哪些事」。
+											 */
+											?>
+										</div>
+									</li>
+								<?php endforeach; ?>
+							</ol>
+						</div>
+					<?php endif; ?>
+
 					<?php
 					$has_tags_section =
 						$studio !== ''
