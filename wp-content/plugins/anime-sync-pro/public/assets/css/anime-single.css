@@ -2467,10 +2467,26 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: #fbbf24;
 }
 
-/* 消息更新搬進側欄後的緊湊版：側欄寬度只有主欄一半，沿用主欄字級會一則佔三行。 */
-.asd-events--side .asd-event-date { font-size: 12px; }
-.asd-events--side .asd-event-summary { font-size: 13px; line-height: 1.5; }
-.asd-events--side .asd-event { padding: 8px 0; }
+/* 消息更新搬進側欄後的版本。
+   側欄只有主欄一半寬，主欄那套「左日期軸 + 右說明」會把 92px 給日期、剩下的字被擠成
+   「將於動畫瘋上／架」這種斷行。側欄改成日期在上、說明在下，說明吃滿整寬（比照主欄的手機版）。 */
+.asd-events--side .asd-event {
+	flex-direction: column;
+	gap: 2px;
+	padding: 10px 0;
+}
+
+.asd-events--side .asd-event-date {
+	flex: none;
+	font-size: 12px;
+	padding-top: 0;
+}
+
+.asd-events--side .asd-event-summary {
+	font-size: 13.5px;
+	line-height: 1.6;
+	word-break: break-word;
+}
 
 /* 直接來源下架偵測：連續配不到、尚未滿三輪移除期間的標記。
    放在 label 內部而不是另一個按鈕，讀者一眼看到「哪個平台」可能沒了。 */
