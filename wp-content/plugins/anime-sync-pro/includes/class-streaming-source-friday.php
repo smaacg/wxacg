@@ -108,7 +108,7 @@ class Anime_Sync_Streaming_Source_Friday extends Anime_Sync_Streaming_Source_Bas
 					continue;
 				}
 				$entries++;
-				$grouped[ $w ][] = [ 'title' => $title, 'url' => self::BASE_URL . $one[1], 'date' => '' ];
+				$this->add_entry( $grouped, $w, [ 'title' => $title, 'url' => self::BASE_URL . $one[1], 'date' => '' ] );
 			}
 		}
 

@@ -225,8 +225,15 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			 *   跑在 WordPress 預設的 40MB 上；巴哈 sitemap 一檔 21.6MB，下載進來
 			 *   再 preg_match_all 切 34,824 塊，本機實測峰值 72MB，40MB 必 fatal。
 			 *   256M 與 class-cron-manager.php 其他大任務的做法一致。
+			 *
+			 * ★ 但只在現有上限比 256M 低時才動。正式站 WP-CLI 的 memory_limit 是 -1
+			 *   （無上限），無條件設 256M 等於把 CLI 的上限調低——2026-09-15 LiTV
+			 *   dry-run 就是這樣在 CLI 撞到 256M fatal 的。
 			 */
-			Anime_Sync_Performance::increase_memory_limit( '256M' );
+			$cur = (string) ini_get( 'memory_limit' );
+			if ( $cur !== '-1' && wp_convert_hr_to_bytes( $cur ) < 256 * MB_IN_BYTES ) {
+				Anime_Sync_Performance::increase_memory_limit( '256M' );
+			}
 		}
 
 		$stats = [
@@ -429,7 +436,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 				}
 
 				$entries++;
-				$grouped[ $w ][] = $e;
+				$this->add_entry( $grouped, $w, $e );
 			}
 
 			unset( $blocks );
@@ -439,9 +446,26 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	}
 
 	/**
-	 * 把「作品名 → entries[]」歸納成索引並落地。收集方式無關，所有來源共用。
+	 * 把一筆條目併進作品，邊收集邊挑，每部作品只留目前最好的一筆。
 	 *
-	 * @param array<string,array<int,array>> $grouped
+	 * ★ 不能把每一集都存起來等最後再挑。LiTV 有 132,987 個單集條目、24,035 部
+	 *   作品，全部留在記憶體本機量到 130MB，加上正式站 WordPress 本身的基礎
+	 *   用量就超過 256MB——2026-09-15 部署後 dry-run 當場 fatal。
+	 *   pick_entry() 的規則是優先序（作品頁 > 第一集 > id 最小），兩兩比較的
+	 *   結果與全域挑選相同，所以每來一筆就跟現有那筆比一次即可。
+	 *
+	 * @param array<string,array> $grouped 作品名 → 目前挑出的那一筆
+	 */
+	protected function add_entry( array &$grouped, string $work, array $entry ): void {
+		$grouped[ $work ] = isset( $grouped[ $work ] )
+			? $this->pick_entry( [ $grouped[ $work ], $entry ] )
+			: $entry;
+	}
+
+	/**
+	 * 把「作品名 → 挑出的那一筆」歸納成索引並落地。收集方式無關，所有來源共用。
+	 *
+	 * @param array<string,array> $grouped
 	 * @return array{entries:int,works:int}
 	 */
 	protected function finish_index( array $grouped, int $entries ): array {
@@ -449,10 +473,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		// 歸納成索引：正規化鍵 → [ {u: 網址, n: 作品名, d?: 開播日} ]
 		$index = [];
 
-		foreach ( $grouped as $work => $list ) {
+		foreach ( $grouped as $work => $picked ) {
 
-			$picked = $this->pick_entry( $list );
-			$row    = [ 'u' => (string) $picked['url'], 'n' => (string) $work ];
+			$row = [ 'u' => (string) $picked['url'], 'n' => (string) $work ];
 
 			if ( $this->provides_start_date() ) {
 				$d = preg_replace( '/[^0-9]/', '', (string) ( $picked['date'] ?? '' ) );
