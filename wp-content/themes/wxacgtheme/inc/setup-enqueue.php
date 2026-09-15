@@ -374,6 +374,22 @@ add_action( 'wp_enqueue_scripts', function () {
     if ( is_singular( 'post' ) ) {
         wp_enqueue_style( 'smacg-news', $base_url . 'news.css', [], $ver( 'news.css' ) );
         wp_enqueue_style( 'smacg-single', $base_url . 'single.css', [ 'smacg-news' ], $ver( 'single.css' ) );
+
+        /*
+         * YouTube 嵌入改成點擊才載入。
+         * 只有文章頁會用到 .wxa-video，所以跟 single.css 綁在同一個條件。
+         * 理由與取捨見 assets/js/video-facade.js 的檔頭註解。
+         */
+        $facade_js = weixiaoacg_THEME_DIR . '/assets/js/video-facade.js';
+        if ( file_exists( $facade_js ) ) {
+            wp_enqueue_script(
+                'smacg-video-facade',
+                weixiaoacg_THEME_URL . '/assets/js/video-facade.js',
+                [],
+                filemtime( $facade_js ),
+                true
+            );
+        }
     }
 
     if ( is_page_template( 'page-columns.php' ) ) {

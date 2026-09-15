@@ -4684,6 +4684,13 @@
 .single-content .wxa-taglist        { margin: 0 0 4px; padding: 0; }
 .single-content .wxa-taglist li     { margin: 0; }
 .single-content .wxa-toc li         { margin: 0; }
+/*
+ * 影片封面縮圖也中招，而且症狀就是這次要修的那個。
+ * .single-content img 的 margin:1.6em auto 把圖往下推 21px、height:auto
+ * 又蓋掉 100%，圖片因此超出容器下緣被 overflow:hidden 切掉——
+ * 本來是要修「YouTube 縮圖被裁」，結果自己畫的縮圖又被裁一次。
+ */
+.single-content .wxa-video__thumb   { margin: 0; height: 100%; }
 
 @media (max-width: 600px) {
     .wxa-work { gap: 14px; padding: 16px; }
@@ -4714,6 +4721,82 @@
     width: 100%;
     height: 100%;
     border: 0;
+}
+
+/* ── 點擊才載入的封面（video-facade.js 建立）──────────────────
+ *
+ * 為什麼要自己畫縮圖：YouTube 播放器挑的 hqdefault / sddefault 是 4:3，
+ * 填進 16:9 容器時上下會被裁掉（2026-09-15 使用者回報 PV 底部字幕被切）。
+ * 這裡固定用 maxresdefault（1280×720，本來就是 16:9），object-fit:contain
+ * 保證完整顯示、不裁切。
+ *
+ * 只有在 JS 成功接手時才會有 .is-facade，否則維持原本的 iframe。
+ */
+.wxa-video__facade {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: #000;
+    cursor: pointer;
+    display: block;
+}
+
+/*
+ * 用絕對定位而不是 display:block。
+ *
+ * <button> 會對自己的內容做垂直置中（瀏覽器內建行為，padding/border 歸零
+ * 也去不掉），實測圖片高度雖然正確是 375px，位置卻整個往下偏 21px，
+ * 被外層的 overflow:hidden 切掉底部——正是原本要修的那行字又被切一次。
+ * 跟 .wxa-video iframe 一樣改成 inset:0 貼齊容器，就不受那個行為影響。
+ */
+.wxa-video__thumb {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    /* 16:9 的來源用 contain 完整顯示，不裁切 */
+    object-fit: contain;
+}
+
+/* maxresdefault 缺席時退回 4:3 的 hqdefault，只好裁成 16:9 */
+.wxa-video__thumb.is-fallback { object-fit: cover; }
+
+.wxa-video__play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(18, 18, 18, .78);
+    transition: background .15s ease, transform .15s ease;
+}
+
+/* 三角形播放符號，不另外拉圖片或字型 */
+.wxa-video__play::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-40%, -50%);
+    border-style: solid;
+    border-width: 9px 0 9px 15px;
+    border-color: transparent transparent transparent #fff;
+}
+
+.wxa-video__facade:hover .wxa-video__play,
+.wxa-video__facade:focus-visible .wxa-video__play {
+    background: #f00;
+    transform: translate(-50%, -50%) scale(1.06);
+}
+
+.wxa-video__facade:focus-visible {
+    outline: 3px solid var(--accent-blue, #63A8FF);
+    outline-offset: -3px;
 }
 
 .wxa-video-cap {
