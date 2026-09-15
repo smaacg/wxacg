@@ -188,7 +188,8 @@ class Anime_Sync_Relation_Cover_Backfill {
 			$wpdb->prepare(
 				"SELECT COUNT(*) AS total,
 				        SUM(cover_url IS NULL) AS pending,
-				        MAX(synced_at) AS last_sync
+				        MAX(synced_at) AS last_sync,
+				        MAX(source_bgm_id) AS src
 				 FROM {$table} WHERE post_id = %d",
 				$post_id
 			),
@@ -212,6 +213,21 @@ class Anime_Sync_Relation_Cover_Backfill {
 			 * 一年 312 次，可以忽略。
 			 */
 			return $this->is_stale( (string) get_post_meta( $post_id, self::META_DONE, true ) );
+		}
+
+		/*
+		 * 來源條目換了就立刻重抓，不必等 RESYNC_DAYS。
+		 *
+		 * 人工更正 anime_bangumi_id 是修掉「掛錯季」的唯一手段（正式站有 175 個
+		 * bgm_id 被多篇文章共用），但改完之後關聯還是舊的，等於改了沒感覺。
+		 * 有了這條，後台存檔會經由 save_post_anime 觀察者當場排程；直接改資料庫
+		 * 的情況也會在下一輪批次被撈出來。
+		 */
+		$current_bgm = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+		$src         = (int) ( $stat['src'] ?? 0 );
+
+		if ( $current_bgm > 0 && $src > 0 && $src !== $current_bgm ) {
+			return true;
 		}
 
 		if ( $pending > 0 ) {
@@ -594,6 +610,26 @@ class Anime_Sync_Relation_Cover_Backfill {
 		$table = $this->table();
 		$fail  = [ 'ok' => false, 'filled' => 0, 'rows' => 0, 'added' => 0 ];
 
+		/*
+		 * ★ 2026-09-15 修正：postmeta 是權威，表裡的 source_bgm_id 只是
+		 *   「上次用了哪個」的紀錄，不該拿來決定這次要抓哪個。
+		 *
+		 *   原本的順序相反——先讀表、表沒有才讀 postmeta。後果是一旦某篇抓錯過
+		 *   BGM 條目，之後每次重抓都繼續用同一個錯的，人工更正 anime_bangumi_id
+		 *   完全不會生效，錯誤自我延續。
+		 *
+		 *   實例：《藥師少女的獨語 第三季》的 anime_bangumi_id 被誤設成第一季的
+		 *   420628，關聯因此掛著第一、二季的主題曲；使用者把欄位改成 568244
+		 *   之後畫面依然沒變，就是卡在這裡。
+		 */
+		if ( $bgm_id <= 0 ) {
+			$bgm_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+		}
+
+		/*
+		 * postmeta 也沒有才退回表裡的舊值。
+		 * 關聯資料早期只有外部腳本會寫，那批資料的 postmeta 未必有填。
+		 */
 		if ( $bgm_id <= 0 ) {
 			$bgm_id = (int) $wpdb->get_var(
 				$wpdb->prepare(
@@ -601,15 +637,6 @@ class Anime_Sync_Relation_Cover_Backfill {
 					$post_id
 				)
 			);
-		}
-
-		/*
-		 * 表裡一列都沒有的作品（實測正式站 162 部）自然也沒有 source_bgm_id，
-		 * 退回 postmeta 找。這正是要治的根：關聯資料只有外部腳本會寫，
-		 * 腳本跑過之後才進站的作品從頭到尾沒有任何一列。
-		 */
-		if ( $bgm_id <= 0 ) {
-			$bgm_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
 		}
 
 		if ( $bgm_id <= 0 ) {
@@ -626,6 +653,24 @@ class Anime_Sync_Relation_Cover_Backfill {
 		if ( null === $items ) {
 			return $fail;
 		}
+
+		/*
+		 * 來源條目換過就先清掉舊列。
+		 *
+		 * apply_map() 只做「補既有列的封面」與「新增缺的列」，整支沒有任何
+		 * DELETE，所以換 BGM 條目之後舊季的關聯會永遠留著——《藥師少女的獨語
+		 * 第三季》頁面掛著第一、二季的主題曲就是這樣來的。
+		 *
+		 * 刻意放在 fetch 成功之後：先刪再抓的話，遇到 Bangumi 連線失敗就會把
+		 * 本來好好的資料清空，比留著舊資料更糟。
+		 */
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$table} WHERE post_id = %d AND source_bgm_id <> %d",
+				$post_id,
+				$bgm_id
+			)
+		);
 
 		$result = $this->apply_map( $post_id, $bgm_id, $items );
 
