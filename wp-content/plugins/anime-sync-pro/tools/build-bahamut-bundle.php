@@ -52,6 +52,7 @@ function delete_transient( $k ) { unset( $GLOBALS['__asp_tr'][ $k ] ); return tr
 function get_option( $k, $d = false ) { return $d; }
 function update_option( $k, $v, $a = null ) { return true; }
 function add_action() {}
+function has_action() { return false; }   // 基底建構子會查 admin-ajax 端點有沒有掛過
 function wp_json_encode( $d, $f = 0 ) { return json_encode( $d, $f ); }
 function wp_remote_retrieve_response_code( $r ) { return $r['response']['code'] ?? 0; }
 function wp_remote_retrieve_body( $r ) { return $r['body'] ?? ''; }

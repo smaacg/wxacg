@@ -130,6 +130,10 @@ class Anime_Sync_Streaming_Source_Garageplay extends Anime_Sync_Streaming_Source
 			if ( $work === '' || $work === '動畫' ) {
 				continue;   // 「動畫 | Anipass 動畫」是清單頁本身，不是作品
 			}
+			// 中文配音版另有一頁（「…(國語版)」），站上主網址要原音版，跟其他來源一致
+			if ( preg_match( '/[（(]\s*國語版?\s*[）)]\s*$/u', $work ) ) {
+				continue;
+			}
 			$entries++;
 			$this->add_entry( $grouped, $work, [ 'title' => $t[1], 'url' => sprintf( self::PLAYER_URL, $id ), 'date' => '' ] );
 			if ( $progress ) {
