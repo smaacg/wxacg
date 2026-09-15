@@ -561,8 +561,9 @@ class Anime_Sync_Import_Manager {
 
 		// ③ 都沒有才建立
 		if ( ! $term_id ) {
-			$slug   = $series_romaji !== '' ? sanitize_title( $series_romaji ) : sanitize_title( $series_name );
-			$result = wp_insert_term( $series_name, 'anime_series_tax', [ 'slug' => $slug ] );
+			$result = wp_insert_term( $series_name, 'anime_series_tax', [
+				'slug' => $this->build_series_slug( $series_romaji, $series_name ),
+			] );
 			if ( is_wp_error( $result ) ) return false;
 			$term_id = (int) $result['term_id'];
 		}
@@ -591,6 +592,46 @@ class Anime_Sync_Import_Manager {
 		$this->maybe_clear_series_noindex( $term_id );
 
 		return true;
+	}
+
+	/**
+	 * 產生系列 term 的 slug。
+	 *
+	 * ★ 為什麼不直接 sanitize_title( $romaji )
+	 *
+	 *   sanitize_title() 不會丟掉非 ASCII 字元，而是把它百分比編碼留在 slug 裡。
+	 *   實測（2026-09-15，正式站 wp eval）：
+	 *     'Yuru Camp△'                    → 'yuru-camp%e2%96%b3'   ← 半英半編碼
+	 *     'Omae wa Mada Gunma wo Shiranai' → 'omae-wa-mada-gunma-wo-shiranai'
+	 *     'Re:Zero kara Hajimeru'          → 'rezero-kara-hajimeru'
+	 *   冒號、斜線、驚嘆號都會被乾淨處理掉，只有 △ ★ ♪ 這類裝飾符號會殘留，
+	 *   結果就是站上那個 term 3814「搖曳露營△」，slug 卡著一截 %e2%96%b3。
+	 *
+	 *   romaji 照定義就是拉丁字母，把非 ASCII 濾掉不會損失資訊，只會拿掉裝飾符號。
+	 *
+	 * ★ 為什麼中文名的分支維持原樣
+	 *
+	 *   拿不到 romaji 時仍退回中文名，slug 會是百分比編碼的中文。這是刻意的：
+	 *   瀏覽器與搜尋結果都會還原顯示成中文，Google 也明確支援 UTF-8 網址，
+	 *   沒有 SEO 損失。站上既有 429 個這種 slug 的系列頁都有文章，
+	 *   要改就得逐一設轉址，零收益卻有風險，所以不改也不避免。
+	 *
+	 * @param string $romaji 系列的羅馬拼音名稱，可能為空。
+	 * @param string $name   系列的顯示名稱（通常是中文）。
+	 * @return string slug；兩者都產不出東西時回空字串，交給 WordPress 自己生。
+	 */
+	private function build_series_slug( string $romaji, string $name ): string {
+		if ( '' !== $romaji ) {
+			// 只留可列印的 ASCII，△ ★ ♪ 這類符號在這裡被丟掉
+			$ascii = preg_replace( '/[^\x20-\x7E]/u', '', $romaji );
+			$slug  = sanitize_title( (string) $ascii );
+			if ( '' !== $slug ) {
+				return $slug;
+			}
+			// 濾完只剩符號（理論上不會，但 romaji 欄位曾經塞過怪東西）就往下走
+		}
+
+		return sanitize_title( $name );
 	}
 
 	/**
