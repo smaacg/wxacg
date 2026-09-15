@@ -471,21 +471,56 @@ class Anime_Sync_Relation_Cover_Backfill {
 		$table = $this->table();
 
 		/*
-		 * 挑還有 NULL 的作品。GROUP BY 而不是 DISTINCT，是因為要一併帶出
-		 * source_bgm_id——它就是母作品的 Bangumi subject id，不必再查 postmeta。
+		 * 第零段：來源條目換過的最優先（2026-09-15 新增）。
+		 *
+		 * source_bgm_id 與現行 anime_bangumi_id 不一致，代表有人更正了映射，
+		 * 而關聯還停在舊來源——那是明確錯誤的資料（掛著別季的主題曲與集數表），
+		 * 比「缺封面」更該先處理。
+		 *
+		 * 非補不可的理由：下面三段一個都撈不到這種作品。封面沒缺、關聯列存在、
+		 * synced_at 也還沒過期，於是《藥師少女的獨語 第三季》把 anime_bangumi_id
+		 * 從 420628 改成 568244 之後，關聯依然停在第一季，等多久都不會變。
 		 */
 		$targets = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT post_id, MAX(source_bgm_id) AS bgm
-				 FROM {$table}
-				 WHERE cover_url IS NULL AND source_bgm_id > 0
-				 GROUP BY post_id
-				 ORDER BY post_id ASC
+				"SELECT r.post_id, CAST(MAX(m.meta_value) AS UNSIGNED) AS bgm
+				 FROM {$table} r
+				 INNER JOIN {$wpdb->postmeta} m
+				     ON m.post_id = r.post_id AND m.meta_key = 'anime_bangumi_id'
+				 GROUP BY r.post_id
+				 HAVING MAX(r.source_bgm_id) > 0
+				    AND CAST(MAX(m.meta_value) AS UNSIGNED) > 0
+				    AND MAX(r.source_bgm_id) <> CAST(MAX(m.meta_value) AS UNSIGNED)
+				 ORDER BY r.post_id ASC
 				 LIMIT %d",
 				self::BATCH
 			),
 			ARRAY_A
 		);
+
+		/*
+		 * 挑還有 NULL 的作品。GROUP BY 而不是 DISTINCT，是因為要一併帶出
+		 * source_bgm_id——它就是母作品的 Bangumi subject id，不必再查 postmeta。
+		 *
+		 * 註：這裡帶出的 source_bgm_id 只是提示，backfill_post() 會以 postmeta
+		 * 為準覆蓋掉它，理由見該函式的註解。
+		 */
+		if ( count( $targets ) < self::BATCH ) {
+			$covers = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT post_id, MAX(source_bgm_id) AS bgm
+					 FROM {$table}
+					 WHERE cover_url IS NULL AND source_bgm_id > 0
+					 GROUP BY post_id
+					 ORDER BY post_id ASC
+					 LIMIT %d",
+					self::BATCH - count( $targets )
+				),
+				ARRAY_A
+			);
+
+			$targets = array_merge( $targets, $covers );
+		}
 
 		/*
 		 * 補完「有列缺封面」的之後，才輪到「一列都沒有」的。
@@ -562,6 +597,28 @@ class Anime_Sync_Relation_Cover_Backfill {
 			return;
 		}
 
+		/*
+		 * 去重：第零段（來源換過）與第一段（缺封面）可能撈到同一篇，
+		 * 兩段的條件並不互斥。重複處理只是白打一次 Bangumi 請求，
+		 * 但這支本來就在跟 API 配額過日子，能省就省。
+		 * 第三段自己有 NOT IN，第二段要求「一列都沒有」不會重疊。
+		 */
+		$seen    = [];
+		$targets = array_values(
+			array_filter(
+				$targets,
+				static function ( $t ) use ( &$seen ) {
+					$pid = (int) ( $t['post_id'] ?? 0 );
+					if ( $pid <= 0 || isset( $seen[ $pid ] ) ) {
+						return false;
+					}
+					$seen[ $pid ] = true;
+
+					return true;
+				}
+			)
+		);
+
 		$done   = 0;
 		$filled = 0;
 		$failed = 0;
@@ -622,12 +679,20 @@ class Anime_Sync_Relation_Cover_Backfill {
 		 *   420628，關聯因此掛著第一、二季的主題曲；使用者把欄位改成 568244
 		 *   之後畫面依然沒變，就是卡在這裡。
 		 */
-		if ( $bgm_id <= 0 ) {
-			$bgm_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+		/*
+		 * 呼叫端傳進來的值只當提示，postmeta 才是權威。
+		 *
+		 * run() 的第一段與第三段都是從關聯表撈 MAX(source_bgm_id) 再傳進來，
+		 * 而那正是「上次用了哪個」——上次抓錯的話照用就永遠錯下去。
+		 * 所以這裡不能只在 $bgm_id <= 0 時才查 postmeta，必須無條件覆蓋。
+		 */
+		$meta_bgm = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+		if ( $meta_bgm > 0 ) {
+			$bgm_id = $meta_bgm;
 		}
 
 		/*
-		 * postmeta 也沒有才退回表裡的舊值。
+		 * postmeta 沒有、呼叫端也沒給，才退回表裡的舊值。
 		 * 關聯資料早期只有外部腳本會寫，那批資料的 postmeta 未必有填。
 		 */
 		if ( $bgm_id <= 0 ) {
