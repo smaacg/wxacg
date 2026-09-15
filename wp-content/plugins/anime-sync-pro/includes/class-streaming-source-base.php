@@ -161,8 +161,40 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	/** 記憶體中的索引，避免同一次請求重複讀檔。 */
 	private ?array $index = null;
 
+	/** 後台「立即執行」按鈕排的一次性事件；參數 ( string $key, bool $write )。所有來源共用一個 hook。 */
+	const ONCE_HOOK = 'anime_sync_streaming_source_run_once';
+
 	public function __construct() {
 		add_action( $this->hook(), [ $this, 'run_scheduled' ] );
+		if ( ! has_action( self::ONCE_HOOK ) ) {
+			add_action( self::ONCE_HOOK, [ self::class, 'run_once' ], 10, 2 );
+		}
+	}
+
+	/**
+	 * 後台按鈕的入口：由 wp_schedule_single_event() 排入、wp-cron 背景執行。
+	 * 走跟排程完全相同的鎖與流程，只差日誌標籤是 [後台]。
+	 */
+	public static function run_once( string $key, bool $write ): void {
+		$src = self::make( $key );
+		if ( $src ) {
+			$src->run_locked( '[後台]', $write );
+		}
+	}
+
+	/** 後台按鈕：排一個 5 秒後的一次性事件並踢 wp-cron。已排入未執行時回 false。 */
+	public static function queue_once( string $key, bool $write ): bool {
+		if ( wp_next_scheduled( self::ONCE_HOOK, [ $key, $write ] ) ) {
+			return false;
+		}
+		wp_schedule_single_event( time() + 5, self::ONCE_HOOK, [ $key, $write ] );
+		spawn_cron();
+		return true;
+	}
+
+	/** 這個來源是否有後台按鈕排入、尚未執行的事件（dry-run 或寫入任一）。 */
+	public function has_queued_once(): bool {
+		return (bool) ( wp_next_scheduled( self::ONCE_HOOK, [ $this->key(), true ] ) || wp_next_scheduled( self::ONCE_HOOK, [ $this->key(), false ] ) );
 	}
 
 	// =====================================================================
@@ -199,6 +231,15 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 	/** 排程進入點：建索引 → 比對 → 依 option 決定寫不寫。 */
 	public function run_scheduled(): void {
+		$this->run_locked( '[排程]', (string) get_option( self::WRITE_OPTION, '0' ) === '1' );
+	}
+
+	/**
+	 * 排程與後台按鈕共用：上鎖 → 重建索引並比對 → 寫一筆結果日誌。
+	 * 日誌標籤（[排程]／[後台]／[手動]）讓後台頁「上次執行結果」欄能把三種來路都列出來——
+	 * 之前只認 [排程]，CLI 手動寫入 139 部後那格還顯示「命中 0」，跟旁邊「已寫入」對不上。
+	 */
+	public function run_locked( string $tag, bool $write ): void {
 
 		if ( get_transient( $this->lock_key() ) ) {
 			$this->log_warning( '上一輪還在執行，本次跳過' );
@@ -208,8 +249,6 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		set_transient( $this->lock_key(), 1, self::LOCK_TTL );
 
 		try {
-			$write = (string) get_option( self::WRITE_OPTION, '0' ) === '1';
-
 			/*
 			 * ★ 排程一定要 rebuild。run() 預設沿用既有索引（讓 CLI dry-run 不必
 			 *   每次重抓 90MB），但排程的意義就是「平台這週新上架的作品要進來」，
@@ -217,14 +256,23 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			 */
 			$r = $this->run( [ 'write' => $write, 'rebuild' => true ] );
 
-			$this->log_info( sprintf(
-				'[排程] 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d',
-				$r['works'], $r['scanned'], $r['hit'], $r['multi'],
-				$write ? '已寫入' : '（未開啟寫入，dry-run）', $r['written']
-			) );
+			$this->log_result( $tag, $write, $r );
 		} finally {
 			delete_transient( $this->lock_key() );
 		}
+	}
+
+	/** 結果日誌的統一格式；CLI 也走這裡（標籤 [手動]）。 */
+	public function log_result( string $tag, bool $write, array $r ): void {
+		if ( ( $r['error'] ?? '' ) !== '' ) {
+			$this->log_warning( $tag . ' 建索引失敗：' . $r['error'] );
+			return;
+		}
+		$this->log_info( sprintf(
+			'%s 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d',
+			$tag, $r['works'], $r['scanned'], $r['hit'], $r['multi'],
+			$write ? '已寫入' : '（dry-run，未寫入）', $r['written']
+		) );
 	}
 
 	// =====================================================================
@@ -1193,6 +1241,11 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 		if ( $r['error'] !== '' ) {
 			WP_CLI::error( '建索引失敗：' . $r['error'] );
+		}
+
+		// 抽樣（--limit）不記，數字不代表全量；其餘 CLI 執行都寫日誌，後台頁才看得到
+		if ( $limit === 0 ) {
+			$src->log_result( '[手動]', $write, $r );
 		}
 
 		WP_CLI::log( '─────────────────────────────' );

@@ -54,10 +54,24 @@ foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $key ) {
 			"SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s",
 			'_anime_tw_streaming_src_' . $key
 		) ),
+		// 結果日誌的標籤有 [排程]／[後台]／[手動] 三種，都以「：[」開頭；只認 [排程] 會漏掉手動寫入
 		'last'     => $wpdb->get_row( $wpdb->prepare(
 			"SELECT created_at, message FROM {$log_table} WHERE message LIKE %s ORDER BY id DESC LIMIT 1",
-			'%串流來源[' . $key . ']：[排程]%'
+			'%串流來源[' . $key . ']：[%'
 		), ARRAY_A ),
+		'queued'   => $src->has_queued_once(),
+		'bundle'   => ( $key === 'bahamut' && class_exists( 'Anime_Sync_Streaming_Source_Bahamut' ) ) ? ( static function (): ?array {
+			$path = Anime_Sync_Streaming_Source_Bahamut::bundle_path();
+			if ( ! is_readable( $path ) ) {
+				return null;
+			}
+			$data = json_decode( (string) file_get_contents( $path ), true );
+			return [
+				'mtime' => (int) filemtime( $path ),
+				'works' => is_array( $data['works'] ?? null ) ? count( $data['works'] ) : 0,
+				'acg'   => is_array( $data['acg'] ?? null ) ? count( $data['acg'] ) : 0,
+			];
+		} )() : null,
 		'warn'     => $wpdb->get_row( $wpdb->prepare(
 			"SELECT created_at, message FROM {$log_table} WHERE level IN ('warning','error','critical') AND message LIKE %s ORDER BY id DESC LIMIT 1",
 			'%串流來源[' . $key . ']%'
@@ -121,14 +135,32 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 		</p></div>
 	<?php endif; ?>
 
+	<?php
+	// 「立即執行」按鈕按完的回饋（admin-post 轉回來帶的參數）
+	$asp_run  = sanitize_key( (string) ( $_GET['asp_run'] ?? '' ) );
+	$asp_src  = sanitize_key( (string) ( $_GET['asp_src'] ?? '' ) );
+	$asp_mode = sanitize_key( (string) ( $_GET['asp_mode'] ?? '' ) );
+	if ( $asp_run === 'queued' ) : ?>
+		<div class="notice notice-success inline"><p>
+			已排入 <code><?php echo esc_html( $asp_src ); ?></code> 的<?php echo $asp_mode === 'write' ? '重建索引並寫入' : '重建索引（dry-run，不寫入）'; ?>，
+			由 wp-cron 在背景執行。大來源（LiTV、MyVideo）約 1～3 分鐘，之後重新整理本頁看「上次執行結果」。
+			<?php if ( $asp_mode !== 'write' && ! $write_on ) : ?>（排程寫入開關關著，寫入按鈕已降為 dry-run）<?php endif; ?>
+		</p></div>
+	<?php elseif ( $asp_run === 'dup' ) : ?>
+		<div class="notice notice-info inline"><p><code><?php echo esc_html( $asp_src ); ?></code> 已有一個排入、尚未執行的事件，不重複排。</p></div>
+	<?php elseif ( $asp_run === 'bad' ) : ?>
+		<div class="notice notice-error inline"><p>不認得的來源 key。</p></div>
+	<?php endif; ?>
+
 	<table class="wp-list-table widefat fixed striped ass-table">
 		<thead>
 			<tr>
-				<th style="width:16%">平台</th>
+				<th style="width:15%">平台</th>
 				<th style="width:20%">索引</th>
-				<th style="width:12%">下次排程</th>
-				<th style="width:9%">已寫入</th>
-				<th>上次排程結果</th>
+				<th style="width:11%">下次排程</th>
+				<th style="width:8%">已寫入</th>
+				<th>上次執行結果</th>
+				<th style="width:13%">立即執行</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -151,6 +183,16 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 					<?php else : ?>
 						<span class="ass-err">尚未建立</span>
 					<?php endif; ?>
+					<?php if ( $r['key'] === 'bahamut' ) : ?>
+						<?php /* 巴哈唯一的失效模式是「本機週日建包沒跑／沒 push」，索引包日期要看得到 */ ?>
+						<br><small class="<?php echo ( ! $r['bundle'] || time() - $r['bundle']['mtime'] > 10 * DAY_IN_SECONDS ) ? 'ass-err' : 'ass-muted'; ?>">
+							<?php if ( $r['bundle'] ) : ?>
+								索引包 <?php echo esc_html( wp_date( 'm/d', $r['bundle']['mtime'] ) ); ?> 建包・<?php echo esc_html( number_format_i18n( $r['bundle']['works'] ) ); ?> 部・ACG 對照 <?php echo esc_html( number_format_i18n( $r['bundle']['acg'] ) ); ?> 筆<?php echo ( time() - $r['bundle']['mtime'] > 10 * DAY_IN_SECONDS ) ? '（超過 10 天，本機週日排程可能沒跑或沒 push）' : ''; ?>
+							<?php else : ?>
+								找不到索引包 data/source_bahamut_bundle.json
+							<?php endif; ?>
+						</small>
+					<?php endif; ?>
 					<?php if ( is_array( $r['progress'] ) && $r['progress']['total'] > 0 ) :
 						$pct = (int) round( $r['progress']['done'] / max( 1, $r['progress']['total'] ) * 100 ); ?>
 						<div class="ass-bar" title="已抓 <?php echo esc_attr( $r['progress']['done'] ); ?>／共 <?php echo esc_attr( $r['progress']['total'] ); ?>">
@@ -171,12 +213,28 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 				<td class="ass-msg">
 					<?php if ( ! empty( $r['last'] ) ) : ?>
 						<small><?php echo esc_html( $r['last']['created_at'] ); ?></small><br>
-						<?php echo esc_html( preg_replace( '/^.*\[排程\]\s*/u', '', (string) $r['last']['message'] ) ); ?>
+						<?php
+						// 「串流來源[key]：[排程] 索引…」→ 標籤保留讓人看得出是排程還是手動，前綴去掉
+						echo esc_html( preg_replace( '/^串流來源\[[^\]]+\]：/u', '', (string) $r['last']['message'] ) );
+						?>
 					<?php else : ?>
-						<span class="ass-muted">尚未執行過排程</span>
+						<span class="ass-muted">尚未執行過</span>
 					<?php endif; ?>
 					<?php if ( ! empty( $r['warn'] ) ) : ?>
 						<br><span class="ass-err">⚠ <?php echo esc_html( $r['warn']['created_at'] ); ?>：<?php echo esc_html( preg_replace( '/^串流來源\[[^\]]+\]：/u', '', (string) $r['warn']['message'] ) ); ?></span>
+					<?php endif; ?>
+				</td>
+				<td>
+					<?php if ( $r['queued'] ) : ?>
+						<span class="ass-muted">⏳ 已排入，等 wp-cron 執行</span>
+					<?php else : ?>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ass-run">
+							<?php wp_nonce_field( 'anime_sync_streaming_source_run' ); ?>
+							<input type="hidden" name="action" value="anime_sync_streaming_source_run">
+							<input type="hidden" name="source" value="<?php echo esc_attr( $r['key'] ); ?>">
+							<button type="submit" name="mode" value="dry" class="button button-small" title="重建索引並比對，不寫入">重建・dry-run</button>
+							<button type="submit" name="mode" value="write" class="button button-small button-primary" title="重建索引、比對並寫入（受排程寫入開關管）"<?php echo $write_on ? '' : ' disabled'; ?>>重建・寫入</button>
+						</form>
 					<?php endif; ?>
 				</td>
 			</tr>
@@ -261,7 +319,7 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 
 	<p class="ass-foot">
 		巴哈由本機（台灣 IP）每週建索引包隨部署更新，主機被 Cloudflare 人機驗證擋。
-		手動執行：<code>wp anime streaming-source --platform=&lt;key&gt; --dry-run</code>（不寫入）、<code>--write</code>（寫入）、<code>--status</code>。
+		上表「立即執行」按鈕會排一次性背景事件（等同排程那一輪，日誌標 [後台]）；命令列：<code>wp anime streaming-source --platform=&lt;key&gt; --dry-run</code>（不寫入）、<code>--write</code>（寫入，日誌標 [手動]）、<code>--status</code>。
 	</p>
 </div>
 
@@ -276,6 +334,8 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 .ass-table td, .ass-table th { vertical-align:top; }
 .ass-table--compact th { width:36%; font-weight:600; }
 .ass-h2 { margin:22px 0 8px; font-size:15px; }
+.ass-run { display:flex; flex-direction:column; gap:4px; }
+.ass-run .button { text-align:center; }
 .ass-err { color:#b32d2e; }
 .ass-muted { color:#888; }
 .ass-msg { word-break:break-all; }

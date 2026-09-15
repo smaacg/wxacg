@@ -75,6 +75,9 @@ class Anime_Sync_Admin {
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
 
         // AJAX endpoints
+        // 「📡 串流來源」頁的立即執行按鈕（admin-post 表單，排一次性 cron 事件背景跑）
+        add_action( 'admin_post_anime_sync_streaming_source_run', [ $this, 'handle_streaming_source_run' ] );
+
         add_action( 'wp_ajax_anime_sync_import_single',      [ $this, 'handle_ajax_import_single'      ] );
         add_action( 'wp_ajax_anime_sync_query_season',       [ $this, 'handle_ajax_query_season'       ] );
         add_action( 'wp_ajax_anime_sync_update_map',         [ $this, 'handle_ajax_update_map'         ] );
@@ -303,6 +306,40 @@ class Anime_Sync_Admin {
     public function render_published_page() { $this->safe_include_page( 'published-list.php' ); }
     public function render_logs_page()      { $this->safe_include_page( 'logs.php'           ); }
     public function render_streaming_sources() { $this->safe_include_page( 'streaming-sources.php' ); }
+
+    /**
+     * 串流來源頁「立即執行」：不在網頁請求裡直接跑（LiTV 14 萬條目會撞時間與記憶體上限），
+     * 排一個 5 秒後的一次性 cron 事件、踢 wp-cron，回頁面提示「已排入」。
+     * 寫入模式另外受全域寫入開關管——開關關著時按「寫入」等同 dry-run，跟排程一致。
+     */
+    public function handle_streaming_source_run(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( '權限不足' );
+        }
+        check_admin_referer( 'anime_sync_streaming_source_run' );
+
+        $key   = sanitize_key( (string) ( $_POST['source'] ?? '' ) );
+        $write = ( (string) ( $_POST['mode'] ?? '' ) === 'write' );
+        $back  = admin_url( 'admin.php?page=anime-sync-streaming' );
+
+        if ( ! class_exists( 'Anime_Sync_Streaming_Source_Base' ) || ! in_array( $key, Anime_Sync_Streaming_Source_Base::available_keys(), true ) ) {
+            wp_safe_redirect( add_query_arg( 'asp_run', 'bad', $back ) );
+            exit;
+        }
+
+        if ( $write && (string) get_option( Anime_Sync_Streaming_Source_Base::WRITE_OPTION, '0' ) !== '1' ) {
+            $write = false;   // 開關關著：降為 dry-run，頁面會說明
+        }
+
+        $queued = Anime_Sync_Streaming_Source_Base::queue_once( $key, $write );
+
+        wp_safe_redirect( add_query_arg( [
+            'asp_run'  => $queued ? 'queued' : 'dup',
+            'asp_src'  => $key,
+            'asp_mode' => $write ? 'write' : 'dry',
+        ], $back ) );
+        exit;
+    }
     public function render_settings()       { $this->safe_include_page( 'settings.php'       ); }
     public function render_activity_page() { $this->safe_include_page( 'activity-log.php' ); }
     
