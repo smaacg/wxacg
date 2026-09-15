@@ -67,6 +67,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		'bahamut' => 'Anime_Sync_Streaming_Source_Bahamut',
 		'linetv'  => 'Anime_Sync_Streaming_Source_Linetv',
 		'hami'    => 'Anime_Sync_Streaming_Source_Hami',
+		'catchplay' => 'Anime_Sync_Streaming_Source_Catchplay',
+		'garageplay' => 'Anime_Sync_Streaming_Source_Garageplay',   // AniPASS 專區，本機索引包（同巴哈）
 		// YouTube 頻道型（class-streaming-source-yt-channels.php）
 		'muse'         => 'Anime_Sync_Streaming_Source_Muse',
 		'ani_one'      => 'Anime_Sync_Streaming_Source_Ani_One',

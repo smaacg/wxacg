@@ -301,9 +301,9 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 	<table class="wp-list-table widefat fixed ass-table ass-table--compact">
 		<tbody>
 			<tr><th>Netflix、Crunchyroll、Disney+、Apple TV+、Prime、愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入，本來就不經 YourAnimes；Netflix 另有 YourAnimes 補。bangumi-data 的 netflix 站點不標地區（全球），不能拿來當台灣依據，2026-09-15 試過已撤回。（Bilibili 台灣已改由上表的 bangumi-data ID 對應接上）</td></tr>
-			<tr><th>Hami Video</th><td>robots.txt 對所有 UA 全站 Disallow，尊重對方，不抓。靠 YourAnimes。</td></tr>
-			<tr><th>CatchPlay+</th><td>作品頁是純前端渲染的空殼、無公開資料介面。靠 YourAnimes。</td></tr>
-			<tr><th>renta!、車庫娛樂、公視、AniPASS</th><td>收錄數少；車庫回 403、公視 robots 全站 Disallow。靠 YourAnimes。</td></tr>
+			<tr><th>車庫娛樂、AniPASS</th><td>同一個站（AniPASS 是車庫官網的免費動畫專區，不是 YouTube 頻道）。主機被 WAF 擋 403、台灣 IP 正常且伺服器渲染（153 部）——待做：併入巴哈那支本機建包排程。</td></tr>
+			<tr><th>公視+</th><td>可接（sitemap 1,160 個節目、作品頁有標題），但站上公視標記只有 3 部，暫不做。</td></tr>
+			<tr><th>renta!</th><td>漫畫租借為主，動畫收錄少。靠 YourAnimes。</td></tr>
 		</tbody>
 	</table>
 

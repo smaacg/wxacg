@@ -169,6 +169,8 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-litv.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-friday.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-linetv.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-hami.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-catchplay.php';
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-garageplay.php';   // AniPASS 專區，讀本機索引包
 // YouTube 頻道型來源：子基底要先於各頻道子類別載入
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-youtube.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-yt-channels.php';

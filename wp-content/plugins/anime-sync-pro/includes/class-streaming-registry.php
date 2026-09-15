@@ -362,7 +362,7 @@ class Anime_Sync_Streaming_Registry {
         'tropicsanime' => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
         'its_anime'    => [ 'from' => 0,   'note' => 'YouTube 官方頻道，免費', 'short' => '', 'url' => 'https://www.youtube.com/channel/UCsj_CYajUSQ2ca8bYCMan9g' ],
         'garageplay'   => [ 'from' => 0,   'note' => '免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
-        'anipass'      => [ 'from' => 0,   'note' => '免費', 'short' => '', 'url' => 'https://www.youtube.com/' ],
+        'anipass'      => [ 'from' => 0,   'note' => '免費', 'short' => '', 'url' => 'https://garageplay.tw/anipass' ],   // 2026-09-15 更正：AniPASS 是車庫官網專區，不是 YouTube 頻道
         'ptsplus'      => [ 'from' => 0,   'note' => '公共電視，免費', 'short' => '', 'url' => 'https://www.pts.org.tw/' ],
 
         /* ── 訂閱制 ── */

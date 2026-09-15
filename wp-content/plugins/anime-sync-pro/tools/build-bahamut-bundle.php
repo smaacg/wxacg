@@ -130,4 +130,23 @@ if ( is_wp_error( $r ) ) {
 }
 
 printf( "完成：%d 條目 → %d 部作品；ACG 對照 %d 筆（上一包 %d）；%d KB，%.1f 秒\n寫入 %s\n", $r['entries'], $r['works'], $r['acg'], $r['acg_prev'], $r['bytes'] / 1024, microtime( true ) - $t0, $out );
-echo "下一步：git add 這個檔 → commit → push，部署後主機端週排程會讀它。\n";
+
+// ── 車庫娛樂 AniPASS：同樣主機被擋、台灣 IP 正常，順便建。153 個作品頁約 2 分鐘 ──
+require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-garageplay.php';
+echo "\n抓取 https://garageplay.tw/anipass/AnipassVideo（清單＋每部作品頁 og:title）…\n";
+$t1  = microtime( true );
+$gp  = new Anime_Sync_Streaming_Source_Garageplay();
+$out2 = Anime_Sync_Streaming_Source_Garageplay::bundle_path();
+$r2  = $gp->export_bundle( $out2, static function ( int $done, int $total, string $title ): void {
+	if ( $done === 1 || $done % 25 === 0 || $done === $total ) {
+		printf( "  AniPASS %d/%d（%s）\n", $done, $total, $title );
+	}
+} );
+if ( is_wp_error( $r2 ) ) {
+	// 車庫失敗不讓整支排程失敗：巴哈那包已經寫好；bat 會 git add 兩個檔，沒變的不會進 commit
+	fwrite( STDERR, '車庫建包失敗（巴哈那包不受影響）：' . $r2->get_error_code() . '：' . $r2->get_error_message() . "\n" );
+} else {
+	printf( "完成：%d 條目 → %d 部作品，%d KB，%.1f 秒\n寫入 %s\n", $r2['entries'], $r2['works'], $r2['bytes'] / 1024, microtime( true ) - $t1, $out2 );
+}
+
+echo "下一步：git add 這兩個檔 → commit → push，部署後主機端排程會讀它們。\n";
