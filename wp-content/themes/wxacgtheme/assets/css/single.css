@@ -175,9 +175,11 @@
   line-height:1.5;
   margin:1.9em 0 .6em;
   padding-left:10px;
-  border-left:3px solid rgba(99,168,255,.38);
+  /* 用 --wxa-accent-rgb 取色，季度專題套上 .wxa-guide--<季> 後
+     這條色條會跟著換季；沒套的文章拿 fallback，維持原本的藍。 */
+  border-left:3px solid rgba(var(--wxa-accent-rgb,99,168,255),.38);
 }
-.single-content blockquote{border-left:4px solid rgba(99,168,255,.5);padding:10px 18px;color:#cfd6df;background:rgba(255,255,255,.04);margin:1.2em 0;border-radius:0 8px 8px 0}
+.single-content blockquote{border-left:4px solid rgba(var(--wxa-accent-rgb,99,168,255),.5);padding:10px 18px;color:#cfd6df;background:rgba(255,255,255,.04);margin:1.2em 0;border-radius:0 8px 8px 0}
 .single-content a{color:var(--accent-blue,#63A8FF);text-decoration:underline;text-underline-offset:3px}
 .single-content a:hover{filter:brightness(1.2)}
 .single-content ul,.single-content ol{margin:1em 0;padding-left:1.6em}
@@ -4476,6 +4478,222 @@
    側邊欄變動或嵌在別的容器裡也不會失準。
 ============================================================================= */
 
+/* ── 季節色板 ──
+ *
+ * 2026-09-15：參考 2026 年 7 月懶人包（post 1269）的設計。
+ *
+ * 那篇的做法是在文章內容裡塞一份 5.6KB 的 <style>，整篇包在
+ * .wx-anime-wrap 底下自成一套紫色系。視覺上成立，但有兩個問題：
+ * 每篇都得複製一份 CSS，而且改配色要一篇一篇改。
+ *
+ * 所以這裡只抄「一季一個主色」的想法，不抄實作：顏色收斂成兩組
+ * RGB 三元組，換季只要在外層換一個 class。
+ *
+ *   --wxa-tint-rgb   面與線的底色（卡片、邊框、斑馬紋、標籤）
+ *   --wxa-accent-rgb 強調色（連結、hover、表頭底線、徽章）
+ *
+ * 每一處都寫成 var(--x, 原值)。沒有套 .wxa-guide 的文章拿到的是
+ * fallback，也就是原本的 slate 藍灰，畫面完全不變——這點很重要，
+ * 站上已發布的文章也在用這些 class。
+ */
+.wxa-guide {
+    /* 預設＝原本的冷色系，等同沒有這層 */
+    --wxa-tint-rgb: 148, 163, 184;
+    --wxa-accent-rgb: 99, 168, 255;
+}
+
+/*
+ * 秋季：琥珀橘 #E8A05C，配面色偏暖的赭。
+ * 對比實測（前景 #E8A05C／底 --bg-base #1E242B）＝ 7.16:1，
+ * 過 WCAG AAA，內文連結用這個顏色不會吃力。
+ *
+ * 內文字色刻意不動。#D6DCE2 是調過好幾輪才定的，
+ * 換暖色只會讓長文更難讀，秋天的味道交給元件外框去表現就夠。
+ */
+.wxa-guide--autumn {
+    --wxa-tint-rgb: 205, 150, 100;
+    --wxa-accent-rgb: 232, 160, 92;
+    /*
+     * --accent-blue 是佈景的共用強調色，h2 的左色條與內文連結都吃它
+     * （single.css:114、181）。在這層覆寫掉，整篇的強調色就一起轉秋，
+     * 不必逐條再寫一次覆蓋規則。作用域只到這個 wrapper 內，
+     * 側邊欄與其他文章不受影響。
+     */
+    --accent-blue: #E8A05C;
+}
+
+/* ── 開場區塊：一眼看完這一季的規模 ──
+ *
+ * 七月那篇用 hero 漸層框開場，確實比直接進內文有份量。
+ * 漸層方向沿用 135deg，但色停改成秋天的深棕→鏽橘。
+ */
+.wxa-guide__hero {
+    margin: 0 0 22px;
+    padding: 26px 24px;
+    border: 1px solid rgba(var(--wxa-accent-rgb), .28);
+    border-radius: 16px;
+    background: linear-gradient(135deg, #201915 0%, #3E2618 55%, #7A421C 100%);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
+}
+
+.wxa-guide__hero > :first-child { margin-top: 0; }
+.wxa-guide__hero > :last-child { margin-bottom: 0; }
+
+/* 數字是這一區的主角，排成一列讓它自己說話 */
+.wxa-guide__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.wxa-guide__stats li {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, .72);
+}
+
+.wxa-guide__stats b {
+    display: block;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: #fff;
+    letter-spacing: .01em;
+}
+
+/* ── 重點摘要：給只想看結論的人 ── */
+.wxa-guide__tldr {
+    margin: 0 0 26px;
+    padding: 16px 20px;
+    border: 1px solid rgba(var(--wxa-accent-rgb), .26);
+    border-left: 4px solid rgb(var(--wxa-accent-rgb));
+    border-radius: 12px;
+    background: rgba(var(--wxa-accent-rgb), .07);
+}
+
+.wxa-guide__tldr > b {
+    display: block;
+    margin-bottom: 8px;
+    color: rgb(var(--wxa-accent-rgb));
+    font-size: 14px;
+    letter-spacing: .04em;
+}
+
+/* ── 補充提醒：跟摘要區分開，用比較低調的灰 ── */
+.wxa-guide__note {
+    margin: 22px 0;
+    padding: 14px 18px;
+    border-left: 4px solid rgba(var(--wxa-tint-rgb), .5);
+    border-radius: 6px;
+    background: rgba(var(--wxa-tint-rgb), .08);
+    font-size: 14.5px;
+    line-height: 1.8;
+}
+
+/* ── 作品連結列：官網 / PV / 觀看平台 ──
+ *
+ * 七月那篇把這三種連結做成藥丸按鈕，比夾在散文裡的底線連結好點很多，
+ * 手機上尤其明顯。顏色照它的分法：官網用主色、PV 紅、觀看平台綠，
+ * 但都調到跟暗底協調的濃度。
+ */
+.wxa-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.wxa-links li { margin: 0; }
+
+.wxa-links a {
+    display: inline-block;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--wxa-tint-rgb), .3);
+    background: rgba(var(--wxa-tint-rgb), .12);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.wxa-links a:hover {
+    background: rgba(var(--wxa-tint-rgb), .24);
+    border-color: rgba(var(--wxa-tint-rgb), .55);
+    text-decoration: none;
+}
+
+.wxa-links .is-official {
+    border-color: rgba(var(--wxa-accent-rgb), .55);
+    background: rgba(var(--wxa-accent-rgb), .16);
+    color: rgb(var(--wxa-accent-rgb));
+}
+
+.wxa-links .is-official:hover {
+    background: rgba(var(--wxa-accent-rgb), .3);
+    border-color: rgb(var(--wxa-accent-rgb));
+}
+
+.wxa-links .is-pv {
+    border-color: rgba(229, 104, 96, .5);
+    background: rgba(229, 104, 96, .15);
+    color: #F2A29B;
+}
+
+.wxa-links .is-pv:hover {
+    background: rgba(229, 104, 96, .28);
+    border-color: rgba(229, 104, 96, .8);
+}
+
+.wxa-links .is-watch {
+    border-color: rgba(78, 170, 140, .5);
+    background: rgba(78, 170, 140, .14);
+    color: #86CFB4;
+}
+
+.wxa-links .is-watch:hover {
+    background: rgba(78, 170, 140, .26);
+    border-color: rgba(78, 170, 140, .8);
+}
+
+/* ── 作品徽章 ──
+ *
+ * 刻意不做 S/A/B 推薦度。那是主觀評分，我沒有依據可以排，
+ * 硬排出來就是編造。改成標「續篇 / 完全新作 / 獨家平台」這種
+ * 從文章既有資料就能認定的事實，讀者掃視時同樣有用。
+ */
+.wxa-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--wxa-tint-rgb), .34);
+    background: rgba(var(--wxa-tint-rgb), .14);
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.6;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.wxa-badge.is-sequel {
+    border-color: rgba(var(--wxa-accent-rgb), .5);
+    background: rgba(var(--wxa-accent-rgb), .16);
+    color: rgb(var(--wxa-accent-rgb));
+}
+
+.wxa-badge.is-new {
+    border-color: rgba(78, 170, 140, .5);
+    background: rgba(78, 170, 140, .14);
+    color: #86CFB4;
+}
+
 /* ── 單部作品：海報 + 資料 ──
  *
  * 做成一張卡片而不是裸排。一篇文章裡有 12 部作品，每部下面還接著
@@ -4489,9 +4707,9 @@
     align-items: flex-start;
     margin: 0 0 20px;
     padding: 20px;
-    border: 1px solid rgba(148, 163, 184, .18);
+    border: 1px solid rgba(var(--wxa-tint-rgb, 148, 163, 184), .18);
     border-radius: 14px;
-    background: rgba(148, 163, 184, .05);
+    background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .05);
 }
 
 .wxa-work__poster {
@@ -4534,7 +4752,7 @@
     gap: 12px;
     margin: 0;
     padding: 5px 0;
-    border-bottom: 1px solid rgba(148, 163, 184, .1);
+    border-bottom: 1px solid rgba(var(--wxa-tint-rgb, 148, 163, 184), .1);
 }
 
 .wxa-work__facts li:last-child { border-bottom: 0; }
@@ -4552,7 +4770,7 @@
 .wxa-work__syn {
     margin: 14px 0 0;
     padding: 14px 0 0;
-    border-top: 1px solid rgba(148, 163, 184, .16);
+    border-top: 1px solid rgba(var(--wxa-tint-rgb, 148, 163, 184), .16);
     font-size: 14.5px;
     line-height: 1.85;
     opacity: .88;
@@ -4580,16 +4798,16 @@
     margin: 4px 0 28px;
     padding: 9px 18px;
     border-radius: 999px;
-    background: rgba(59, 130, 246, .14);
-    border: 1px solid rgba(59, 130, 246, .4);
+    background: rgba(var(--wxa-accent-rgb, 59, 130, 246), .14);
+    border: 1px solid rgba(var(--wxa-accent-rgb, 59, 130, 246), .4);
     font-size: 14px;
     font-weight: 600;
     text-decoration: none;
 }
 
 .wxa-more:hover {
-    background: rgba(59, 130, 246, .26);
-    border-color: rgba(59, 130, 246, .7);
+    background: rgba(var(--wxa-accent-rgb, 59, 130, 246), .26);
+    border-color: rgba(var(--wxa-accent-rgb, 59, 130, 246), .7);
 }
 
 /* ── 時間表：窄螢幕改成自己橫向捲動，不要把欄位擠爛 ── */
@@ -4606,9 +4824,9 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin: 0 0 24px;
-    border: 1px solid rgba(148, 163, 184, .20);
+    border: 1px solid rgba(var(--wxa-tint-rgb, 148, 163, 184), .20);
     border-radius: 12px;
-    background: rgba(148, 163, 184, .03);
+    background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .03);
 }
 
 .wxa-table-wrap table {
@@ -4623,7 +4841,7 @@
     /* 10px→14px：原本太擠，多行的欄位（平台清單）讀起來會黏在一起 */
     padding: 14px 16px;
     text-align: left;
-    border-bottom: 1px solid rgba(148, 163, 184, .18);
+    border-bottom: 1px solid rgba(var(--wxa-tint-rgb, 148, 163, 184), .18);
     vertical-align: top;
     line-height: 1.65;
 }
@@ -4635,8 +4853,8 @@
     letter-spacing: .02em;
     white-space: nowrap;
     color: rgba(233, 238, 245, .92);
-    background: rgba(148, 163, 184, .10);
-    border-bottom: 1px solid rgba(148, 163, 184, .26);
+    background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .10);
+    border-bottom: 1px solid rgba(var(--wxa-accent-rgb, 148, 163, 184), .26);
 }
 
 /* 第一欄是作品名，給它份量，掃視時才有著力點 */
@@ -4646,8 +4864,8 @@
 .wxa-table-wrap tbody tr:last-child td { border-bottom: 0; }
 
 /* 斑馬紋改淡（有卡片邊界之後不需要那麼強），滑過時才給明顯回饋 */
-.wxa-table-wrap tbody tr:nth-child(odd) { background: rgba(148, 163, 184, .035); }
-.wxa-table-wrap tbody tr:hover { background: rgba(99, 168, 255, .07); }
+.wxa-table-wrap tbody tr:nth-child(odd) { background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .035); }
+.wxa-table-wrap tbody tr:hover { background: rgba(var(--wxa-accent-rgb, 99, 168, 255), .07); }
 
 .wxa-table-wrap td small { opacity: .65; }
 
@@ -4667,22 +4885,22 @@
     display: inline-block;
     padding: 6px 14px;
     border-radius: 999px;
-    background: rgba(148, 163, 184, .12);
-    border: 1px solid rgba(148, 163, 184, .22);
+    background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .12);
+    border: 1px solid rgba(var(--wxa-tint-rgb, 148, 163, 184), .22);
     font-size: 14px;
     text-decoration: none;
 }
 
 .wxa-taglist a:hover {
-    background: rgba(148, 163, 184, .22);
-    border-color: rgba(148, 163, 184, .45);
+    background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .22);
+    border-color: rgba(var(--wxa-tint-rgb, 148, 163, 184), .45);
 }
 
 .wxa-taglist .is-plain {
     display: inline-block;
     padding: 6px 14px;
     border-radius: 999px;
-    background: rgba(148, 163, 184, .06);
+    background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .06);
     font-size: 14px;
     opacity: .55;
 }
@@ -4866,9 +5084,9 @@
 .wxa-toc {
     margin: 0 0 32px;
     padding: 20px 24px;
-    border: 1px solid rgba(148, 163, 184, .22);
+    border: 1px solid rgba(var(--wxa-tint-rgb, 148, 163, 184), .22);
     border-radius: 12px;
-    background: rgba(148, 163, 184, .06);
+    background: rgba(var(--wxa-tint-rgb, 148, 163, 184), .06);
 }
 
 .wxa-toc__title {
