@@ -137,11 +137,11 @@ class Anime_Sync_YourAnimes_News_Scan {
 				$kind     = self::kind_of( $info );
 
 				/*
-				 * 只收上架／下架。播出時程（schedule）本來也收，2026-09-15 第一輪就灌了 38 則
-				 * 進待審，使用者反映太多——那類 AniList 差異掃描已經在管，這裡重複記只是噪音。
-				 * kind_of() 仍會分出 schedule，留給 dry-run 與日後想開回來時用。
+				 * YA 的所有訊息都收、都直接發布（使用者 2026-09-15 定案：YA 是可信來源，
+				 * 這類資訊不需要他審）。中間曾一度只收上架／下架——那是「進待審太多」的問題，
+				 * 改成直接發布後就不存在了。分不出類型的（other）仍跳過，不硬塞錯誤標籤。
 				 */
-				if ( $kind !== 'gone' && $kind !== 'live' ) {
+				if ( self::event_type_for( $kind ) === '' ) {
 					continue;
 				}
 
@@ -260,15 +260,32 @@ class Anime_Sync_YourAnimes_News_Scan {
 		if ( preg_match( '/上架/u', $info ) ) {
 			return 'live';
 		}
-		if ( preg_match( '/播出|上映|開播|停播|順延|延後|提前/u', $info ) ) {
+		// 順序：先認得出具體物件的（影片、圖、人），最後才是時程；一則公告常同時提到圖與播出日
+		if ( preg_match( '/宣傳影片|PV|預告|CM|特報|影片/iu', $info ) ) {
+			return 'trailer';
+		}
+		if ( preg_match( '/視覺圖|視覚圖|海報|主視覺|KV/iu', $info ) ) {
+			return 'visual';
+		}
+		if ( preg_match( '/聲優|配音|CAST|演出/iu', $info ) ) {
+			return 'cast';
+		}
+		if ( preg_match( '/動畫化|製作決定|完結|最終季|續篇|新作/u', $info ) ) {
+			return 'status';
+		}
+		if ( preg_match( '/播出|上映|開播|停播|順延|延後|提前|時程|檔期/u', $info ) ) {
 			return 'schedule';
 		}
 		return 'other';
 	}
 
-	/** kind → Anime_Sync_Anime_Events 的 event_type。 */
+	/**
+	 * kind → Anime_Sync_Anime_Events 的 event_type（全部是既有類型，不新增）。
+	 * visual 沒有附件時 promote_visual() 會直接略過、不動封面，只發布文字，安全。
+	 */
 	public static function event_type_for( string $kind ): string {
-		return $kind === 'schedule' ? 'schedule' : 'streaming';
+		$map = [ 'gone' => 'streaming', 'live' => 'streaming', 'schedule' => 'schedule', 'trailer' => 'trailer', 'visual' => 'visual', 'cast' => 'cast', 'status' => 'status' ];
+		return $map[ $kind ] ?? '';
 	}
 
 	/** 只收這麼多天內的公告；YA 一部作品會留好幾年的歷史，第一次掃不該把它們全灌進待審。 */
