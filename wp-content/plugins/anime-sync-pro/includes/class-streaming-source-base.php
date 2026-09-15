@@ -804,7 +804,8 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			$s = $src->status();
 			WP_CLI::log( empty( $s ) ? '尚未建立索引' : sprintf(
 				'索引建立於 %s：%d 條目 → %d 部作品 → %d 個鍵；排程寫入=%s',
-				gmdate( 'Y-m-d H:i', (int) $s['built'] ), $s['entries'], $s['works'], $s['keys'],
+				// 用站台時區顯示，主機是 UTC+8，gmdate 會少 8 小時讓人以為索引是半夜建的
+				wp_date( 'Y-m-d H:i', (int) $s['built'] ), $s['entries'], $s['works'], $s['keys'],
 				(string) get_option( Anime_Sync_Streaming_Source_Base::WRITE_OPTION, '0' ) === '1' ? '開' : '關'
 			) );
 			return;
