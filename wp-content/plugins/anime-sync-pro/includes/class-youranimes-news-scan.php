@@ -112,6 +112,19 @@ class Anime_Sync_YourAnimes_News_Scan {
 			}
 			$r['mapped']++;
 
+			/*
+			 * 下架標記只看**最新一則**公告。
+			 * 實例（正式站 dry-run）：流浪神差 2025-01-01「曼迪授權到期，於串流平台下架」、
+			 * 2026-09-11「由曼迪授權，於各平台重新上架」——舊的下架早被新的上架推翻，
+			 * 逐則看到「下架」就標會標錯。事件照每則記（那是歷史），gone 只依最新狀態。
+			 */
+			$latest = null;
+			foreach ( $item['news'] as $news ) {
+				if ( $latest === null || strcmp( (string) $news['date'], (string) $latest['date'] ) > 0 ) {
+					$latest = $news;
+				}
+			}
+
 			foreach ( $item['news'] as $news ) {
 
 				$date = (string) $news['date'];
@@ -145,8 +158,8 @@ class Anime_Sync_YourAnimes_News_Scan {
 					$r['events']++;
 				}
 
-				// 下架且推得出平台 → 標第 2 輪疑似下架，交給 check_gone() 雙重確認
-				if ( $kind === 'gone' && $platform !== '' && ! $dry_run ) {
+				// 最新一則是下架且推得出平台 → 標第 2 輪疑似下架，交給 check_gone() 雙重確認
+				if ( $kind === 'gone' && $platform !== '' && $news === $latest && ! $dry_run ) {
 					$meta = '_anime_tw_streaming_gone_' . $platform;
 					$cur  = (string) get_post_meta( $post_id, $meta, true );
 					$has  = (string) get_post_meta( $post_id, 'anime_tw_streaming_url_' . $platform, true ) !== '';
