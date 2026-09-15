@@ -178,62 +178,39 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 		ARRAY_A
 	);
 
-	$suspects = get_transient( 'asp_streaming_gone_suspects' );
-	if ( ! is_array( $suspects ) ) {
-		$suspects = [];
-		foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $key ) {
-			$src = Anime_Sync_Streaming_Source_Base::make( $key );
-			if ( ! $src || empty( $src->load_index() ) ) {
-				continue;
-			}
-			$ids = $wpdb->get_col( $wpdb->prepare(
-				"SELECT u.post_id FROM {$wpdb->postmeta} u
-				   LEFT JOIN {$wpdb->postmeta} s ON s.post_id = u.post_id AND s.meta_key = %s
-				  WHERE u.meta_key = %s AND u.meta_value <> '' AND s.post_id IS NULL",
-				'_anime_tw_streaming_src_' . $key, 'anime_tw_streaming_url_' . $key
-			) );
-			foreach ( $ids as $pid ) {
-				$r = $src->lookup( $src->match_titles( (int) $pid ) );
-				if ( $r['status'] === 'miss' ) {
-					$suspects[] = [ 'key' => $key, 'label' => $src->label(), 'id' => (int) $pid ];
-				}
-			}
-		}
-		set_transient( 'asp_streaming_gone_suspects', $suspects, HOUR_IN_SECONDS );
-	}
+	/*
+	 * 曾經在這裡多列一份「YA／人工寫的網址在索引裡配不到」的人工確認清單。
+	 * 2026-09-15 拿掉：那批本質上就是標題比對配不到的 26%（譯名差異），幾百筆全是噪音，
+	 * 而且連結進編輯器對判斷「還在不在平台上」沒幫助。等接了 bangumi-data 用 Bangumi ID
+	 * 對應後，「站上有網址、資料集裡該站沒有」才是精確的人工確認訊號，那時再放回來。
+	 */
 	?>
 	<h2 class="ass-h2">疑似下架</h2>
 	<p class="ass-lead">
-		自動：直接來源寫入過、這輪索引配不到的作品，前台已標「可能已下架」，連續 3 輪未出現自動移除。
-		人工：YourAnimes 或手動填的網址在該平台索引裡配不到——<strong>可能是譚名差異不是下架</strong>，程式不會動它，請人工確認。
+		直接來源寫入過、這輪平台索引配不到的作品。前台已標「可能已下架」；連續 3 輪未出現自動移除。
+		點「平台網址」直接到該平台確認還在不在。
 	</p>
 	<table class="wp-list-table widefat fixed striped ass-table">
-		<thead><tr><th style="width:14%">平台</th><th>作品</th><th style="width:22%">狀態</th></tr></thead>
+		<thead><tr><th style="width:12%">平台</th><th style="width:34%">作品</th><th>平台網址</th><th style="width:18%">狀態</th></tr></thead>
 		<tbody>
 		<?php if ( $gone_rows ) : foreach ( $gone_rows as $g ) :
-			$gk = str_replace( '_anime_tw_streaming_gone_', '', $g['meta_key'] );
+			$gk  = str_replace( '_anime_tw_streaming_gone_', '', $g['meta_key'] );
+			$gu  = (string) get_post_meta( (int) $g['post_id'], 'anime_tw_streaming_url_' . $gk, true );
 			[ $gd, $gn ] = array_pad( explode( '|', (string) $g['meta_value'] ), 2, '1' ); ?>
 			<tr>
 				<td><code><?php echo esc_html( $gk ); ?></code></td>
-				<td><a href="<?php echo esc_url( get_edit_post_link( (int) $g['post_id'] ) ); ?>">#<?php echo esc_html( $g['post_id'] ); ?> <?php echo esc_html( $g['post_title'] ); ?></a></td>
-				<td><span class="ass-err">自動偵測 第 <?php echo esc_html( $gn ); ?>/3 輪</span><br><small><?php echo esc_html( $gd ); ?> 起配不到</small></td>
+				<td>
+					<a href="<?php echo esc_url( get_permalink( (int) $g['post_id'] ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $g['post_title'] ); ?></a>
+					<br><small>#<?php echo esc_html( $g['post_id'] ); ?> · <a href="<?php echo esc_url( get_edit_post_link( (int) $g['post_id'] ) ); ?>">編輯</a></small>
+				</td>
+				<td class="ass-msg"><?php if ( $gu !== '' ) : ?><a href="<?php echo esc_url( $gu ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( $gu ); ?></a><?php else : ?><span class="ass-muted">（無）</span><?php endif; ?></td>
+				<td><span class="ass-err">第 <?php echo esc_html( $gn ); ?>/3 輪</span><br><small><?php echo esc_html( $gd ); ?> 起配不到</small></td>
 			</tr>
-		<?php endforeach; endif; ?>
-		<?php if ( $suspects ) : foreach ( array_slice( $suspects, 0, 150 ) as $s ) : ?>
-			<tr>
-				<td><code><?php echo esc_html( $s['key'] ); ?></code></td>
-				<td><a href="<?php echo esc_url( get_edit_post_link( $s['id'] ) ); ?>">#<?php echo esc_html( $s['id'] ); ?> <?php echo esc_html( get_the_title( $s['id'] ) ); ?></a></td>
-				<td><span class="ass-muted">人工確認（非直接來源寫入）</span></td>
-			</tr>
-		<?php endforeach; endif; ?>
-		<?php if ( ! $gone_rows && ! $suspects ) : ?>
-			<tr><td colspan="3" class="ass-muted">目前沒有疑似下架的作品</td></tr>
+		<?php endforeach; else : ?>
+			<tr><td colspan="4" class="ass-muted">目前沒有疑似下架的作品</td></tr>
 		<?php endif; ?>
 		</tbody>
 	</table>
-	<?php if ( count( $suspects ) > 150 ) : ?>
-		<p class="ass-foot">人工確認清單共 <?php echo esc_html( count( $suspects ) ); ?> 筆，只顯示前 150。</p>
-	<?php endif; ?>
 
 	<h2 class="ass-h2">沒接直接來源的平台</h2>
 	<table class="wp-list-table widefat fixed ass-table ass-table--compact">
