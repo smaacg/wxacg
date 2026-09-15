@@ -14,6 +14,28 @@
   box-sizing:border-box;
 }
 
+/*
+ * 文章頁比全站其他頁面再寬一些。
+ *
+ * glass.css 的 .container 是 max-width:1280px（全站最大寬度），扣掉左右各
+ * 40px padding 之後內容區 1200px，再扣側欄 320px 與 32px 間距，主文只剩 848px。
+ * 使用者反映主文太窄、側欄太寬（2026-09-15）。
+ *
+ * 實測三種做法（1578px 視窗，量主文寬度與側欄高度）：
+ *   只把側欄縮到 270px        主文 848→898（+50），側欄高 1084→1157（變高 73）
+ *   容器 1360 + 側欄 300      主文 848→948（+100），側欄高 1084 不變
+ *   容器 1400 + 側欄 300      主文 848→988（+140），側欄高 1084 不變
+ * 加寬容器是明顯更好的槓桿：拿到兩倍的寬度，而側欄完全沒有變高的代價
+ * （300px 仍足夠讓標題與標籤照原樣折行）。取 1360 而不取 1400，是因為
+ * 1366px 的筆電很常見，1400 會讓容器永遠吃不到設定值、左右留白也太薄。
+ *
+ * 用 .single-wrap.container 兩個 class 提高優先級，不必依賴 CSS 載入順序，
+ * 也不會動到其他頁面的 .container。
+ */
+.single-wrap.container{
+  max-width:1360px;
+}
+
 /* ── grid 包裝層（手機：單欄堆疊） ── */
 .single-grid{
   display:flex;
@@ -159,7 +181,9 @@
 @media (min-width:1024px){
   .single-grid{
     display:grid;
-    grid-template-columns:minmax(0,1fr) 320px;
+    /* 320→300：配合 .single-wrap.container 加寬，讓主文再多拿 20px。
+       實測 300px 時側欄的文章標題與標籤折行方式與 320px 相同，高度不變。 */
+    grid-template-columns:minmax(0,1fr) 300px;
     grid-template-rows:auto 1fr;
     gap:0 32px;
     align-items:start;
