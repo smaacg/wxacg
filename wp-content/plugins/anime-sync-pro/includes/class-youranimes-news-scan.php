@@ -136,8 +136,12 @@ class Anime_Sync_YourAnimes_News_Scan {
 				$platform = self::platform_from_text( $info );
 				$kind     = self::kind_of( $info );
 
-				// 視覺圖、PV 那些另有 AniList 差異掃描在管
-				if ( $kind === 'other' ) {
+				/*
+				 * 只收上架／下架。播出時程（schedule）本來也收，2026-09-15 第一輪就灌了 38 則
+				 * 進待審，使用者反映太多——那類 AniList 差異掃描已經在管，這裡重複記只是噪音。
+				 * kind_of() 仍會分出 schedule，留給 dry-run 與日後想開回來時用。
+				 */
+				if ( $kind !== 'gone' && $kind !== 'live' ) {
 					continue;
 				}
 
