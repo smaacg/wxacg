@@ -86,13 +86,19 @@ function wp_remote_get( $url, $args = [] ) {
 	if ( $ca !== '' ) {
 		curl_setopt( $ch, CURLOPT_CAINFO, $ca );
 	}
+	// 基底 fetch() 會把 Accept／Accept-Language／Range 放在 $args['headers']，原樣轉給 curl；
+	// Range 對 CatchPlay 很重要（作品頁 500KB，只要前 64KB）
+	$headers = [];
+	foreach ( (array) ( $args['headers'] ?? [ 'Accept' => 'application/xml,text/xml;q=0.9,*/*;q=0.8', 'Accept-Language' => 'zh-TW,zh;q=0.9,en;q=0.8' ] ) as $k => $v ) {
+		$headers[] = $k . ': ' . $v;
+	}
 	curl_setopt_array( $ch, [
 		CURLOPT_RETURNTRANSFER => true,
 		CURLOPT_FOLLOWLOCATION => true,
 		CURLOPT_MAXREDIRS      => 3,
 		CURLOPT_TIMEOUT        => (int) ( $args['timeout'] ?? 60 ),
 		CURLOPT_USERAGENT      => (string) ( $args['user-agent'] ?? 'Mozilla/5.0' ),
-		CURLOPT_HTTPHEADER     => [ 'Accept: application/xml,text/xml;q=0.9,*/*;q=0.8', 'Accept-Language: zh-TW,zh;q=0.9,en;q=0.8' ],
+		CURLOPT_HTTPHEADER     => $headers,
 	] );
 	$body = curl_exec( $ch );
 	$code = (int) curl_getinfo( $ch, CURLINFO_RESPONSE_CODE );
@@ -150,4 +156,24 @@ if ( is_wp_error( $r2 ) ) {
 	printf( "完成：%d 條目 → %d 部作品，%d KB，%.1f 秒\n寫入 %s\n", $r2['entries'], $r2['works'], $r2['bytes'] / 1024, microtime( true ) - $t1, $out2 );
 }
 
-echo "下一步：git add 這兩個檔 → commit → push，部署後主機端排程會讀它們。\n";
+// ── CatchPlay+：作品頁只對台灣 IP 開放（主機 302 回首頁），一樣本機建包。首輪 6,563 頁約 2 小時，之後只抓新 uuid ──
+require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-catchplay.php';
+echo "\n抓取 CatchPlay sitemap ＋ 沒抓過的作品頁前 64KB…\n";
+$t2    = microtime( true );
+$cp    = new Anime_Sync_Streaming_Source_Catchplay();
+$out3  = Anime_Sync_Streaming_Source_Catchplay::bundle_path();
+// 快取放 repo 外（bat 與日誌同一個目錄），路徑可用環境變數 ASP_TOOLS_DIR 覆寫；目錄不存在就退到系統暫存
+$tools_dir = (string) ( getenv( 'ASP_TOOLS_DIR' ) ?: 'C:/Users/Pju/asp-tools' );
+$cache     = is_dir( $tools_dir ) ? $tools_dir . '/catchplay_cache.json' : sys_get_temp_dir() . '/asp-catchplay-cache.json';
+$r3 = $cp->export_bundle( $out3, $cache, static function ( int $done, int $total, string $uuid, ?string $title ): void {
+	if ( $done === 1 || $done % 100 === 0 || $done === $total ) {
+		printf( "  CatchPlay %d/%d（%s）\n", $done, $total, $title ?? '非動畫' );
+	}
+}, (int) ( getenv( 'ASP_CP_MAX' ) ?: 0 ) );
+if ( is_wp_error( $r3 ) ) {
+	fwrite( STDERR, 'CatchPlay 建包失敗（前兩包不受影響）：' . $r3->get_error_code() . '：' . $r3->get_error_message() . "\n" );
+} else {
+	printf( "完成：抓 %d 頁、快取 %d 個 uuid → 動畫 %d 條目 → %d 部作品，%d KB，%.1f 秒\n寫入 %s\n", $r3['fetched'], $r3['cached'], $r3['entries'], $r3['works'], $r3['bytes'] / 1024, microtime( true ) - $t2, $out3 );
+}
+
+echo "下一步：git add 這三個檔 → commit → push，部署後主機端排程會讀它們。\n";

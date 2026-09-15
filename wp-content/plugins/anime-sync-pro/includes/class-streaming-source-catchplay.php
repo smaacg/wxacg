@@ -1,28 +1,26 @@
 <?php
 /**
  * 檔案名稱: includes/class-streaming-source-catchplay.php
- * CatchPlay+ — 直接抓取來源（sitemap 給網址、作品頁前 64KB 給標題，分批增量）
+ * CatchPlay+ — 直接抓取來源（本機索引包；作品頁只對台灣 IP 開放）
  *
- * 2026-09-15 實測（先前記成「4KB 純 SPA 殼、無公開資料」是錯的，當時抓到的是沒渲染的殼）
- * -----------------------------------------------------------------------------
- *   - robots.txt `User-agent: *` 全部允許，並列出 sitemap：
+ * 2026-09-15／16 實測
+ * -------------------
+ *   - robots.txt `User-agent: *` 全部允許並列 sitemap：
  *       /tw/series-sitemap.xml → /tw/series-001-sitemap.xml（1,230 個 /tw/video/{uuid}）
  *       /tw/movie-sitemap.xml  → /tw/movie-001-sitemap.xml（5,333 個）
- *     sitemap 只有網址沒有標題，跟 LINE TV 一樣要逐頁抓
- *   - 作品頁 500KB SSR，但 Range: bytes=0-65535 回 206，前 64KB 就有：
- *       <meta property="og:title" content="《SPY x FAMILY 間諜家家酒．第2季》線上看｜CATCHPLAY+ 正版日本動畫動漫專區">
- *       <meta property="og:title" content="《魔法少女☆伊莉雅：LICHT無名的少女》線上看｜CATCHPLAY+｜Ani-One 正版日本動畫動漫專區">
- *       <meta property="og:title" content="《九條好漢在一班》線上看｜共1季26集｜CATCHPLAY+ 正版影集專區">   ← 真人劇，不收
- *     動畫一律帶「動畫動漫專區」後綴（Ani-One 與非 Ani-One 皆是）；真人影集是「正版影集專區」、電影「正版電影專區」。
- *     這個後綴就是動畫過濾器——同名真人版（死亡筆記本、銀魂電影）靠它擋掉。
- *   - 動畫 curation 頁 /tw/search/list?args=1012 說 totalCount 1,341，但清單 SSR 只 58 筆、翻頁走 GraphQL，不用。
- *   - 站上 630 個 CatchPlay 標記（YA 給的）網址全是 /tw/video/{uuid}
- *
- * 首輪 6,563 頁 × 64KB ≈ 420MB，每小時 300 頁約一天；之後每 6 小時比對 sitemap 只補新 uuid。
- * 排程每小時、索引增量合併、佇列存 option，全部沿用基底與 LINE TV 的做法。
+ *     只有網址沒標題，要逐頁抓。
+ *   - 作品頁 500KB SSR，Range: bytes=0-65535 回 206，前 64KB 的 og:title：
+ *       「《SPY x FAMILY 間諜家家酒．第2季》線上看｜CATCHPLAY+ 正版日本動畫動漫專區」   ← 動畫
+ *       「《九條好漢在一班》線上看｜共1季26集｜CATCHPLAY+ 正版影集專區」                 ← 真人劇，不收
+ *     「動畫動漫專區」後綴就是動畫過濾器（同名真人版：死亡筆記本、銀魂電影靠它擋掉）。
+ *   - ⚠ **正式站主機（吉隆坡）抓作品頁一律 302 轉回首頁**（CloudFront 依 IP 地區擋，sitemap 本身可抓）。
+ *     我 2026-09-15 只在本機測就先做成主機逐頁爬，上線第一批 300 頁全拿到首頁、0 條目——
+ *     又一次違反「從主機實抓一次才算數」。所以改成跟巴哈／車庫一樣：本機建索引包、主機只讀檔。
+ *   - 本機每頁約 1 秒（64KB）。6,563 頁首輪約 2 小時；之後每週只抓 sitemap 新出現的 uuid，
+ *     靠 asp-tools 目錄裡的本機快取（uuid → 標題或 null）記住已抓過的，快取不進 repo。
  *
  * @package Anime_Sync_Pro
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,15 +29,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_Base {
 
+	const BUNDLE_FILE     = 'data/source_catchplay_bundle.json';
 	const SITEMAP_INDEXES = [ 'https://www.catchplay.com/tw/series-sitemap.xml', 'https://www.catchplay.com/tw/movie-sitemap.xml' ];
 	const VIDEO_URL       = 'https://www.catchplay.com/tw/video/%s';
-	const QUEUE_OPTION    = 'anime_sync_src_queue_catchplay';
-
-	const BATCH            = 300;
-	const PAGE_INTERVAL_US = 500000;
-	const RANGE_BYTES      = 65536;
-	const SITEMAP_REFRESH  = 6 * HOUR_IN_SECONDS;
-	const ABORT_AFTER      = 10;
+	const RANGE_BYTES     = 65536;
+	const PAGE_INTERVAL_US = 300000;
 
 	public function key(): string {
 		return 'catchplay';
@@ -47,19 +41,6 @@ class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_
 
 	protected function sitemap_url(): string {
 		return self::SITEMAP_INDEXES[0];
-	}
-
-	protected function incremental(): bool {
-		return true;
-	}
-
-	protected function recurrence(): string {
-		return 'hourly';
-	}
-
-	protected function index_is_complete(): bool {
-		$q = $this->queue();
-		return $q['total'] > 0 && empty( $q['pending'] );
 	}
 
 	protected function parse_entry( string $block ): ?array {
@@ -73,178 +54,172 @@ class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_
 		return trim( $t );
 	}
 
+	public static function bundle_path(): string {
+		$dir = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : dirname( __DIR__ ) . '/';
+		return $dir . self::BUNDLE_FILE;
+	}
+
 	/**
-	 * 佇列空了就重讀兩個 sitemap 索引找新 uuid；否則抓一批作品頁前 64KB 取 og:title。
+	 * 主機端讀索引包。本機建包走 export_bundle()，這裡不會在 ASP_BUNDLE_BUILD 下被叫到。
 	 *
 	 * @return array{0:array<string,array>,1:int}|WP_Error
 	 */
 	protected function collect_entries( float $started ) {
 
-		$q = $this->queue();
+		$path = self::bundle_path();
+		if ( ! is_readable( $path ) ) {
+			return new WP_Error( 'no_bundle', '找不到 CatchPlay 索引包 ' . self::BUNDLE_FILE . '，請在台灣 IP 執行 tools/build-bahamut-bundle.php 後部署' );
+		}
 
-		if ( empty( $q['pending'] ) ) {
+		$data = json_decode( (string) file_get_contents( $path ), true );
+		if ( ! is_array( $data ) || empty( $data['works'] ) || ! is_array( $data['works'] ) ) {
+			return new WP_Error( 'bad_bundle', 'CatchPlay 索引包格式不對或沒有作品' );
+		}
 
-			if ( $q['sitemap_at'] > 0 && ( time() - $q['sitemap_at'] ) < self::SITEMAP_REFRESH ) {
-				return [ [], 0 ];
-			}
-
-			$uuids = [];
-			foreach ( self::SITEMAP_INDEXES as $index_url ) {
-				$xml = $this->fetch( $index_url );
-				if ( is_wp_error( $xml ) ) {
-					return $xml;
-				}
-				// 索引檔列子檔；沒有子檔（直接是 urlset）就把自己當子檔
-				$subs = preg_match_all( '#<loc>\s*(https://www\.catchplay\.com/tw/[^<\s]+-sitemap\.xml)\s*</loc>#i', (string) $xml, $sm ) ? $sm[1] : [ $index_url ];
-				foreach ( $subs as $i => $sub ) {
-					if ( $sub !== $index_url ) {
-						usleep( self::CHILD_INTERVAL_US );
-						$xml = $this->fetch( $sub );
-						if ( is_wp_error( $xml ) ) {
-							return $xml;
-						}
-					}
-					if ( preg_match_all( '#<loc>\s*https://www\.catchplay\.com/tw/video/([0-9a-f-]{36})\s*</loc>#i', (string) $xml, $m ) ) {
-						foreach ( $m[1] as $u ) {
-							$uuids[ $u ] = 1;
-						}
-					}
-				}
-			}
-
-			if ( empty( $uuids ) ) {
-				return new WP_Error( 'no_ids', 'sitemap 解析不到任何 /tw/video/ uuid，平台可能改版' );
-			}
-
-			$pending = [];
-			foreach ( array_keys( $uuids ) as $u ) {
-				if ( ! isset( $q['done'][ $u ] ) ) {
-					$pending[] = $u;
-				}
-			}
-
-			$q['pending']    = $pending;
-			$q['sitemap_at'] = time();
-			$q['total']      = count( $uuids );
-			$this->save_queue( $q );
-
-			if ( empty( $pending ) ) {
-				return [ [], 0 ];
+		$grouped = [];
+		foreach ( $data['works'] as $w ) {
+			$n = trim( (string) ( $w['n'] ?? '' ) );
+			$u = trim( (string) ( $w['u'] ?? '' ) );
+			if ( $n !== '' && $u !== '' ) {
+				$grouped[ $n ] = [ 'title' => $n, 'url' => $u, 'date' => '' ];
 			}
 		}
 
-		$grouped   = [];
-		$entries   = 0;
-		$processed = 0;
-		$failures  = 0;
-
-		while ( ! empty( $q['pending'] ) && $processed < self::BATCH ) {
-
-			if ( ( microtime( true ) - $started ) >= self::TIME_BUDGET ) {
-				break;
-			}
-
-			$uuid = (string) array_shift( $q['pending'] );
-			$processed++;
-
-			if ( $processed > 1 ) {
-				usleep( self::PAGE_INTERVAL_US );
-			}
-
-			$url  = sprintf( self::VIDEO_URL, $uuid );
-			$html = $this->fetch( $url, [ 'range_bytes' => self::RANGE_BYTES, 'accept' => 'text/html', 'allow_404' => true ] );
-
-			if ( is_wp_error( $html ) ) {
-				if ( $html->get_error_code() === 'circuit_open' ) {
-					array_unshift( $q['pending'], $uuid );
-					$this->save_queue( $q );
-					return $html;
-				}
-				if ( $html->get_error_code() === 'not_found' ) {
-					$q['done'][ $uuid ] = 1;   // sitemap 裡殘留的死連結，標已抓、不重試
-					continue;
-				}
-				$q['pending'][] = $uuid;
-				if ( ++$failures >= self::ABORT_AFTER ) {
-					break;
-				}
-				continue;
-			}
-
-			$failures = 0;
-			$q['done'][ $uuid ] = 1;
-
-			$parsed = $this->parse_page( (string) $html );
-			if ( $parsed === null ) {
-				continue;
-			}
-
-			$entries++;
-			$this->add_entry( $grouped, $parsed['title'], [ 'title' => $parsed['title'], 'url' => $url, 'date' => '' ] );
-
-			if ( $processed % 10 === 0 ) {
-				$this->save_queue( $q );
-			}
-		}
-
-		$this->save_queue( $q );
-
-		return [ $grouped, $entries ];
+		return [ $grouped, (int) ( $data['entries'] ?? count( $grouped ) ) ];
 	}
 
 	/**
-	 * og:title「《作品名》線上看｜…｜CATCHPLAY+ 正版日本動畫動漫專區」→ 作品名；非動畫專區回 null。
+	 * og:title →（動畫才有）作品名。
 	 *
-	 * @return array{title:string}|null
+	 * @return string|null 作品名；非動畫專區／中配版／認不得回 null
 	 */
-	protected function parse_page( string $html ): ?array {
+	public function title_from_page( string $html ): ?string {
 
 		if ( ! preg_match( '#<meta\s+property="og:title"\s+content="([^"]*)"#i', $html, $m ) ) {
 			return null;
 		}
 		$og = html_entity_decode( $m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 
-		// 動畫過濾：後綴一定帶「動畫動漫專區」；真人影集／電影分別是「正版影集專區」「正版電影專區」
 		if ( strpos( $og, '動畫動漫專區' ) === false && strpos( $og, '動畫專區' ) === false ) {
 			return null;
 		}
-
 		if ( ! preg_match( '/《(.+?)》/u', $og, $t ) ) {
 			return null;
 		}
 
 		$title = $this->work_name( $t[1] );
-		if ( $title === '' ) {
+		if ( $title === '' || preg_match( '/[（(]\s*(?:國語|中配|中文配音|雙語)\s*(?:版)?\s*[）)]/u', $title ) ) {
 			return null;
 		}
+		return $title;
+	}
 
-		// 中文配音版另有一頁，站上主網址要原音版
-		if ( preg_match( '/[（(]\s*(?:國語|中配|中文配音|雙語)\s*(?:版)?\s*[）)]/u', $title ) ) {
-			return null;
+	/**
+	 * 本機建包：讀兩個 sitemap 拿全部 uuid → 沒抓過的逐頁抓前 64KB → 動畫的進索引包。
+	 *
+	 * @param string        $path       索引包輸出位置（repo 內）
+	 * @param string        $cache_path 本機快取（uuid → 作品名或 null；不進 repo）
+	 * @param callable|null $progress   fn( int $done, int $total, string $uuid, ?string $title )
+	 * @param int           $max_fetch  這一輪最多抓幾頁（0＝不限）
+	 * @return array{entries:int,works:int,fetched:int,cached:int,bytes:int}|WP_Error
+	 */
+	public function export_bundle( string $path, string $cache_path, ?callable $progress = null, int $max_fetch = 0 ) {
+
+		$uuids = [];
+		foreach ( self::SITEMAP_INDEXES as $index_url ) {
+			$xml = $this->fetch( $index_url );
+			if ( is_wp_error( $xml ) ) {
+				return $xml;
+			}
+			$subs = preg_match_all( '#<loc>\s*(https://www\.catchplay\.com/tw/[^<\s]+-sitemap\.xml)\s*</loc>#i', (string) $xml, $sm ) ? $sm[1] : [ $index_url ];
+			foreach ( $subs as $sub ) {
+				if ( $sub !== $index_url ) {
+					usleep( self::CHILD_INTERVAL_US );
+					$xml = $this->fetch( $sub );
+					if ( is_wp_error( $xml ) ) {
+						return $xml;
+					}
+				}
+				if ( preg_match_all( '#<loc>\s*https://www\.catchplay\.com/tw/video/([0-9a-f-]{36})\s*</loc>#i', (string) $xml, $m ) ) {
+					foreach ( $m[1] as $u ) {
+						$uuids[ $u ] = 1;
+					}
+				}
+			}
+		}
+		if ( count( $uuids ) < 1000 ) {
+			return new WP_Error( 'no_ids', sprintf( 'sitemap 只解析到 %d 個 uuid（預期 6,500 上下），平台可能改版', count( $uuids ) ) );
 		}
 
-		return [ 'title' => $title ];
+		$cache = is_readable( $cache_path ) ? json_decode( (string) file_get_contents( $cache_path ), true ) : [];
+		$cache = is_array( $cache ) ? $cache : [];
+
+		$todo = [];
+		foreach ( array_keys( $uuids ) as $u ) {
+			if ( ! array_key_exists( $u, $cache ) ) {
+				$todo[] = $u;
+			}
+		}
+		if ( $max_fetch > 0 ) {
+			$todo = array_slice( $todo, 0, $max_fetch );
+		}
+
+		$fetched = 0;
+		foreach ( $todo as $u ) {
+			if ( $fetched > 0 ) {
+				usleep( self::PAGE_INTERVAL_US );
+			}
+			$html = $this->fetch( sprintf( self::VIDEO_URL, $u ), [ 'range_bytes' => self::RANGE_BYTES, 'accept' => 'text/html', 'allow_404' => true ] );
+			$fetched++;
+			if ( is_wp_error( $html ) ) {
+				if ( $html->get_error_code() === 'circuit_open' ) {
+					break;   // 快取照存，下次接著抓
+				}
+				if ( $html->get_error_code() === 'not_found' ) {
+					$cache[ $u ] = null;   // sitemap 殘留的死連結
+				}
+				continue;   // 其他錯誤不記，下次再試
+			}
+			$title       = $this->title_from_page( (string) $html );
+			$cache[ $u ] = $title;
+			if ( $progress ) {
+				$progress( $fetched, count( $todo ), $u, $title );
+			}
+			if ( $fetched % 50 === 0 ) {
+				file_put_contents( $cache_path, (string) wp_json_encode( $cache, JSON_UNESCAPED_UNICODE ) );
+			}
+		}
+		file_put_contents( $cache_path, (string) wp_json_encode( $cache, JSON_UNESCAPED_UNICODE ) );
+
+		// 只有 sitemap 裡還在的 uuid 才進索引包（下架的頁面會從 sitemap 消失）
+		$grouped = [];
+		$entries = 0;
+		foreach ( array_keys( $uuids ) as $u ) {
+			$title = $cache[ $u ] ?? null;
+			if ( ! is_string( $title ) || $title === '' ) {
+				continue;
+			}
+			$entries++;
+			$this->add_entry( $grouped, $title, [ 'title' => $title, 'url' => sprintf( self::VIDEO_URL, $u ), 'date' => '' ] );
+		}
+
+		$works = [];
+		foreach ( $grouped as $name => $picked ) {
+			$works[] = [ 'n' => (string) $name, 'u' => (string) $picked['url'] ];
+		}
+		usort( $works, static fn( $a, $b ) => strcmp( $a['n'], $b['n'] ) );
+
+		$json = wp_json_encode( [ 'source' => 'catchplay sitemap + og:title', 'entries' => $entries, 'works' => $works ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+		if ( file_put_contents( $path, (string) $json ) === false ) {
+			return new WP_Error( 'write_failed', '寫不進 ' . $path );
+		}
+
+		return [ 'entries' => $entries, 'works' => count( $works ), 'fetched' => $fetched, 'cached' => count( $cache ), 'bytes' => strlen( (string) $json ) ];
 	}
 
-	// ── 佇列 ──
-
-	/** @return array{pending:string[],done:array<string,int>,sitemap_at:int,total:int} */
-	protected function queue(): array {
-		$q = get_option( self::QUEUE_OPTION, [] );
-		return [
-			'pending'    => is_array( $q['pending'] ?? null ) ? $q['pending'] : [],
-			'done'       => is_array( $q['done'] ?? null ) ? $q['done'] : [],
-			'sitemap_at' => (int) ( $q['sitemap_at'] ?? 0 ),
-			'total'      => (int) ( $q['total'] ?? 0 ),
-		];
-	}
-
-	protected function save_queue( array $q ): void {
-		update_option( self::QUEUE_OPTION, $q, false );
-	}
-
-	public function progress(): array {
-		$q = $this->queue();
-		return [ 'done' => count( $q['done'] ), 'pending' => count( $q['pending'] ), 'total' => $q['total'] ];
+	/** 同一作品多個 uuid（重上架）：取 uuid 字串最小，穩定即可 */
+	protected function pick_entry( array $entries ): array {
+		usort( $entries, static fn( $a, $b ) => strcmp( $a['url'], $b['url'] ) );
+		return $entries[0];
 	}
 }
