@@ -225,7 +225,8 @@ class Anime_Sync_Streaming_Registry {
             'color'  => '#1A1A2E',
             'icon'   => 'ani-one.webp',
             'match'  => ['ani-one', 'ani_one', 'anione', 'ani-one.asia'],
-            'yt_keywords' => ['Ani-One', 'AniOne', 'Ani One'],
+            // 「羚邦」是 YA 公告與新聞稿的寫法（「由羚邦授權，將於動畫瘋上架」），只增不改
+            'yt_keywords' => ['Ani-One', 'AniOne', 'Ani One', '羚邦'],
             'global' => false,
         ],
         [

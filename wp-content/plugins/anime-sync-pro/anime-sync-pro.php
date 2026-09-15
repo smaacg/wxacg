@@ -151,6 +151,8 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-dub-platform-link.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
 // 全站標題索引：季度新番表配不到的劇場版／OVA 由它補（見該檔檔頭的量測）
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-title-index.php';
+// YA「最近更新」掃描：編輯手寫的上架／下架公告 → 事件頁待審 ＋ 下架訊號（含 WP-CLI）
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-news-scan.php';
 /*
  * 串流平台直接抓取（走 sitemap，不依賴 YourAnimes）。
  * 基底檔內含 WP-CLI 指令註冊，所以要在啟動時就 require，不能等 autoload。
@@ -1176,6 +1178,10 @@ register_deactivation_hook( __FILE__, function (): void {
 		}
 	}
 
+	if ( class_exists( 'Anime_Sync_YourAnimes_News_Scan' ) ) {
+		Anime_Sync_YourAnimes_News_Scan::unschedule();
+	}
+
 	if ( class_exists( 'Anime_Sync_Installer' ) ) {
 		( new Anime_Sync_Installer() )->deactivate();
 	}
@@ -1495,6 +1501,12 @@ add_action( 'plugins_loaded', function (): void {
 					$asp_src->schedule();
 				}
 			}
+		}
+
+		// YA 最近更新掃描（每日一次；建構子掛 hook、schedule() 補排程，同上）
+		if ( class_exists( 'Anime_Sync_YourAnimes_News_Scan' ) ) {
+			new Anime_Sync_YourAnimes_News_Scan();
+			Anime_Sync_YourAnimes_News_Scan::schedule();
 		}
 
 		// 未播出作品的 Bangumi 班底輪掃（每小時一批，約一天輪完一圈）
