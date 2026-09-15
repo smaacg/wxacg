@@ -1068,9 +1068,21 @@ while ( have_posts() ) :
 		}
 	}
 
+	/*
+	 * 未播出且台灣查無平台時，區塊仍要出現。
+	 *
+	 * 原本這種情況三個條件都不成立，整個「合法串流平台」區塊直接消失。
+	 * 實測隨機 100 部作品頁，31 部看不到任何台灣串流資訊，其中未播出的
+	 * 那批就是整塊不見——讀者看到的是一片空白，分不出是「站上沒查到」、
+	 * 「台灣沒有代理」還是「根本還沒開播」，這三件事對他的意義完全不同。
+	 *
+	 * 這裡只讓區塊出現並說明狀況，不給搜尋連結——理由與上面那段相同，
+	 * 未播出作品的「線上看」搜尋只會導向盜版。
+	 */
 	$has_stream_section =
 		$has_any_stream
-		|| $google_search_url !== '';
+		|| $google_search_url !== ''
+		|| ( ! $has_tw_stream && $is_not_aired );
 
 	/* =========================================================
 	 * 日期、分數與圖片
@@ -5121,6 +5133,26 @@ while ( have_posts() ) :
 											<span class="asd-stream-label">🔍 搜尋合法觀看管道</span>
 										</a>
 									</div>
+								</div>
+							<?php elseif ( ! $has_tw_stream && $is_not_aired ) : ?>
+								<?php
+								/*
+								 * 未播出且台灣查無平台：說明狀況就好，不放搜尋連結。
+								 *
+								 * 順序必須排在上面那個分支之後：人工在 ACF 填了
+								 * anime_no_streaming_google 的未播出作品，$google_search_url
+								 * 不是空的，要走上面那支、尊重人工判斷。
+								 */
+								?>
+								<div class="asd-stream-region asd-stream-region--upcoming">
+									<div class="asd-stream-region-head">
+										<span class="asd-stream-dot asd-stream-dot--upcoming" aria-hidden="true"></span>
+										<span>台灣上架資訊待公布</span>
+									</div>
+
+									<p class="asd-stream-description">
+										本作尚未開播，台灣的合法串流平台通常會在開播前後才公布，屆時會更新於此。
+									</p>
 								</div>
 							<?php endif; ?>
 

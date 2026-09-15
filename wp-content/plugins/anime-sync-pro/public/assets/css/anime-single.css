@@ -2460,6 +2460,13 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: #4285f4;
 }
 
+/* 未播出、台灣上架資訊待公布。灰色已被 --os 用掉，改用外掛色票的
+   --asp-yellow（#fbbf24，public.css 的 .status-hiatus 同一色）表示「等待中」。
+   本檔慣例是寫死 hex 不用 var()，這裡跟著一致。 */
+.asd-stream-dot--upcoming {
+  background: #fbbf24;
+}
+
 .asd-stream-list {
   display: flex;
   flex-wrap: wrap;
