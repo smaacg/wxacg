@@ -78,6 +78,7 @@ require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-linetv.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-hami.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-catchplay.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-garageplay.php';
+require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-verify-only.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-youtube.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-yt-channels.php';
 

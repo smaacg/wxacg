@@ -162,6 +162,41 @@ t_is( in_array( 'netflix', Anime_Sync_Bangumi_Data_Feed::SITES, true ), false, '
 t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'bilibili' ), 'bangumi_sites' ), [ 'bilibili_tw', 'bilibili_hk_mo_tw' ], 'Bilibili：台灣專屬站點優先、港澳台次之' );
 
 // ─────────────────────────────────────────────────────────
+// 5d. 只覆核不發現的來源：Prime 與 Apple TV
+//     案例全部來自 2026-09-16 對站上既有網址的實測
+// ─────────────────────────────────────────────────────────
+$pv = Anime_Sync_Streaming_Source_Base::make( 'amazon' );
+$at = Anime_Sync_Streaming_Source_Base::make( 'appletv' );
+
+t_is( t_call( $pv, 'verify_only' ), true, 'Prime：只覆核不建索引' );
+t_is( t_call( $at, 'verify_only' ), true, 'Apple TV：只覆核不建索引' );
+
+// Prime：AniList 給的全球網址要改寫成台灣區才判斷得出可看性（站上 26 筆裡有 12 筆是全球版）
+t_is(
+	t_call( $pv, 'recheck_url', 'https://www.primevideo.com/detail/0SJK7L4CHPWNY58A73PBANLSHB' ),
+	'https://www.primevideo.com/-/zh_TW/detail/0SJK7L4CHPWNY58A73PBANLSHB',
+	'Prime recheck_url：全球網址改寫成台灣區'
+);
+t_is(
+	t_call( $pv, 'recheck_url', 'https://www.primevideo.com/-/zh_TW/detail/0JCBAQM21T35H8URDVGEMXG1XX' ),
+	'https://www.primevideo.com/-/zh_TW/detail/0JCBAQM21T35H8URDVGEMXG1XX',
+	'Prime recheck_url：已經是台灣區就不動'
+);
+
+t_is( t_call( $pv, 'parse_alive', '<div>主要按鈕：您所在地區的 Prime Video 無法繼續觀看此內容</div>', '' ), false, 'Prime parse_alive：台灣看不到' );
+t_is( t_call( $pv, 'parse_alive', '<div data-testid="entitlement-message">以 Prime 會員資格觀看</div>', '' ), true, 'Prime parse_alive：可看' );
+// ★ 可看的頁面也會出現「您所在」（觀看派對的介面字串），所以必須比對整句而不是關鍵詞
+t_is( t_call( $pv, 'parse_alive', '<div>您所在地點無法使用此觀看派對。</div><div data-testid="entitlement-message">以 Prime 會員資格觀看</div>', '' ), true, 'Prime parse_alive：「您所在」出現在觀看派對字串裡不算下架' );
+t_is( t_call( $pv, 'parse_alive', '<html>只有租買、沒有任何訊息</html>', '' ), null, 'Prime parse_alive：判不出來就不動它' );
+
+// Apple TV：有 iTunes 商店頻道才算真的買得到
+t_is( t_call( $at, 'parse_alive', '{"channelId":"tvs.sbd.9001","isEntitledToPlay":true}', 'https://tv.apple.com/tw/movie/x/umc.cmc.aaa' ), true, 'Apple TV parse_alive：有 iTunes 商店＝買得到' );
+t_is( t_call( $at, 'parse_alive', '{"canonicalId":"umc.cmc.bbb"}', 'https://tv.apple.com/tw/show/x/umc.cmc.bbb' ), false, 'Apple TV parse_alive：只有目錄頁＝台灣買不到' );
+// 站上有 2 筆是美國／日本區網址（AniList 給錯地區），不必抓頁面就能判定無效
+t_is( t_call( $at, 'parse_alive', '{"channelId":"tvs.sbd.9001"}', 'https://tv.apple.com/jp/movie/x/umc.cmc.ccc' ), false, 'Apple TV parse_alive：日本區網址對台灣無效' );
+t_is( t_call( $at, 'parse_alive', '<html>認不得的頁面</html>', 'https://tv.apple.com/tw/movie/x/umc.cmc.ddd' ), null, 'Apple TV parse_alive：認不得就不動它' );
+
+// ─────────────────────────────────────────────────────────
 // 6. 索引包基底：三家共用同一套讀檔與過期判斷
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {

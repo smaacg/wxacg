@@ -163,6 +163,8 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bangumi-data.php';
 // 本機索引包型來源（巴哈、車庫、CatchPlay）的共用基底，同樣要在那三個子類別之前
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bundle-base.php';
+// 只覆核、不發現的來源（Prime、Apple TV）
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-verify-only.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-myvideo.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-ofiii.php';

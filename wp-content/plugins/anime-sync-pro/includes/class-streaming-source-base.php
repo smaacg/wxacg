@@ -78,6 +78,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		'its_anime'    => 'Anime_Sync_Streaming_Source_Its_Anime',
 		// 只靠 bangumi-data ID 對應的來源（沒有自己的 sitemap／API；class-streaming-source-bangumi-data.php）
 		'bilibili'     => 'Anime_Sync_Streaming_Source_Bilibili',
+		// 只覆核、不發現（class-streaming-source-verify-only.php）
+		'amazon'       => 'Anime_Sync_Streaming_Source_Amazon',
+		'appletv'      => 'Anime_Sync_Streaming_Source_Appletv',
 	];
 
 	/** @return string[] */
@@ -405,6 +408,24 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			'multi_samples' => [],
 			'miss_samples'  => [],
 		];
+
+		/*
+		 * ── 0. 純覆核來源：沒有可列舉的目錄，只驗證站上既有網址還能不能看 ──
+		 *
+		 * Prime、Apple TV 屬於這種。它們不建索引也不找新作品（新連結來自匯入時的
+		 * AniList externalLinks），所以要在索引階段之前分流——否則 build_index()
+		 * 會因為收不到任何條目而回 no_entries 錯誤，整輪中斷。
+		 */
+		if ( $this->verify_only() ) {
+			$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'removed' => 0, 'samples' => [] ];
+			$stats['end']  = $this->recheck_urls( $write, $started );
+
+			if ( $write && ( ( $stats['end']['dead_removed'] ?? 0 ) + ( $stats['end']['removed'] ?? 0 ) ) > 0 ) {
+				$this->purge_streaming_pages();
+			}
+
+			return $stats;
+		}
 
 		// ── 1. 索引：沒有、或要求重建，才去抓 sitemap ──
 		$index = $this->load_index();
@@ -962,6 +983,42 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	}
 
 	/**
+	 * 「只覆核、不發現」的來源。
+	 *
+	 * Prime Video 與 Apple TV 沒有可列舉的台灣目錄（Prime 無 sitemap 且分類頁是前端渲染；
+	 * Apple TV 的 sitemap 要下載 234MB 才能濾出台灣），所以不建索引、不找新作品，
+	 * 只驗證站上既有網址（AniList 匯入寫的）現在還能不能看。跳過 run() 的索引與比對階段。
+	 */
+	protected function verify_only(): bool {
+		return false;
+	}
+
+	/**
+	 * 用頁面內容判斷還在不在——狀態碼看不出來的平台用這個。
+	 *
+	 * Prime 對台灣看不到的作品照樣回 200，要看主要按鈕是不是
+	 * 「您所在地區的 Prime Video 無法繼續觀看此內容」；
+	 * Apple TV 的目錄頁與真正有在賣的頁面也都是 200，差別在有沒有 iTunes 商店的播放資料。
+	 *
+	 * 也收網址：有些判斷只看網址就成立——站上有 2 筆 Apple TV 網址是美國區／日本區
+	 * （AniList 給錯地區），那種連結對台灣讀者無效，不必抓頁面就能判定。
+	 *
+	 * @return bool|null true＝還在、false＝已下架或本地區看不到、null＝判斷不出來（不動它）
+	 */
+	protected function parse_alive( string $html, string $url = '' ): ?bool {
+		return null;
+	}
+
+	/**
+	 * 覆核前改寫網址。AniList 給的 Prime 連結是全球版（primevideo.com/detail/{ASIN}），
+	 * 那種網址在台灣打開判斷不出可看性，要改成 /-/zh_TW/detail/{ASIN} 才問得到答案。
+	 * 只影響「拿去抓的網址」，不動資料庫裡存的值。
+	 */
+	protected function recheck_url( string $url ): string {
+		return $url;
+	}
+
+	/**
 	 * 從作品頁取到期日。
 	 *
 	 * @return string|null 'Y-m-d'；''＝頁面正常但沒寫到期日（例如長期授權）；null＝頁面結構認不得
@@ -1046,7 +1103,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			$id   = $job['id'];
 			$opts = $this->end_date_fetch_opts();
 			$opts['missing_codes'] = $this->alive_missing_codes();
-			$html = $this->fetch( $job['url'], $opts );
+			$html = $this->fetch( $this->recheck_url( $job['url'] ), $opts );
 			$r['checked']++;
 
 			$label = sprintf( '#%d %s', $id, mb_substr( (string) get_the_title( $id ), 0, 24 ) );
@@ -1063,31 +1120,19 @@ abstract class Anime_Sync_Streaming_Source_Base {
 				 * 而移除是會讓讀者少一個觀看管道的破壞性動作，寧可晚三輪也不要錯殺。
 				 */
 				if ( $html->get_error_code() === 'not_found' ) {
-
-					$r['dead']++;
-					$gone   = (string) get_post_meta( $id, $this->gone_meta_key(), true );
-					$strike = ( $gone !== '' && preg_match( '/\|(\d+)$/', $gone, $mm ) ) ? (int) $mm[1] + 1 : 1;
-
-					if ( $strike >= self::GONE_STRIKES ) {
-						$r['dead_removed']++;
-						if ( count( $r['samples'] ) < 10 ) {
-							$r['samples'][] = sprintf( '頁面不存在滿 %d 輪，移除：%s', self::GONE_STRIKES, $label );
-						}
-						if ( $write ) {
-							$this->remove_ended( $id, $job['end'] );
-						}
-					} else {
-						if ( count( $r['samples'] ) < 10 ) {
-							$r['samples'][] = sprintf( '頁面不存在（第 %d/%d 輪）：%s', $strike, self::GONE_STRIKES, $label );
-						}
-						if ( $write ) {
-							update_post_meta( $id, $this->gone_meta_key(), gmdate( 'Y-m-d' ) . '|' . $strike );
-							do_action( 'litespeed_purge_post', $id );
-						}
-					}
+					$this->mark_dead( $id, $label, $job['end'], $write, $r, '頁面不存在' );
 				}
 
 				// 其他錯誤（逾時、5xx）什麼都不做：那是我們這端或對方暫時的問題，不是下架
+				continue;
+			}
+
+			/*
+			 * 狀態碼是 200，但內容可能寫著「你的地區看不到」或「這頁只是目錄、沒有在賣」。
+			 * 有實作 parse_alive() 的來源要再問一次；回 null 表示判斷不出來，當作還在、不動它。
+			 */
+			if ( $this->parse_alive( (string) $html, (string) $job['url'] ) === false ) {
+				$this->mark_dead( $id, $label, $job['end'], $write, $r, '頁面顯示本地區無法觀看' );
 				continue;
 			}
 
@@ -1184,6 +1229,41 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 * （「到期日@移除日」）當還原線索。這裡會動到 YA／人工寫的網址——依據是平台明文日期加頁面覆核，
 	 * 不是推論，跟 check_gone() 的保守不同。
 	 */
+	/**
+	 * 覆核判定「不在架上」的共同處理：累計 strike，滿 GONE_STRIKES 輪才真的移除。
+	 *
+	 * 兩種證據都走這裡——HTTP 狀態碼說不存在（404／400），或頁面內容說本地區看不到。
+	 * 兩者都是平台第一手回應，所以不限網址是誰寫的。
+	 *
+	 * @param array $r 覆核統計，會就地更新
+	 */
+	private function mark_dead( int $post_id, string $label, string $end, bool $write, array &$r, string $reason ): void {
+
+		$r['dead']++;
+
+		$gone   = (string) get_post_meta( $post_id, $this->gone_meta_key(), true );
+		$strike = ( $gone !== '' && preg_match( '/\|(\d+)$/', $gone, $m ) ) ? (int) $m[1] + 1 : 1;
+
+		if ( $strike >= self::GONE_STRIKES ) {
+			$r['dead_removed']++;
+			if ( count( $r['samples'] ) < 10 ) {
+				$r['samples'][] = sprintf( '%s滿 %d 輪，移除：%s', $reason, self::GONE_STRIKES, $label );
+			}
+			if ( $write ) {
+				$this->remove_ended( $post_id, $end );
+			}
+			return;
+		}
+
+		if ( count( $r['samples'] ) < 10 ) {
+			$r['samples'][] = sprintf( '%s（第 %d/%d 輪）：%s', $reason, $strike, self::GONE_STRIKES, $label );
+		}
+		if ( $write ) {
+			update_post_meta( $post_id, $this->gone_meta_key(), gmdate( 'Y-m-d' ) . '|' . $strike );
+			do_action( 'litespeed_purge_post', $post_id );
+		}
+	}
+
 	protected function remove_ended( int $post_id, string $end ): void {
 		delete_post_meta( $post_id, $this->url_meta_key() );
 		delete_post_meta( $post_id, $this->src_meta_key() );
