@@ -240,6 +240,17 @@ t_is( $pick_ended( [ '_anime_tw_streaming_ended_hami' => [ '2026-09-05' ] ], $L,
 t_is( $pick_ended( [ '_anime_tw_streaming_ended_hami' => [ "@$today" ], '_anime_tw_streaming_ended_ofiii' => [ "@$today" ] ], $L, [] ), [ 'hami', 'ofiii' ], '近期下架：兩個平台同時列出' );
 
 // ─────────────────────────────────────────────────────────
+// 5f. 重新上架要把「曾經下架」的紀錄清乾淨
+//     （write() 會 delete _ended_ 與 _gone_；不清的話作品頁會同時出現
+//      「Hami 按鈕」和「近期下架：Hami」）
+// ─────────────────────────────────────────────────────────
+$write_src = file_get_contents( ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php' );
+$write_pos = strpos( $write_src, 'protected function write( int $post_id' );
+$write_body = $write_pos !== false ? substr( $write_src, $write_pos, 1800 ) : '';
+t_is( strpos( $write_body, "delete_post_meta( \$post_id, '_anime_tw_streaming_ended_' . \$this->key() )" ) !== false, true, 'write()：重新寫入時清除 _ended_ 標記' );
+t_is( strpos( $write_body, 'delete_post_meta( $post_id, $this->gone_meta_key() )' ) !== false, true, 'write()：重新寫入時清除疑似下架的 strike' );
+
+// ─────────────────────────────────────────────────────────
 // 6. 索引包基底：三家共用同一套讀檔與過期判斷
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {

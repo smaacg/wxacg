@@ -1537,6 +1537,18 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		update_post_meta( $post_id, $this->url_meta_key(), $url );
 		update_post_meta( $post_id, $this->src_meta_key(), 'source:' . $this->key() . '@' . gmdate( 'Y-m-d' ) );
 
+		/*
+		 * 重新上架就把「曾經下架」的紀錄清掉。
+		 *
+		 * _anime_tw_streaming_ended_{key} 是覆核移除時留的還原線索，但平台下架後又重新上架
+		 * 是常見的事（授權續約、分季重上）。不清的話這筆標記會永遠留著，而且會累積——
+		 * 作品頁就可能同時出現「Hami 按鈕」和「近期下架：Hami」，自相矛盾。
+		 * 前台雖然另外用「網址當下有沒有值」擋住了這個矛盾，但那是顯示層的補救；
+		 * 資料本身該在這裡就修乾淨，否則日後換一種判斷方式又會露出來。
+		 */
+		delete_post_meta( $post_id, '_anime_tw_streaming_ended_' . $this->key() );
+		delete_post_meta( $post_id, $this->gone_meta_key() );
+
 		$checked = get_post_meta( $post_id, 'anime_tw_streaming', true );
 		if ( ! is_array( $checked ) ) {
 			$checked = [];
