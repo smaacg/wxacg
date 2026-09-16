@@ -1302,7 +1302,32 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		$today = current_time( 'Y-m-d' );
 		$until = gmdate( 'Y-m-d', strtotime( $today ) + self::END_FRONT_DAYS * DAY_IN_SECONDS );
 		$vals  = (array) $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", $this->end_meta_key() ) );
-		$s     = [ 'known' => 0, 'soon' => 0, 'expired' => 0, 'checked' => count( $vals ) ];
+
+		/*
+		 * total：站上這個平台的網址總數（覆核的分母，不限誰寫的）
+		 * checked：已經覆核過的筆數
+		 * suspect：目前累積 strike、尚未滿三輪的「疑似下架」
+		 * has_end_date：這個來源解不解得出到期日——決定後台要顯示「到期日」還是只顯示「覆核」，
+		 *               只做存活覆核的五家（MyVideo／Ofiii／LiTV／friDay／LINE TV）沒有到期日，
+		 *               顯示「有日期 0」會讓人以為壞了。
+		 */
+		$total   = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id
+			  WHERE m.meta_key = %s AND m.meta_value <> '' AND p.post_type = 'anime' AND p.post_status = 'publish'",
+			$this->url_meta_key()
+		) );
+		$suspect = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s", $this->gone_meta_key() ) );
+
+		$s = [
+			'known'        => 0,
+			'soon'         => 0,
+			'expired'      => 0,
+			'checked'      => count( $vals ),
+			'total'        => $total,
+			'suspect'      => $suspect,
+			'has_end_date' => $this->provides_end_date(),
+			'can_recheck'  => $this->provides_alive_check() || $this->provides_end_date(),
+		];
 		foreach ( $vals as $v ) {
 			$m = self::split_end_meta( (string) $v );
 			if ( $m['end'] === '' ) {

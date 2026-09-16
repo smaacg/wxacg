@@ -176,9 +176,13 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 					<?php else : ?>
 						<span class="ass-err">尚未建立</span>
 					<?php endif; ?>
-					<?php if ( ! empty( $r['end']['checked'] ) ) : ?>
-						<br><small class="ass-muted" title="平台作品頁公告的授權到期日；到期後覆核，真下架才移除">
-							到期日：查過 <?php echo esc_html( number_format_i18n( $r['end']['checked'] ) ); ?>、有日期 <?php echo esc_html( number_format_i18n( $r['end']['known'] ) ); ?>、30 天內 <strong><?php echo esc_html( number_format_i18n( $r['end']['soon'] ) ); ?></strong><?php if ( $r['end']['expired'] > 0 ) : ?>、已過期待覆核 <?php echo esc_html( number_format_i18n( $r['end']['expired'] ) ); ?><?php endif; ?>
+					<?php if ( ! empty( $r['end']['can_recheck'] ) ) : ?>
+						<?php /* 覆核是對「站上這個平台的全部網址」做的，不限誰寫的，所以分母是 total */ ?>
+						<br><small class="ass-muted" title="直接打作品頁確認還在不在（不限網址是誰寫的）；連續三輪不存在才移除">
+							覆核：<?php echo esc_html( number_format_i18n( $r['end']['checked'] ) ); ?> / <?php echo esc_html( number_format_i18n( $r['end']['total'] ) ); ?> 筆<?php if ( $r['end']['suspect'] > 0 ) : ?>、<span class="ass-err">疑似下架 <?php echo esc_html( number_format_i18n( $r['end']['suspect'] ) ); ?></span><?php endif; ?>
+							<?php if ( $r['end']['has_end_date'] ) : ?>
+								<br>到期日：<?php echo esc_html( number_format_i18n( $r['end']['known'] ) ); ?> 部有公告、30 天內 <strong><?php echo esc_html( number_format_i18n( $r['end']['soon'] ) ); ?></strong><?php if ( $r['end']['expired'] > 0 ) : ?>、已過期待覆核 <?php echo esc_html( number_format_i18n( $r['end']['expired'] ) ); ?><?php endif; ?>
+							<?php endif; ?>
 						</small>
 					<?php endif; ?>
 					<?php if ( is_array( $r['bundle'] ) ) : ?>
@@ -243,10 +247,12 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 
 	<?php
 	/*
-	 * 疑似下架（下架偵測的產出）。
-	 *   自動：我們寫的、連續配不到的，有 _anime_tw_streaming_gone_{key}「日期|第幾輪」；滿 3 輪自動移除。
-	 *   人工：YA／人工寫的、這輪索引配不到的，只列出來給人判斷，程式不動它——譯名差異就會配不到。
-	 * 人工那份要逐部查索引，結果快取 1 小時。
+	 * 疑似下架（下架偵測的產出），都記在 _anime_tw_streaming_gone_{key}「日期|第幾輪」，滿 3 輪自動移除。
+	 * 證據強度有兩種，來源不同但欄位相同：
+	 *   ① 作品頁不存在（404／friDay 是 400）——平台第一手回應，**不限網址是誰寫的**都會覆核，
+	 *      適用 MyVideo／Ofiii／LiTV／LINE TV／Hami／friDay（2026-09-16 起）。
+	 *   ② 索引裡連續配不到——只用於主機打不到作品頁的來源（巴哈／車庫／CatchPlay），
+	 *      而且僅限我們自己寫過的：譯名差異就會配不到，拿它判 YA 寫的會誤刪。
 	 */
 	$gone_rows = $wpdb->get_results(
 		"SELECT g.post_id, g.meta_key, g.meta_value, p.post_title
