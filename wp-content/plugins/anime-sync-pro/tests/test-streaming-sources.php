@@ -251,20 +251,17 @@ t_is( strpos( $write_body, "delete_post_meta( \$post_id, '_anime_tw_streaming_en
 t_is( strpos( $write_body, 'delete_post_meta( $post_id, $this->gone_meta_key() )' ) !== false, true, 'write()：重新寫入時清除疑似下架的 strike' );
 
 // ─────────────────────────────────────────────────────────
-// 5g. 下架的那一刻要通知追番讀者
-//     原本只有「到期前 14 天」會通知，真正看不到時反而沒聲音；
-//     而 friDay／MyVideo／LINE TV 沒有到期日可解析，等於完全不會有預告。
+// 5g. 下架時「不」通知會員（2026-09-16 使用者決定）
+//     下架是每天都在發生的日常異動，逐筆推播會變成洗版。
+//     只留 _ended_ 標記與作品頁的「近期下架」標示；
+//     「到期前 14 天」的預告（notify_ending）保留，那是還來得及看完的資訊。
 // ─────────────────────────────────────────────────────────
 $base_src = file_get_contents( ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php' );
 
-t_is( strpos( $base_src, 'protected function notify_removed(' ) !== false, true, '移除通知：notify_removed() 存在' );
-// 指紋帶平台與日期，同一平台同一天只會發一則
-t_is( strpos( $base_src, "'fingerprint' => 'removed:' . \$this->key() . ':' . \$today" ) !== false, true, '移除通知：指紋含平台與日期，不會重複發' );
-
-// 每一條 remove_ended() 後面都要接通知，不能有漏網的移除路徑
-$remove_calls = substr_count( $base_src, '$this->remove_ended( ' );
-$notify_calls = substr_count( $base_src, '$this->notify_removed( ' );
-t_is( $remove_calls >= 2 && $notify_calls >= $remove_calls, true, sprintf( '移除通知：%d 條移除路徑都有通知（notify %d 次）', $remove_calls, $notify_calls ) );
+t_is( strpos( $base_src, 'function notify_removed(' ) !== false, false, '下架不通知：notify_removed() 不存在' );
+t_is( strpos( $base_src, '$this->notify_removed(' ) !== false, false, '下架不通知：沒有任何地方呼叫它' );
+// 到期前的預告通知要保留
+t_is( strpos( $base_src, 'protected function notify_ending(' ) !== false, true, '到期前預告：notify_ending() 保留' );
 
 // ─────────────────────────────────────────────────────────
 // 6. 索引包基底：三家共用同一套讀檔與過期判斷
