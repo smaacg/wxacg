@@ -299,8 +299,11 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 	<h2 class="ass-h2">沒接直接來源的平台</h2>
 	<table class="wp-list-table widefat fixed ass-table ass-table--compact">
 		<tbody>
-			<tr><th>Netflix、Crunchyroll、Disney+、Apple TV+、Prime、愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入，本來就不經 YourAnimes；Netflix 另有 YourAnimes 補。bangumi-data 的 netflix 站點不標地區（全球），不能拿來當台灣依據，2026-09-15 試過已撤回。（Bilibili 台灣已改由上表的 bangumi-data ID 對應接上）</td></tr>
-			<tr><th>車庫娛樂、AniPASS</th><td>同一個站（AniPASS 是車庫官網的免費動畫專區，不是 YouTube 頻道）。主機被 WAF 擋 403、台灣 IP 正常且伺服器渲染（153 部）——待做：併入巴哈那支本機建包排程。</td></tr>
+			<tr><th>Netflix、Disney+</th><td>robots.txt 對一般 UA 全站 Disallow（只放行 Google 等搜尋引擎），不抓。連結來自 AniList externalLinks（匯入時寫入）與 YourAnimes。bangumi-data 的 netflix 站點不標地區（全球），不能拿來當台灣依據，2026-09-15 試過已撤回。</td></tr>
+			<tr><th>Crunchyroll</th><td>主機被 Cloudflare 擋 403，作品頁又是前端渲染、sitemap 無 zh-TW，三條路都不通。靠 AniList 匯入。</td></tr>
+			<tr><th>愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入。</td></tr>
+			<tr><th>Apple TV+、Prime Video</th><td><strong>已接「只覆核、不發現」</strong>（上表的 appletv／amazon）：沒有可列舉的台灣目錄，不找新作品，但會定期驗證站上既有網址在台灣還能不能看。新連結仍由 AniList 匯入提供。</td></tr>
+			<tr><th>車庫娛樂、AniPASS</th><td>同一個站（AniPASS 是車庫官網的免費動畫專區，不是 YouTube 頻道）。主機被 WAF 擋 403、台灣 IP 正常，<strong>已併入本機建包排程</strong>（上表的 garageplay，153 部）。</td></tr>
 			<tr><th>公視+</th><td>可接（sitemap 1,160 個節目、作品頁有標題），但站上公視標記只有 3 部，暫不做。</td></tr>
 			<tr><th>renta!</th><td>漫畫租借為主，動畫收錄少。靠 YourAnimes。</td></tr>
 		</tbody>

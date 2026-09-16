@@ -701,6 +701,48 @@ while ( have_posts() ) :
 		? Anime_Sync_Streaming_Source_Base::ending_soon_for_post( $post_id )
 		: [];
 
+	/*
+	 * 最近被移除的平台：覆核連續三輪確認作品頁不存在（或授權到期）後，
+	 * 網址與勾選會被拿掉，只留 _anime_tw_streaming_ended_{key}＝「到期日@移除日」。
+	 *
+	 * 不告訴讀者的話，體驗就是「昨天還有這個平台的按鈕、今天無聲消失」，
+	 * 既不知道發生什麼事，也可能以為站上資料出錯。所以移除後 60 天內仍列出來、
+	 * 標明已下架且不可點——這正是讀者最想知道的資訊（「我記得這部在 Hami 上啊？」）。
+	 */
+	$tw_recently_ended = [];
+	if ( class_exists( 'Anime_Sync_Streaming_Registry' ) ) {
+		$ended_cutoff = gmdate( 'Y-m-d', time() - 60 * DAY_IN_SECONDS );
+		foreach ( (array) get_post_meta( $post_id ) as $meta_key => $meta_vals ) {
+			if ( strpos( (string) $meta_key, '_anime_tw_streaming_ended_' ) !== 0 ) {
+				continue;
+			}
+			$ended_key = substr( (string) $meta_key, strlen( '_anime_tw_streaming_ended_' ) );
+			$parts     = explode( '@', (string) ( $meta_vals[0] ?? '' ), 2 );
+			$removed_at = trim( $parts[1] ?? '' );
+			if ( $removed_at === '' || $removed_at < $ended_cutoff ) {
+				continue;   // 太久以前的不再顯示，免得舊資訊塞滿版面
+			}
+			$ended_platform = Anime_Sync_Streaming_Registry::get( $ended_key );
+			if ( ! is_array( $ended_platform ) ) {
+				continue;
+			}
+			/*
+			 * 已經重新上架就不算。
+			 * ★ 不能用 $tw_streaming_keys 判斷：那個陣列是在下面的迴圈才填的，
+			 *   在這裡讀到的永遠是空的，會把已經回來的平台也標成「已下架」——
+			 *   那是最會誤導讀者的一種錯。直接看網址欄位現在有沒有值才是當下的事實。
+			 */
+			if ( trim( (string) $get_meta( 'anime_tw_streaming_url_' . $ended_key ) ) !== '' ) {
+				continue;
+			}
+			$tw_recently_ended[] = [
+				'key'        => $ended_key,
+				'label'      => (string) ( $ended_platform['label'] ?? $ended_key ),
+				'removed_at' => $removed_at,
+			];
+		}
+	}
+
 	if ( ! empty( $tw_streaming_raw ) ) {
 		$raw_platforms = is_array( $tw_streaming_raw )
 			? $tw_streaming_raw
@@ -5329,6 +5371,32 @@ while ( have_posts() ) :
 											</div>
 										</div>
 									<?php endforeach; ?>
+
+									<?php
+									/*
+									 * 最近下架的平台（60 天內）。
+									 *
+									 * 覆核確認作品頁連續三輪不存在、或平台公告的授權到期日已過之後，
+									 * 網址與勾選會被移除。如果就這樣無聲消失，讀者只會覺得
+									 * 「我記得這部在 Hami 上啊，怎麼不見了？」——所以留一行灰字說明，
+									 * 不可點、不連外，只是把「這裡以前有、現在沒了」講清楚。
+									 */
+									if ( ! empty( $tw_recently_ended ) ) :
+										usort(
+											$tw_recently_ended,
+											static fn( $a, $b ) => strcmp( $b['removed_at'], $a['removed_at'] )
+										);
+										?>
+										<p class="asd-stream-ended">
+											<span>近期下架：</span>
+											<?php foreach ( $tw_recently_ended as $ended_item ) : ?>
+												<span
+													class="asd-stream-ended-item"
+													title="<?php echo esc_attr( $ended_item['removed_at'] ); ?> 確認已從該平台下架"
+												><?php echo esc_html( $ended_item['label'] ); ?></span>
+											<?php endforeach; ?>
+										</p>
+									<?php endif; ?>
 
 									<?php
 									/*
