@@ -68,6 +68,18 @@ class Anime_Sync_YouTube_Playlist_Sync {
         '本予告', '特報', '弾', 'digest', 'ダイジェスト',
         '精華', 'highlight', 'ハイライト',
         '片頭', '片尾', '歌詞', 'lyric',
+        /*
+         * 2026-09-17 補上主題曲／插入曲／短剪輯。
+         *
+         * 原本只有 'OP主題'、'ED主題'，擋不住單獨寫「主題曲」的標題——
+         * 「YOASOBI X《機動戰士鋼彈 水星的魔女》主題曲「祝福」」這種寫法
+         * 全站有 7 篇收了進來。#shorts／切り抜き 則是頻道自製的短剪輯，
+         * 不是正片（post 494 一口氣帶進 32 支）。
+         *
+         * 加之前實測過：全站 15,614 行裡這幾個關鍵字命中 38 行，
+         * 其中 0 行同時帶正常集數，也就是不會誤殺正片。
+         */
+        '主題曲', '插入曲', '切り抜き', '切抜き', '#shorts',
     ];
 
     public function __construct() {
@@ -574,11 +586,83 @@ class Anime_Sync_YouTube_Playlist_Sync {
         return str_replace( $full, $half, $str );
     }
 
+    /**
+     * 把「第X話」裡的中文數字換成阿拉伯數字，只在這個結構內替換。
+     *
+     * ★ 為什麼不直接用 class-id-mapper.php 的 convert_cn_season_numerals()
+     *
+     *   那支只處理「第X季／期／部／クール」，而且它自己的註解就寫明
+     *   「只認個位數與『十』，不處理十一以上的組合寫法」。一季 12～24 集
+     *   是常態，照抄會讓「第十一話」「第十二話」整批漏掉——2026-09-17
+     *   實測 post 57390《我立於百萬生命之上》正好卡在這裡：12 支影片
+     *   全部退回 YouTube 原標題，前端十二個晶片都截成「《我立…」。
+     *
+     *   所以這裡另寫一份支援 1～99 的轉換，不共用那份對照表。
+     *
+     * ★ 為什麼限定在「第…話」結構內
+     *
+     *   不做整段全域替換，否則作品名本身含「十」「三」等字會被改掉。
+     *   這個顧慮沿用 id-mapper 的做法。
+     */
+    private function convert_cn_episode_numerals( string $str ): string {
+        return preg_replace_callback(
+            '/第\s*([一二三四五六七八九十]{1,4})\s*([話话集回幕])/u',
+            function ( $m ) {
+                $n = $this->cn_numeral_to_int( $m[1] );
+                // 認不出就原樣保留，不亂猜
+                return $n > 0 ? '第' . $n . $m[2] : $m[0];
+            },
+            $str
+        );
+    }
+
+    /**
+     * 中文數字轉整數，支援 1～99：
+     *   八 → 8　　十 → 10　　十二 → 12　　二十 → 20　　二十四 → 24
+     *
+     * 認不出一律回 0，由呼叫端保留原字串。
+     */
+    private function cn_numeral_to_int( string $cn ): int {
+        static $digits = [
+            '一' => 1, '二' => 2, '三' => 3, '四' => 4, '五' => 5,
+            '六' => 6, '七' => 7, '八' => 8, '九' => 9,
+        ];
+
+        $pos = mb_strpos( $cn, '十' );
+
+        // 沒有「十」就是個位數
+        if ( $pos === false ) {
+            return $digits[ $cn ] ?? 0;
+        }
+
+        $head = mb_substr( $cn, 0, $pos );      // 「十」之前：二十 的「二」
+        $tail = mb_substr( $cn, $pos + 1 );     // 「十」之後：十二 的「二」
+
+        $tens = ( $head === '' ) ? 1 : ( $digits[ $head ] ?? 0 );
+        $ones = ( $tail === '' ) ? 0 : ( $digits[ $tail ] ?? 0 );
+
+        // 十位認不出、或個位有字卻認不出 → 整個放棄
+        if ( $tens === 0 || ( $tail !== '' && $ones === 0 ) ) {
+            return 0;
+        }
+
+        return $tens * 10 + $ones;
+    }
+
     private function extract_episode_number( string $title ): ?int {
         $t = trim( $title );
         $t = $this->normalize_fullwidth_numbers( $t );
+        $t = $this->convert_cn_episode_numerals( $t );
 
         if ( preg_match( '/第\s*0*(\d{1,4})\s*[話话集回幕]/u', $t, $m ) ) {
+            return (int) $m[1];
+        }
+        // 有些作品用自己的單位：《夜櫻家大作戰》寫「作戰01」（post 1716，39 行）
+        if ( preg_match( '/(?:作戰|作战)\s*0*(\d{1,4})/u', $t, $m ) ) {
+            return (int) $m[1];
+        }
+        // 集數包在方括號裡、省掉「第」：「【1話】…」（post 3195 一類，共 25 篇）
+        if ( preg_match( '/[【\[]\s*0*(\d{1,4})\s*[話话集回]\s*[】\]]/u', $t, $m ) ) {
             return (int) $m[1];
         }
         if ( preg_match( '/[#＃]\s*0*(\d{1,4})/u', $t, $m ) ) {
@@ -597,6 +681,7 @@ class Anime_Sync_YouTube_Playlist_Sync {
     private function extract_episode_range( string $title ): ?array {
         $t = trim( $title );
         $t = $this->normalize_fullwidth_numbers( $t );
+        $t = $this->convert_cn_episode_numerals( $t );
 
         if ( preg_match( '/第\s*0*(\d{1,4})\s*[-~〜～]\s*0*(\d{1,4})\s*[話话集回幕]/u', $t, $m ) ) {
             $lo = (int) $m[1];
@@ -642,6 +727,12 @@ class Anime_Sync_YouTube_Playlist_Sync {
         $t = mb_strtolower( $title );
 
         $map = [
+            /*
+             * 「最終話」排最前面：它含「話」卻沒有數字，extract_episode_range()
+             * 抓不到會掉進這裡。若讓下面的 'sp'（特別篇）先命中就會標錯類型。
+             * post 55857《クロミアニメ》就是這種寫法。
+             */
+            '最終話' => [ '最終話', '最终话', '最終回', '最终回' ],
             'OAD'    => [ 'oad' ],
             'OVA'    => [ 'ova' ],
             '馬拉松' => [ '馬拉松', '马拉松', 'marathon', '全集' ],

@@ -1386,12 +1386,36 @@ while ( have_posts() ) :
 			$online_watch_seen[ $online_unique_key ] = true;
 			$online_index = count( $online_watch_items ) + 1;
 
+			/*
+			 * 晶片只有 90px 寬（.asd-ow-tabs 是 minmax(90px,1fr) 的格線），
+			 * 放不下長標籤。同步端認不出集數時會退回 YouTube 原標題，
+			 * 而原標題開頭幾乎都是作品名，於是十二個晶片會全部被
+			 * text-overflow 截成「《我立…」，等於完全無法分辨。
+			 *
+			 * 2026-09-17 全站實測：15,614 行裡有 704 行是這種情況，散布在 85 篇。
+			 *
+			 * 門檻取 8 字也是量出來的，不是憑感覺：
+			 *   1～4 字  90.1%  「第12話」「OVA」「特別篇」 → 正常
+			 *   5～8 字   5.2%  「第1-12話」「第100話」     → 正常
+			 *   9 字以上  4.5%                              → 全部是原標題
+			 *
+			 * 退回的字樣刻意用「第 N 部」而不是「第 N 話」：播放清單不保證
+			 * 照集數排序（post 4080 的清單就是倒序存的），「第 N 部」只宣稱
+			 * 它是清單裡的第 N 個，不會給出錯誤的集數資訊。
+			 *
+			 * 完整標題保留到 full，前端掛在 title 屬性上，滑過去仍看得到。
+			 */
+			$online_label_full = $online_label;
+
+			if ( $online_label === '' || mb_strlen( $online_label ) > 8 ) {
+				$online_label = '第 ' . $online_index . ' 部';
+			}
+
 			$online_watch_items[] = [
 				'id'    => $online_id,
 				'type'  => $online_type,
-				'label' => $online_label !== ''
-					? $online_label
-					: '第 ' . $online_index . ' 部',
+				'label' => $online_label,
+				'full'  => $online_label_full !== '' ? $online_label_full : $online_label,
 			];
 		}
 	}
@@ -5671,6 +5695,8 @@ while ( have_posts() ) :
 												tabindex="<?php echo $online_index === 0 ? '0' : '-1'; ?>"
 												data-ow-index="<?php echo (int) $online_index; ?>"
 												data-ow-id="<?php echo esc_attr( $online_item['id'] ); ?>"
+												<?php /* 標籤被長度上限換成「第 N 部」時，完整標題仍留在這裡 */ ?>
+												title="<?php echo esc_attr( $online_item['full'] ); ?>"
 											>
 												<span class="asd-pv-tab-icon" aria-hidden="true">▶</span>
 												<span class="asd-pv-tab-label">

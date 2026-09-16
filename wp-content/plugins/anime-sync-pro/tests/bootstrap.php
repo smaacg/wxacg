@@ -81,6 +81,11 @@ require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-garageplay.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-verify-only.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-youtube.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-yt-channels.php';
+/*
+ * 播放清單同步的標題解析（集數抽取、PV 黑名單）同樣是純字串函式，
+ * 用同一套替身就能測。見 tests/test-youtube-playlist-sync.php。
+ */
+require ANIME_SYNC_PRO_DIR . 'includes/class-youtube-playlist-sync.php';
 
 // ── 極簡斷言 ──
 $GLOBALS['__pass'] = 0;
