@@ -197,6 +197,49 @@ t_is( t_call( $at, 'parse_alive', '{"channelId":"tvs.sbd.9001"}', 'https://tv.ap
 t_is( t_call( $at, 'parse_alive', '<html>認不得的頁面</html>', 'https://tv.apple.com/tw/movie/x/umc.cmc.ddd' ), null, 'Apple TV parse_alive：認不得就不動它' );
 
 // ─────────────────────────────────────────────────────────
+// 5e. 作品頁「近期下架」的挑選邏輯
+//     （與 public/templates/single-anime.php 裡那段同一套判斷；
+//      正式站目前沒有任何 _ended_ 標記，線上跑不到，只能靠這裡守住）
+// ─────────────────────────────────────────────────────────
+$pick_ended = static function ( array $meta, array $labels, array $current_urls ): array {
+	$out    = [];
+	$cutoff = gmdate( 'Y-m-d', time() - 60 * DAY_IN_SECONDS );
+	foreach ( $meta as $key => $vals ) {
+		if ( strpos( (string) $key, '_anime_tw_streaming_ended_' ) !== 0 ) {
+			continue;
+		}
+		$k       = substr( (string) $key, strlen( '_anime_tw_streaming_ended_' ) );
+		$parts   = explode( '@', (string) ( $vals[0] ?? '' ), 2 );
+		$removed = trim( $parts[1] ?? '' );
+		if ( $removed === '' || $removed < $cutoff ) {
+			continue;
+		}
+		if ( ! isset( $labels[ $k ] ) ) {
+			continue;
+		}
+		if ( trim( (string) ( $current_urls[ $k ] ?? '' ) ) !== '' ) {
+			continue;   // 已經重新上架
+		}
+		$out[] = $k;
+	}
+	sort( $out );
+	return $out;
+};
+
+$L     = [ 'hami' => 'Hami', 'friday' => 'friDay', 'ofiii' => 'Ofiii' ];
+$today = gmdate( 'Y-m-d' );
+$old90 = gmdate( 'Y-m-d', time() - 90 * DAY_IN_SECONDS );
+
+t_is( $pick_ended( [ '_anime_tw_streaming_ended_hami' => [ "2026-09-05@$today" ] ], $L, [] ), [ 'hami' ], '近期下架：授權到期而移除' );
+t_is( $pick_ended( [ '_anime_tw_streaming_ended_friday' => [ "@$today" ] ], $L, [] ), [ 'friday' ], '近期下架：頁面不存在而移除（到期日為空）' );
+t_is( $pick_ended( [ '_anime_tw_streaming_ended_hami' => [ "@$old90" ] ], $L, [] ), [], '近期下架：超過 60 天就不再顯示' );
+// ★ 已重新上架必須看「網址欄位當下的值」，不能看 $tw_streaming_keys（那個陣列在該處還沒填）
+t_is( $pick_ended( [ '_anime_tw_streaming_ended_hami' => [ "@$today" ] ], $L, [ 'hami' => 'https://hamivideo.hinet.net/product/1.do' ] ), [], '近期下架：已重新上架就不顯示' );
+t_is( $pick_ended( [ '_anime_tw_streaming_ended_unknown' => [ "@$today" ] ], $L, [] ), [], '近期下架：未登錄的平台 key 不顯示' );
+t_is( $pick_ended( [ '_anime_tw_streaming_ended_hami' => [ '2026-09-05' ] ], $L, [] ), [], '近期下架：格式壞掉（缺 @移除日）不顯示' );
+t_is( $pick_ended( [ '_anime_tw_streaming_ended_hami' => [ "@$today" ], '_anime_tw_streaming_ended_ofiii' => [ "@$today" ] ], $L, [] ), [ 'hami', 'ofiii' ], '近期下架：兩個平台同時列出' );
+
+// ─────────────────────────────────────────────────────────
 // 6. 索引包基底：三家共用同一套讀檔與過期判斷
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {
