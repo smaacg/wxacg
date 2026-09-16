@@ -131,6 +131,9 @@ t_is( t_call( $muse, 'work_name', '【中文字幕】《關於我轉生變成史
 //     （2026-09-16 從主機實測的結果，改動任何一項都要先重測再改這裡）
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'myvideo' => true, 'ofiii' => true, 'litv' => true, 'friday' => true, 'linetv' => true, 'hami' => true,
+            // YT 系：播放清單用 Data API 問存活，所以不限網址是誰寫的都能覆核（2026-09-17 加）
+            'muse' => true, 'ani_one' => true, 'tropicsanime' => true,
+            'mighty' => true, 'ani_mi' => true, 'its_anime' => true,
             'catchplay' => false, 'bahamut' => false, 'garageplay' => false ] as $key => $expected ) {
 	$src = Anime_Sync_Streaming_Source_Base::make( $key );
 	t_is( t_call( $src, 'provides_alive_check' ), $expected, "覆核宣告：{$key} " . ( $expected ? '可以' : '不能' ) . '從主機判斷存活' );
@@ -150,6 +153,38 @@ t_is(
 // 能覆核的來源不該再跑索引比對版的下架偵測（兩者重複會把 strike 加兩次）
 t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'hami' ), 'provides_end_date' ), true, 'Hami：有到期日可解析' );
 t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'myvideo' ), 'provides_end_date' ), false, 'MyVideo：沒有到期日，只做存活覆核' );
+
+// ─────────────────────────────────────────────────────────
+// 5b-2. YT 系覆核：網址轉換與 API 回應解析
+//       #478 尼古喵喵的 Ani-One 清單 2026-08 就被刪了卻沒人發現——它沒有來源標記，
+//       索引比對那條路掃不到它。這組測試守的是接替它的那條路。
+// ─────────────────────────────────────────────────────────
+$muse_src = Anime_Sync_Streaming_Source_Base::make( 'muse' );
+$yt_pl    = 'https://www.youtube.com/playlist?list=PLap2KuvugB9M';
+
+t_is(
+	t_call( $muse_src, 'recheck_url', $yt_pl ),
+	'https://www.googleapis.com/youtube/v3/playlists?part=id&id=PLap2KuvugB9M&key=test-key',
+	'YT 覆核：播放清單網址轉成 playlists.list 查詢'
+);
+t_is(
+	t_call( $muse_src, 'recheck_url', 'https://www.youtube.com/@MuseTW' ),
+	'https://www.youtube.com/@MuseTW',
+	'YT 覆核：認不出清單 id 的網址原樣回傳'
+);
+
+// 已刪除或轉私人的清單，API 回的是 200 ＋ 空 items（不是 404），所以只能靠內容判斷
+t_is( t_call( $muse_src, 'parse_alive', '{"items":[]}', $yt_pl ), false, 'YT 覆核：items 空＝清單已刪除' );
+t_is( t_call( $muse_src, 'parse_alive', '{"items":[{"id":"PLap2KuvugB9M"}]}', $yt_pl ), true, 'YT 覆核：items 有內容＝清單還在' );
+
+// 以下都不是「作品下架」的證據，一律回 null 不動它，否則會錯殺
+t_is( t_call( $muse_src, 'parse_alive', '{"error":{"message":"quotaExceeded"}}', $yt_pl ), null, 'YT 覆核：配額用盡不判下架' );
+t_is( t_call( $muse_src, 'parse_alive', '<html>503</html>', $yt_pl ), null, 'YT 覆核：回應不是 JSON 不判下架' );
+t_is( t_call( $muse_src, 'parse_alive', '{"pageInfo":{"totalResults":0}}', $yt_pl ), null, 'YT 覆核：缺 items 欄位不判下架' );
+t_is( t_call( $muse_src, 'parse_alive', '{"items":[]}', 'https://www.youtube.com/@MuseTW' ), null, 'YT 覆核：非播放清單網址不判下架' );
+
+// Accept 要換成 JSON；而且刻意不帶 allow_404，免得 endpoint 打錯被當成作品下架
+t_is( t_call( $muse_src, 'end_date_fetch_opts' ), [ 'accept' => 'application/json' ], 'YT 覆核：Accept 用 JSON 且不帶 allow_404' );
 
 // ─────────────────────────────────────────────────────────
 // 5c. bangumi-data：台灣站點要收齊（漏一個就少一批可比對的作品）

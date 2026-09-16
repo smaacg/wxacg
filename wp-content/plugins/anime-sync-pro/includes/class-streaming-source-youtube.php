@@ -197,6 +197,84 @@ abstract class Anime_Sync_Streaming_Source_Youtube extends Anime_Sync_Streaming_
 		return $entries[0];
 	}
 
+	// =====================================================================
+	// 網址覆核：播放清單還在不在
+	// =====================================================================
+
+	/**
+	 * 播放清單可以用 Data API 直接問「還在不在」，所以走 recheck_urls()。
+	 *
+	 * 這條路的價值在於**不限網址是誰寫的**：check_gone() 只敢動自己配過的
+	 * （muse 72 筆、ani_one 102 筆），但站上這兩家實際各有 342 與 387 筆網址，
+	 * 其餘是 YA 回填與人工貼的，過去從來沒有人檢查過還在不在。
+	 * 2026-09-16 的實例：#478 尼古喵喵的 Ani-One 清單 8 月就被刪了，
+	 * 因為沒有來源標記，索引比對那條路永遠掃不到它。
+	 *
+	 * ★ 這裡一旦回 true，run() 就不會再跑 check_gone()（兩條路互斥）。
+	 *   若兩者同時跑，同一輪會累加兩次 strike，三輪門檻等於被腰斬。
+	 *
+	 * 金鑰沒設就回 false，退回原本的索引比對，不會變成半殘狀態。
+	 */
+	protected function provides_alive_check(): bool {
+		return defined( 'SMACG_YT_API_KEY' ) && (string) SMACG_YT_API_KEY !== '';
+	}
+
+	/**
+	 * 覆核打的是 API 不是網頁，Accept 要換成 JSON。
+	 *
+	 * ★ 刻意不帶基底預設的 allow_404：playlists.list 對已刪除的清單回的是
+	 *   **200 ＋ 空 items**（2026-09-16 實測），真的出現 404 只可能是 endpoint
+	 *   打錯。那種情況讓它走 http_error 觸發熔斷停下來，遠比被當成
+	 *   not_found 去累加 strike、最後把作品誤刪掉安全。
+	 */
+	protected function end_date_fetch_opts(): array {
+		return [ 'accept' => 'application/json' ];
+	}
+
+	/**
+	 * 播放清單網址 → playlists.list 查詢網址。
+	 * 認不出清單 id 就原樣回傳（parse_alive() 會回 null，不下結論）。
+	 *
+	 * 這裡不用 add_query_arg()：純字串拼接才能在不載入 WordPress 的
+	 * 測試環境（tests/bootstrap.php）直接驗證轉換結果。
+	 */
+	protected function recheck_url( string $url ): string {
+
+		if ( ! preg_match( '/[?&]list=([A-Za-z0-9_-]+)/', $url, $m ) ) {
+			return $url;
+		}
+
+		$key = defined( 'SMACG_YT_API_KEY' ) ? (string) SMACG_YT_API_KEY : '';
+
+		return self::API_PLAYLISTS . '?part=id&id=' . rawurlencode( $m[1] ) . '&key=' . rawurlencode( $key );
+	}
+
+	/**
+	 * API 回應 → 清單還在不在。
+	 *
+	 * 只有「查得到、但 items 是空的」才判定已刪除——那是 YouTube 對
+	 * 不存在或已轉私人清單的回法（不是 404）。其餘一律回 null 不動它：
+	 * 配額用盡與金鑰失效會帶 error，JSON 壞掉或欄位缺漏多半是我們這端的問題，
+	 * 那些都不是「作品下架」的證據，拿來刪資料會錯殺。
+	 *
+	 * @return bool|null true＝還在、false＝已刪除或轉私人、null＝判斷不出來
+	 */
+	protected function parse_alive( string $html, string $url = '' ): ?bool {
+
+		// 不是播放清單網址（頻道頁、單支影片）就沒查過，不下結論
+		if ( strpos( $url, 'list=' ) === false ) {
+			return null;
+		}
+
+		$data = json_decode( $html, true );
+
+		if ( ! is_array( $data ) || ! empty( $data['error'] ) || ! isset( $data['items'] ) ) {
+			return null;
+		}
+
+		return count( (array) $data['items'] ) > 0;
+	}
+
 	/**
 	 * 除了平台網址，順手填 anime_yt_playlist_url 並觸發集數同步。
 	 * 只在該欄位空白時填，不覆蓋人工或 YA 填的清單。

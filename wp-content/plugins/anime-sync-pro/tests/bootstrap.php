@@ -27,6 +27,10 @@ define( 'HOUR_IN_SECONDS', 3600 );
 define( 'DAY_IN_SECONDS', 86400 );
 define( 'MB_IN_BYTES', 1048576 );
 
+// YT 系來源靠這個常數判斷能不能做存活覆核（provides_alive_check）。
+// 測試不對外連線（wp_remote_get 一律回 WP_Error），值是什麼都無所謂。
+define( 'SMACG_YT_API_KEY', 'test-key' );
+
 class WP_Error {
 	private $c;
 	private $m;
