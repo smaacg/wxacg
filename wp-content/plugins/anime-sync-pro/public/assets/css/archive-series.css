@@ -766,6 +766,8 @@
 
 .asa-order__body {
 	min-width: 0;
+	/* 要撐滿剩下的寬度，右邊的 meta 才有地方可以靠 */
+	flex: 1 1 auto;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: baseline;
@@ -781,7 +783,25 @@
 
 .asa-order__title:hover { text-decoration: underline; }
 
+/*
+ * 把日期切齊成一欄。
+ *
+ * 每一列的 meta 都是「格式｜集數｜YYYY/MM/DD」，日期固定十個字元，
+ * 而這條規則本來就有 tabular-nums（數字等寬），所以整塊往右靠之後，
+ * 日期的左右邊界會同時對齊——不需要動 PHP，也不用拆成多個欄位。
+ *
+ * 2026-09-16 曾經做過另一版：在模板裡把規格與日期拆成 .asa-order__spec
+ * 與 <time class="asa-order__date">，只讓日期靠右、格式留在標題旁。
+ * 三種排法並排比較之後決定不採用——整塊靠右時，格式、集數、日期
+ * 是同一組附屬資訊，湊在一起讀比拆開兩邊跑更順。要再評估的話，
+ * 記得那版需要同步改 archive-series.php 的 $bits 區塊。
+ *
+ * 代價：格式與集數長度不一（TV／劇場版、1 集／25 集）左緣會參差。
+ * 這是刻意的——讀者掃這份清單時要找的是日期，對齊它就夠了。
+ */
 .asa-order__meta {
+	margin-left: auto;
+	white-space: nowrap;
 	font-size: 13px;
 	color: var(--asa-text-muted);
 	font-variant-numeric: tabular-nums;
@@ -871,4 +891,6 @@
 	.asa-faq__h2 { font-size: 18px; }
 	.asa-order__num { flex-basis: 26px; height: 26px; font-size: 12px; }
 	.asa-order__title { font-size: 15px; }
+	/* 窄螢幕靠右會讓日期跟標題離太遠，改成直接接在標題後面 */
+	.asa-order__meta { margin-left: 0; }
 }
