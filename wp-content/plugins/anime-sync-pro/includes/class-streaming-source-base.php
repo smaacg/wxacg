@@ -1175,6 +1175,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 					}
 					if ( $write ) {
 						$this->remove_ended( $id, $job['end'] );
+						// 與 mark_dead() 同樣要通知：兩條移除路徑對讀者是同一件事
+						$this->notify_removed( $id, '授權到期' );
 					}
 					continue;
 				}
@@ -1237,6 +1239,41 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 *
 	 * @param array $r 覆核統計，會就地更新
 	 */
+	/**
+	 * 真的下架了，通知追番的讀者。
+	 *
+	 * ★ 為什麼要有這個：原本只有「到期前 14 天」會發通知，真正看不到的那一刻反而沒有聲音。
+	 *   而且那個預告只有 Hami 這種會公告到期日的平台才有——friDay、MyVideo、LINE TV
+	 *   沒有到期日可解析，下架前完全不會有預告，作品就這樣從頁面上消失。
+	 *   讀者最需要知道的正是「已經看不到了」，這也是站上事件系統本來就在做的事。
+	 *
+	 * 指紋帶平台與移除日，同一個平台的同一次下架只會發一則。
+	 */
+	protected function notify_removed( int $post_id, string $reason ): bool {
+
+		if ( ! class_exists( 'Anime_Sync_Anime_Events' ) ) {
+			return false;
+		}
+
+		$today   = current_time( 'Y-m-d' );
+		$summary = sprintf( '已從 %s 下架（%s）', $this->label(), $reason );
+
+		$event_id = Anime_Sync_Anime_Events::record( [
+			'anime_id'    => $post_id,
+			'event_type'  => 'streaming',
+			'fingerprint' => 'removed:' . $this->key() . ':' . $today,
+			'summary'     => $summary,
+			'source'      => 'platform',
+			'payload'     => [ 'platform' => $this->key(), 'removed_at' => $today, 'reason' => $reason ],
+		] );
+
+		if ( $event_id <= 0 ) {
+			return false;   // 0＝今天同一平台已發過，-1＝失敗
+		}
+
+		return Anime_Sync_Anime_Events::publish( $event_id, $summary );
+	}
+
 	private function mark_dead( int $post_id, string $label, string $end, bool $write, array &$r, string $reason ): void {
 
 		$r['dead']++;
@@ -1251,6 +1288,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			}
 			if ( $write ) {
 				$this->remove_ended( $post_id, $end );
+				// 讀者最需要知道的就是這一刻：已經看不到了
+				$this->notify_removed( $post_id, $reason );
 			}
 			return;
 		}
