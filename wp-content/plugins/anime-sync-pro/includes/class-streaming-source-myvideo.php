@@ -30,6 +30,19 @@ class Anime_Sync_Streaming_Source_Myvideo extends Anime_Sync_Streaming_Source_Ba
 		return 'myvideo';
 	}
 
+	/** 作品頁從主機打得到：存在 200、不存在 404（2026-09-16 實測）。 */
+	protected function provides_alive_check(): bool {
+		return true;
+	}
+
+	/**
+	 * 每天跑，讓覆核推得動：站上 908 筆 MyVideo 網址、每輪 150 筆，日跑約 6 天輪完一圈；
+	 * 週跑要六週。索引仍是每 6 天才重建一次（見基底 run_locked 的說明），不會天天重抓 5.8 萬條目。
+	 */
+	protected function recurrence(): string {
+		return 'daily';
+	}
+
 	protected function sitemap_url(): string {
 		return 'https://www.myvideo.net.tw/sitemap.xml';
 	}

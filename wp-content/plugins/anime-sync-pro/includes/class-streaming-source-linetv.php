@@ -54,6 +54,20 @@ class Anime_Sync_Streaming_Source_Linetv extends Anime_Sync_Streaming_Source_Bas
 		return 'linetv';
 	}
 
+	/** 作品頁從主機打得到：存在 200、不存在 404（2026-09-16 實測）。 */
+	protected function provides_alive_check(): bool {
+		return true;
+	}
+
+	/**
+	 * 覆核批次調小：本來每小時就要爬 BATCH（300）頁作品頁建索引，
+	 * 再加 150 頁覆核等於一小時對 LINE TV 打 450 次。每小時 40 筆，
+	 * 792 筆網址約 20 小時輪完一圈，已經比其他家都密。
+	 */
+	protected function recheck_batch(): int {
+		return 40;
+	}
+
 	protected function sitemap_url(): string {
 		return self::SITEMAP_URL;
 	}

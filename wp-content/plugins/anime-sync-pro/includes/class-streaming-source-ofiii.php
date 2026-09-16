@@ -33,6 +33,16 @@ class Anime_Sync_Streaming_Source_Ofiii extends Anime_Sync_Streaming_Source_Base
 		return 'ofiii';
 	}
 
+	/** 作品頁從主機打得到：存在 200、不存在 404（2026-09-16 實測；LiTV 子類別繼承這個設定）。 */
+	protected function provides_alive_check(): bool {
+		return true;
+	}
+
+	/** 每天跑讓覆核推得動（Ofiii 618 筆、LiTV 658 筆）；索引仍每 6 天才重建。LiTV 繼承這個設定。 */
+	protected function recurrence(): string {
+		return 'daily';
+	}
+
 	protected function sitemap_url(): string {
 		return 'https://www.ofiii.com/sitemap.xml';
 	}

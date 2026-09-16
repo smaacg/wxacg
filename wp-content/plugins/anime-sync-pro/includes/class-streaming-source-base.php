@@ -310,8 +310,18 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			 * ★ 排程一定要 rebuild。run() 預設沿用既有索引（讓 CLI dry-run 不必
 			 *   每次重抓 90MB），但排程的意義就是「平台這週新上架的作品要進來」，
 			 *   不重建等於永遠停在第一次建索引的那一天。
+			 *
+			 * ★ 但「排程頻率」與「索引重建頻率」要分開（2026-09-16）。
+			 *   加了網址覆核之後，排程必須跑得夠密（每輪只覆核一批，MyVideo 908 筆
+			 *   若維持週排程要六週才輪完一圈，下架一個半月後才發現，等於沒做）；
+			 *   可是索引重建是另一回事——MyVideo 5.8 萬條目、Ofiii 11 萬、LiTV 14 萬，
+			 *   天天重抓既浪費對方頻寬也浪費我們的時間預算，而平台一天內的新上架量
+			 *   本來就少。所以：排程可以每天跑，索引仍然每 REBUILD_INTERVAL_DAYS 天一次。
 			 */
-			$r = $this->run( [ 'write' => $write, 'rebuild' => true ] );
+			$last_build = (int) ( $this->status()['built'] ?? 0 );
+			$rebuild    = ( $last_build <= 0 ) || ( time() - $last_build ) >= self::REBUILD_INTERVAL_DAYS * DAY_IN_SECONDS;
+
+			$r = $this->run( [ 'write' => $write, 'rebuild' => $rebuild ] );
 
 			$this->log_result( $tag, $write, $r );
 		} finally {
@@ -327,7 +337,16 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 		$end = '';
 		if ( ! empty( $r['end'] ) && $r['end']['checked'] > 0 ) {
-			$end = sprintf( '；到期日查 %d、14 天內到期 %d、到期移除 %d', $r['end']['checked'], $r['end']['soon'], $r['end']['removed'] );
+			$end = sprintf(
+				'；覆核 %d（還在 %d、不存在 %d、移除 %d）',
+				$r['end']['checked'],
+				$r['end']['alive'] ?? 0,
+				$r['end']['dead'] ?? 0,
+				( $r['end']['dead_removed'] ?? 0 ) + ( $r['end']['removed'] ?? 0 )
+			);
+			if ( ( $r['end']['soon'] ?? 0 ) > 0 ) {
+				$end .= sprintf( '、14 天內到期 %d', $r['end']['soon'] );
+			}
 		}
 		$this->log_info( sprintf(
 			'%s 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d%s',
@@ -443,20 +462,35 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			}
 		}
 
-		// ── 3. 下架偵測：只針對我們自己寫過的作品，索引完整時才做 ──
+		/*
+		 * ── 3. 覆核：作品頁還在不在（有到期日的順便解析）──
+		 *
+		 * 主機打得到作品頁的來源走這條。證據是平台第一手回應（404／400＝不存在），
+		 * 所以**不限網址是誰寫的**——YA 給的、人工貼的、我們自己配的，全部都覆核。
+		 *
+		 * 2026-09-16 量到的缺口正是這個：全站 9,271 個平台網址只有 996 個帶來源標記，
+		 * 其餘 89% 從來沒有人檢查過還在不在（check_gone 只看自己寫的）。
+		 */
+		$stats['end'] = null;
+		if ( $this->provides_alive_check() || $this->provides_end_date() ) {
+			$stats['end'] = $this->recheck_urls( $write, $started );
+		}
+
+		/*
+		 * ── 4. 退路：主機打不到作品頁的來源（巴哈／車庫被 Cloudflare 擋、CatchPlay 被地區擋）
+		 *      只能用索引比對。索引比對會被譯名差異誤判成下架，所以僅限我們自己寫過的那些。
+		 */
 		$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'removed' => 0, 'samples' => [] ];
-		if ( $this->index_is_complete() ) {
+		if ( ! $this->provides_alive_check() && $this->index_is_complete() ) {
 			$stats['gone'] = $this->check_gone( $write );
 		}
 
-		// ── 4. 授權到期日：平台作品頁有明文到期日的來源才做（Hami），對站上全部該平台網址 ──
-		$stats['end'] = null;
-		if ( $this->provides_end_date() ) {
-			$stats['end'] = $this->refresh_end_dates( $write, $started );
-		}
+		// 到期日或覆核有動到資料就要清：/streaming/ 的「即將下架」清單與作品頁標籤都吃這份資料
+		$touched = $stats['written'] > 0
+			|| $stats['gone']['removed'] > 0
+			|| ( $write && ( ( $stats['end']['dated'] ?? 0 ) + ( $stats['end']['removed'] ?? 0 ) + ( $stats['end']['dead_removed'] ?? 0 ) ) > 0 );
 
-		// 到期日有更新也要清：/streaming/ 的「即將下架」清單與作品頁的「授權至」標籤都吃這份資料
-		if ( $stats['written'] > 0 || $stats['gone']['removed'] > 0 || ( $write && ( ( $stats['end']['dated'] ?? 0 ) + ( $stats['end']['removed'] ?? 0 ) ) > 0 ) ) {
+		if ( $touched ) {
 			$this->purge_streaming_pages();
 		}
 
@@ -883,6 +917,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 *     頁面給了新日期 → 續約，只更新日期。不到期不動、不推論。
 	 *   - dry-run 只抽 END_DRY_SAMPLE 部看得出解析對不對，不寫任何 meta、不發事件
 	 */
+	/** 索引重建的最小間隔；排程可以比這個密（見 run_locked 的說明）。 */
+	const REBUILD_INTERVAL_DAYS = 6;
+
 	const END_BATCH        = 150;
 	const END_DRY_SAMPLE   = 20;
 	const END_INTERVAL_US  = 500000;
@@ -894,6 +931,34 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	/** 這個來源的作品頁有沒有明文到期日可解析。 */
 	protected function provides_end_date(): bool {
 		return false;
+	}
+
+	/**
+	 * 正式站主機打得到這個平台的作品頁，而且「作品不存在」有明確的狀態碼嗎？
+	 *
+	 * 為真的來源走 recheck_urls()：用平台第一手回應判斷還在不在，因此**不限網址是誰寫的**
+	 * （YA、人工、我們自己）都能覆核。為假的來源只能退回 check_gone() 的索引比對，
+	 * 而索引比對會被譯名差異誤判，所以那條路只敢動自己寫過的。
+	 *
+	 * 2026-09-16 從主機實測（存在／不存在）：
+	 *   MyVideo 200/404、Ofiii 200/404、LiTV 200/404、LINE TV 200/404、Hami 200/404、friDay 200/**400**
+	 *   CatchPlay 302/302（兩者都轉回首頁，分不出來）、巴哈與 Crunchyroll 403/403（Cloudflare 擋機房 IP）
+	 */
+	protected function provides_alive_check(): bool {
+		return false;
+	}
+
+	/** 哪些 HTTP 狀態碼代表「這個作品不存在」。friDay 是 400 不是 404。 */
+	protected function alive_missing_codes(): array {
+		return [ 404 ];
+	}
+
+	/**
+	 * 每輪覆核幾筆。預設 END_BATCH；本身就要大量抓頁面的來源（LINE TV 每小時爬 300 頁
+	 * 建索引）要調小，免得對同一個平台一小時打 450 次。
+	 */
+	protected function recheck_batch(): int {
+		return self::END_BATCH;
 	}
 
 	/**
@@ -929,10 +994,10 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 *
 	 * @return array{checked:int,dated:int,undated:int,unparsed:int,soon:int,notified:int,renewed:int,removed:int,samples:string[]}
 	 */
-	protected function refresh_end_dates( bool $write, float $started ): array {
+	protected function recheck_urls( bool $write, float $started ): array {
 		global $wpdb;
 
-		$r = [ 'checked' => 0, 'dated' => 0, 'undated' => 0, 'unparsed' => 0, 'soon' => 0, 'notified' => 0, 'renewed' => 0, 'removed' => 0, 'samples' => [] ];
+		$r = [ 'checked' => 0, 'alive' => 0, 'dead' => 0, 'dead_removed' => 0, 'dated' => 0, 'undated' => 0, 'unparsed' => 0, 'soon' => 0, 'notified' => 0, 'renewed' => 0, 'removed' => 0, 'samples' => [] ];
 
 		$today  = current_time( 'Y-m-d' );
 		$soon   = gmdate( 'Y-m-d', strtotime( $today ) + self::END_SOON_DAYS * DAY_IN_SECONDS );
@@ -966,7 +1031,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 		usort( $due, static fn( $a, $b ) => $a['prio'] <=> $b['prio'] ?: $a['id'] <=> $b['id'] );
 
-		$limit = $write ? self::END_BATCH : self::END_DRY_SAMPLE;
+		$limit = $write ? $this->recheck_batch() : self::END_DRY_SAMPLE;
 		$due   = array_slice( $due, 0, $limit );
 
 		foreach ( $due as $i => $job ) {
@@ -979,24 +1044,67 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			}
 
 			$id   = $job['id'];
-			$html = $this->fetch( $job['url'], $this->end_date_fetch_opts() );
+			$opts = $this->end_date_fetch_opts();
+			$opts['missing_codes'] = $this->alive_missing_codes();
+			$html = $this->fetch( $job['url'], $opts );
 			$r['checked']++;
 
 			$label = sprintf( '#%d %s', $id, mb_substr( (string) get_the_title( $id ), 0, 24 ) );
 
-			// 頁面不存在：到期日已過才算真下架；還沒到期的 404 先當暫時異常，下輪再看
 			if ( is_wp_error( $html ) ) {
+
 				if ( $html->get_error_code() === 'circuit_open' ) {
 					break;
 				}
-				if ( $html->get_error_code() === 'not_found' && $job['end'] !== '' && $job['end'] < $today ) {
-					$r['removed']++;
-					if ( count( $r['samples'] ) < 10 ) {
-						$r['samples'][] = '到期且頁面 404，移除：' . $label . '（授權至 ' . $job['end'] . '）';
+
+				/*
+				 * 平台回「這個作品不存在」——第一手證據，所以不限網址是誰寫的都能處理。
+				 * 但仍要連續 GONE_STRIKES 輪才移除：平台改版、暫時抽片、CDN 抽風都可能回一次 404，
+				 * 而移除是會讓讀者少一個觀看管道的破壞性動作，寧可晚三輪也不要錯殺。
+				 */
+				if ( $html->get_error_code() === 'not_found' ) {
+
+					$r['dead']++;
+					$gone   = (string) get_post_meta( $id, $this->gone_meta_key(), true );
+					$strike = ( $gone !== '' && preg_match( '/\|(\d+)$/', $gone, $mm ) ) ? (int) $mm[1] + 1 : 1;
+
+					if ( $strike >= self::GONE_STRIKES ) {
+						$r['dead_removed']++;
+						if ( count( $r['samples'] ) < 10 ) {
+							$r['samples'][] = sprintf( '頁面不存在滿 %d 輪，移除：%s', self::GONE_STRIKES, $label );
+						}
+						if ( $write ) {
+							$this->remove_ended( $id, $job['end'] );
+						}
+					} else {
+						if ( count( $r['samples'] ) < 10 ) {
+							$r['samples'][] = sprintf( '頁面不存在（第 %d/%d 輪）：%s', $strike, self::GONE_STRIKES, $label );
+						}
+						if ( $write ) {
+							update_post_meta( $id, $this->gone_meta_key(), gmdate( 'Y-m-d' ) . '|' . $strike );
+							do_action( 'litespeed_purge_post', $id );
+						}
 					}
-					if ( $write ) {
-						$this->remove_ended( $id, $job['end'] );
-					}
+				}
+
+				// 其他錯誤（逾時、5xx）什麼都不做：那是我們這端或對方暫時的問題，不是下架
+				continue;
+			}
+
+			/*
+			 * 頁面拿得到＝還在架上。先清掉先前累積的 strike，
+			 * 否則「這輪 404、下輪正常、再下輪 404」會被湊成三輪誤刪。
+			 */
+			$r['alive']++;
+			if ( $write && (string) get_post_meta( $id, $this->gone_meta_key(), true ) !== '' ) {
+				delete_post_meta( $id, $this->gone_meta_key() );
+				do_action( 'litespeed_purge_post', $id );
+			}
+
+			// 沒有到期日可解析的來源到此為止，只記查核日（下次輪到它的時間往後推）
+			if ( ! $this->provides_end_date() ) {
+				if ( $write ) {
+					update_post_meta( $id, $this->end_meta_key(), '|' . $today );
 				}
 				continue;
 			}
@@ -1081,6 +1189,10 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		delete_post_meta( $post_id, $this->src_meta_key() );
 		delete_post_meta( $post_id, $this->gone_meta_key() );
 		delete_post_meta( $post_id, $this->end_meta_key() );
+		/*
+		 * 還原線索：`到期日@移除日`。到期日為空字串代表這筆不是「授權到期」而是
+		 * 「作品頁連續 N 輪回不存在」——兩種移除理由要分得出來，日後要復原或追查才有依據。
+		 */
 		update_post_meta( $post_id, '_anime_tw_streaming_ended_' . $this->key(), $end . '@' . current_time( 'Y-m-d' ) );
 		$checked = get_post_meta( $post_id, 'anime_tw_streaming', true );
 		if ( is_array( $checked ) ) {
@@ -1496,6 +1608,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 *        method／body：POST 表單（Hami 的翻頁端點 ui26_page.do 只吃 POST）。
 	 *        allow_404：404 回 WP_Error('not_found') 但**不計入熔斷**——到期日覆核時，
 	 *        作品真的下架了頁面就是 404，那是答案不是故障，連三個 404 不能把整個來源熔掉。
+	 *        missing_codes：同上，但自訂哪些狀態碼代表「這個作品不存在」。
+	 *        平台不一定用 404：friDay 對不存在的 id 回 **400**「資料錯誤」（2026-09-16 測三個 id 都一致）。
 	 * @return string|WP_Error
 	 */
 	protected function fetch( string $url, array $opts = [] ) {
@@ -1538,8 +1652,14 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 
 		$code = (int) wp_remote_retrieve_response_code( $res );
-		if ( $code === 404 && ! empty( $opts['allow_404'] ) ) {
-			return new WP_Error( 'not_found', 'HTTP 404' );
+
+		$missing = array_map( 'intval', (array) ( $opts['missing_codes'] ?? [] ) );
+		if ( ! empty( $opts['allow_404'] ) ) {
+			$missing[] = 404;
+		}
+		if ( $missing && in_array( $code, $missing, true ) ) {
+			// 「這個作品不存在」是答案不是故障，所以不計入熔斷（否則一輪連三個下架就把來源熔掉）
+			return new WP_Error( 'not_found', 'HTTP ' . $code );
 		}
 		// 206 = Range 請求成功的部分內容
 		if ( $code !== 200 && $code !== 206 ) {
@@ -1715,9 +1835,13 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		}
 		if ( ! empty( $r['end'] ) ) {
 			$e = $r['end'];
-			WP_CLI::log( sprintf( '授權到期日：查 %d 頁｜有日期 %d｜無日期 %d｜認不得 %d｜14 天內到期 %d｜發通知 %d｜續約 %d｜到期移除 %d%s',
-				$e['checked'], $e['dated'], $e['undated'], $e['unparsed'], $e['soon'], $e['notified'], $e['renewed'], $e['removed'],
+			WP_CLI::log( sprintf( '網址覆核（站上這個平台的全部網址，不限誰寫的）：查 %d 頁｜還在 %d｜不存在 %d｜滿 %d 輪移除 %d%s',
+				$e['checked'], $e['alive'] ?? 0, $e['dead'] ?? 0, Anime_Sync_Streaming_Source_Base::GONE_STRIKES, $e['dead_removed'] ?? 0,
 				$write ? '' : '（dry-run 只抽 ' . Anime_Sync_Streaming_Source_Base::END_DRY_SAMPLE . ' 頁、不寫入）' ) );
+			if ( ( $e['dated'] ?? 0 ) > 0 || ( $e['unparsed'] ?? 0 ) > 0 ) {
+				WP_CLI::log( sprintf( '  到期日：有日期 %d｜無日期 %d｜認不得 %d｜14 天內到期 %d｜發通知 %d｜續約 %d｜到期移除 %d',
+					$e['dated'], $e['undated'], $e['unparsed'], $e['soon'], $e['notified'], $e['renewed'], $e['removed'] ) );
+			}
 			foreach ( $e['samples'] as $line ) {
 				WP_CLI::log( '  ' . $line );
 			}

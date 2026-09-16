@@ -36,6 +36,21 @@ class Anime_Sync_Streaming_Source_Friday extends Anime_Sync_Streaming_Source_Bas
 		return 'friday';
 	}
 
+	/** 作品頁從主機打得到：存在 200。 */
+	protected function provides_alive_check(): bool {
+		return true;
+	}
+
+	/** 每天跑讓覆核推得動（站上 863 筆）；索引（21 頁清單）仍每 6 天才重建。 */
+	protected function recurrence(): string {
+		return 'daily';
+	}
+
+	/** friDay 對不存在的 id 回 **400**「資料錯誤」而不是 404（2026-09-16 測三個 id 都一致）。 */
+	protected function alive_missing_codes(): array {
+		return [ 400, 404 ];
+	}
+
 	/** 沒有 sitemap；collect_entries() 已覆寫，這裡只是滿足抽象宣告。 */
 	protected function sitemap_url(): string {
 		return '';

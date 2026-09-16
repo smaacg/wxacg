@@ -42,8 +42,13 @@ class Anime_Sync_Bangumi_Data_Feed {
 	/**
 	 * 只保留這些站點，快取檔才小（不到 1MB）。全部是 siteMeta 標了 TW 的站點；
 	 * netflix 沒有 regions（全球）所以不在這裡，見檔尾說明。
+	 *
+	 * bangumi-data 的 37 個站點裡有 8 個涵蓋台灣，這裡全部收齊。
+	 * `bilibili_hk_mo_tw`（港澳台，376 部）是 2026-09-16 補上的——先前只接了
+	 * `bilibili_tw`（85 部）。佐證：站上「只有港澳台站點」的 146 部作品裡，
+	 * 有 137 部 YourAnimes 早就標了 Bilibili，可見這個站點對台灣有效。
 	 */
-	const SITES = [ 'gamer', 'muse_tw', 'ani_one', 'ani_one_asia', 'tropics', 'mighty', 'bilibili_tw' ];
+	const SITES = [ 'gamer', 'muse_tw', 'ani_one', 'ani_one_asia', 'tropics', 'mighty', 'bilibili_tw', 'bilibili_hk_mo_tw' ];
 
 	/** @var array<string,array<string,string>>|null  'bgm:123' / 'al:456' → [ site => id ] */
 	private static ?array $map = null;
@@ -241,9 +246,12 @@ abstract class Anime_Sync_Streaming_Source_Bangumi_Only extends Anime_Sync_Strea
  * 要再接任何 bangumi-data 站點前，先看 siteMeta[站點]['regions'] 有沒有 TW。
  */
 
-/** Bilibili 台灣區：bangumi-data 的 bilibili_tw，網址 https://www.bilibili.com/bangumi/media/md{id}/。 */
+/**
+ * Bilibili：bangumi-data 的 bilibili_tw（台灣）與 bilibili_hk_mo_tw（港澳台），
+ * 網址都是 https://www.bilibili.com/bangumi/media/md{id}/。台灣專屬的排前面、優先採用。
+ */
 class Anime_Sync_Streaming_Source_Bilibili extends Anime_Sync_Streaming_Source_Bangumi_Only {
 	public function key(): string { return 'bilibili'; }
-	protected function bangumi_sites(): array { return [ 'bilibili_tw' ]; }
+	protected function bangumi_sites(): array { return [ 'bilibili_tw', 'bilibili_hk_mo_tw' ]; }
 	protected function url_for( string $site, string $id ): string { return 'https://www.bilibili.com/bangumi/media/md' . rawurlencode( $id ) . '/'; }
 }

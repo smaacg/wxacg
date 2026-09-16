@@ -127,6 +127,41 @@ $muse = Anime_Sync_Streaming_Source_Base::make( 'muse' );
 t_is( t_call( $muse, 'work_name', '【中文字幕】《關於我轉生變成史萊姆這檔事》第一季' ), t_call( $muse, 'work_name', '【中文字幕】《關於我轉生變成史萊姆這檔事》第一季' ), 'Muse work_name：可重入（同輸入同輸出）' );
 
 // ─────────────────────────────────────────────────────────
+// 5b. 網址覆核的宣告：哪些來源能從主機判斷「作品頁還在不在」
+//     （2026-09-16 從主機實測的結果，改動任何一項都要先重測再改這裡）
+// ─────────────────────────────────────────────────────────
+foreach ( [ 'myvideo' => true, 'ofiii' => true, 'litv' => true, 'friday' => true, 'linetv' => true, 'hami' => true,
+            'catchplay' => false, 'bahamut' => false, 'garageplay' => false ] as $key => $expected ) {
+	$src = Anime_Sync_Streaming_Source_Base::make( $key );
+	t_is( t_call( $src, 'provides_alive_check' ), $expected, "覆核宣告：{$key} " . ( $expected ? '可以' : '不能' ) . '從主機判斷存活' );
+}
+
+// friDay 對不存在的 id 回 400 而不是 404——漏掉這個設定，它的下架永遠偵測不到
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'friday' ), 'alive_missing_codes' ), [ 400, 404 ], 'friDay：不存在的狀態碼是 400（含 404）' );
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'myvideo' ), 'alive_missing_codes' ), [ 404 ], 'MyVideo：不存在的狀態碼是 404' );
+
+// LINE TV 每小時已經要爬 300 頁建索引，覆核批次必須比別人小
+t_is(
+	t_call( Anime_Sync_Streaming_Source_Base::make( 'linetv' ), 'recheck_batch' ) < t_call( Anime_Sync_Streaming_Source_Base::make( 'hami' ), 'recheck_batch' ),
+	true,
+	'LINE TV 的覆核批次要小於一般來源'
+);
+
+// 能覆核的來源不該再跑索引比對版的下架偵測（兩者重複會把 strike 加兩次）
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'hami' ), 'provides_end_date' ), true, 'Hami：有到期日可解析' );
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'myvideo' ), 'provides_end_date' ), false, 'MyVideo：沒有到期日，只做存活覆核' );
+
+// ─────────────────────────────────────────────────────────
+// 5c. bangumi-data：台灣站點要收齊（漏一個就少一批可比對的作品）
+// ─────────────────────────────────────────────────────────
+foreach ( [ 'gamer', 'muse_tw', 'ani_one', 'ani_one_asia', 'tropics', 'mighty', 'bilibili_tw', 'bilibili_hk_mo_tw' ] as $site ) {
+	t_is( in_array( $site, Anime_Sync_Bangumi_Data_Feed::SITES, true ), true, "bangumi-data 站點：{$site} 有收" );
+}
+// netflix 是全球站點（siteMeta 沒有 regions），收了會寫入台灣看不到的連結——2026-09-15 踩過
+t_is( in_array( 'netflix', Anime_Sync_Bangumi_Data_Feed::SITES, true ), false, 'bangumi-data 站點：netflix 不可收（全球站點、非台灣）' );
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'bilibili' ), 'bangumi_sites' ), [ 'bilibili_tw', 'bilibili_hk_mo_tw' ], 'Bilibili：台灣專屬站點優先、港澳台次之' );
+
+// ─────────────────────────────────────────────────────────
 // 6. 索引包基底：三家共用同一套讀檔與過期判斷
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {
