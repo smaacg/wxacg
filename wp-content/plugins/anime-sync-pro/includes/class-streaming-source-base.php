@@ -1414,7 +1414,21 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			$s = (string) preg_replace( '/(第' . $n . '[期季]|' . $n . '(?:nd|rd|th)?season|season' . $n . ')/iu', '@S' . $n, $s );
 		}
 
-		return $s;
+		/*
+		 * ★ 最後一定要再小寫一次，否則同一部作品的兩種季別寫法會得到不同的索引鍵。
+		 *
+		 *   normalize_public() 內部的順序是「先把 第2期／2期／シーズン2／Season 2 換成 @S2，
+		 *   最後整串 mb_strtolower」，所以它吐出來的季別標記是小寫的 @s2；
+		 *   而上面這兩段是在那之後才跑的，換出來的是大寫 @S2。結果：
+		 *       「進擊的巨人 第2季」 → 進擊的巨人@s2   （normalize_public 處理，被小寫化）
+		 *       「進擊的巨人 第二季」→ 進擊的巨人@S2   （中文數字它不認，由這裡處理，沒被小寫化）
+		 *   兩個鍵不同 → 站上寫「第二季」、平台寫「第2季」就永遠配不到。
+		 *   （normalize_public 只認 2~6，季數 ≥7 時大小寫還會再翻一次，更亂。）
+		 *
+		 *   2026-09-16 由 tests/test-streaming-sources.php 抓到。改動會讓索引鍵變形，
+		 *   但排程每輪都 rebuild，下一輪即一致；空窗期只會「少配到」不會「配錯」。
+		 */
+		return mb_strtolower( $s, 'UTF-8' );
 	}
 
 	/**

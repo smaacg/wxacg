@@ -161,6 +161,8 @@ require_once ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-news-scan.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
 // bangumi-data 共用 ID 對照表＋只靠它的 Bilibili 台灣；要在基底之後、各子類別之前
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bangumi-data.php';
+// 本機索引包型來源（巴哈、車庫、CatchPlay）的共用基底，同樣要在那三個子類別之前
+require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bundle-base.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-myvideo.php';
 require_once ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-ofiii.php';

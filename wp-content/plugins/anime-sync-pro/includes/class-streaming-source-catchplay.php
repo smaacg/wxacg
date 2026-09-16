@@ -27,7 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_Base {
+class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_Bundle_Base {
 
 	const BUNDLE_FILE     = 'data/source_catchplay_bundle.json';
 	const SITEMAP_INDEXES = [ 'https://www.catchplay.com/tw/series-sitemap.xml', 'https://www.catchplay.com/tw/movie-sitemap.xml' ];
@@ -39,14 +39,6 @@ class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_
 		return 'catchplay';
 	}
 
-	protected function sitemap_url(): string {
-		return self::SITEMAP_INDEXES[0];
-	}
-
-	protected function parse_entry( string $block ): ?array {
-		return null;
-	}
-
 	/** 「SPY x FAMILY 間諜家家酒．第2季」→「SPY x FAMILY 間諜家家酒 第2季」；全形間隔點是 CatchPlay 的季別分隔 */
 	protected function work_name( string $title ): string {
 		$t = trim( html_entity_decode( $title, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
@@ -54,39 +46,8 @@ class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_
 		return trim( $t );
 	}
 
-	public static function bundle_path(): string {
-		$dir = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : dirname( __DIR__ ) . '/';
-		return $dir . self::BUNDLE_FILE;
-	}
-
-	/**
-	 * 主機端讀索引包。本機建包走 export_bundle()，這裡不會在 ASP_BUNDLE_BUILD 下被叫到。
-	 *
-	 * @return array{0:array<string,array>,1:int}|WP_Error
-	 */
-	protected function collect_entries( float $started ) {
-
-		$path = self::bundle_path();
-		if ( ! is_readable( $path ) ) {
-			return new WP_Error( 'no_bundle', '找不到 CatchPlay 索引包 ' . self::BUNDLE_FILE . '，請在台灣 IP 執行 tools/build-bahamut-bundle.php 後部署' );
-		}
-
-		$data = json_decode( (string) file_get_contents( $path ), true );
-		if ( ! is_array( $data ) || empty( $data['works'] ) || ! is_array( $data['works'] ) ) {
-			return new WP_Error( 'bad_bundle', 'CatchPlay 索引包格式不對或沒有作品' );
-		}
-
-		$grouped = [];
-		foreach ( $data['works'] as $w ) {
-			$n = trim( (string) ( $w['n'] ?? '' ) );
-			$u = trim( (string) ( $w['u'] ?? '' ) );
-			if ( $n !== '' && $u !== '' ) {
-				$grouped[ $n ] = [ 'title' => $n, 'url' => $u, 'date' => '' ];
-			}
-		}
-
-		return [ $grouped, (int) ( $data['entries'] ?? count( $grouped ) ) ];
-	}
+	/* 讀索引包、錯誤處理、bundle_info() 全在 Anime_Sync_Streaming_Source_Bundle_Base；
+	   本機建包走下方 export_bundle()，主機端只會讀檔。 */
 
 	/**
 	 * og:title →（動畫才有）作品名。

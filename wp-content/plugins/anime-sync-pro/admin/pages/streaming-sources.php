@@ -61,18 +61,10 @@ foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $key ) {
 		), ARRAY_A ),
 		'running'  => $src->is_running(),
 		'end'      => $src->end_stats(),
-		'bundle'   => ( $key === 'bahamut' && class_exists( 'Anime_Sync_Streaming_Source_Bahamut' ) ) ? ( static function (): ?array {
-			$path = Anime_Sync_Streaming_Source_Bahamut::bundle_path();
-			if ( ! is_readable( $path ) ) {
-				return null;
-			}
-			$data = json_decode( (string) file_get_contents( $path ), true );
-			return [
-				'mtime' => (int) filemtime( $path ),
-				'works' => is_array( $data['works'] ?? null ) ? count( $data['works'] ) : 0,
-				'acg'   => is_array( $data['acg'] ?? null ) ? count( $data['acg'] ) : 0,
-			];
-		} )() : null,
+		// 本機索引包型來源（巴哈、車庫、CatchPlay）一律顯示建包日期與過期告警
+		'bundle'   => ( class_exists( 'Anime_Sync_Streaming_Source_Bundle_Base' ) && $src instanceof Anime_Sync_Streaming_Source_Bundle_Base )
+			? $src->bundle_info()
+			: null,
 		'warn'     => $wpdb->get_row( $wpdb->prepare(
 			"SELECT created_at, message FROM {$log_table} WHERE level IN ('warning','error','critical') AND message LIKE %s ORDER BY id DESC LIMIT 1",
 			'%串流來源[' . $key . ']%'
@@ -189,13 +181,14 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 							到期日：查過 <?php echo esc_html( number_format_i18n( $r['end']['checked'] ) ); ?>、有日期 <?php echo esc_html( number_format_i18n( $r['end']['known'] ) ); ?>、30 天內 <strong><?php echo esc_html( number_format_i18n( $r['end']['soon'] ) ); ?></strong><?php if ( $r['end']['expired'] > 0 ) : ?>、已過期待覆核 <?php echo esc_html( number_format_i18n( $r['end']['expired'] ) ); ?><?php endif; ?>
 						</small>
 					<?php endif; ?>
-					<?php if ( $r['key'] === 'bahamut' ) : ?>
-						<?php /* 巴哈唯一的失效模式是「本機週日建包沒跑／沒 push」，索引包日期要看得到 */ ?>
-						<br><small class="<?php echo ( ! $r['bundle'] || time() - $r['bundle']['mtime'] > 10 * DAY_IN_SECONDS ) ? 'ass-err' : 'ass-muted'; ?>">
-							<?php if ( $r['bundle'] ) : ?>
-								索引包 <?php echo esc_html( wp_date( 'm/d', $r['bundle']['mtime'] ) ); ?> 建包・<?php echo esc_html( number_format_i18n( $r['bundle']['works'] ) ); ?> 部・ACG 對照 <?php echo esc_html( number_format_i18n( $r['bundle']['acg'] ) ); ?> 筆<?php echo ( time() - $r['bundle']['mtime'] > 10 * DAY_IN_SECONDS ) ? '（超過 10 天，本機週日排程可能沒跑或沒 push）' : ''; ?>
+					<?php if ( is_array( $r['bundle'] ) ) : ?>
+						<?php /* 索引包型來源（巴哈／車庫／CatchPlay）唯一的失效模式就是「本機週日建包沒跑或沒 push」，
+						         所以三家都要看得到建包日期，超過 10 天標紅。 */ ?>
+						<br><small class="<?php echo $r['bundle']['stale'] ? 'ass-err' : 'ass-muted'; ?>">
+							<?php if ( $r['bundle']['exists'] ) : ?>
+								索引包 <?php echo esc_html( wp_date( 'm/d', $r['bundle']['mtime'] ) ); ?> 建包・<?php echo esc_html( number_format_i18n( $r['bundle']['works'] ) ); ?> 部<?php if ( $r['bundle']['extra'] !== '' ) : ?>・<?php echo esc_html( $r['bundle']['extra'] ); ?><?php endif; ?><?php echo $r['bundle']['stale'] ? '（超過 10 天，本機週日排程可能沒跑或沒 push）' : ''; ?>
 							<?php else : ?>
-								找不到索引包 data/source_bahamut_bundle.json
+								找不到索引包 <?php echo esc_html( $r['bundle']['file'] ); ?>（本機建包沒跑或沒 push）
 							<?php endif; ?>
 						</small>
 					<?php endif; ?>

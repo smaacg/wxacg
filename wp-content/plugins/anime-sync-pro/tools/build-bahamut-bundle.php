@@ -117,6 +117,8 @@ function wp_mkdir_p( $d ) { return is_dir( $d ) || mkdir( $d, 0777, true ); }
 
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bangumi-data.php';
+// 巴哈／車庫／CatchPlay 三家都繼承索引包基底，一定要在它們之前載入
+require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bundle-base.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bahamut.php';
 
 $out = Anime_Sync_Streaming_Source_Bahamut::bundle_path();

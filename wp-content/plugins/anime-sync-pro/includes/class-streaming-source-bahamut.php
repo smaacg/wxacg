@@ -30,7 +30,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Base {
+class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Bundle_Base {
 
 	/**
 	 * 隨 repo 部署的索引包（相對外掛根目錄）。
@@ -66,32 +66,17 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 	protected function collect_entries( float $started ) {
 
 		if ( defined( 'ASP_BUNDLE_BUILD' ) && ASP_BUNDLE_BUILD ) {
-			return parent::collect_entries( $started );
+			return $this->collect_from_sitemap( $started );
 		}
 
-		$path = self::bundle_path();
-
-		if ( ! is_readable( $path ) ) {
-			return new WP_Error( 'no_bundle', '找不到巴哈索引包 ' . self::BUNDLE_FILE . '，請在台灣 IP 執行 tools/build-bahamut-bundle.php 後部署' );
+		// 讀檔、解析、組 grouped 都在 Bundle_Base（三家共用）
+		$loaded = $this->load_bundle();
+		if ( is_wp_error( $loaded ) ) {
+			return $loaded;
 		}
+		[ $grouped, $entries ] = $loaded;
 
-		$data = json_decode( (string) file_get_contents( $path ), true );
-
-		if ( ! is_array( $data ) || empty( $data['works'] ) || ! is_array( $data['works'] ) ) {
-			return new WP_Error( 'bad_bundle', '巴哈索引包格式不對或沒有作品' );
-		}
-
-		$grouped = [];
-		foreach ( $data['works'] as $w ) {
-			$n = trim( (string) ( $w['n'] ?? '' ) );
-			$u = trim( (string) ( $w['u'] ?? '' ) );
-			if ( $n === '' || $u === '' ) {
-				continue;
-			}
-			$grouped[ $n ] = [ 'title' => $n, 'url' => $u, 'date' => '' ];
-		}
-
-		$entries = (int) ( $data['entries'] ?? count( $grouped ) );
+		$data = (array) $this->bundle_raw();
 
 		/*
 		 * bangumi-data 的 gamer 站點給的是巴哈「ACG 編號」（acgDetail.php?s=），不是動畫瘋的 sn。
@@ -210,7 +195,7 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 	 */
 	public function export_bundle( string $path, ?callable $progress = null ) {
 
-		$collected = parent::collect_entries( microtime( true ) );
+		$collected = $this->collect_from_sitemap( microtime( true ) );
 
 		if ( is_wp_error( $collected ) ) {
 			return $collected;
@@ -252,11 +237,6 @@ class Anime_Sync_Streaming_Source_Bahamut extends Anime_Sync_Streaming_Source_Ba
 		}
 
 		return [ 'entries' => $entries, 'works' => count( $works ), 'acg' => count( $acg ), 'acg_prev' => count( $prev ), 'bytes' => strlen( (string) $json ) ];
-	}
-
-	public static function bundle_path(): string {
-		$dir = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : dirname( __DIR__ ) . '/';
-		return $dir . self::BUNDLE_FILE;
 	}
 
 	protected function parse_entry( string $block ): ?array {

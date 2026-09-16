@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class Anime_Sync_Streaming_Source_Garageplay extends Anime_Sync_Streaming_Source_Base {
+class Anime_Sync_Streaming_Source_Garageplay extends Anime_Sync_Streaming_Source_Bundle_Base {
 
 	const BUNDLE_FILE = 'data/source_garageplay_bundle.json';
 	const LIST_URL    = 'https://garageplay.tw/anipass/AnipassVideo';
@@ -35,14 +35,6 @@ class Anime_Sync_Streaming_Source_Garageplay extends Anime_Sync_Streaming_Source
 		return 'garageplay';
 	}
 
-	protected function sitemap_url(): string {
-		return '';
-	}
-
-	protected function parse_entry( string $block ): ?array {
-		return null;
-	}
-
 	/** 「灰色：幻影扳機 動畫版 Stargazer | Anipass 動畫」→ 去掉站名尾綴 */
 	protected function work_name( string $title ): string {
 		$t = trim( html_entity_decode( $title, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
@@ -50,13 +42,8 @@ class Anime_Sync_Streaming_Source_Garageplay extends Anime_Sync_Streaming_Source
 		return trim( $t );
 	}
 
-	public static function bundle_path(): string {
-		$dir = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : dirname( __DIR__ ) . '/';
-		return $dir . self::BUNDLE_FILE;
-	}
-
 	/**
-	 * 主機端讀索引包；本機建包（定義 ASP_BUNDLE_BUILD）才真的爬。
+	 * 主機端讀索引包（Bundle_Base 共用）；本機建包（定義 ASP_BUNDLE_BUILD）才真的爬。
 	 *
 	 * @return array{0:array<string,array>,1:int}|WP_Error
 	 */
@@ -66,26 +53,7 @@ class Anime_Sync_Streaming_Source_Garageplay extends Anime_Sync_Streaming_Source
 			return $this->crawl( $started );
 		}
 
-		$path = self::bundle_path();
-		if ( ! is_readable( $path ) ) {
-			return new WP_Error( 'no_bundle', '找不到車庫索引包 ' . self::BUNDLE_FILE . '，請在台灣 IP 執行 tools/build-bahamut-bundle.php 後部署' );
-		}
-
-		$data = json_decode( (string) file_get_contents( $path ), true );
-		if ( ! is_array( $data ) || empty( $data['works'] ) || ! is_array( $data['works'] ) ) {
-			return new WP_Error( 'bad_bundle', '車庫索引包格式不對或沒有作品' );
-		}
-
-		$grouped = [];
-		foreach ( $data['works'] as $w ) {
-			$n = trim( (string) ( $w['n'] ?? '' ) );
-			$u = trim( (string) ( $w['u'] ?? '' ) );
-			if ( $n !== '' && $u !== '' ) {
-				$grouped[ $n ] = [ 'title' => $n, 'url' => $u, 'date' => '' ];
-			}
-		}
-
-		return [ $grouped, (int) ( $data['entries'] ?? count( $grouped ) ) ];
+		return $this->load_bundle();
 	}
 
 	/**
