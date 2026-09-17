@@ -1414,6 +1414,34 @@ class Anime_Sync_Cron_Manager {
             }
         }
 
+        /*
+         * 泡麵番判定：格式是 ONA、但每集時長很短的作品。
+         *
+         * AniList 的 TV_SHORT 只給電視播出的短篇，網路播出的短篇一律歸 ONA，
+         * 所以前台若只照 format 顯示，《香格里拉 迷你動畫》《怪獸8號 迷你動畫》
+         * 這些會標成「ONA」而不是「泡麵番」。站上共 67 部。
+         *
+         * 判斷規則本身放在 Anime_Sync_Format_Registry::is_short_anime()，
+         * 寫入端與顯示端共用同一支，不各自實作。
+         *
+         * 從 meta 算而不是從 $media 算：動態同步的 GraphQL 查詢沒有要 duration，
+         * 而 format 與 duration 在匯入時就已經寫進 meta 了，不必為此多要一個欄位。
+         *
+         * 使用者若在後台手動修正過（欄位被鎖定），這裡不覆寫。
+         */
+        if ( ! $is_locked( 'anime_is_short' ) && class_exists( 'Anime_Sync_Format_Registry' ) ) {
+            $is_short = Anime_Sync_Format_Registry::is_short_anime(
+                (string) get_post_meta( $post_id, 'anime_format', true ),
+                (int) get_post_meta( $post_id, 'anime_duration', true )
+            ) ? 1 : 0;
+
+            $old_is_short = get_post_meta( $post_id, 'anime_is_short', true );
+            if ( $old_is_short === '' || (int) $old_is_short !== $is_short ) {
+                update_post_meta( $post_id, 'anime_is_short', $is_short );
+                $diff[] = '泡麵番 ' . ( $is_short ? '是' : '否' );
+            }
+        }
+
         if ( ! $is_locked( 'anime_status' ) && isset( $media['status'] ) && $media['status'] !== '' ) {
             $old_val = (string) get_post_meta( $post_id, 'anime_status', true );
             $new_val = (string) $media['status'];

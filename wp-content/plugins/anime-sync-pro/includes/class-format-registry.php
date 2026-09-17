@@ -61,6 +61,18 @@ class Anime_Sync_Format_Registry {
 	 *
 	 * @var array<string,array<string,string>>
 	 */
+	/**
+	 * 每集幾分鐘以內算短篇（泡麵番）。
+	 *
+	 * 15 分這個數字有兩條獨立依據，不是憑感覺定的：
+	 *   ・日文維基「短編アニメ」分類的定義就是 15 分以下
+	 *     （又稱ショートアニメ／ミニアニメ，典型 5～15 分）
+	 *   ・站上既有 TV_SHORT 的實際每集時長落在 1～13 分，沒有超過 15 的
+	 * 兩個 14 分的邊緣案例也逐一查證過：《暦物語》約 10～15 分、
+	 * 《衛宮家今天的餐桌風景》約 12～13 分，都確實是短篇網路動畫。
+	 */
+	public const SHORT_MAX_MINUTES = 15;
+
 	private static array $FORMATS = [
 		'TV'       => [
 			'short'  => 'TV',
@@ -144,6 +156,59 @@ class Anime_Sync_Format_Registry {
 			return $row['long'] ?? $row['short'];
 		}
 		return $row['short'];
+	}
+
+	/**
+	 * 這個格式有沒有可能其實是泡麵番。
+	 *
+	 * 只認 ONA。AniList 的 TV_SHORT 只給電視播出的短篇，網路播出的短篇
+	 * 一律歸 ONA——《香格里拉 迷你動畫》《怪獸8號 迷你動畫》《暦物語》
+	 * 在 AniList 上都是 ONA，站上共 67 部符合。
+	 *
+	 * OVA／SPECIAL 刻意不收：「特別篇」本身就是有意義的標籤，
+	 * 短的特別篇仍然是特別篇，不是泡麵番。
+	 */
+	public static function is_short_eligible( string $code ): bool {
+		return 'ONA' === strtoupper( trim( $code ) );
+	}
+
+	/**
+	 * 依格式與每集時長判斷是不是泡麵番。
+	 *
+	 * 規則集中在這裡，寫入端（cron）與顯示端都呼叫同一支，不各自實作。
+	 *
+	 * ★ 時長 0 一定要排除
+	 *   0 是「未知」的占位值，不是「很短」。站上有 271 部正常的 TV 動畫
+	 *   （無職轉生第三季、幼女戰記第二季、BLEACH 千年血戰篇…）
+	 *   anime_duration 都是 0，不擋掉就會被全部標成泡麵番。
+	 *
+	 * ★ 刻意不看集數
+	 *   anime_episodes 的 0 同樣是「未知」。實測若加上「集數 ≥6」這個條件，
+	 *   會為了擋掉 1 筆誤建的 PV 而誤殺 11 部真正的泡麵番
+	 *   （《迷你幼女戰記2》《Re:從零開始的休息時間4》這些集數都記 0）。
+	 */
+	public static function is_short_anime( string $code, int $duration_minutes ): bool {
+		return self::is_short_eligible( $code )
+			&& $duration_minutes >= 1
+			&& $duration_minutes <= self::SHORT_MAX_MINUTES;
+	}
+
+	/**
+	 * 前台徽章用的顯示名稱，會把「其實是泡麵番的 ONA」改標成泡麵番。
+	 *
+	 * $is_short 來自 anime_is_short 衍生欄位（cron 算好存起來，
+	 * 見 class-cron-manager.php）。四個徽章輸出點都讀同一個值，
+	 * 才不會發生「單篇頁寫泡麵番、列表頁寫 ONA」這種各頁不一致的情況——
+	 * 那正是當初把對照表收斂成這支檔案要消滅的問題。
+	 *
+	 * 不傳 $is_short 時行為與 get_label() 完全相同，既有呼叫點不受影響。
+	 */
+	public static function get_display_label( string $code, bool $is_short = false, string $style = 'short' ): string {
+		if ( $is_short && self::is_short_eligible( $code ) ) {
+			// 借 TV_SHORT 的名稱，「泡麵番」這三個字仍然只有一個出處
+			return self::get_label( 'TV_SHORT', $style );
+		}
+		return self::get_label( $code, $style );
 	}
 
 	/**

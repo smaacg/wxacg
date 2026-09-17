@@ -592,7 +592,9 @@ $status_classes = [ 'FINISHED' => 's-fin', 'RELEASING' => 's-rel', 'NOT_YET_RELE
         $episodes   = (int) $g( 'anime_episodes' );
 
         $season_label = $season_labels[ strtoupper( $season ) ] ?? '';
-        $format_label = $format_labels[ $format ] ?? $format;
+        // ONA 但每集很短的標「泡麵番」，判定見 anime_is_short（cron 算好的）
+        $is_short_anime = '1' === (string) $g( 'anime_is_short' );
+        $format_label = Anime_Sync_Format_Registry::get_display_label( $format, $is_short_anime ) ?: $format;
         $status_label = $status_labels[ $status ] ?? '';
         $status_class = $status_classes[ $status ] ?? '';
 

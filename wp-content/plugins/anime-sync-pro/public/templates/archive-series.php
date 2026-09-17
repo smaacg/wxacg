@@ -113,6 +113,8 @@ if ( ! function_exists( 'asa_build_post_row' ) ) {
             'title_ro'   => smacg_get_meta( $pid, 'title_romaji' ),
             'title_na'   => smacg_get_meta( $pid, 'title_native' ),
             'format'     => smacg_get_meta( $pid, 'format' ),
+            // ONA 但每集很短的要標成泡麵番，判定由 cron 存在 anime_is_short
+            'is_short'   => '1' === (string) smacg_get_meta( $pid, 'is_short' ),
             'status'     => smacg_get_meta( $pid, 'status' ),
             'season'     => smacg_get_meta( $pid, 'season' ),
             'year'       => $year,
@@ -518,7 +520,10 @@ if ( ! function_exists( 'asa_render_card' ) ) {
          * 多讀一次 meta。評分仍在作品頁與排行榜顯示，資料本身沒有動。
          */
 
-        $format_label = $format_labels[ $p['format'] ] ?? $p['format'];
+        $format_label = Anime_Sync_Format_Registry::get_display_label(
+            (string) $p['format'],
+            ! empty( $p['is_short'] )
+        ) ?: $p['format'];
         $status_label = $status_labels[ $p['status'] ] ?? '';
         $status_class = $status_classes[ $p['status'] ] ?? '';
         $season_label = $season_labels[ strtoupper( (string) $p['season'] ) ] ?? '';
@@ -737,7 +742,10 @@ if ( ! function_exists( 'asa_render_tab_panel' ) ) {
                         <span class="asa-order__meta">
                             <?php
                             $bits = array_filter( [
-                                $format_labels[ $p['format'] ] ?? $p['format'],
+                                Anime_Sync_Format_Registry::get_display_label(
+                                    (string) $p['format'],
+                                    ! empty( $p['is_short'] )
+                                ) ?: $p['format'],
                                 $p['episodes'] > 0 ? $p['episodes'] . ' 集' : '',
                                 $asa_fmt_date( (string) $p['sdate'] ),
                             ] );

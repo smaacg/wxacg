@@ -1093,6 +1093,22 @@ class Anime_Sync_ACF_Fields {
                     'default_value' => '0',
                     'wrapper'       => [ 'width' => '33' ],
                 ],
+                [
+                    'key'           => 'field_anime_is_short',
+                    'label'         => '泡麵番（短篇）',
+                    'name'          => 'anime_is_short',
+                    'type'          => 'select',
+                    'instructions'  => '前台徽章顯示用。由每日 cron 依「格式為 ONA 且每集時長 1～15 分」自動判斷——'
+                                       . 'AniList 的 TV_SHORT 只給電視播出的短篇，網路播出的短篇一律歸 ONA，所以要在本站補這一層。'
+                                       . '<br>若判斷有誤可在此手動修正，並到下方「同步控制」把 anime_is_short 加入鎖定欄位，之後 cron 就不會覆寫。',
+                    'required'      => 0,
+                    'choices'       => [
+                        '0' => '一般長度',
+                        '1' => '泡麵番',
+                    ],
+                    'default_value' => '0',
+                    'wrapper'       => [ 'width' => '33' ],
+                ],
              [
     'key'           => 'field_anime_source',
     'label'         => '原作來源',
@@ -2172,6 +2188,7 @@ $cast_prompt .= "以下是 JSON:\n";
                         'anime_staff_json'       => 'STAFF 製作資料',
                         'anime_episodes_json'    => '集數列表',
                         'anime_has_prequel'      => '作品類型(新作/續作)',
+                        'anime_is_short'         => '泡麵番(短篇)',
                     ],
                     'layout'        => 'horizontal',
                     'toggle'        => 0,

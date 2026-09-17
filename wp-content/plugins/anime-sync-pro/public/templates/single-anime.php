@@ -2232,7 +2232,13 @@ while ( have_posts() ) :
 	];
 
 	$season_label = $season_labels[ $season ] ?? $season;
-	$format_label = $format_labels[ $format ] ?? $format;
+	/*
+	 * ONA 但每集很短的作品標「泡麵番」而不是「ONA」。
+	 * 判定由 cron 算好存在 anime_is_short，四個徽章輸出點都讀同一個值，
+	 * 才不會發生單篇頁與列表頁顯示不一致。
+	 */
+	$is_short_anime = '1' === (string) $get_meta( 'anime_is_short' );
+	$format_label   = Anime_Sync_Format_Registry::get_display_label( $format, $is_short_anime ) ?: $format;
 	$status_label = $status_labels[ $status ] ?? $status;
 	$status_class = $status_classes[ $status ] ?? '';
 	/*
@@ -3515,8 +3521,12 @@ while ( have_posts() ) :
 						true
 					)
 				),
-				'format' => $format_labels[ $reco_format ]
-					?? $reco_format,
+				// 推薦卡片也是單一作品的徽章，同樣要吃泡麵番判定，
+				// 否則同一部作品在本文區與推薦區會顯示不同的格式名稱
+				'format' => Anime_Sync_Format_Registry::get_display_label(
+					$reco_format,
+					'1' === (string) get_post_meta( $reco_id, 'anime_is_short', true )
+				) ?: $reco_format,
 			];
 		}
 	}

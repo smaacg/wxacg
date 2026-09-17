@@ -671,7 +671,13 @@ foreach ( $rows as $r ) {
         'source'       => $r['source'] ?: '',
         'source_zh'    => $source_labels[ $r['source'] ?? '' ] ?? ( $r['source'] ?: '' ),
         'format'       => $r['format'] ?: '',
-        'format_zh'    => $format_labels[ $r['format'] ?? '' ] ?? ( $r['format'] ?: '' ),
+        // ONA 但每集很短的標「泡麵番」；類別在外掛裡，沿用本檔既有的 class_exists 防護
+        'format_zh'    => ( class_exists( 'Anime_Sync_Format_Registry' )
+            ? Anime_Sync_Format_Registry::get_display_label(
+                (string) ( $r['format'] ?? '' ),
+                '1' === (string) get_post_meta( $pid, 'anime_is_short', true )
+            )
+            : '' ) ?: ( $r['format'] ?: '' ),
         'status'       => $r['status'] ?: '',
         'score'        => $score,
         'score_disp'   => $score_disp,
