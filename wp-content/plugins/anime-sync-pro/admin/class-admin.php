@@ -2015,6 +2015,15 @@ class Anime_Sync_Admin {
             ],
             'i18n' => [
                 'network_error'   => '網路錯誤，請重試。',
+                /*
+                 * 2026-09-17 新增：AJAX 失敗時不再一律顯示「網路錯誤」。
+                 * 見 admin.js 的 ajaxFailMessage()——狀態碼原本被丟掉，
+                 * 導致 403（nonce 過期）與 500（程式錯誤）在畫面上長得一樣。
+                 */
+                'error_expired'   => '登入階段已過期，請重新整理頁面（Ctrl+F5）後再試一次。',
+                'error_server'    => '伺服器發生錯誤（HTTP 500），詳情請看「錯誤日誌」頁。',
+                'error_timeout'   => '請求逾時，請重試。',
+                'error_aborted'   => '連線中斷，可能是請求時間過長或被中途取消。',
                 'unknown_error'   => '未知錯誤',
                 'stop'            => '停止',
                 'stopping'        => '停止中…',

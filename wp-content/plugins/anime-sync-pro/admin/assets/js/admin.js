@@ -51,6 +51,43 @@
             return i18n[ key ] !== undefined ? i18n[ key ] : ( fallback || key );
         }
 
+        /*
+         * AJAX 失敗訊息：把 HTTP 狀態碼翻成看得懂的原因。
+         *
+         * ★ 為什麼要有這支
+         *   原本三處 .fail() 一律顯示「網路錯誤，請重試。」，不管真正的原因是
+         *   nonce 過期（403）、程式錯誤（500）還是逾時。2026-09-17 為了查一次
+         *   「匯入失敗」，翻了外掛日誌、PHP error_log，還在正式站重現了六次，
+         *   最後發現是 403——而那個數字瀏覽器從頭到尾都知道，只是被這裡丟掉了。
+         *   把它顯示出來，下次同樣的問題一眼就能判斷，不必再挖一輪。
+         *
+         *   403 最常見的成因是後台分頁開超過 nonce 壽命（24 小時）或期間重新
+         *   登入過，所以訊息直接告訴使用者重新整理，而不是只報一個數字。
+         */
+        function ajaxFailMessage( xhr, status ) {
+            if ( status === 'timeout' ) {
+                return t( 'error_timeout', '請求逾時，請重試。' );
+            }
+
+            const code = xhr && xhr.status;
+
+            if ( code === 403 ) {
+                return t( 'error_expired', '登入階段已過期，請重新整理頁面（Ctrl+F5）後再試一次。' );
+            }
+            if ( code === 500 ) {
+                return t( 'error_server', '伺服器發生錯誤（HTTP 500），詳情請看「錯誤日誌」頁。' );
+            }
+            if ( code === 0 ) {
+                // 連線根本沒完成：被中斷、離線、或被瀏覽器／代理掐斷
+                return t( 'error_aborted', '連線中斷，可能是請求時間過長或被中途取消。' );
+            }
+            if ( code ) {
+                return t( 'network_error', '網路錯誤，請重試。' ) + '（HTTP ' + code + '）';
+            }
+
+            return t( 'network_error', '網路錯誤，請重試。' );
+        }
+
         /* ══════════════════════════════════════════════════════════════
            UTILITIES
         ══════════════════════════════════════════════════════════════ */
@@ -194,9 +231,9 @@
                     );
                 }
                 $result.show();
-            } ).fail( function () {
+            } ).fail( function ( xhr, status ) {
                 $result.empty().addClass( 'error' )
-                    .text( t( 'network_error', '網路錯誤，請重試。' ) ).show();
+                    .text( ajaxFailMessage( xhr, status ) ).show();
             } ).always( function () {
                 $btn.prop( 'disabled', false ).text( t( 'start_import', '開始匯入' ) );
             } );
@@ -276,7 +313,7 @@
                 } else {
                     alert( String( ( res.data && res.data.message ) ? res.data.message : '分析失敗' ).replace( /<[^>]*>/g, '' ) );
                 }
-            } ).fail( function () { alert( t( 'network_error', '網路錯誤，請重試。' ) ); } )
+            } ).fail( function ( xhr, status ) { alert( ajaxFailMessage( xhr, status ) ); } )
             .always( function () { $btn.prop( 'disabled', false ).text( '🔍 分析系列' ); $( '#series-analyze-spinner' ).hide(); } );
         } );
 
@@ -500,10 +537,7 @@
                     $btn.prop( 'disabled', false );
                 }
             } ).fail( function ( xhr, status ) {
-                const detail = status === 'timeout'
-                    ? '請求逾時，請重試。'
-                    : t( 'network_error', '網路錯誤，請重試。' );
-                $msg.css( 'color', '#d63638' ).text( '❌ ' + detail );
+                $msg.css( 'color', '#d63638' ).text( '❌ ' + ajaxFailMessage( xhr, status ) );
                 $btn.prop( 'disabled', false );
             } );
         } );
