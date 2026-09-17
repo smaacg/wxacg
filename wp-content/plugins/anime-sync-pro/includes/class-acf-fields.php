@@ -391,6 +391,10 @@ class Anime_Sync_ACF_Fields {
             'shortcut_anime_title_chinese'    => 'anime_title_chinese',
             'shortcut_anime_title_simplified' => 'anime_title_simplified',
             'shortcut_anime_title_native'     => 'anime_title_native',
+            // 外部資料庫 ID(真欄位在 group_anime_basic_info,見 register_basic_info())
+            'shortcut_anime_anilist_id'       => 'anime_anilist_id',
+            'shortcut_anime_mal_id'           => 'anime_mal_id',
+            'shortcut_anime_bangumi_id'       => 'anime_bangumi_id',
             'shortcut_anime_youranimes_url'   => 'anime_youranimes_url',
             'shortcut_anime_tw_distributor'   => 'anime_tw_distributor',
             'shortcut_anime_tw_distributor_custom' => 'anime_tw_distributor_custom',
@@ -2507,6 +2511,35 @@ $cast_prompt .= "以下是 JSON:\n";
                         }
                     });
                 }
+
+                // 三個外部資料庫 ID 的開啟連結按鈕。
+                // 與上面三顆不同:存的是 ID 不是網址,所以要在點擊當下把 ID 接到站台網址後面。
+                // 選擇器用 input 而不寫死 input[type="number"],避免綁死 ACF 的渲染型別。
+                var aspIdLinks = [
+                    { name: 'shortcut_anime_anilist_id', cls: 'asp-anilist-link-btn', text: '🔗 點擊 AniList', base: 'https://anilist.co/anime/',      hint: '請先在下方輸入 AniList ID' },
+                    { name: 'shortcut_anime_mal_id',     cls: 'asp-mal-link-btn',     text: '🔗 點擊 MAL',     base: 'https://myanimelist.net/anime/', hint: '請先在下方輸入 MyAnimeList ID' },
+                    { name: 'shortcut_anime_bangumi_id', cls: 'asp-bgm-link-btn',     text: '🔗 點擊 Bangumi', base: 'https://bgm.tv/subject/',        hint: '請先在下方輸入 Bangumi ID' }
+                ];
+
+                aspIdLinks.forEach(function(def) {
+                    var $idLabel = $('.acf-field[data-name="' + def.name + '"] .acf-label label');
+                    if (!$idLabel.length || $idLabel.find('.' + def.cls).length > 0) {
+                        return;
+                    }
+
+                    var $idBtn = $('<a href="#" class="' + def.cls + '" target="_blank" style="margin-left: 10px; font-size: 12px; text-decoration: none; color: #2271b1; background-color: #f0f0f1; padding: 2px 8px; border-radius: 3px; font-weight: normal;">' + def.text + '</a>');
+                    $idLabel.append($idBtn);
+
+                    $idBtn.on('click', function(e) {
+                        var id = $.trim($('.acf-field[data-name="' + def.name + '"] input').val() || '');
+                        if (!id) {
+                            e.preventDefault();
+                            alert(def.hint);
+                        } else {
+                            $(this).attr('href', def.base + id);
+                        }
+                    });
+                });
             }
 
             // 針對傳統編輯器
@@ -2617,6 +2650,10 @@ $cast_prompt .= "以下是 JSON:\n";
             'shortcut_anime_title_chinese'    => 'anime_title_chinese',
             'shortcut_anime_title_simplified' => 'anime_title_simplified',
             'shortcut_anime_title_native'     => 'anime_title_native',
+            // 外部資料庫 ID(與 register_mirror_hooks() 的 $mirror_fields 對齊)
+            'shortcut_anime_anilist_id'       => 'anime_anilist_id',
+            'shortcut_anime_mal_id'           => 'anime_mal_id',
+            'shortcut_anime_bangumi_id'       => 'anime_bangumi_id',
             'shortcut_anime_youranimes_url'   => 'anime_youranimes_url',
             'shortcut_anime_tw_distributor'   => 'anime_tw_distributor',
             'shortcut_anime_tw_distributor_custom' => 'anime_tw_distributor_custom',
@@ -2741,6 +2778,39 @@ $cast_prompt .= "以下是 JSON:\n";
                     'label'   => '系列 (多個請用半形逗號 , 分隔)',
                     'name'    => 'shortcut_anime_series_tax',
                     'type'    => 'text',
+                    'wrapper' => [ 'width' => '25' ],
+                ],
+                /*
+                 * 外部資料庫 ID 三欄自成一排(3×25%,右側留白),不影響下方 50/50 的排版。
+                 * 標籤旁的「🔗 點擊」按鈕由 injectButton() 動態掛上,因為存的是 ID 不是網址,
+                 * 必須在點擊當下用 ID 組出網址。
+                 * 注意:空值一律是空字串而非 0——站上數值型 meta 的 0 代表「未知」,不是零。
+                 */
+                [
+                    'key'     => 'field_shortcut_anime_anilist_id',
+                    'label'   => 'AniList ID',
+                    'name'    => 'shortcut_anime_anilist_id',
+                    'type'    => 'number',
+                    'min'     => 1,
+                    'step'    => 1,
+                    'wrapper' => [ 'width' => '25' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_mal_id',
+                    'label'   => 'MyAnimeList ID',
+                    'name'    => 'shortcut_anime_mal_id',
+                    'type'    => 'number',
+                    'min'     => 1,
+                    'step'    => 1,
+                    'wrapper' => [ 'width' => '25' ],
+                ],
+                [
+                    'key'     => 'field_shortcut_anime_bangumi_id',
+                    'label'   => 'Bangumi ID',
+                    'name'    => 'shortcut_anime_bangumi_id',
+                    'type'    => 'number',
+                    'min'     => 1,
+                    'step'    => 1,
                     'wrapper' => [ 'width' => '25' ],
                 ],
                 [
