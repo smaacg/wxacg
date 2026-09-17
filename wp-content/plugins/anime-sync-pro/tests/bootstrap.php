@@ -65,6 +65,14 @@ function wp_clear_scheduled_hook( $hook = '' ) { $GLOBALS['__unsched'][] = $hook
 /* 環境類型：預設 production，測試需要時改 $GLOBALS['__env'] 切成 'local' */
 $GLOBALS['__env'] = 'production';
 function wp_get_environment_type() { return $GLOBALS['__env']; }
+
+/*
+ * 站台網址：預設正式站，測試改 $GLOBALS['__home'] 模擬別人 clone 下去的環境。
+ * is_production_site() 靠它判斷，沒有替身的話測試會直接 fatal。
+ */
+$GLOBALS['__home'] = 'https://weixiaoacg.com';
+function home_url( $path = '' ) { return $GLOBALS['__home'] . $path; }
+function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }
 function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
 /*
  * 照 WP 核心的實作寫，不要隨手 strip_tags() 了事——

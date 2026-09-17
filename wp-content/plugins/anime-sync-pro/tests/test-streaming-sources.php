@@ -193,21 +193,39 @@ t_is( t_call( $muse_src, 'end_date_fetch_opts' ), [ 'accept' => 'application/jso
 // ─────────────────────────────────────────────────────────
 $sched_src = Anime_Sync_Streaming_Source_Base::make( 'muse' );
 
-$GLOBALS['__env']     = 'production';
-$GLOBALS['__sched']   = [];
-$GLOBALS['__unsched'] = [];
-$sched_src->schedule();
-t_is( $GLOBALS['__sched'], [ 'anime_sync_streaming_source_muse' ], '排程守門：正式站照常註冊排程' );
+$asa_sched_case = static function ( string $env, string $home ) use ( $sched_src ): array {
+    $GLOBALS['__env']     = $env;
+    $GLOBALS['__home']    = $home;
+    $GLOBALS['__sched']   = [];
+    $GLOBALS['__unsched'] = [];
+    $sched_src->schedule();
+    return [ $GLOBALS['__sched'], $GLOBALS['__unsched'] ];
+};
 
-$GLOBALS['__env']     = 'local';
-$GLOBALS['__sched']   = [];
-$GLOBALS['__unsched'] = [];
-$sched_src->schedule();
-t_is( $GLOBALS['__sched'], [], '排程守門：本機不註冊排程' );
+$H = 'anime_sync_streaming_source_muse';
+
+[ $s, $u ] = $asa_sched_case( 'production', 'https://weixiaoacg.com' );
+t_is( $s, [ $H ], '排程守門：正式站照常註冊排程' );
+
+[ $s, $u ] = $asa_sched_case( 'local', 'https://weixiaoacg.com' );
+t_is( $s, [], '排程守門：環境標為 local 就不註冊（即使網址是正式站）' );
 // 只擋新註冊不夠：加守門之前排過的會一直留著，所以要順手清掉
-t_is( $GLOBALS['__unsched'], [ 'anime_sync_streaming_source_muse' ], '排程守門：本機順手清掉既有排程' );
+t_is( $u, [ $H ], '排程守門：非正式站順手清掉既有排程' );
 
-$GLOBALS['__env'] = 'production';   // 還原，免得影響後面的測試
+/*
+ * ★ 最關鍵的一項：別人 clone 這個 repo 時 wp-config.php 不在版控裡，
+ *   他的環境不會有 WP_ENVIRONMENT_TYPE='local'，wp_get_environment_type()
+ *   會回 'production'。只認 'local' 的守門在那邊完全失效——這一項就是在守這件事。
+ */
+[ $s, $u ] = $asa_sched_case( 'production', 'https://wxacg.local' );
+t_is( $s, [], '排程守門：別人的環境（未設 WP_ENVIRONMENT_TYPE）也不註冊' );
+t_is( $u, [ $H ], '排程守門：別人的環境同樣會清掉既有排程' );
+
+[ $s, ] = $asa_sched_case( 'production', 'https://www.weixiaoacg.com' );
+t_is( $s, [ $H ], '排程守門：正式站帶 www. 前綴仍視為正式站' );
+
+$GLOBALS['__env']  = 'production';            // 還原，免得影響後面的測試
+$GLOBALS['__home'] = 'https://weixiaoacg.com';
 
 // ─────────────────────────────────────────────────────────
 // 5c. bangumi-data：台灣站點要收齊（漏一個就少一批可比對的作品）
