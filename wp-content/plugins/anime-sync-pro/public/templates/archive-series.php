@@ -722,22 +722,52 @@ if ( ! function_exists( 'asa_render_tab_panel' ) ) {
 
         <p class="asa-order__lead">
             <?php if ( $has_manual ) : ?>
-                以下是本站編輯排定的建議觀看順序，共 <strong><?php echo count( $watch_aired ); ?></strong> 部。
+                以下是本站編輯排定的建議觀看順序，共 <strong><?php echo count( $watch_aired ) + count( $watch_pending ); ?></strong> 部。<?php
+                if ( $watch_pending ) {
+                    echo '其中 ' . count( $watch_pending ) . ' 部尚未公布檔期，暫列於最後。';
+                } ?>
                 <?php echo $manual_note ? esc_html( $manual_note ) : ''; ?>
             <?php else : ?>
-                以下 <strong><?php echo count( $watch_aired ); ?></strong> 部依<strong>日本首播日期</strong>由早到晚排列。
+                以下 <strong><?php echo count( $watch_aired ) + count( $watch_pending ); ?></strong> 部依<strong>日本首播日期</strong>由早到晚排列<?php
+                if ( $watch_pending ) {
+                    echo '，其中 ' . count( $watch_pending ) . ' 部尚未公布檔期、暫列於最後';
+                } ?>。
                 部分系列的故事時間軸與播出順序不同，若你想照劇情時序觀看，請以官方或原作說明為準。
             <?php endif; ?>
         </p>
 
+        <?php
+        /*
+         * 已定檔的照首播日編號；檔期未定的接在最後。
+         *
+         * ★ 2026-09-17 依使用者要求，未定檔的從獨立一區改成併入本清單（原設計見上方說明 3）。
+         *   但仍**不給編號數字**：第四季這類作品確實還沒有播出序位，給它「8」等於替官方
+         *   宣告一個不存在的先後。改以「—」佔位、日期欄寫「檔期未定」，看得到但不誤導。
+         *   編號用自己的計數器而不是迴圈索引，未定檔的才不會把後面的序號吃掉。
+         */
+        $asa_order_rows = [];
+        foreach ( $watch_aired as $p )   { $asa_order_rows[] = [ 'p' => $p, 'pending' => false ]; }
+        foreach ( $watch_pending as $p ) { $asa_order_rows[] = [ 'p' => $p, 'pending' => true ]; }
+        $asa_order_num = 0;
+        ?>
         <ol class="asa-order__list">
-            <?php foreach ( $watch_aired as $wi => $p ) : ?>
-                <li class="asa-order__item<?php echo ! empty( $p['is_recap'] ) ? ' is-recap' : ''; ?>">
-                    <span class="asa-order__num"><?php echo (int) ( $wi + 1 ); ?></span>
+            <?php foreach ( $asa_order_rows as $asa_row ) : ?>
+                <?php
+                $p       = $asa_row['p'];
+                $is_pend = $asa_row['pending'];
+                if ( ! $is_pend ) {
+                    $asa_order_num++;
+                }
+                ?>
+                <li class="asa-order__item<?php echo ! empty( $p['is_recap'] ) ? ' is-recap' : ''; ?><?php echo $is_pend ? ' is-pending' : ''; ?>">
+                    <span class="asa-order__num"><?php echo $is_pend ? '—' : (int) $asa_order_num; ?></span>
                     <span class="asa-order__body">
                         <a class="asa-order__title" href="<?php echo esc_url( $p['permalink'] ); ?>"><?php echo esc_html( $p['title_zh'] ); ?></a>
                         <?php if ( ! empty( $p['is_recap'] ) ) : ?>
                             <span class="asa-order__badge">總集篇</span>
+                        <?php endif; ?>
+                        <?php if ( $is_pend ) : ?>
+                            <span class="asa-order__badge asa-order__badge--pending">檔期未定</span>
                         <?php endif; ?>
                         <span class="asa-order__meta">
                             <?php
@@ -747,7 +777,7 @@ if ( ! function_exists( 'asa_render_tab_panel' ) ) {
                                     ! empty( $p['is_short'] )
                                 ) ?: $p['format'],
                                 $p['episodes'] > 0 ? $p['episodes'] . ' 集' : '',
-                                $asa_fmt_date( (string) $p['sdate'] ),
+                                $is_pend ? '檔期未定' : $asa_fmt_date( (string) $p['sdate'] ),
                             ] );
                             echo esc_html( implode( '｜', $bits ) );
                             ?>
@@ -755,22 +785,13 @@ if ( ! function_exists( 'asa_render_tab_panel' ) ) {
                         <?php if ( ! empty( $p['is_recap'] ) ) : ?>
                             <span class="asa-order__hint">劇情與系列前作重複，初次觀看可略過。</span>
                         <?php endif; ?>
+                        <?php if ( $is_pend ) : ?>
+                            <span class="asa-order__hint">官方尚未公布播出檔期，暫列於最後；公布後本頁會自動排入順序。</span>
+                        <?php endif; ?>
                     </span>
                 </li>
             <?php endforeach; ?>
         </ol>
-
-        <?php if ( $watch_pending ) : ?>
-            <p class="asa-order__pending">
-                <strong>尚未公布播出日期（<?php echo count( $watch_pending ); ?> 部）：</strong>
-                <?php
-                $pend = [];
-                foreach ( $watch_pending as $p ) { $pend[] = $p['title_zh']; }
-                echo esc_html( implode( '、', $pend ) );
-                ?>
-                　這幾部因為官方尚未公布檔期，無法排入上方順序；檔期公布後本頁會自動更新。
-            </p>
-        <?php endif; ?>
     </section>
     <?php endif; ?>
 

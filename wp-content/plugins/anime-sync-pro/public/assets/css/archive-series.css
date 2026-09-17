@@ -818,6 +818,17 @@
 	white-space: nowrap;
 }
 
+/*
+ * 「檔期未定」徽章刻意不沿用上面那組警示黃。
+ * 黃色在這一頁的語意是「總集篇，初次觀看可略過」——是要讀者注意的提醒；
+ * 而檔期未定只是「還沒有日期」，不需要讀者做任何事，用中性灰即可。
+ */
+.asa-order__badge--pending {
+	background: rgba(255, 255, 255, .06);
+	border-color: var(--asa-border-strong);
+	color: var(--asa-text-muted);
+}
+
 /* 總集篇整列降低視覺重量，不是只掛個徽章了事 */
 .asa-order__item.is-recap {
 	padding-left: 12px;
@@ -831,6 +842,27 @@
 }
 
 .asa-order__item.is-recap .asa-order__title { color: var(--asa-text-soft); }
+
+/*
+ * 檔期未定：2026-09-17 起併入播出順序清單顯示（原本獨立成一區）。
+ * 視覺語彙比照上面的總集篇——左側色條＋淡背景＋圓圈換色＋標題轉淡，
+ * 但用中性的邊框色而非警示黃：它不是「該略過」，只是「還沒有日期」。
+ * 編號圓圈是固定 30px 的 flex 基準，塞不下「未定」兩個字，所以模板放「—」，
+ * 這裡改成虛線空心圈，一眼就看得出它沒有序位。
+ */
+.asa-order__item.is-pending {
+	padding-left: 12px;
+	border-left: 3px solid var(--asa-border-strong);
+	background: rgba(255, 255, 255, .03);
+}
+
+.asa-order__item.is-pending .asa-order__num {
+	background: transparent;
+	border: 1px dashed var(--asa-border-strong);
+	color: var(--asa-text-muted);
+}
+
+.asa-order__item.is-pending .asa-order__title { color: var(--asa-text-soft); }
 
 .asa-order__hint {
 	flex-basis: 100%;
