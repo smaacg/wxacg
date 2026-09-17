@@ -4551,6 +4551,25 @@ class Anime_Sync_API_Handler {
         $text = html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         $text = preg_replace( '/\(Source:.*?\)/si', '', $text );
         $text = preg_replace( '/\[Written by.*?\]/si', '', $text );
+
+        /*
+         * 去掉行首的全形空格縮排。
+         *
+         * Bangumi 的中文簡介慣用「　　」開頭做段落縮排，原樣存進來之後，
+         * 前台是用 wpautop() 產生段落的（single-anime.php:5211），
+         * 那些縮排純粹是多出來的空白。
+         *
+         * ★ 只清行首，句中的一律保留
+         *   句中的全形空格多半是日文標題與副標的分隔，是正當內容：
+         *     「機動戦士ガンダム　閃光のハサウェイ」
+         *     「劇場版　アーヤと魔女」
+         *   2026-09-17 全站實測：625 個全形空格裡 471 個在行首、
+         *   154 個在句中，後者全部是這種用法，清掉就是破壞資料。
+         *
+         * 英文簡介走同一支函式但不受影響——U+3000 是 CJK 字元。
+         */
+        $text = preg_replace( '/(\A|\R)\x{3000}+/u', '$1', $text );
+
         return trim( $text );
     }
 

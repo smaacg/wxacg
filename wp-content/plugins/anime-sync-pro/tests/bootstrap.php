@@ -54,6 +54,22 @@ function wp_schedule_event() {}
 function wp_unschedule_event() {}
 function wp_clear_scheduled_hook() {}
 function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
+/*
+ * 照 WP 核心的實作寫，不要隨手 strip_tags() 了事——
+ * clean_synopsis() 的行為（含最後的 trim）依賴它，樁不忠實的話
+ * 測試會因為錯誤的理由而通過。
+ *
+ * 注意 trim() 預設只去 ASCII 空白，不會去掉 U+3000 全形空格；
+ * 那正是全形空格能一路存進資料庫的原因，也是 clean_synopsis()
+ * 要另外處理行首縮排的理由。
+ */
+function wp_strip_all_tags( $text, $remove_breaks = false ) {
+	if ( ! is_scalar( $text ) ) { return ''; }
+	$text = preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', (string) $text );
+	$text = strip_tags( $text );
+	if ( $remove_breaks ) { $text = preg_replace( '/[\r\n\t ]+/', ' ', $text ); }
+	return trim( $text );
+}
 function wp_upload_dir() { return [ 'basedir' => sys_get_temp_dir() . '/asp-tests' ]; }
 function wp_mkdir_p( $d ) { return is_dir( $d ) || mkdir( $d, 0777, true ); }
 function wp_json_encode( $d, $f = 0 ) { return json_encode( $d, $f ); }
@@ -87,6 +103,15 @@ require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-youtube.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-yt-channels.php';
 // 格式登錄表：泡麵番判定規則的單一出處，見 tests/test-format-registry.php
 require ANIME_SYNC_PRO_DIR . 'includes/class-format-registry.php';
+/*
+ * 簡介清理（clean_synopsis）也是純字串函式，見 tests/test-synopsis-clean.php。
+ * API handler 的建構子兩個相依都是可選的，會自己退回
+ * Rate_Limiter::get_instance() 與 new ID_Mapper()——後者只用到
+ * wp_upload_dir() / trailingslashit()，上面都已經樁好，不會連外。
+ */
+require ANIME_SYNC_PRO_DIR . 'includes/class-rate-limiter.php';
+require ANIME_SYNC_PRO_DIR . 'includes/class-id-mapper.php';
+require ANIME_SYNC_PRO_DIR . 'includes/class-api-handler.php';
 /*
  * 播放清單同步的標題解析（集數抽取、PV 黑名單）同樣是純字串函式，
  * 用同一套替身就能測。見 tests/test-youtube-playlist-sync.php。
