@@ -65,9 +65,24 @@ foreach ( Anime_Sync_Streaming_Source_Base::available_keys() as $key ) {
 		'bundle'   => ( class_exists( 'Anime_Sync_Streaming_Source_Bundle_Base' ) && $src instanceof Anime_Sync_Streaming_Source_Bundle_Base )
 			? $src->bundle_info()
 			: null,
+		/*
+		 * 警告只在「比最後一次執行結果更新」時才顯示。
+		 *
+		 * ★ 原本不比時間，導致修好的錯誤一直掛著：CatchPlay 2026-09-16 05:22:49 建索引失敗，
+		 *   05:25 起連續成功五次、索引也確實建起來了（1,227 部），後台仍顯示「⚠ 平台可能改版」，
+		 *   而且要等 30 天日誌保留期滿才會自己消失（見 cron-manager 的 delete_old_logs）。
+		 *   警告的語意是「現在有問題」，那個「現在」的界線就是最後一次執行。
+		 *
+		 * 子查詢取的是結果日誌（帶 [排程]／[後台]／[手動] 標籤，故比對「：[」），
+		 * 沒有結果日誌時 COALESCE 回 0，等於照常顯示——從沒成功過的來源本來就該看到警告。
+		 */
 		'warn'     => $wpdb->get_row( $wpdb->prepare(
-			"SELECT created_at, message FROM {$log_table} WHERE level IN ('warning','error','critical') AND message LIKE %s ORDER BY id DESC LIMIT 1",
-			'%串流來源[' . $key . ']%'
+			"SELECT created_at, message FROM {$log_table}
+			  WHERE level IN ('warning','error','critical') AND message LIKE %s
+			    AND id > COALESCE( ( SELECT MAX(id) FROM {$log_table} WHERE message LIKE %s ), 0 )
+			  ORDER BY id DESC LIMIT 1",
+			'%串流來源[' . $key . ']%',
+			'%串流來源[' . $key . ']：[%'
 		), ARRAY_A ),
 	];
 }
@@ -151,8 +166,9 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 				<th style="width:15%">平台</th>
 				<th style="width:20%">索引</th>
 				<th style="width:11%">下次排程</th>
-				<th style="width:8%">已寫入</th>
-				<th>上次執行結果</th>
+				<?php /* 這兩欄的數字來自不同管道，看起來矛盾時多半是這個原因，寫進 title 免得每次都要重查 */ ?>
+				<th style="width:8%" title="帶本平台來源標記的作品總數。含匯入時的單篇即時同步（sync_post_from_indexes()），不只排程寫入。">已寫入</th>
+				<th title="只反映排程／後台／手動執行（run()）的結果。匯入時的單篇同步不會留日誌，所以可能出現「尚未執行過」卻已有寫入數。">上次執行結果</th>
 				<th style="width:13%">立即執行</th>
 			</tr>
 		</thead>
