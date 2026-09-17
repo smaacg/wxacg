@@ -271,7 +271,30 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		return 'anime_sync_streaming_source_' . $this->key();
 	}
 
+	/**
+	 * 排程註冊。
+	 *
+	 * ★ 本機（LocalWP）一律不排程，而且順手把既有的清掉。
+	 *
+	 *   串流這條線的每一輪都要抓 sitemap 建索引（MyVideo 5.8 萬條目、Ofiii 11 萬、
+	 *   LiTV 14 萬），在開發機上跑只會把站拖慢；抓到的資料又寫進本機那個獨立的
+	 *   `local` 資料庫，對正式站沒有任何用處，還會讓兩邊資料對不起來、日後比對時誤判。
+	 *
+	 *   守門寫法與 class-cron-manager.php::run_entity_backfill() 一致
+	 *   （本機請在 wp-config.php 設 WP_ENVIRONMENT_TYPE='local'，本專案已設）。
+	 *
+	 *   ★ 為什麼要順手 unschedule()：加這道守門之前本機可能已經排過了，
+	 *     只擋新註冊的話，那些排程會一直留在本機資料庫裡。這樣寫等於自我清理——
+	 *     本機下次進後台就會把殘留的清掉。正式站不受影響（走下面原本那條）。
+	 */
 	public function schedule(): void {
+
+		if ( function_exists( 'wp_get_environment_type' )
+			&& wp_get_environment_type() === 'local' ) {
+			$this->unschedule();
+			return;
+		}
+
 		if ( ! wp_next_scheduled( $this->hook() ) ) {
 			wp_schedule_event( time() + 900, $this->recurrence(), $this->hook() );
 		}

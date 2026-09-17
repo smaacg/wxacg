@@ -187,6 +187,29 @@ t_is( t_call( $muse_src, 'parse_alive', '{"items":[]}', 'https://www.youtube.com
 t_is( t_call( $muse_src, 'end_date_fetch_opts' ), [ 'accept' => 'application/json' ], 'YT 覆核：Accept 用 JSON 且不帶 allow_404' );
 
 // ─────────────────────────────────────────────────────────
+// 5c. 本機不排程（2026-09-17）
+//     串流每輪都要抓 sitemap 建索引（MyVideo 5.8 萬條目、LiTV 14 萬），
+//     在開發機跑只會拖慢站台，資料還寫進本機獨立 DB、對正式站無用。
+// ─────────────────────────────────────────────────────────
+$sched_src = Anime_Sync_Streaming_Source_Base::make( 'muse' );
+
+$GLOBALS['__env']     = 'production';
+$GLOBALS['__sched']   = [];
+$GLOBALS['__unsched'] = [];
+$sched_src->schedule();
+t_is( $GLOBALS['__sched'], [ 'anime_sync_streaming_source_muse' ], '排程守門：正式站照常註冊排程' );
+
+$GLOBALS['__env']     = 'local';
+$GLOBALS['__sched']   = [];
+$GLOBALS['__unsched'] = [];
+$sched_src->schedule();
+t_is( $GLOBALS['__sched'], [], '排程守門：本機不註冊排程' );
+// 只擋新註冊不夠：加守門之前排過的會一直留著，所以要順手清掉
+t_is( $GLOBALS['__unsched'], [ 'anime_sync_streaming_source_muse' ], '排程守門：本機順手清掉既有排程' );
+
+$GLOBALS['__env'] = 'production';   // 還原，免得影響後面的測試
+
+// ─────────────────────────────────────────────────────────
 // 5c. bangumi-data：台灣站點要收齊（漏一個就少一批可比對的作品）
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'gamer', 'muse_tw', 'ani_one', 'ani_one_asia', 'tropics', 'mighty', 'bilibili_tw', 'bilibili_hk_mo_tw' ] as $site ) {

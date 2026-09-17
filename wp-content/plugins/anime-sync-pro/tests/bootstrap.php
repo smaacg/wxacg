@@ -50,9 +50,21 @@ function delete_transient( $k ) { unset( $GLOBALS['__tr'][ $k ] ); return true; 
 function add_action() {}
 function has_action() { return false; }
 function wp_next_scheduled() { return false; }
-function wp_schedule_event() {}
+
+/*
+ * 排程替身記錄呼叫內容，而不是空函式。
+ * 「本機不排程」這種行為，空函式只能證明它沒爆炸，證明不了它到底有沒有被呼叫——
+ * 那樣的測試會因為錯誤的理由而通過。
+ */
+$GLOBALS['__sched']   = [];
+$GLOBALS['__unsched'] = [];
+function wp_schedule_event( $ts = 0, $recurrence = '', $hook = '' ) { $GLOBALS['__sched'][] = $hook; return true; }
 function wp_unschedule_event() {}
-function wp_clear_scheduled_hook() {}
+function wp_clear_scheduled_hook( $hook = '' ) { $GLOBALS['__unsched'][] = $hook; }
+
+/* 環境類型：預設 production，測試需要時改 $GLOBALS['__env'] 切成 'local' */
+$GLOBALS['__env'] = 'production';
+function wp_get_environment_type() { return $GLOBALS['__env']; }
 function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
 /*
  * 照 WP 核心的實作寫，不要隨手 strip_tags() 了事——
