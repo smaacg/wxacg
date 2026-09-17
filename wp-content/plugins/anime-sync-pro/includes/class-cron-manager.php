@@ -905,13 +905,37 @@ class Anime_Sync_Cron_Manager {
                 $skipped++;
                 $consecutive_failures = 0;
                 $this->clear_anilist_404_state( $post_id );
-                $this->logger->log( 'info', "每日動態更新〔{$post_title}〕：無變動" );
+                /*
+                 * 「無變動」不再逐部記錄：跑完什麼都沒發生，不需要一行字說明。
+                 * 數量仍計入 $skipped，本批結算那行看得到。
+                 */
             } else {
                 $updated++;
                 $consecutive_failures = 0;
                 $this->clear_anilist_404_state( $post_id );
-                $detail = str_contains( $result, ':' ) ? '（' . explode( ':', $result, 2 )[1] . '）' : '';
-                $this->logger->log( 'info', "每日動態更新〔{$post_title}〕：已更新{$detail}" );
+
+                $changes = str_contains( $result, ':' ) ? explode( ':', $result, 2 )[1] : '';
+
+                /*
+                 * 人氣天天在動，單獨記錄只會把真正要看的變動淹掉——近 7 天「每日動態更新」
+                 * 的單部日誌 1,638 筆裡，純人氣 579 筆、無變動 553 筆，合計 69% 沒有行動價值。
+                 *
+                 * ★ 只有「這次變動全部都是人氣」才靜音。同一次若還有集數、評分、播出年份等
+                 *   其他項目（$diff 以「、」串接），照常完整記錄——那些是會影響前台的資料。
+                 *   人氣本身仍照常寫進資料庫，這裡只決定要不要留日誌。
+                 */
+                $only_popularity = $changes !== '' && ! array_filter(
+                    explode( '、', $changes ),
+                    static function ( $c ) {
+                        return ! str_starts_with( $c, '人氣 ' );
+                    }
+                );
+
+                if ( ! $only_popularity ) {
+                    $detail = $changes !== '' ? '（' . $changes . '）' : '';
+                    $this->logger->log( 'info', "每日動態更新〔{$post_title}〕：已更新{$detail}" );
+                }
+
                 $this->purge_post_cache( $post_id );
             }
         }
