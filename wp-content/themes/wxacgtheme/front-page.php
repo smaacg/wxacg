@@ -523,37 +523,13 @@ $hero_posters = [
 ];
 
 /*
- * 已登入者不需要註冊入口：那一格換成「追番清單」（媒體庫 ID 61453、567x1024 ≈ 5:9）。
+ * 「會員版把註冊那格換成追番清單」的邏輯不放這裡，改放在下方
+ * $hero_poster_slots 切片處（搜尋 hero_poster_slots）。
  *
- * ★ 是「替換」不是「移除」。
- *   .hero-side 在桌機是固定寬 calc(250px*3 + 12px*2)（style.css:2577），
- *   而 .hero-posters 是 justify-content:flex-end、海報固定 250px 不伸縮。
- *   所以少一格不會自動補滿，而是靠右對齊、左邊空出約 262px。
- *   倒數期間看不出來（倒數卡佔著第三格），10/1 開季後才會露出破綻。
- *
- * 替換後的項目刻意不帶 action：它是一般連結，不觸發註冊彈窗。
- *
- * 依登入狀態輸出不同內容在這個站是安全的：setup-theme.php 的 template_redirect
- * 對登入者一律送 nocache_headers()，不會發生「會員吃到快取住的訪客版」。
+ * 原因：那個替換的條件之一是「倒數已結束」，而 $hero_countdown 要到
+ * wxacg_home_season_countdown() 那行才定義，比這裡晚。寫在這會讀到 null，
+ * 條件永遠不成立卻不會報錯——是那種安靜失效、很久才被發現的寫法。
  */
-if ( is_user_logged_in() ) {
-    foreach ( $hero_posters as $i => $p ) {
-        if ( empty( $p['action'] ) || 'register' !== $p['action'] ) {
-            continue;
-        }
-        $hero_posters[ $i ] = [
-            'img'      => 'https://weixiaoacg.com/wp-content/uploads/2026/09/hero-poster-watchlist.webp',
-            'title'    => '追番清單',
-            // 與本檔 2366 行的會員中心連結採同一寫法：優先用 helper，沒有才退回 /mc/。
-            // 寫死 /mc/ 會在日後會員中心換網址時，全站都跟著 helper 改、只有這一格沒改。
-            'url'      => function_exists( 'wxacg_get_member_center_url' )
-                ? wxacg_get_member_center_url()
-                : home_url( '/mc/' ),
-            'external' => false,
-        ];
-        break;
-    }
-}
 
 $hero_quotes = [
     [
@@ -700,6 +676,42 @@ $hero_countdown   = wxacg_home_season_countdown();
              *   第三格讓給直式倒數卡；開季後倒數消失、第三張海報自動回來，
              *   兩種狀態下都維持三格，版面高度不會跳動。
              */
+            /*
+             * 會員版：倒數結束後，把「立即註冊」那格換成「追番清單」
+             * （媒體庫 ID 61453、567x1024 ≈ 5:9）。
+             *
+             * ★ 兩個條件缺一不可，而且是「替換」不是「移除」：
+             *   ・倒數期間不換——第三格被倒數卡佔著，三格已滿，
+             *     這時換掉註冊格對訪客與會員都沒有好處。
+             *   ・少一格不會自動補滿：.hero-side 桌機固定寬
+             *     calc(250px*3 + 12px*2)（style.css:2577），而 .hero-posters 是
+             *     justify-content:flex-end、海報固定 250px 不伸縮，
+             *     移除會變成靠右對齊、左側空出約 262px。
+             *
+             * 替換後的項目刻意不帶 action：它是一般連結，不觸發註冊彈窗。
+             *
+             * 依登入狀態輸出不同內容在這個站是安全的：setup-theme.php 的
+             * template_redirect 對登入者一律送 nocache_headers()，
+             * 不會發生「會員吃到快取住的訪客版」。
+             */
+            if ( ! $hero_countdown && is_user_logged_in() ) {
+                foreach ( $hero_posters as $i => $p ) {
+                    if ( empty( $p['action'] ) || 'register' !== $p['action'] ) {
+                        continue;
+                    }
+                    $hero_posters[ $i ] = [
+                        'img'      => 'https://weixiaoacg.com/wp-content/uploads/2026/09/hero-poster-watchlist.webp',
+                        'title'    => '追番清單',
+                        // 與本檔會員中心連結同一寫法：優先用 helper，沒有才退回 /mc/。
+                        'url'      => function_exists( 'wxacg_get_member_center_url' )
+                            ? wxacg_get_member_center_url()
+                            : home_url( '/mc/' ),
+                        'external' => false,
+                    ];
+                    break;
+                }
+            }
+
             $hero_poster_slots = $hero_countdown
                 ? array_slice( $hero_posters, 0, 2 )
                 : $hero_posters;
@@ -926,7 +938,9 @@ $hero_countdown   = wxacg_home_season_countdown();
              *   站上沒有 /lofi/ 頁面，LOFI 就是這支外部 YouTube，所以只能寫死；
              *   日後要換頻道，兩邊都要改，改一邊會不一致。
              */
-            $hero_banner_url = 'https://www.youtube.com/watch?v=3Yk8RO_FuM0';
+            // 2026-09-19 改指向頻道的 /live 分頁（原本是固定單支影片 watch?v=3Yk8RO_FuM0）。
+            // 電台是持續開播，指到 /live 才會永遠落在「當前這一場」，不會播完就變死連結。
+            $hero_banner_url = 'https://www.youtube.com/@%E5%BE%AE%E7%AC%91%E5%8B%95%E6%BC%AB/live';
             ?>
             <?php if ( file_exists( $hero_banner_path ) ) : ?>
                 <a
