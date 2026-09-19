@@ -202,7 +202,12 @@ class Anime_Sync_Streaming_Registry {
         [
             'key'    => 'ptsplus',
             'billing' => 'free',
-            'label'  => '公視(台語版)',
+            /*
+             * 2026-09-19 改名：原本叫「公視(台語版)」，但公視+ 的 season 是語言版本，
+             * 一個節目底下同時有台語版、雙語版（葬送的芙莉蓮就是），站上這一格放的是
+             * 節目主頁——所有版本的共同入口。掛「台語版」會讓讀者以為只有台語配音。
+             */
+            'label'  => '公視+',
             'color'  => '#00A0E9',
             'icon'   => 'channels4.webp',
             'match'  => ['ptsplus.tv', 'pts.org.tw', 'ptsplus', '公視'],

@@ -106,6 +106,8 @@ function do_action() {}
 function apply_filters( $tag, $value ) { return $value; }
 
 require ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
+// 平台 key → 標籤／計費的單一出處；公視+ 的標籤有測試盯著，見 test-streaming-sources.php
+require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-registry.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-base.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bundle-base.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-bangumi-data.php';
@@ -119,6 +121,7 @@ require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-hami.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-catchplay.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-garageplay.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-verify-only.php';
+require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-ptsplus.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-youtube.php';
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-source-yt-channels.php';
 // 格式登錄表：泡麵番判定規則的單一出處，見 tests/test-format-registry.php

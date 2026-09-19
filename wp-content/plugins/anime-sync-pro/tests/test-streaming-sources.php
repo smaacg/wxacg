@@ -349,4 +349,57 @@ foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {
 	t_is( is_array( $info ) && array_key_exists( 'stale', $info ), true, "索引包基底：{$key} 的 bundle_info() 有 stale 旗標" );
 }
 
+// ─────────────────────────────────────────────────────────
+// 7. 公視+：語言版本後綴、多節目取捨、軟性 404
+//    （2026-09-19 從主機實測的行為，改動任何一項都要先重測再改這裡）
+// ─────────────────────────────────────────────────────────
+$pts = Anime_Sync_Streaming_Source_Base::make( 'ptsplus' );
+
+$pts_page = static function ( string $title ): string {
+	return '<html><head><meta property="og:title" content="公視+ | ' . $title . '"/></head></html>';
+};
+
+// work_name：去語言版本後綴，站上「搖曳露營△」才對得上
+t_is( t_call( $pts, 'work_name', '搖曳露營△（雙語版）' ), '搖曳露營△', '公視 work_name：去全形（雙語版）' );
+t_is( t_call( $pts, 'work_name', '熊星人和地球人(台語版)' ), '熊星人和地球人', '公視 work_name：去半形(台語版)' );
+t_is( t_call( $pts, 'work_name', '葬送的芙莉蓮' ), '葬送的芙莉蓮', '公視 work_name：沒有後綴就原樣' );
+
+/*
+ * 破折號不能當切點：公視有不少節目名本身就含破折號，
+ * 切下去會把真名截斷成「歐吉桑騎士」。
+ */
+t_is(
+	t_call( $pts, 'work_name', '歐吉桑騎士 – 阿順阿忠的中年危機' ),
+	'歐吉桑騎士 – 阿順阿忠的中年危機',
+	'公視 work_name：名稱裡的破折號不能當切點'
+);
+
+// pick_entry：原版（無後綴）優先，其次雙語版
+$pts_entries = [
+	[ 'title' => '葬送的芙莉蓮（台語版）', 'url' => 'https://www.ptsplus.tv/zh/programs/aaa', 'date' => '' ],
+	[ 'title' => '葬送的芙莉蓮（雙語版）', 'url' => 'https://www.ptsplus.tv/zh/programs/bbb', 'date' => '' ],
+	[ 'title' => '葬送的芙莉蓮',           'url' => 'https://www.ptsplus.tv/zh/programs/ccc', 'date' => '' ],
+];
+t_is( t_call( $pts, 'pick_entry', $pts_entries )['url'], 'https://www.ptsplus.tv/zh/programs/ccc', '公視 pick_entry：原版優先' );
+t_is(
+	t_call( $pts, 'pick_entry', [ $pts_entries[0], $pts_entries[1] ] )['url'],
+	'https://www.ptsplus.tv/zh/programs/bbb',
+	'公視 pick_entry：沒有原版時取雙語版'
+);
+
+/*
+ * ★ 這三項是這個來源最容易出事的地方：公視對不存在的節目回 HTTP 200，
+ *   只有 og:title 變成「404」。存活判斷若看狀態碼，死連結會全部被判成活的。
+ */
+t_is( t_call( $pts, 'parse_alive', $pts_page( '404' ), '' ), false, '公視 parse_alive：og:title 是 404 → 已下架' );
+t_is( t_call( $pts, 'parse_alive', $pts_page( '葬送的芙莉蓮' ), '' ), true, '公視 parse_alive：正常節目 → 還在' );
+t_is( t_call( $pts, 'parse_alive', '<html><head></head></html>', '' ), null, '公視 parse_alive：沒有 og:title → 不下結論' );
+
+t_is( t_call( $pts, 'parse_page', $pts_page( '404' ) ), null, '公視 parse_page：404 頁不進索引' );
+t_is( t_call( $pts, 'parse_page', $pts_page( '國王排名' ) )['title'], '國王排名', '公視 parse_page：取得節目名' );
+t_is( t_call( $pts, 'provides_alive_check' ), true, '公視：可以從主機判斷存活' );
+
+// 平台標籤不該再寫死「台語版」——站上放的是節目主頁，所有語言版本的共同入口
+t_is( Anime_Sync_Streaming_Registry::get_acf_choices()['ptsplus'] ?? '', '公視+', '公視：平台標籤是「公視+」不是「公視(台語版)」' );
+
 exit( t_report() );
