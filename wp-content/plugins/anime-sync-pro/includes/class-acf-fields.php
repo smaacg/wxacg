@@ -2188,6 +2188,12 @@ $cast_prompt .= "以下是 JSON:\n";
                         'anime_cover_image'      => '封面圖片',
                         'anime_banner_image'     => '橫幅圖片',
                         'anime_trailer_url'      => 'YouTube 預告片',
+                        // 線上看：YT 播放清單同步在 class-youtube-playlist-sync.php:371 認這個鍵。
+                        // 那裡的檢查在 `if ( ! $force )` 之外，所以連 force 呼叫也擋得住——
+                        // YA fetcher（class-youranimes-fetcher.php:832）是 sync_post( $id, true )，
+                        // 只有這道鎖攔得下它；anime_yt_sync_enabled=0 那道總閘門包在 force 判斷內，攔不住。
+                        // 先前沒列在這裡，導致鎖只能手寫進 meta，一旦有人在後台存檔就會被表單重存清掉。
+                        'anime_online_watch'     => '線上看（YouTube 嵌入）',
                         'anime_cast_json'        => 'CAST 角色資料',
                         'anime_staff_json'       => 'STAFF 製作資料',
                         'anime_episodes_json'    => '集數列表',

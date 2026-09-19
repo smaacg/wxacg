@@ -187,6 +187,203 @@ if ( ! function_exists( 'wxacg_home_current_season_range' ) ) {
     }
 }
 
+/**
+ * 季度代號與中文名。'fall' / '秋'
+ *
+ * 用起始月當 key，跟 wxacg_home_current_season_range() 回傳的 month 對得上。
+ */
+if ( ! function_exists( 'wxacg_home_season_meta' ) ) {
+    function wxacg_home_season_meta( int $start_month ): array {
+        $map = [
+            1  => [ 'key' => 'winter', 'name' => '冬' ],
+            4  => [ 'key' => 'spring', 'name' => '春' ],
+            7  => [ 'key' => 'summer', 'name' => '夏' ],
+            10 => [ 'key' => 'fall',   'name' => '秋' ],
+        ];
+
+        return $map[ $start_month ] ?? $map[1];
+    }
+}
+
+/**
+ * 本季的 Hero 主視覺網址；沒有對應檔案就回空字串。
+ *
+ * 檔名固定為 assets/images/hero-{season}.webp（winter／spring／summer／fall），
+ * 四張放齊之後每季會自動換，不需要有人記得回來改。
+ *
+ * ★ 刻意用 file_exists() 而不是無條件輸出
+ *   圖還沒放上去時直接輸出網址，畫面會變成破圖，比沒有背景更糟。
+ *   檔案不在就回空字串，Hero 維持原本的純 CSS 漸層，等圖進來自動生效。
+ */
+if ( ! function_exists( 'wxacg_home_season_hero_bg' ) ) {
+    function wxacg_home_season_hero_bg( string $season_key ): string {
+        $rel  = 'assets/images/hero-' . $season_key . '.webp';
+        $path = get_stylesheet_directory() . '/' . $rel;
+
+        if ( ! file_exists( $path ) ) {
+            return '';
+        }
+
+        // 帶 filemtime 破快取，換圖之後不必等 CDN 過期
+        return get_stylesheet_directory_uri() . '/' . $rel . '?v=' . filemtime( $path );
+    }
+}
+
+/**
+ * 換季倒數：距離下一季開播還有幾天，以及最早開播的幾部作品。
+ *
+ * 回傳 null 代表「現在不是倒數期間」，呼叫端就照常顯示原本的三張海報。
+ *
+ * ★ 為什麼只在開季前三週出現
+ *   倒數的張力來自「快到了」。距離兩個月還在倒數只是佔版面，
+ *   而開季後倒數就失去意義——那時該講的是「正在播」。
+ *
+ * ★ 為什麼查詢要快取
+ *   這是首頁每次載入都會跑的額外查詢。內容一天只會變一次（天數），
+ *   所以存 6 小時 transient；跨季那天最多晚 6 小時切換，可接受。
+ */
+/**
+ * 倒數卡用的作品清單：依指定排序，取有封面的前 N 部。
+ *
+ * $order：'start'   ＝最早開播（倒數要回答「最先能看到什麼」）
+ *         'popular' ＝話題強檔（依 anime_popularity，即 AniList 的關注人數）
+ *
+ * ★ 強檔為什麼用人氣而不是評分
+ *   倒數期間的作品都還沒播，自身評分全是 0（正式站實測 48/48 部無分數），
+ *   能判斷「話題性」的只剩關注人數。前作評分只有續作才有，
+ *   拿它排會讓完全新作永遠排不上來。
+ */
+if ( ! function_exists( 'wxacg_home_countdown_pick' ) ) {
+    function wxacg_home_countdown_pick( string $from, string $to, string $order, int $limit ): array {
+        $args = [
+            'post_type'              => 'anime',
+            'post_status'            => 'publish',
+            // 取多一點當緩衝：沒有封面的會被略過，取剛好 N 部可能補不滿
+            'posts_per_page'         => $limit * 4,
+            'no_found_rows'          => true,
+            'update_post_term_cache' => false,
+            'meta_query'             => [
+                'relation' => 'AND',
+                [
+                    'key'     => 'anime_start_date',
+                    'value'   => [ $from, $to ],
+                    'compare' => 'BETWEEN',
+                    'type'    => 'CHAR',
+                ],
+                [
+                    'key'     => 'anime_format',
+                    'value'   => [ 'TV', 'TV_SHORT', 'ONA' ],
+                    'compare' => 'IN',
+                ],
+            ],
+        ];
+
+        if ( 'popular' === $order ) {
+            $args['meta_key'] = 'anime_popularity';
+            $args['orderby']  = 'meta_value_num';
+            $args['order']    = 'DESC';
+        } else {
+            $args['meta_key'] = 'anime_start_date';
+            $args['orderby']  = 'meta_value';
+            $args['order']    = 'ASC';
+        }
+
+        $works = [];
+        foreach ( ( new WP_Query( $args ) )->posts as $post_object ) {
+            $post_id = (int) $post_object->ID;
+            $cover   = get_post_meta( $post_id, 'anime_cover_image', true )
+                ?: get_the_post_thumbnail_url( $post_id, 'medium' );
+
+            // 沒有封面就跳過：Hero 是門面，開天窗比少一部嚴重
+            if ( ! $cover ) {
+                continue;
+            }
+
+            $start_raw = (string) get_post_meta( $post_id, 'anime_start_date', true );
+
+            $works[] = [
+                'title' => get_post_meta( $post_id, 'anime_title_chinese', true ) ?: get_the_title( $post_id ),
+                'cover' => $cover,
+                'url'   => get_permalink( $post_id ),
+                'date'  => strlen( $start_raw ) === 8
+                    ? ( (int) substr( $start_raw, 4, 2 ) ) . '/' . ( (int) substr( $start_raw, 6, 2 ) )
+                    : '',
+            ];
+
+            if ( count( $works ) >= $limit ) {
+                break;
+            }
+        }
+
+        return $works;
+    }
+}
+
+if ( ! function_exists( 'wxacg_home_season_countdown' ) ) {
+    function wxacg_home_season_countdown(): ?array {
+        $days_ahead = 21;
+        // 卡片高 480px，扣掉標頭與按鈕大約放得下 5 列
+        $limit      = 5;
+
+        $year  = (int) wp_date( 'Y' );
+        $month = (int) wp_date( 'n' );
+
+        // 下一個季度切點：1／4／7／10 月的 1 號
+        $next_month = (int) ( floor( ( $month - 1 ) / 3 ) * 3 + 4 );
+        $next_year  = $year;
+        if ( $next_month > 12 ) {
+            $next_month = 1;
+            $next_year++;
+        }
+
+        $today = strtotime( wp_date( 'Y-m-d' ) . ' 00:00:00' );
+        $start = strtotime( sprintf( '%04d-%02d-01 00:00:00', $next_year, $next_month ) );
+        $days  = (int) floor( ( $start - $today ) / DAY_IN_SECONDS );
+
+        if ( $days < 1 || $days > $days_ahead ) {
+            return null;
+        }
+
+        /*
+         * 快取鍵要帶顯示部數與結構版本。
+         *
+         * 部數：少了它，把 3 部改成 5 部之後仍會讀到舊的 3 部快取，
+         *       得等 6 小時過期才生效——本機就是這樣卡住的。
+         * v2  ：快取內容從「一份清單」改成「最早／強檔兩份」，
+         *       讀到舊格式會缺鍵，換鍵名讓舊快取直接失效。
+         */
+        $cache_key = sprintf( 'wxacg_home_countdown_v2_%04d%02d_%d', $next_year, $next_month, $limit );
+        $lists     = get_transient( $cache_key );
+
+        if ( ! is_array( $lists ) || ! isset( $lists['early'], $lists['hot'] ) ) {
+            $from = sprintf( '%04d%02d01', $next_year, $next_month );
+            $to   = sprintf( '%04d%02d31', $next_year, $next_month + 2 > 12 ? 12 : $next_month + 2 );
+
+            $lists = [
+                'early' => wxacg_home_countdown_pick( $from, $to, 'start', $limit ),
+                'hot'   => wxacg_home_countdown_pick( $from, $to, 'popular', $limit ),
+            ];
+
+            set_transient( $cache_key, $lists, 6 * HOUR_IN_SECONDS );
+        }
+
+        if ( ! $lists['early'] && ! $lists['hot'] ) {
+            return null;
+        }
+
+        $meta = wxacg_home_season_meta( $next_month );
+
+        return [
+            'days'  => $days,
+            'label' => sprintf( '%d 年 %d 月新番', $next_year, $next_month ),
+            'short' => sprintf( '%d %s番', $next_year, $meta['name'] ),
+            'works' => $lists['early'],
+            'hot'   => $lists['hot'],
+            'url'   => home_url( sprintf( '/bangumi/%04d%02d/', $next_year, $next_month ) ),
+        ];
+    }
+}
+
 if ( ! function_exists( 'wxacg_home_anime_card' ) ) {
     function wxacg_home_anime_card( $post_object ) {
         if ( ! $post_object instanceof WP_Post ) {
@@ -291,13 +488,28 @@ if ( ! function_exists( 'wxacg_home_anime_card' ) ) {
  * ============================================================ */
 $hero_posters = [
     [
-        'img'   => 'https://weixiaoacg.com/wp-content/uploads/2026/07/5jrnQqTH.webp',
-        'title' => '查看動漫資料庫',
-        'url'   => home_url( '/anime/' ),
+        /*
+         * 2026-09-19 立即註冊海報（媒體庫 ID 61260、567x1024 ≈ 5:9）。
+         *
+         * action=register：點擊開註冊彈窗，不是跳頁。
+         * 彈窗來自 header.js 的 window.smacgOpenLoginModal('register')（header.js:145），
+         * 而 Modal 本身只對未登入者輸出（header.php:55）——所以這一格在下面
+         * 會被整個濾掉，登入者根本看不到，不需要在這裡處理備援。
+         * url 仍保留一個真實網址，作為 JS 失效時的退路（見輸出區的 fallback）。
+         */
+        'img'    => 'https://weixiaoacg.com/wp-content/uploads/2026/09/hero-poster-signup.webp',
+        'title'  => '立即註冊',
+        // 退路用 wp_registration_url()，與本檔 2531 行既有的註冊 CTA 一致。
+        // 不能用 /join/——那是「加入微笑動漫」招募頁（第三格的目標），不是註冊頁，
+        // 拿它當註冊退路會在 JS 失效時把人安靜地送到錯的地方。
+        'url'    => wp_registration_url(),
         'external' => false,
+        'action' => 'register',
     ],
     [
-        'img'   => 'https://weixiaoacg.com/wp-content/uploads/2026/07/Discord1.webp',
+        // 2026-09-19 換圖：加入社群海報（媒體庫 ID 61261、568x1024 ≈ 5:9）。
+        // title 與 url 維持原樣——這張的訴求仍是加入 Discord，兩者本來就正確。
+        'img'   => 'https://weixiaoacg.com/wp-content/uploads/2026/09/hero-poster-discord.webp',
         'title' => '加入 Discord',
         'url'   => 'https://discord.com/invite/yw73RBZgss',
         'external' => true,
@@ -309,6 +521,39 @@ $hero_posters = [
         'external' => false,
     ],
 ];
+
+/*
+ * 已登入者不需要註冊入口：那一格換成「追番清單」（媒體庫 ID 61453、567x1024 ≈ 5:9）。
+ *
+ * ★ 是「替換」不是「移除」。
+ *   .hero-side 在桌機是固定寬 calc(250px*3 + 12px*2)（style.css:2577），
+ *   而 .hero-posters 是 justify-content:flex-end、海報固定 250px 不伸縮。
+ *   所以少一格不會自動補滿，而是靠右對齊、左邊空出約 262px。
+ *   倒數期間看不出來（倒數卡佔著第三格），10/1 開季後才會露出破綻。
+ *
+ * 替換後的項目刻意不帶 action：它是一般連結，不觸發註冊彈窗。
+ *
+ * 依登入狀態輸出不同內容在這個站是安全的：setup-theme.php 的 template_redirect
+ * 對登入者一律送 nocache_headers()，不會發生「會員吃到快取住的訪客版」。
+ */
+if ( is_user_logged_in() ) {
+    foreach ( $hero_posters as $i => $p ) {
+        if ( empty( $p['action'] ) || 'register' !== $p['action'] ) {
+            continue;
+        }
+        $hero_posters[ $i ] = [
+            'img'      => 'https://weixiaoacg.com/wp-content/uploads/2026/09/hero-poster-watchlist.webp',
+            'title'    => '追番清單',
+            // 與本檔 2366 行的會員中心連結採同一寫法：優先用 helper，沒有才退回 /mc/。
+            // 寫死 /mc/ 會在日後會員中心換網址時，全站都跟著 helper 改、只有這一格沒改。
+            'url'      => function_exists( 'wxacg_get_member_center_url' )
+                ? wxacg_get_member_center_url()
+                : home_url( '/mc/' ),
+            'external' => false,
+        ];
+        break;
+    }
+}
 
 $hero_quotes = [
     [
@@ -355,7 +600,28 @@ $random_anime_url = add_query_arg(
 <!-- ============================================================
      Hero：已完全移除時鐘
      ============================================================ -->
-<section class="hero-section" id="hero">
+<?php
+/*
+ * Hero 的季節主視覺與換季倒數。
+ *
+ * 兩者都是「有就顯示、沒有就維持原樣」：
+ *   ・季節圖沒放進 assets/images/ 時，hero-bg-layer 保持原本的純 CSS 漸層
+ *   ・不在開季前三週時，右側維持原本的三張入口海報
+ * 所以這段程式先上線也不會改變現在的畫面，圖與檔期到了才自動生效。
+ */
+$hero_season      = wxacg_home_season_meta( wxacg_home_current_season_range()['month'] );
+$hero_season_bg   = wxacg_home_season_hero_bg( $hero_season['key'] );
+$hero_countdown   = wxacg_home_season_countdown();
+?>
+<section class="hero-section<?php echo $hero_season_bg ? ' has-season-bg' : ''; ?>" id="hero" data-season="<?php echo esc_attr( $hero_season['key'] ); ?>">
+    <?php if ( $hero_season_bg ) : ?>
+        <div
+            class="hero-season-bg"
+            style="background-image:url('<?php echo esc_url( $hero_season_bg ); ?>');"
+            aria-hidden="true"
+        ></div>
+    <?php endif; ?>
+
     <div
         class="hero-bg-layer"
         id="hero-bg"
@@ -422,44 +688,264 @@ $random_anime_url = add_query_arg(
                 </a>
             </div>
         </div>
+        <div class="hero-side">
 
-        <div
-            class="hero-posters"
-            id="hero-posters"
-            aria-label="首頁推薦入口"
-        >
-            <?php foreach ( $hero_posters as $index => $poster ) : ?>
+            <?php
+            /*
+             * 上排三格（直立）＋下方一條橫幅。
+             *
+             * ★ 倒數不再取代海報，而是「佔掉第三格」
+             *   三張入口海報是全站常態導流（動漫資料庫／Discord／加入微笑動漫），
+             *   為了三週的檔期資訊整段拿掉並不划算。改成倒數期間只顯示前兩張，
+             *   第三格讓給直式倒數卡；開季後倒數消失、第三張海報自動回來，
+             *   兩種狀態下都維持三格，版面高度不會跳動。
+             */
+            $hero_poster_slots = $hero_countdown
+                ? array_slice( $hero_posters, 0, 2 )
+                : $hero_posters;
+            ?>
+
+            <div class="hero-posters hero-side__row<?php echo $hero_countdown ? ' has-cd' : ''; ?>" id="hero-posters">
+
+                <?php foreach ( $hero_poster_slots as $index => $poster ) : ?>
+                    <?php
+                    /*
+                     * action=register 的那一格不是連結而是彈窗觸發器：
+                     * href 給 # 並掛 js-open-register，實際網址改放 data-fallback，
+                     * 讓 JS 失效時仍有退路，且網址只在 $hero_posters 定義一次。
+                     */
+                    $poster_is_register = ! empty( $poster['action'] ) && 'register' === $poster['action'];
+                    ?>
+                    <a
+                        href="<?php echo $poster_is_register ? '#' : esc_url( $poster['url'] ); ?>"
+                        class="poster-item glass<?php echo $poster_is_register ? ' js-open-register' : ''; ?>"
+                        title="<?php echo esc_attr( $poster['title'] ); ?>"
+                        <?php if ( $poster_is_register ) : ?>
+                            data-fallback="<?php echo esc_url( $poster['url'] ); ?>"
+                        <?php elseif ( $poster['external'] ) : ?>
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        <?php endif; ?>
+                    >
+                        <img
+                            src="<?php echo esc_url( $poster['img'] ); ?>"
+                            alt="<?php echo esc_attr( $poster['title'] ); ?>"
+                            width="250"
+                            height="480"
+                            decoding="async"
+                            <?php if ( $index === 0 ) : ?>
+                                loading="eager"
+                                fetchpriority="high"
+                                data-no-lazy="1"
+                            <?php else : ?>
+                                loading="lazy"
+                            <?php endif; ?>
+                            onerror="this.style.display='none';this.closest('.poster-item').classList.add('skeleton');"
+                        >
+
+                        <span class="poster-item__title">
+                            <?php echo esc_html( $poster['title'] ); ?>
+                        </span>
+                    </a>
+                <?php endforeach; ?>
+
+                <?php
+                /*
+                 * 只有「實際被輸出的那幾格」裡有註冊海報時才送這段 JS。
+                 * 判斷要看 $hero_poster_slots 而不是 $hero_posters——倒數期間只輸出前兩張，
+                 * 看錯陣列會在沒有這一格的情況下送出一段永遠找不到目標的程式。
+                 */
+                $has_register_slot = false;
+                foreach ( $hero_poster_slots as $slot ) {
+                    if ( ! empty( $slot['action'] ) && 'register' === $slot['action'] ) {
+                        $has_register_slot = true;
+                        break;
+                    }
+                }
+                ?>
+                <?php if ( $has_register_slot ) : ?>
+                <script>
+                /*
+                 * 註冊海報：開 header 的登入/註冊 Modal，不跳頁。
+                 * smacgOpenLoginModal 定義在 header.js:145；Modal 只對訪客輸出
+                 * （header.php:55），而這一格也只有訪客看得到，兩邊條件一致。
+                 * 函式不存在時（JS 失效／載入順序意外）退回 data-fallback 的網址，
+                 * 不讓點擊變成「什麼都沒發生」。
+                 */
+                (function () {
+                    var el = document.querySelector('#hero-posters .js-open-register');
+                    if (!el) { return; }
+                    el.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        if (typeof window.smacgOpenLoginModal === 'function') {
+                            window.smacgOpenLoginModal('register');
+                            return;
+                        }
+                        var fb = el.getAttribute('data-fallback');
+                        if (fb) { window.location.href = fb; }
+                    });
+                })();
+                </script>
+                <?php endif; ?>
+
+                <?php if ( $hero_countdown ) : ?>
+                    <div class="hero-cd">
+                        <?php
+                        /*
+                         * 整張卡原本是一個 <a> 包住全部，點任何地方都跳到新番表。
+                         * 但讀者看到作品縮圖時想去的是「那一部」，不是總表——
+                         * 所以外層改成 div，作品各自成為連結，底部按鈕才連總表。
+                         * （<a> 不能巢狀，這是必須換成 div 的原因。）
+                         */
+                        ?>
+                        <a class="hero-cd__head" href="<?php echo esc_url( $hero_countdown['url'] ); ?>">
+                            <span class="hero-cd__season"><?php echo esc_html( $hero_countdown['short'] ); ?></span>
+
+                            <span class="hero-cd__count">
+                                <strong><?php echo (int) $hero_countdown['days']; ?></strong>
+                                <em>天後開播</em>
+                            </span>
+                        </a>
+
+                        <?php
+                        /*
+                         * 兩個頁籤：最早開播／話題強檔。
+                         *
+                         * 兩份清單都直接輸出在 HTML 裡，切換只是 hidden 屬性的開關，
+                         * 不打 AJAX——資料只有 10 筆，多一次請求反而更慢，
+                         * 而且沒有 JS 的環境（爬蟲、閱讀模式）兩份內容都讀得到。
+                         *
+                         * 用 role="tablist"／tab／tabpanel 與 aria-selected，
+                         * 讓螢幕閱讀器知道這是一組頁籤而不是兩顆普通按鈕。
+                         */
+                        $cd_tabs = [
+                            'early' => [ '最早開播', $hero_countdown['works'] ],
+                            'hot'   => [ '話題強檔', $hero_countdown['hot'] ],
+                        ];
+                        ?>
+                        <div class="hero-cd__tabs" role="tablist" aria-label="倒數清單切換">
+                            <?php $cd_i = 0; foreach ( $cd_tabs as $cd_key => $cd_tab ) : ?>
+                                <button
+                                    type="button"
+                                    class="hero-cd__tab<?php echo 0 === $cd_i ? ' is-active' : ''; ?>"
+                                    role="tab"
+                                    id="hero-cd-tab-<?php echo esc_attr( $cd_key ); ?>"
+                                    aria-controls="hero-cd-panel-<?php echo esc_attr( $cd_key ); ?>"
+                                    aria-selected="<?php echo 0 === $cd_i ? 'true' : 'false'; ?>"
+                                    tabindex="<?php echo 0 === $cd_i ? '0' : '-1'; ?>"
+                                ><?php echo esc_html( $cd_tab[0] ); ?></button>
+                            <?php $cd_i++; endforeach; ?>
+                        </div>
+
+                        <?php $cd_i = 0; foreach ( $cd_tabs as $cd_key => $cd_tab ) : ?>
+                        <ul
+                            class="hero-cd__list"
+                            role="tabpanel"
+                            id="hero-cd-panel-<?php echo esc_attr( $cd_key ); ?>"
+                            aria-labelledby="hero-cd-tab-<?php echo esc_attr( $cd_key ); ?>"
+                            <?php echo 0 === $cd_i ? '' : 'hidden'; ?>
+                        >
+                            <?php foreach ( $cd_tab[1] as $work ) : ?>
+                                <li>
+                                    <a href="<?php echo esc_url( $work['url'] ); ?>" title="<?php echo esc_attr( $work['title'] ); ?>">
+                                        <img
+                                            src="<?php echo esc_url( $work['cover'] ); ?>"
+                                            alt="<?php echo esc_attr( $work['title'] ); ?> 封面圖"
+                                            loading="lazy"
+                                            width="30" height="42"
+                                        >
+                                        <span>
+                                            <b><?php echo esc_html( $work['title'] ); ?></b>
+                                            <?php if ( $work['date'] ) : ?>
+                                                <i><?php echo esc_html( $work['date'] ); ?> 首播</i>
+                                            <?php endif; ?>
+                                        </span>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <?php $cd_i++; endforeach; ?>
+
+                        <script>
+                        /*
+                         * 頁籤切換：純 hidden 開關，無相依套件。
+                         * 支援方向鍵左右切換（WAI-ARIA tabs 的標準操作）。
+                         */
+                        (function () {
+                            var script = document.currentScript;
+                            var root = script && script.closest('.hero-cd');
+                            if (!root) { return; }
+                            var tabs = Array.prototype.slice.call(root.querySelectorAll('[role="tab"]'));
+
+                            function activate(tab) {
+                                tabs.forEach(function (t) {
+                                    var on = (t === tab);
+                                    t.classList.toggle('is-active', on);
+                                    t.setAttribute('aria-selected', on ? 'true' : 'false');
+                                    t.setAttribute('tabindex', on ? '0' : '-1');
+                                    var panel = document.getElementById(t.getAttribute('aria-controls'));
+                                    if (panel) { panel.hidden = !on; }
+                                });
+                            }
+
+                            tabs.forEach(function (tab, i) {
+                                tab.addEventListener('click', function () { activate(tab); });
+                                tab.addEventListener('keydown', function (e) {
+                                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') { return; }
+                                    e.preventDefault();
+                                    var step = (e.key === 'ArrowRight') ? 1 : tabs.length - 1;
+                                    var next = tabs[(i + step) % tabs.length];
+                                    activate(next);
+                                    next.focus();
+                                });
+                            });
+                        })();
+                        </script>
+
+                        <a class="hero-cd__go" href="<?php echo esc_url( $hero_countdown['url'] ); ?>">看完整新番表 →</a>
+                    </div>
+                <?php endif; ?>
+
+            </div>
+
+            <?php
+            /*
+             * 橫幅：圖片由使用者自行製作，放在 assets/images/hero-banner.webp。
+             * 與季節主視覺同樣用 file_exists() 判斷——檔案不在就整塊不輸出，
+             * 不會出現破圖，圖放進來才自動生效。
+             */
+            $hero_banner_rel  = 'assets/images/hero-banner.webp';
+            $hero_banner_path = get_stylesheet_directory() . '/' . $hero_banner_rel;
+            ?>
+            <?php
+            /*
+             * 2026-09-19 橫幅改為 LOFI 電台入口（原本指向新番表）。
+             *
+             * ⚠ 這個網址在站上有兩份：這裡，以及「會員」選單的 🎧LOFI 項目
+             *   （nav_menu_item ID 60674，其 _menu_item_target 已設為 _blank）。
+             *   站上沒有 /lofi/ 頁面，LOFI 就是這支外部 YouTube，所以只能寫死；
+             *   日後要換頻道，兩邊都要改，改一邊會不一致。
+             */
+            $hero_banner_url = 'https://www.youtube.com/watch?v=3Yk8RO_FuM0';
+            ?>
+            <?php if ( file_exists( $hero_banner_path ) ) : ?>
                 <a
-                    href="<?php echo esc_url( $poster['url'] ); ?>"
-                    class="poster-item glass"
-                    title="<?php echo esc_attr( $poster['title'] ); ?>"
-                    <?php if ( $poster['external'] ) : ?>
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    <?php endif; ?>
+                    class="hero-banner"
+                    href="<?php echo esc_url( $hero_banner_url ); ?>"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="LOFI 電台開播，在新分頁開啟"
                 >
                     <img
-                        src="<?php echo esc_url( $poster['img'] ); ?>"
-                        alt="<?php echo esc_attr( $poster['title'] ); ?>"
-                        width="250"
-                        height="480"
+                        src="<?php echo esc_url( get_stylesheet_directory_uri() . '/' . $hero_banner_rel . '?v=' . filemtime( $hero_banner_path ) ); ?>"
+                        alt="LOFI 電台開播"
+                        loading="lazy"
                         decoding="async"
-                        <?php if ( $index === 0 ) : ?>
-                            loading="eager"
-                            fetchpriority="high"
-                            data-no-lazy="1"
-                        <?php else : ?>
-                            loading="lazy"
-                        <?php endif; ?>
-                        onerror="this.style.display='none';this.closest('.poster-item').classList.add('skeleton');"
                     >
-
-                    <span class="poster-item__title">
-                        <?php echo esc_html( $poster['title'] ); ?>
-                    </span>
                 </a>
-            <?php endforeach; ?>
-        </div>
+            <?php endif; ?>
+
+        </div><!-- .hero-side -->
 
     </div>
 </section>

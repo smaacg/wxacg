@@ -2516,3 +2516,309 @@ body p:not([class*="btn"]):not([class*="badge"]):not([class*="tag"]) {
     right: 12px !important;
   }
 }
+
+/* =============================================================================
+   首頁 Hero：季節主視覺 ＋ 換季倒數
+   -----------------------------------------------------------------------------
+   兩者都是「有才出現」——季節圖沒放進 assets/images/ 時 .hero-season-bg
+   根本不會被輸出，Hero 維持原本的純 CSS 漸層；不在開季前三週時右側
+   維持原本的三張入口海報。
+   ========================================================================== */
+
+/*
+ * 季節主視覺墊在最底層（z-index:0），既有的 .hero-bg-layer 漸層與
+ * .hero-noise 疊在它上面，所以文字的對比度仍由漸層負責，換任何一張圖
+ * 都不會讓標題變得讀不到。
+ *
+ * 右側加一道由左至右的遮罩：Hero 文字靠左，左半邊必須夠暗；
+ * 右半邊讓圖露出來，正好是海報／倒數面板所在的位置。
+ */
+.hero-season-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center right;
+  background-repeat: no-repeat;
+  opacity: .55;
+  -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,.25) 0%, rgba(0,0,0,.75) 45%, #000 100%);
+          mask-image: linear-gradient(to right, rgba(0,0,0,.25) 0%, rgba(0,0,0,.75) 45%, #000 100%);
+  pointer-events: none;
+}
+
+/* 有季節圖時把原本的漸層調暗一點，避免兩層疊起來過亮 */
+.hero-section.has-season-bg .hero-bg-layer { opacity: .7; }
+
+@media (max-width: 900px) {
+  .hero-season-bg { opacity: .35; -webkit-mask-image: none; mask-image: none; }
+}
+
+/* ── Hero 右側：上排三格（直立）＋下方橫幅 ──
+ *
+ * 三格沿用既有的 .hero-posters／.poster-item 樣式（250×480 直立橫排），
+ * 所以容器同時掛 .hero-posters 與 .hero-side__row 兩個 class——
+ * 前者繼承全部既有樣式與斷點，後者只負責新增的直欄堆疊。
+ *
+ * ★ 倒數卡做成與海報同尺寸的第三格
+ *   倒數期間只顯示兩張海報、第三格讓給倒數；開季後倒數消失、
+ *   第三張海報自動補回。兩種狀態都是三格，Hero 高度不會跳動。
+ */
+/*
+ * 寬度釘死成「卡片列」的寬度，不能讓內容自己撐。
+ *
+ * 橫幅圖的原生寬度（1000px）比卡片列（250×3 ＋ 間距 12×2 ＝ 774px）寬，
+ * 若不指定寬度，flex 容器會取最寬子元素的 max-content＝1000px，
+ * 三張卡片就會靠右對齊在 1000px 的框裡，跟橫幅左右都對不齊。
+ *
+ * 用 calc 寫出來而不是直接填 774px，是為了讓它跟 .poster-item 的
+ * 250px 與 .hero-posters 的 gap:12px 保持可追溯的關係——改其中一個
+ * 就知道這裡要跟著改。
+ */
+.hero-side {
+  width: calc(250px * 3 + 12px * 2);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ── 直式倒數卡 ── */
+.hero-cd {
+  width: 250px;
+  height: 480px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, rgba(99,168,255,.16), rgba(10,20,40,.72) 55%);
+  border: 1px solid rgba(99, 168, 255, .32);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: inherit;
+  transition: var(--trans-smooth);
+}
+
+/* 卡片本身已不是連結（內部各元素各自連出去），只保留整體浮起的回饋 */
+.hero-cd:hover { transform: translateY(-6px); border-color: rgba(99,168,255,.55); z-index: 10; }
+
+/* 標頭：季別＋天數，連到該季新番表 */
+.hero-cd__head { display: block; text-decoration: none; color: inherit; }
+.hero-cd__head:hover .hero-cd__season { color: var(--accent-blue, #63A8FF); }
+
+.hero-cd__season {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: .04em;
+}
+
+/* 天數是這張卡唯一的主角，字級要壓過其他所有元素 */
+.hero-cd__count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 2px 0 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+}
+
+.hero-cd__count strong {
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 900;
+  color: var(--accent-blue, #63A8FF);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-cd__count em { font-style: normal; font-size: 13px; color: rgba(247,249,255,.72); }
+
+/* 5 列要塞進 480px 的卡：列距與縮圖都比一般清單再緊一點 */
+.hero-cd__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * 每一列都是獨立連結，直接連到該作品頁——讀者看到縮圖時想去的是那一部，
+ * 不是總表。整列可點（含縮圖與文字），點擊區域才夠大。
+ */
+.hero-cd__list li { display: flex; }
+.hero-cd__list li > a {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 3px;
+  margin: -3px;
+  border-radius: 7px;
+  text-decoration: none;
+  color: inherit;
+  transition: background .2s ease;
+}
+.hero-cd__list li > a:hover { background: rgba(255, 255, 255, .08); }
+.hero-cd__list li > a:hover b { color: var(--accent-blue, #63A8FF); }
+
+.hero-cd__list img {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 5px;
+  display: block;
+}
+
+.hero-cd__list span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.hero-cd__list b {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hero-cd__list i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--accent-blue, #63A8FF);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-cd__go {
+  margin-top: 12px;
+  text-align: center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(99, 168, 255, .16);
+  border: 1px solid rgba(99, 168, 255, .32);
+  color: var(--accent-blue, #63A8FF);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background .2s ease;
+}
+
+.hero-cd__go:hover { background: rgba(99, 168, 255, .28); }
+
+/* ── 下方橫幅（圖片由使用者提供）── */
+.hero-banner {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  line-height: 0;
+  transition: var(--trans-smooth);
+}
+
+.hero-banner:hover { transform: translateY(-3px); }
+
+.hero-banner img { width: 100%; height: auto; display: block; }
+
+/*
+ * ── 平板與手機：倒數卡改成海報下方一條滿寬的橫式卡 ──
+ *
+ * 桌機是「兩張海報＋倒數卡」三格並排；但 home.css 另有兩條響應式規則：
+ *   769–1024px：.hero-section .hero-posters .poster-item 縮成 160×300
+ *   ≤768px    ：.hero-section .hero-posters { display:none !important }
+ * 倒數卡若維持 250×480 並排，平板會跟縮小的海報對不齊、甚至超出；
+ * 手機則會跟著整排被藏掉。
+ *
+ * 做法：海報的既有規則完全不動（平板縮小、手機隱藏），
+ * 倒數卡在 ≤1024px 一律換行成獨立一列、改橫式；手機再單獨把它救回來。
+ */
+@media (max-width: 1024px) {
+  /* 對齊 home.css 平板海報 160px：三格時剛好 160×3＋12×2，與改動前的平板寬度一致 */
+  .hero-side { width: calc(160px * 3 + 12px * 2); }
+
+  /* 允許換行，倒數卡（flex-basis:100%）才會掉到海報下方自成一列 */
+  .hero-posters.hero-side__row { flex-wrap: wrap; row-gap: 14px; }
+
+  .hero-cd {
+    flex: 0 0 100%;
+    width: 100%;
+    height: auto;
+    padding: 16px;
+  }
+  .hero-cd__list { flex-direction: row; flex-wrap: wrap; gap: 10px 16px; }
+  .hero-cd__list li { flex: 1 1 45%; min-width: 0; }
+}
+
+@media (max-width: 900px) {
+  /* ≤900px 起 Hero 改成上下堆疊，右欄不再受海報列寬度限制 */
+  .hero-side { width: 100%; }
+  .hero-posters.hero-side__row { justify-content: flex-start; }
+}
+
+/*
+ * ≤768px：home.css 用 !important 把整排海報藏起來。
+ * 倒數卡要留，所以只對「有倒數卡的那一排」（.has-cd）反向指定顯示，
+ * 同時把海報本身藏掉——結果與原本一樣看不到海報，只多了倒數卡。
+ * 這裡的 !important 只是為了蓋過 home.css 的 !important，
+ * 且限縮在 .has-cd，沒有倒數的季外期間完全不影響原本行為。
+ */
+@media (max-width: 768px) {
+  .hero-section .hero-posters.hero-side__row.has-cd { display: flex !important; }
+  .hero-section .hero-posters.hero-side__row.has-cd .poster-item { display: none; }
+}
+
+@media (max-width: 480px) {
+  .hero-cd__list li { flex: 1 1 100%; }
+}
+
+/* ── 倒數卡頁籤：最早開播／話題強檔 ──
+ *
+ * 做成膠囊分段按鈕而不是底線頁籤：卡片只有 250px 寬，
+ * 底線頁籤在這麼窄的空間裡看起來像兩段普通文字，分段按鈕一眼就知道能切。
+ */
+.hero-cd__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin: 0 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+
+.hero-cd__tab {
+  flex: 1 1 0;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(247, 249, 255, .62);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+
+.hero-cd__tab:hover { color: #fff; }
+
+.hero-cd__tab.is-active {
+  background: rgba(99, 168, 255, .22);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(99, 168, 255, .40);
+}
+
+.hero-cd__tab:focus-visible {
+  outline: 2px solid var(--accent-blue, #63A8FF);
+  outline-offset: 1px;
+}
+
+/* 未選中的面板用 hidden 屬性隱藏；flex 會蓋掉瀏覽器預設的 display:none，明確寫回來 */
+.hero-cd__list[hidden] { display: none; }
