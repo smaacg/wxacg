@@ -235,7 +235,8 @@ class Anime_Sync_Import_Manager {
 					?: ( $anime_data['anime_title_romaji'] ?? $id_label );
 
 				if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
-					Anime_Sync_Error_Logger::log( 'info', '已略過成人作品匯入', [
+					// log() 是實例方法，靜態呼叫在 PHP 8 是 fatal（2019 WINTER 實測死在這）
+						( new Anime_Sync_Error_Logger() )->log( 'info', '已略過成人作品匯入', [
 						'anilist_id' => $anilist_id,
 						'title'      => $blocked_title,
 					] );
@@ -2010,7 +2011,8 @@ class Anime_Sync_Import_Manager {
 		] );
 
 		if ( count( $query->posts ) > 1 && class_exists( 'Anime_Sync_Error_Logger' ) ) {
-			Anime_Sync_Error_Logger::log( 'warning', '偵測到重複 anime_anilist_id 文章', [
+			// 同 238 行：log() 是實例方法，靜態呼叫在 PHP 8 是 fatal
+			( new Anime_Sync_Error_Logger() )->log( 'warning', '偵測到重複 anime_anilist_id 文章', [
 				'anilist_id' => $anilist_id,
 				'post_ids'   => array_map( 'intval', $query->posts ),
 			] );

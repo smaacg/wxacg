@@ -2658,8 +2658,28 @@ class Anime_Sync_Cron_Manager {
 
             $processed++;
 
-            $this->rate_limiter->wait_if_needed( 'anilist' );
-            $result = $this->import_manager->import_single( (int) $anilist_id, null, 'anilist' );
+            /*
+             * 單筆包 try/catch：一部作品出事不該讓整輪陣亡。
+             *
+             * 2026-09-19 實測 2019 WINTER：第 24 部觸發 import-manager 裡一個
+             * 靜態呼叫非靜態方法的既有 bug，PHP 8 直接 fatal，結果是跑了 224 秒、
+             * 匯入 24 部，然後連佇列都沒存到——與修這支之前的「逾時白做」同樣結果。
+             *
+             * ★ 邊界：Throwable 攔得住 Error 與 Exception，攔不住逾時與記憶體耗盡
+             *   那類真正的 PHP fatal。後者由上面的時間預算負責，兩者互補，缺一不可。
+             */
+            try {
+                $this->rate_limiter->wait_if_needed( 'anilist' );
+                $result = $this->import_manager->import_single( (int) $anilist_id, null, 'anilist' );
+            } catch ( \Throwable $e ) {
+                $failed++;
+                $this->logger->log( 'error', '季度匯入單筆拋出例外', [
+                    'anilist_id' => (int) $anilist_id,
+                    'error'      => $e->getMessage(),
+                    'where'      => $e->getFile() . ':' . $e->getLine(),
+                ] );
+                continue;
+            }
 
             if ( ! empty( $result['skipped'] ) ) {
                 $skipped++;
