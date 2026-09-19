@@ -147,9 +147,25 @@ class Anime_Sync_Streaming_Source_Appletv extends Anime_Sync_Streaming_Source_Ve
 		/*
 		 * 頁面在、但沒有任何商店頻道＝只是目錄頁（Apple TV 會替沒在賣的作品也建頁面，
 		 * 例如《葬送的芙莉蓮》）。這種連結點過去買不到，視為無效。
-		 * 但要先確認這真的是作品頁：認不得的頁面（改版、驗證頁）回 null，不動它。
+		 *
+		 * ⚠ 2026-09-20：Apple 改版，這個判斷只在**舊結構**下才成立。
+		 *   實測三個仍可正常觀看的作品頁（青之蘆葦、來自深淵總集篇前／後編）：
+		 *     - "channelId" 一次都不出現（舊結構整個沒了）
+		 *     - "canonicalId" 也消失了，但 umc.cmc. 還在 → 舊寫法會掉進這裡回 false
+		 *     - offers／playables／price／buyParams 全部 0：上架資訊已搬到前端，
+		 *       主機抓到的 HTML 裡**沒有任何可據以判斷的依據**
+		 *   （頁面裡確實找得到 tvs.sbd.4000，但它在 "target":{"type":"Brand"} 的
+		 *     Apple TV+ 推銷區塊裡，每頁都有，拿它當證據會把 133 筆全判成還在。）
+		 *
+		 *   所以改成：拿 "canonicalId"（改版後消失的那個欄位）當「舊結構」的標記。
+		 *   舊結構的目錄頁仍然判得出買不到；新結構缺少判斷依據，回 null 不下結論。
+		 *   真正下架的頁面回 HTTP 404（2026-09-20 以假 umc.cmc id 實測），
+		 *   由 alive_missing_codes() 那條路徑處理，不受這裡影響。
+		 *
+		 *   代價：新結構下分不出「目錄頁」與「可購買」，那種連結會留著。
+		 *   留一個可能買不到的連結，遠好過誤刪 133 筆真的能看的。
 		 */
-		if ( strpos( $html, '"canonicalId":"' ) !== false || strpos( $html, 'umc.cmc.' ) !== false ) {
+		if ( strpos( $html, '"canonicalId":"' ) !== false ) {
 			return false;
 		}
 

@@ -320,7 +320,7 @@ $recent = $wpdb->get_results( $wpdb->prepare(
 			<tr><th>愛奇藝、HIDIVE、Hulu</th><td>國際平台，來源是 AniList externalLinks，匯入時寫入。</td></tr>
 			<tr><th>Apple TV+、Prime Video</th><td><strong>已接「只覆核、不發現」</strong>（上表的 appletv／amazon）：沒有可列舉的台灣目錄，不找新作品，但會定期驗證站上既有網址在台灣還能不能看。新連結仍由 AniList 匯入提供。</td></tr>
 			<tr><th>車庫娛樂、AniPASS</th><td>同一個站（AniPASS 是車庫官網的免費動畫專區，不是 YouTube 頻道）。主機被 WAF 擋 403、台灣 IP 正常，<strong>已併入本機建包排程</strong>（上表的 garageplay，153 部）。</td></tr>
-			<tr><th>公視+</th><td>可接（sitemap 1,160 個節目、作品頁有標題），但站上公視標記只有 3 部，暫不做。</td></tr>
+			<tr><th>公視+</th><td>2026-09-19 已接（上表的 ptsplus）：分批爬 sitemap 的 1,162 個節目頁，從 og:title 取名稱建索引。只爬節目主頁不爬季度頁——公視的 season 是語言版本不是季數。站上標題完全相同的有 14 部。</td></tr>
 			<tr><th>renta!</th><td>漫畫租借為主，動畫收錄少。靠 YourAnimes。</td></tr>
 		</tbody>
 	</table>

@@ -350,6 +350,58 @@ foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {
 }
 
 // ─────────────────────────────────────────────────────────
+// 6b. Apple TV：改版後「沒有商店頻道」不能再當成買不到
+//     （2026-09-20：三個仍可觀看的作品頁被判死、卡在第 2/3 輪，差一輪就被刪）
+// ─────────────────────────────────────────────────────────
+$atv = Anime_Sync_Streaming_Source_Base::make( 'appletv' );
+
+// 舊結構仍然照舊判斷
+t_is(
+	t_call( $atv, 'parse_alive', '{"channelId":"tvs.sbd.9001"}', 'https://tv.apple.com/tw/movie/x/umc.cmc.a' ),
+	true,
+	'Apple TV：舊結構有 iTunes 商店頻道 → 還在'
+);
+t_is(
+	t_call( $atv, 'parse_alive', '{"channelId":"tvs.sbd.1234","canonicalId":"x"}', 'https://tv.apple.com/tw/movie/x/umc.cmc.a' ),
+	false,
+	'Apple TV：舊結構但沒有商店頻道 → 目錄頁，買不到'
+);
+
+/*
+ * ★ 這一項是這次修正的核心。
+ *   改版後的頁面沒有 "channelId"，卻有 umc.cmc.（還有每頁都在的 Apple TV+ 品牌區塊
+ *   "target":{"id":"tvs.sbd.4000","type":"Brand"}）。舊寫法會掉進 umc.cmc. 那條回 false，
+ *   把 133 筆全部誤殺。缺少判斷依據時要回 null，不是回 false。
+ */
+t_is(
+	t_call(
+		$atv,
+		'parse_alive',
+		'{"id":"umc.cmc.tsj0o2owpb1ci5dahxm4wja5","target":{"id":"tvs.sbd.4000","type":"Brand"},"title":"Apple TV"}',
+		'https://tv.apple.com/tw/show/x/umc.cmc.tsj0o2owpb1ci5dahxm4wja5'
+	),
+	null,
+	'Apple TV：新結構沒有 channelId → 不下結論（不能判死）'
+);
+
+// 品牌區塊裡的 tvs.sbd.4000 不是上架證據，不能拿來判活
+t_is(
+	t_call( $atv, 'parse_alive', '{"target":{"id":"tvs.sbd.4000","type":"Brand"}}', 'https://tv.apple.com/tw/movie/x/umc.cmc.a' ),
+	null,
+	'Apple TV：品牌區塊的 tvs.sbd.4000 不算上架證據'
+);
+
+// 非台灣商店不必抓頁面就知道無效
+t_is(
+	t_call( $atv, 'parse_alive', '{"channelId":"tvs.sbd.9001"}', 'https://tv.apple.com/us/movie/x/umc.cmc.a' ),
+	false,
+	'Apple TV：/us/ 連結對台灣讀者無效'
+);
+
+// 真正下架靠 404，與 parse_alive 無關——這條路徑斷了上面的寬鬆判斷就會變成永不下架
+t_is( t_call( $atv, 'alive_missing_codes' ), [ 404 ], 'Apple TV：不存在的頁面回 404，仍偵測得到真下架' );
+
+// ─────────────────────────────────────────────────────────
 // 7. 公視+：語言版本後綴、多節目取捨、軟性 404
 //    （2026-09-19 從主機實測的行為，改動任何一項都要先重測再改這裡）
 // ─────────────────────────────────────────────────────────
