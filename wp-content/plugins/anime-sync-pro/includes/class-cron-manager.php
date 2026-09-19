@@ -157,6 +157,25 @@ class Anime_Sync_Cron_Manager {
     const DAILY_QUEUE_OPTION = 'anime_sync_daily_queue';
     const DAILY_BATCH_SIZE   = 20;
 
+    /*
+     * 季度匯入的佇列與時間預算（2026-09-19）。
+     *
+     * 為什麼要有這兩個：季度匯入原本用 Anime_Sync_Performance::batch_process()
+     * 一次把整季跑完，但那支函式沒有中止機制。一季 200~300 部、每部都要等
+     * AniList 配額（30 次／分鐘，還與其他 cron 分食），必然撞破開頭設的
+     * set_time_limit(600)。實測 2026-08-18 起連續五次排程全部只留下「開始」、
+     * 沒有任何一次「完成」——逾時是 fatal，整批白做，下一輪再從頭撞一次。
+     *
+     * 這正是本檔 BATCH_TIME_BUDGET 註解描述的自我延續問題，「每日動態更新」
+     * 早就改用時間預算＋佇列解決了，季度匯入一直沒跟上。
+     *
+     * 預算取 240 秒：比每日那支（210）寬一些，因為季度匯入每筆要跑完整的
+     * import_single()（建立文章＋抓角色／製作群），單筆耗時比更新既有作品長；
+     * 但仍遠低於 600 秒上限，留足夠餘裕讓收尾那段跑得到。
+     */
+    const SEASON_QUEUE_OPTION      = 'anime_sync_season_queue';
+    const SEASON_BATCH_TIME_BUDGET = 240;
+
     /**
      * 每日動態更新的熔斷門檻：同一批內連續失敗達此數量即中止本批。
      * 用於上游整個不可用時（例如 AniList 全站回 403）避免逐筆空打，
@@ -2536,53 +2555,170 @@ class Anime_Sync_Cron_Manager {
         Anime_Sync_Performance::set_time_limit( 600 );
         Anime_Sync_Performance::increase_memory_limit( '512M' );
 
-        if ( empty( $season ) || $year === 0 ) {
+        /*
+         * 呼叫端有沒有「明確指定」季別？這個判斷必須在套用預設值之前做，
+         * 套用之後就分不出「使用者指定當季」與「沒指定而自動填成當季」。
+         */
+        $explicit = ( '' !== $season && $year > 0 );
+
+        $queue = get_option( self::SEASON_QUEUE_OPTION, [] );
+        $queue = is_array( $queue ) ? $queue : [];
+
+        $queue_has_work = ! empty( $queue['ids'] )
+            && ! empty( $queue['season'] )
+            && ! empty( $queue['year'] );
+
+        /*
+         * ★ 沒指定季別時（每週排程就是這種呼叫），優先把既有佇列消化完，
+         *   而不是逕自改跑當季。
+         *
+         *   不這樣做會有兩個後果，而且都不會有任何跡象：
+         *   ① 回補中的季度永遠等不到排程接手，只能靠人工一直跑 CLI；
+         *   ② 當季若查無資料（實際發生過，日誌有「2026 SUMMER 無資料」），
+         *      下面那段就會把別季的回補佇列整個刪掉，進度全沒。
+         */
+        if ( ! $explicit && $queue_has_work ) {
+            $season = (string) $queue['season'];
+            $year   = (int) $queue['year'];
+        } elseif ( '' === $season || 0 === $year ) {
             [ $season, $year ] = $this->get_current_season();
         }
 
         $this->logger->log( 'info', "季度匯入開始：{$year} {$season}" );
 
-        $media_list = $this->fetch_season_list( $season, $year );
+        /*
+         * 續跑或重新開始？佇列裡存的是「同一季尚未處理完的 AniList ID」。
+         * 只有佇列確實屬於這一季時才續跑，否則重新抓清單——否則手動指定
+         * 別季會接到上一季的殘料。
+         */
+        $same_season = ( ( $queue['season'] ?? '' ) === $season )
+            && ( (int) ( $queue['year'] ?? 0 ) === $year )
+            && ! empty( $queue['ids'] );
 
-        if ( empty( $media_list ) ) {
-            $this->logger->log( 'warning', "季度匯入：{$year} {$season} 無資料" );
-            return [ 'success' => false, 'message' => '無資料', 'imported' => 0 ];
+        if ( $same_season ) {
+            $pending  = array_values( (array) $queue['ids'] );
+            $imported = (int) ( $queue['imported'] ?? 0 );
+            $skipped  = (int) ( $queue['skipped'] ?? 0 );
+            $failed   = (int) ( $queue['failed'] ?? 0 );
+            $total    = (int) ( $queue['total'] ?? count( $pending ) );
+
+            $this->logger->log( 'info', sprintf(
+                '季度匯入續跑：%d %s，尚餘 %d 部',
+                $year,
+                $season,
+                count( $pending )
+            ) );
+        } else {
+            $media_list = $this->fetch_season_list( $season, $year );
+
+            if ( empty( $media_list ) ) {
+                $this->logger->log( 'warning', "季度匯入：{$year} {$season} 無資料" );
+
+                /*
+                 * ★ 只有佇列確實屬於這一季時才清掉。
+                 *   無條件 delete_option() 會在「當季查無資料」時，把另一季
+                 *   回補到一半的佇列一併刪除——靜默的進度遺失，事後也查不出
+                 *   是誰刪的。2026 SUMMER 查無資料是已經發生過的事，不是假設。
+                 */
+                if ( ( $queue['season'] ?? '' ) === $season
+                    && (int) ( $queue['year'] ?? 0 ) === $year ) {
+                    delete_option( self::SEASON_QUEUE_OPTION );
+                }
+
+                return [ 'success' => false, 'message' => '無資料', 'imported' => 0 ];
+            }
+
+            // 佇列只存 ID：清單其餘欄位這裡用不到，存進 option 只會讓它無謂變大
+            $pending = [];
+            foreach ( $media_list as $media ) {
+                $id = (int) ( $media['id'] ?? 0 );
+                if ( $id > 0 ) {
+                    $pending[] = $id;
+                }
+            }
+
+            $imported = 0;
+            $skipped  = 0;
+            $failed   = 0;
+            $total    = count( $pending );
         }
 
-        $imported = 0;
-        $skipped  = 0;
-        $failed   = 0;
+        /*
+         * 時間預算：預算用盡就把未處理的存回佇列並正常返回，不再讓 PHP 逾時
+         * 把整批打掉。至少處理一筆，避免預算本身已過期時佇列永遠不前進
+         * （與每日動態更新同樣的守衛）。
+         */
+        $deadline  = microtime( true ) + self::SEASON_BATCH_TIME_BUDGET;
+        $processed = 0;
 
-        Anime_Sync_Performance::batch_process(
-            $media_list,
-            function( array $media ) use ( &$imported, &$skipped, &$failed ): void {
-                $anilist_id = (int) ( $media['id'] ?? 0 );
-                if ( ! $anilist_id ) return;
+        foreach ( $pending as $index => $anilist_id ) {
+            if ( $index > 0 && microtime( true ) >= $deadline ) {
+                break;
+            }
 
-                $this->rate_limiter->wait_if_needed( 'anilist' );
+            $processed++;
 
-                $result = $this->import_manager->import_single( $anilist_id, null, 'anilist' );
+            $this->rate_limiter->wait_if_needed( 'anilist' );
+            $result = $this->import_manager->import_single( (int) $anilist_id, null, 'anilist' );
 
-                if ( ! empty( $result['skipped'] ) ) {
-                    $skipped++;
-                } elseif ( ! empty( $result['success'] ) ) {
-                    $imported++;
-                } else {
-                    $failed++;
-                    $this->logger->log( 'warning', '季度匯入單筆失敗', [
-                        'anilist_id' => $anilist_id,
-                        'error'      => $result['message'] ?? '未知錯誤',
-                    ] );
-                }
-            },
-            15
-        );
+            if ( ! empty( $result['skipped'] ) ) {
+                $skipped++;
+            } elseif ( ! empty( $result['success'] ) ) {
+                $imported++;
+            } else {
+                $failed++;
+                $this->logger->log( 'warning', '季度匯入單筆失敗', [
+                    'anilist_id' => (int) $anilist_id,
+                    'error'      => $result['message'] ?? '未知錯誤',
+                ] );
+            }
+        }
+
+        $remaining = array_slice( $pending, $processed );
+
+        if ( ! empty( $remaining ) ) {
+            update_option( self::SEASON_QUEUE_OPTION, [
+                'season'   => $season,
+                'year'     => $year,
+                'ids'      => array_values( $remaining ),
+                'imported' => $imported,
+                'skipped'  => $skipped,
+                'failed'   => $failed,
+                'total'    => $total,
+            ], false );
+
+            $this->logger->log( 'info', sprintf(
+                '季度匯入：本批處理 %d 部（%d 部退回佇列下批續跑）｜%d %s 累計 匯入 %d／略過 %d／失敗 %d',
+                $processed,
+                count( $remaining ),
+                $year,
+                $season,
+                $imported,
+                $skipped,
+                $failed
+            ) );
+
+            return [
+                'success'   => true,
+                'partial'   => true,
+                'season'    => $season,
+                'year'      => $year,
+                'total'     => $total,
+                'imported'  => $imported,
+                'skipped'   => $skipped,
+                'failed'    => $failed,
+                'remaining' => count( $remaining ),
+            ];
+        }
+
+        delete_option( self::SEASON_QUEUE_OPTION );
 
         $summary = [
             'success'  => true,
+            'partial'  => false,
             'season'   => $season,
             'year'     => $year,
-            'total'    => count( $media_list ),
+            'total'    => $total,
             'imported' => $imported,
             'skipped'  => $skipped,
             'failed'   => $failed,
@@ -3197,4 +3333,86 @@ class Anime_Sync_Cron_Manager {
 
         return $body;
     }
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * WP-CLI：手動驅動季度匯入（2026-09-19 新增）
+ * ---------------------------------------------------------------------------
+ *
+ * 為什麼走 do_action() 而不是自己 new 一個 Cron_Manager：
+ * 外掛載入時已經建立實例，並在建構子裡把 run_season_auto_import() 掛上
+ * HOOK_SEASON_IMPORT（見 __construct）。重新 new 一個會把全部排程 hook
+ * 在同一個請求裡再註冊一次，變成每個任務都被觸發兩遍。
+ */
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+
+	/**
+	 * 執行季度匯入。單輪最多跑 SEASON_BATCH_TIME_BUDGET 秒，未處理的留在佇列。
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--season=<season>]
+	 * : WINTER / SPRING / SUMMER / FALL。省略則自動判斷當季。
+	 *
+	 * [--year=<year>]
+	 * : 西元年。省略則自動判斷。
+	 *
+	 * [--loop]
+	 * : 反覆執行直到該季佇列清空為止。不加則只跑一輪。
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp anime season-import
+	 *     wp anime season-import --season=WINTER --year=2019
+	 *     wp anime season-import --season=WINTER --year=2019 --loop
+	 */
+	WP_CLI::add_command( 'anime season-import', function ( $args, $assoc_args ) {
+
+		$season = strtoupper( (string) ( $assoc_args['season'] ?? '' ) );
+		$year   = (int) ( $assoc_args['year'] ?? 0 );
+		$loop   = isset( $assoc_args['loop'] );
+
+		$valid = [ 'WINTER', 'SPRING', 'SUMMER', 'FALL' ];
+		if ( '' !== $season && ! in_array( $season, $valid, true ) ) {
+			WP_CLI::error( 'season 只能是 ' . implode( ' / ', $valid ) );
+		}
+		if ( '' !== $season && $year <= 0 ) {
+			WP_CLI::error( '指定 --season 時必須一併指定 --year，否則會與自動判斷的當季混在一起' );
+		}
+
+		$round = 0;
+
+		do {
+			$round++;
+			$started = microtime( true );
+
+			do_action( Anime_Sync_Cron_Manager::HOOK_SEASON_IMPORT, $season, $year );
+
+			$queue = get_option( Anime_Sync_Cron_Manager::SEASON_QUEUE_OPTION, [] );
+			$left  = ( is_array( $queue ) && ! empty( $queue['ids'] ) ) ? count( $queue['ids'] ) : 0;
+
+			WP_CLI::log( sprintf(
+				'第 %d 輪：耗時 %.1f 秒，剩餘 %d 部%s',
+				$round,
+				microtime( true ) - $started,
+				$left,
+				$left > 0 ? '' : '（本季佇列已清空）'
+			) );
+
+			if ( 0 === $left ) {
+				break;
+			}
+
+			/*
+			 * 續跑時沿用佇列裡記的季別。省略 --season 時每輪都重新判斷當季，
+			 * 跨月執行會在同一次 --loop 裡換季，把兩季的進度攪在一起。
+			 */
+			$season = (string) ( $queue['season'] ?? $season );
+			$year   = (int) ( $queue['year'] ?? $year );
+
+		} while ( $loop );
+
+		WP_CLI::success( $loop ? '季度匯入已跑完' : '本輪結束' );
+	} );
 }
