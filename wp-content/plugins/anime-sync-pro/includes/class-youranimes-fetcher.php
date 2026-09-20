@@ -445,7 +445,7 @@ class Anime_Sync_YourAnimes_Fetcher {
      * @param int $batch 這一輪處理幾部，0＝用 STALE_BATCH_SIZE
      * @return array{picked:int,ok:int,empty:int,fail:int,circuit:bool}
      */
-    public function run_stale_refresh( int $batch = 0 ): array {
+    public function run_stale_refresh( int $batch = 0, string $status = 'publish' ): array {
 
         $stats = [ 'picked' => 0, 'ok' => 0, 'empty' => 0, 'fail' => 0, 'circuit' => false ];
         $batch = $batch > 0 ? $batch : self::STALE_BATCH_SIZE;
@@ -458,11 +458,13 @@ class Anime_Sync_YourAnimes_Fetcher {
 
         global $wpdb;
 
+        $in = self::status_sql( $status );
+
         $ids = $wpdb->get_col( $wpdb->prepare(
             "SELECT ya.post_id
                FROM {$wpdb->postmeta} ya
                INNER JOIN {$wpdb->posts} p
-                       ON p.ID = ya.post_id AND p.post_type = 'anime' AND p.post_status = 'publish'
+                       ON p.ID = ya.post_id AND p.post_type = 'anime' AND p.post_status IN ({$in})
                LEFT JOIN {$wpdb->postmeta} lu
                       ON lu.post_id = ya.post_id AND lu.meta_key = %s
               WHERE ya.meta_key = 'anime_youranimes_url'
@@ -531,17 +533,36 @@ class Anime_Sync_YourAnimes_Fetcher {
     }
 
     /**
+     * 文章狀態白名單 → SQL 的 IN 子句。
+     *
+     * 只接受這三種寫法，其餘一律退回 'publish'——這個字串會直接拼進 SQL，
+     * 不能讓外部值流進去。
+     */
+    private static function status_sql( string $status ): string {
+        switch ( $status ) {
+            case 'draft':
+                return "'draft'";
+            case 'any':
+                return "'publish','draft'";
+            default:
+                return "'publish'";
+        }
+    }
+
+    /**
      * 還有幾部沒蓋過戳記（給 CLI 顯示進度用）。
      */
-    public function stale_remaining(): int {
+    public function stale_remaining( string $status = 'publish' ): int {
 
         global $wpdb;
+
+        $in = self::status_sql( $status );
 
         return (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*)
                FROM {$wpdb->postmeta} ya
                INNER JOIN {$wpdb->posts} p
-                       ON p.ID = ya.post_id AND p.post_type = 'anime' AND p.post_status = 'publish'
+                       ON p.ID = ya.post_id AND p.post_type = 'anime' AND p.post_status IN ({$in})
                LEFT JOIN {$wpdb->postmeta} lu
                       ON lu.post_id = ya.post_id AND lu.meta_key = %s
               WHERE ya.meta_key = 'anime_youranimes_url'
@@ -1146,18 +1167,32 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	 * [--loop]
 	 * : 反覆執行直到全部跑過一輪為止。不加則只跑一輪。
 	 *
+	 * [--status=<status>]
+	 * : publish（預設）／draft／any。
+	 *   ★ 草稿要另外跑：每日同步與本指令預設都只處理已發布的作品，
+	 *     而匯入產生的是草稿——它只在匯入當下同步過一次，之後 YA 新增的平台
+	 *     永遠不會進來（2026-09-20 實測：1,382 部草稿有 YA 網址，0 部被重整過）。
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     wp anime youranimes-refresh --batch=20
 	 *     wp anime youranimes-refresh --loop
+	 *     wp anime youranimes-refresh --status=draft --loop
 	 */
 	WP_CLI::add_command( 'anime youranimes-refresh', function ( $args, $assoc_args ) {
 
-		$batch   = (int) ( $assoc_args['batch'] ?? 0 );
-		$loop    = isset( $assoc_args['loop'] );
+		$batch  = (int) ( $assoc_args['batch'] ?? 0 );
+		$loop   = isset( $assoc_args['loop'] );
+		$status = (string) ( $assoc_args['status'] ?? 'publish' );
+
+		if ( ! in_array( $status, [ 'publish', 'draft', 'any' ], true ) ) {
+			WP_CLI::error( '--status 只能是 publish / draft / any' );
+		}
+
 		$fetcher = new Anime_Sync_YourAnimes_Fetcher();
 
-		$remaining = $fetcher->stale_remaining();
+		WP_CLI::log( sprintf( '處理範圍：%s', $status ) );
+		$remaining = $fetcher->stale_remaining( $status );
 		WP_CLI::log( sprintf( '尚未處理：%d 部', $remaining ) );
 
 		if ( 0 === $remaining ) {
@@ -1170,13 +1205,13 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 		do {
 			$round++;
-			$s = $fetcher->run_stale_refresh( $batch );
+			$s = $fetcher->run_stale_refresh( $batch, $status );
 
 			foreach ( [ 'picked', 'ok', 'empty', 'fail' ] as $k ) {
 				$tot[ $k ] += $s[ $k ];
 			}
 
-			$remaining = $fetcher->stale_remaining();
+			$remaining = $fetcher->stale_remaining( $status );
 
 			WP_CLI::log( sprintf(
 				'第 %d 輪：處理 %d、更新 %d、尚無資料 %d、失敗 %d；未處理剩 %d 部',

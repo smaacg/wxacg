@@ -163,4 +163,18 @@ t_is(
 	'回填模式：不觸發 YouTube 集數同步（避免 1,804 部打爆 API 配額）'
 );
 
+// ─────────────────────────────────────────────────────────
+// 7. status_sql()：回傳值直接拼進 SQL，白名單不能有破口
+// ─────────────────────────────────────────────────────────
+t_is( t_call( $fetcher, 'status_sql', 'publish' ), "'publish'", 'status_sql：publish' );
+t_is( t_call( $fetcher, 'status_sql', 'draft' ),   "'draft'",   'status_sql：draft' );
+t_is( t_call( $fetcher, 'status_sql', 'any' ),     "'publish','draft'", 'status_sql：any 兩種都收' );
+
+/*
+ * ★ 這一項是安全性的守門：這個字串不經 prepare() 就進 SQL，
+ *   所以任何非白名單的值都必須退回 'publish'，不能原樣吐出去。
+ */
+t_is( t_call( $fetcher, 'status_sql', "' OR 1=1 --" ), "'publish'", 'status_sql：非白名單值退回 publish（擋注入）' );
+t_is( t_call( $fetcher, 'status_sql', '' ),            "'publish'", 'status_sql：空字串退回 publish' );
+
 exit( t_report() );
