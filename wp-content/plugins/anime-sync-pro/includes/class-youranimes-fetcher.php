@@ -73,6 +73,39 @@ class Anime_Sync_YourAnimes_Fetcher {
     const WINDOW_AFTER_DAYS  = 30;  // 開播後 30 天結束
     const CRON_BATCH_SIZE    = 100;  // 每次最多處理筆數
 
+    /*
+     * [v1.5.0] 過期重整（一次性回填，**刻意不掛排程**）：窗口外的作品永遠不會被重新同步
+     *
+     * 上面那個窗口（開播前 2 天～開播後 30 天）只照顧當季作品。老作品同步過一次之後
+     * 就再也碰不到，而 YA 是人工編輯維護的——之後才新增的平台我們永遠不知道。
+     *
+     * 2026-09-20 抽樣 100 部實測：10 筆平台連結 YA 有、站上沒有，影響 5 部作品
+     * （TIGER×DRAGON 2008 年的作品，YA 頁上 5 個平台錨點我們一個都沒寫，
+     *  上次同步停在 2026-06-24）。
+     *
+     * ★ 這不是解析漏抓——那 5 部的 YA 頁面錨點都在、解析程式讀得到，純粹是資料過期。
+     *
+     * 取最久沒重整的一批重跑。母體是「已發布且有 YA 網址」的 1,804 部
+     * （2026-09-20 實測；別用含草稿的 2,619，那是另一個口徑），推估補回約 180 筆。
+     *
+     * ★ 為什麼不掛排程（2026-09-20 與使用者討論後定案）
+     *   收穫幾乎全在第一輪，之後每輪重抓 1,804 頁可能只換到零星幾筆。
+     *   而 YA 回 `cache-control: private, no-cache, no-store`、**沒有 ETag 也沒有
+     *   Last-Modified**（當日實測），條件式請求拿不到 304，每次重抓都是完整 134KB。
+     *   YA 是免費、人工維護的個人站，又是我們台灣串流資料最重要的來源——
+     *   為了一次性的收穫對它掛永久流量不划算也不厚道。
+     *   所以做成 WP-CLI 一次性回填：`wp anime youranimes-refresh --loop`，
+     *   跑完看實際產出再決定要不要加排程。
+     *
+     * ⚠ 排序**不能**用 anime_last_updated：那是 AniList 每日更新寫的，
+     *   這個類別從頭到尾沒寫過它（2026-09-20 查證）。拿它排序的話，跑完同步
+     *   它不會變 → 同一批 100 部每輪重跑、後面 1,700 部永遠輪不到。
+     *   所以自己留一個戳記，**每處理一部就蓋一次**（成功、無資料、失敗都蓋），
+     *   保證佇列一定往前走，壞掉的那幾部也不會卡住整條隊伍。
+     */
+    const STALE_BATCH_SIZE = 100;
+    const STALE_STAMP_META = '_anime_youranimes_refreshed_at';
+
     // [v1.4.0] 單篇自動同步：填入網址後延遲執行的秒數（避免拖慢後台儲存反應）
     const AUTO_SYNC_HOOK  = 'asp_youranimes_single_sync';
     const AUTO_SYNC_DELAY = 10;
@@ -332,7 +365,12 @@ class Anime_Sync_YourAnimes_Fetcher {
     // [v1.1.0] 共用核心：手動按鈕與 cron 共用
     // -------------------------------------------------------------------------
 
-    public function sync_post( $post_id, $bypass_cache = false ) {
+    /**
+     * @param int  $post_id
+     * @param bool $bypass_cache 繞過 7 天 HTML 快取
+     * @param bool $fill_only    只補空白欄位、不覆蓋既有值（過期重整回填用，見 write_to_acf）
+     */
+    public function sync_post( $post_id, $bypass_cache = false, $fill_only = false ) {
         $url = get_post_meta( $post_id, 'anime_youranimes_url', true );
 
         if ( empty( $url ) || ! preg_match( '#^https?://(www\.)?youranimes\.tw/animes/\d+#i', $url ) ) {
@@ -365,7 +403,7 @@ class Anime_Sync_YourAnimes_Fetcher {
         }
 
         $this->reset_failures();
-        return $this->write_to_acf( $post_id, $streams );
+        return $this->write_to_acf( $post_id, $streams, $fill_only );
     }
 
     // -------------------------------------------------------------------------
@@ -386,6 +424,124 @@ class Anime_Sync_YourAnimes_Fetcher {
         if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
             wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::CRON_HOOK );
         }
+
+    }
+
+    /**
+     * [v1.5.0] 過期重整：取最久沒重整的一批重跑。由 WP-CLI 呼叫，沒有排程。
+     *
+     * 為什麼不用 WP_Query：要「還沒蓋過戳記的排最前面」，而 meta_key 排序會把
+     * 缺這個 meta 的作品整個濾掉——那正是首輪最該優先處理的一群（全部 1,804 部）。
+     * 用 LEFT JOIN + COALESCE 才能讓它們排在最前。
+     *
+     * @param int $batch 這一輪處理幾部，0＝用 STALE_BATCH_SIZE
+     * @return array{picked:int,ok:int,empty:int,fail:int,circuit:bool}
+     */
+    public function run_stale_refresh( int $batch = 0 ): array {
+
+        $stats = [ 'picked' => 0, 'ok' => 0, 'empty' => 0, 'fail' => 0, 'circuit' => false ];
+        $batch = $batch > 0 ? $batch : self::STALE_BATCH_SIZE;
+
+        if ( get_transient( self::CIRCUIT_OPEN_KEY ) ) {
+            $this->log_warning( '[回填] Circuit open，本輪過期重整整批跳過' );
+            $stats['circuit'] = true;
+            return $stats;
+        }
+
+        global $wpdb;
+
+        $ids = $wpdb->get_col( $wpdb->prepare(
+            "SELECT ya.post_id
+               FROM {$wpdb->postmeta} ya
+               INNER JOIN {$wpdb->posts} p
+                       ON p.ID = ya.post_id AND p.post_type = 'anime' AND p.post_status = 'publish'
+               LEFT JOIN {$wpdb->postmeta} lu
+                      ON lu.post_id = ya.post_id AND lu.meta_key = %s
+              WHERE ya.meta_key = 'anime_youranimes_url'
+                AND ya.meta_value LIKE %s
+              ORDER BY COALESCE( lu.meta_value, '' ) ASC
+              LIMIT %d",
+            self::STALE_STAMP_META,
+            '%youranimes.tw%',
+            $batch
+        ) );
+
+        if ( empty( $ids ) ) {
+            return $stats;
+        }
+
+        $stats['picked'] = count( $ids );
+
+        $ok = 0;
+        $empty = 0;
+        $fail = 0;
+        $fail_detail = [];
+
+        foreach ( $ids as $pid ) {
+            if ( get_transient( self::CIRCUIT_OPEN_KEY ) ) {
+                break;
+            }
+
+            $pid = (int) $pid;
+
+            // fill_only＝true：回填只補缺，絕不覆寫人工修正或掃描器寫的網址
+            $result = $this->sync_post( $pid, true, true );
+
+            /*
+             * 先蓋戳記再判斷結果：失敗的也要蓋，否則它會永遠排在隊首，
+             * 每輪重試同一部、後面的永遠輪不到。
+             */
+            update_post_meta( $pid, self::STALE_STAMP_META, current_time( 'mysql' ) );
+
+            if ( is_wp_error( $result ) ) {
+                $fail++;
+                if ( count( $fail_detail ) < 10 ) {
+                    $fail_detail[] = sprintf( '%s(#%d %s)', get_the_title( $pid ) ?: '?', $pid, $result->get_error_code() );
+                }
+            } elseif ( empty( $result ) ) {
+                $empty++;
+            } else {
+                $ok++;
+            }
+        }
+
+        $this->log_info( sprintf(
+            '[回填] 過期重整：更新 %d、尚無資料 %d、失敗 %d（本輪 %d 部）',
+            $ok, $empty, $fail, count( $ids )
+        ) );
+
+        if ( $fail_detail ) {
+            $this->log_warning( '[回填] 本輪過期重整失敗：' . implode( '、', $fail_detail )
+                . ( $fail > count( $fail_detail ) ? sprintf( '…等 %d 部', $fail ) : '' ) );
+        }
+
+        $stats['ok']    = $ok;
+        $stats['empty'] = $empty;
+        $stats['fail']  = $fail;
+
+        return $stats;
+    }
+
+    /**
+     * 還有幾部沒蓋過戳記（給 CLI 顯示進度用）。
+     */
+    public function stale_remaining(): int {
+
+        global $wpdb;
+
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*)
+               FROM {$wpdb->postmeta} ya
+               INNER JOIN {$wpdb->posts} p
+                       ON p.ID = ya.post_id AND p.post_type = 'anime' AND p.post_status = 'publish'
+               LEFT JOIN {$wpdb->postmeta} lu
+                      ON lu.post_id = ya.post_id AND lu.meta_key = %s
+              WHERE ya.meta_key = 'anime_youranimes_url'
+                AND ya.meta_value LIKE %s
+                AND lu.meta_id IS NULL",
+            self::STALE_STAMP_META,
+            '%youranimes.tw%'
+        ) );
     }
 
     public function run_daily_sync() {
@@ -724,7 +880,20 @@ class Anime_Sync_YourAnimes_Fetcher {
         return $streams;
     }
 
-    private function write_to_acf( $post_id, $streams ) {
+    /**
+     * @param int   $post_id
+     * @param array $streams
+     * @param bool  $fill_only 只補空白、不覆蓋既有值
+     *
+     * 預設（false）維持原本的「以 YA 為準覆寫」——每日同步處理的是當季在地新番，
+     * 那些欄位本來就是 YA 寫的，覆寫等於更新。
+     *
+     * 過期重整回填要傳 true：它掃的是全站 1,804 部，裡面有**人工修正過的網址**、
+     * 掃描器寫的網址、以及查證後刻意保留的值（例如 Bilibili 那批搜尋頁連結）。
+     * 無條件覆寫會把這些靜默改寫成 YA 的版本——而回填的目的只是「補缺」，
+     * 不是「以 YA 為準重寫全站」。
+     */
+    private function write_to_acf( $post_id, $streams, $fill_only = false ) {
         $updated = [];
 
         if ( isset( $streams['__dub_mandarin_multi'] ) ) {
@@ -741,7 +910,10 @@ class Anime_Sync_YourAnimes_Fetcher {
                 $lines[] = $label . '|' . $url;
             }
 
-            if ( ! empty( $lines ) ) {
+            // 配音欄位照設計是人工維護的，回填模式一律不覆蓋既有內容
+            $dub_existing = (string) get_post_meta( $post_id, 'anime_dub_url_mandarin', true );
+
+            if ( ! empty( $lines ) && ! ( $fill_only && $dub_existing !== '' ) ) {
                 update_post_meta( $post_id, 'anime_dub_url_mandarin', implode( "\n", $lines ) );
 
                 $dub_lang = get_post_meta( $post_id, 'anime_dub_language', true );
@@ -763,6 +935,19 @@ class Anime_Sync_YourAnimes_Fetcher {
         }
 
         foreach ( $streams as $acf_key => $url ) {
+
+            if ( $fill_only
+                && (string) get_post_meta( $post_id, 'anime_tw_streaming_url_' . $acf_key, true ) !== '' ) {
+                /*
+                 * 已有值就不動。但「有網址卻沒勾選」是真的會讓前台不顯示的不一致，
+                 * 這個還是補上——它只會讓既有資料被看見，不會改寫任何網址。
+                 */
+                if ( ! in_array( $acf_key, $checked, true ) ) {
+                    $checked[] = $acf_key;
+                }
+                continue;
+            }
+
             update_post_meta( $post_id, 'anime_tw_streaming_url_' . $acf_key, $url );
 
             if ( ! in_array( $acf_key, $checked, true ) ) {
@@ -818,6 +1003,20 @@ class Anime_Sync_YourAnimes_Fetcher {
             if ( $yt_is_global && ! empty( $current_yt_url ) ) {
                 $yt_playlist_url = $current_yt_url;
             }
+            /*
+             * 回填模式的兩道保護（2026-09-20）：
+             *
+             * 一、已有播放清單就完全不動。上面那個 $yt_is_global 判斷只擋國際頻道，
+             *     台灣頻道的清單仍會覆寫既有值——包含人工填的。
+             *
+             * 二、不觸發下面的集數同步。回填要掃 1,804 部，逐部立即同步等於對
+             *     YouTube Data API 打上千次，配額會被這個一次性作業吃光，
+             *     連帶影響其他功能。集數本來就有自己的排程會處理。
+             */
+            if ( $fill_only && ! empty( $current_yt_url ) ) {
+                return $updated;
+            }
+
             if ( $current_yt_url !== $yt_playlist_url ) {
                 if ( function_exists( 'update_field' ) ) {
                     update_field( 'field_anime_yt_playlist_url', $yt_playlist_url, $post_id );
@@ -825,7 +1024,11 @@ class Anime_Sync_YourAnimes_Fetcher {
                     update_post_meta( $post_id, 'anime_yt_playlist_url', $yt_playlist_url );
                 }
             }
-            
+
+            if ( $fill_only ) {
+                return $updated;
+            }
+
             // 立即觸發 YouTube 清單同步
             if ( class_exists( 'Anime_Sync_YouTube_Playlist_Sync' ) ) {
                 $yt_sync = new Anime_Sync_YouTube_Playlist_Sync();
@@ -887,4 +1090,86 @@ class Anime_Sync_YourAnimes_Fetcher {
             }
         }
     }
+}
+
+/*
+ * WP-CLI：YourAnimes 過期重整（一次性回填）
+ *
+ * 刻意做成手動指令而非排程，理由見 class 裡 STALE_BATCH_SIZE 上方的說明
+ * ——簡單講：收穫是一次性的，而 YA 沒有 ETag／Last-Modified，
+ * 每次重抓都是完整 134KB，不該為此對一個免費個人站掛永久流量。
+ */
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+
+	/**
+	 * 補回窗口外作品的 YourAnimes 平台連結。
+	 *
+	 * 進度存在每篇的 _anime_youranimes_refreshed_at，中斷後再跑會從沒處理過的接續，
+	 * 不會重頭來過。
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--batch=<n>]
+	 * : 每輪處理幾部，預設 100。
+	 *
+	 * [--loop]
+	 * : 反覆執行直到全部跑過一輪為止。不加則只跑一輪。
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp anime youranimes-refresh --batch=20
+	 *     wp anime youranimes-refresh --loop
+	 */
+	WP_CLI::add_command( 'anime youranimes-refresh', function ( $args, $assoc_args ) {
+
+		$batch   = (int) ( $assoc_args['batch'] ?? 0 );
+		$loop    = isset( $assoc_args['loop'] );
+		$fetcher = new Anime_Sync_YourAnimes_Fetcher();
+
+		$remaining = $fetcher->stale_remaining();
+		WP_CLI::log( sprintf( '尚未處理：%d 部', $remaining ) );
+
+		if ( 0 === $remaining ) {
+			WP_CLI::success( '全部都已經跑過一輪，沒有待處理的。' );
+			return;
+		}
+
+		$round = 0;
+		$tot   = [ 'picked' => 0, 'ok' => 0, 'empty' => 0, 'fail' => 0 ];
+
+		do {
+			$round++;
+			$s = $fetcher->run_stale_refresh( $batch );
+
+			foreach ( [ 'picked', 'ok', 'empty', 'fail' ] as $k ) {
+				$tot[ $k ] += $s[ $k ];
+			}
+
+			$remaining = $fetcher->stale_remaining();
+
+			WP_CLI::log( sprintf(
+				'第 %d 輪：處理 %d、更新 %d、尚無資料 %d、失敗 %d；未處理剩 %d 部',
+				$round, $s['picked'], $s['ok'], $s['empty'], $s['fail'], $remaining
+			) );
+
+			if ( $s['circuit'] ) {
+				WP_CLI::warning( 'YourAnimes 熔斷中，本次停止。稍後再跑會從中斷處接續。' );
+				break;
+			}
+
+			/*
+			 * 收尾條件一定要看「未蓋戳記數」，不能看「這輪有沒有挑到東西」。
+			 * 查詢本身沒有「只挑未蓋戳記」的條件（它是按戳記新舊排序、永遠挑得到
+			 * 100 部），拿 picked===0 當條件的話 --loop 會無限繞圈重跑全站。
+			 */
+			if ( 0 === $remaining ) {
+				break;
+			}
+		} while ( $loop );
+
+		WP_CLI::success( sprintf(
+			'共 %d 輪：處理 %d 部，更新 %d、尚無資料 %d、失敗 %d；未處理剩 %d 部',
+			$round, $tot['picked'], $tot['ok'], $tot['empty'], $tot['fail'], $remaining
+		) );
+	} );
 }

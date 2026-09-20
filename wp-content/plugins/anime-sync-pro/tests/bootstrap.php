@@ -48,6 +48,7 @@ function get_transient( $k ) { return $GLOBALS['__tr'][ $k ] ?? false; }
 function set_transient( $k, $v, $t = 0 ) { $GLOBALS['__tr'][ $k ] = $v; return true; }
 function delete_transient( $k ) { unset( $GLOBALS['__tr'][ $k ] ); return true; }
 function add_action() {}
+function add_filter() {}
 function has_action() { return false; }
 function wp_next_scheduled() { return false; }
 
@@ -100,7 +101,22 @@ function wp_remote_retrieve_body( $r ) { return $r['body'] ?? ''; }
 function wp_remote_retrieve_header( $r, $h ) { return ''; }
 function current_time( $f ) { return date( $f ); }
 function number_format_i18n( $n ) { return number_format( (float) $n ); }
-function get_post_meta( $id, $k, $single = false ) { return ''; }
+/*
+ * postmeta 記憶體替身。
+ *
+ * 原本 get_post_meta() 一律回空字串——那對純字串解析的測試夠用，但要測
+ * 「回填模式不覆寫既有值」就不行了：樁永遠說「欄位是空的」，於是不論程式
+ * 有沒有那道保護，測試都會通過。測試必須看得見寫進去的東西。
+ */
+$GLOBALS['__meta'] = [];
+function get_post_meta( $id, $k, $single = false ) {
+	$v = $GLOBALS['__meta'][ $id ][ $k ] ?? '';
+	return $single ? $v : ( $v === '' ? [] : [ $v ] );
+}
+function update_post_meta( $id, $k, $v ) { $GLOBALS['__meta'][ $id ][ $k ] = $v; return true; }
+function delete_post_meta( $id, $k ) { unset( $GLOBALS['__meta'][ $id ][ $k ] ); return true; }
+function wp_schedule_single_event( $ts = 0, $hook = '', $args = [] ) { return true; }
+function t_meta_reset(): void { $GLOBALS['__meta'] = []; }
 function get_the_title( $id ) { return ''; }
 function do_action() {}
 function apply_filters( $tag, $value ) { return $value; }
@@ -140,6 +156,12 @@ require ANIME_SYNC_PRO_DIR . 'includes/class-api-handler.php';
  * 用同一套替身就能測。見 tests/test-youtube-playlist-sync.php。
  */
 require ANIME_SYNC_PRO_DIR . 'includes/class-youtube-playlist-sync.php';
+/*
+ * YourAnimes 抓取器：測「回填模式只補空白、不覆寫」那道保護，
+ * 見 tests/test-youranimes-fill-only.php。相依都可控——Error_Logger 有
+ * class_exists 守門會退回 error_log，Registry 與 YouTube 同步上面都載了。
+ */
+require ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-fetcher.php';
 
 // ── 極簡斷言 ──
 $GLOBALS['__pass'] = 0;
