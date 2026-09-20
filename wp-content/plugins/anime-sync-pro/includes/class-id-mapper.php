@@ -874,7 +874,8 @@ class Anime_Sync_ID_Mapper {
              *
              * 第 1 期仍允許退路：很多第一季標題本來就不寫「第1期」。
              */
-            if ( (int) ( $input_signal['number'] ?? 0 ) >= 2 ) {
+            if ( 'season' === ( $input_signal['kind'] ?? '' )
+                 && (int) ( $input_signal['number'] ?? 0 ) >= 2 ) {
                 continue;
             }
 
@@ -1228,7 +1229,13 @@ class Anime_Sync_ID_Mapper {
             '/\bseason\s*(\d+)\b/u'               => 'season',
             '/\bpart\s*(\d+)\b/u'                 => 'part',
             '/\bcour\s*(\d+)\b/u'                 => 'cour',
-            '/第\s*(\d+)\s*(?:期|季|部|クール)\b/u' => 'season',
+            /*
+             * 「第Nクール」是同一部作品的分割放送，不是續作：AniList 會拆成
+             * 兩筆條目，Bangumi 只有一筆涵蓋全部。歸成 'cour' 才能讓下游的
+             * 續作守門放行、正確退回母條目。必須排在下面「第N期/季/部」之前。
+             */
+            '/第\s*(\d+)\s*クール\b/u'              => 'cour',
+            '/第\s*(\d+)\s*(?:期|季|部)\b/u'        => 'season',
             /*
              * 「２期」「2期」這類不帶「第」的裸季號寫法，日文條目常見。
              * 不用擔心跟上面「第N期」重複判定——這個迴圈命中第一個 pattern
