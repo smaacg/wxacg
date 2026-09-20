@@ -89,9 +89,31 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		return array_keys( self::SOURCES );
 	}
 
+	/**
+	 * 實例必須快取，不能每次 new。
+	 *
+	 * 建構子會 add_action( $this->hook(), [ $this, 'run_scheduled' ] )，全域
+	 * $wp_filter 會永久持有那個參照，物件（連同 load_index() 解析出來的索引
+	 * 陣列）永遠不會被回收。匯入流程每部作品都呼叫 sync_post_from_indexes()、
+	 * 對 17 個來源各 new 一次，2026-09-20 實測每部洩漏 56MB，約 36 部撐爆 2GB，
+	 * 季度回填因此連續兩次 fatal（class-streaming-source-base.php load_index）。
+	 *
+	 * 順帶修掉兩件事：load_index() 的 $this->index 快取原本被「每次都是新實例」
+	 * 廢掉，每部作品重解 9.1MB 索引檔；以及同一個排程 hook 上重複堆疊 callback。
+	 *
+	 * 共用安全：三個實例屬性（$index、$bundle_cache、$map）全是快取，沒有
+	 * 一次性狀態；save_index() 會同步更新 $this->index，同程序內保持一致。
+	 */
 	public static function make( string $key ): ?self {
+		static $instances = [];
+		if ( isset( $instances[ $key ] ) ) {
+			return $instances[ $key ];
+		}
 		$cls = self::SOURCES[ $key ] ?? '';
-		return ( $cls !== '' && class_exists( $cls ) ) ? new $cls() : null;
+		if ( $cls === '' || ! class_exists( $cls ) ) {
+			return null;
+		}
+		return $instances[ $key ] = new $cls();
 	}
 
 	// =====================================================================
