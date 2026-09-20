@@ -67,7 +67,15 @@ class Anime_Sync_YourAnimes_Fetcher {
     const FAIL_THRESHOLD     = 5;            // 連續 5 次失敗即熔斷
     const CIRCUIT_OPEN_TTL   = HOUR_IN_SECONDS; // 熔斷 1 小時
 
-    // [v1.1.0] Cron 窗口
+    /*
+     * [v1.1.0] Cron 窗口
+     *
+     * ⚠ [v1.5.0] 起這個日期窗口**不再是唯一條件**：run_daily_sync() 改成
+     *   「anime_status = RELEASING 或 落在這個窗口內」取聯集。
+     *   只靠日期會在季與季之間幾乎收不到東西（2026-09-20 實測當日只有 3 部），
+     *   而且一部 12 集的番只有前 30 天會被同步。詳見該函式裡的說明。
+     *   窗口保留是因為它還負責「開播前 2 天」——那時狀態還是 NOT_YET_RELEASED。
+     */
     const CRON_HOOK          = 'asp_youranimes_daily';
     const WINDOW_BEFORE_DAYS = 2;   // 開播前 2 天開始
     const WINDOW_AFTER_DAYS  = 30;  // 開播後 30 天結束
@@ -567,11 +575,34 @@ class Anime_Sync_YourAnimes_Fetcher {
                     'value'   => 'youranimes.tw',
                     'compare' => 'LIKE',
                 ],
+                /*
+                 * [v1.5.0] 「正在播的」或「日期窗口內的」，兩者取聯集。
+                 *
+                 * 原本只有下面那個日期窗口，而它綁 anime_start_date、只收開播後 30 天內。
+                 * 2026-09-20 實測：那天窗口內**只有 3 部**（1,804 部裡），連續三天的日誌
+                 * 都是「更新 1、尚無資料 2」——因為剛好卡在季與季之間，夏季番早就超過
+                 * 開播後 30 天、秋季番還沒進開播前 2 天。
+                 *
+                 * 而且就算在播映期，一部 12 集的番也只有前 30 天會被同步，
+                 * 第 5 集之後才上架的平台永遠抓不到。
+                 *
+                 * 改成同時收 anime_status = RELEASING（當日 64 部）後，涵蓋的是
+                 * 「真正需要更新的那批」而不是靠日期硬切。日期窗口保留，
+                 * 因為它還負責「開播前 2 天」那段——那時狀態還是 NOT_YET_RELEASED。
+                 */
                 [
-                    'key'     => 'anime_start_date',
-                    'value'   => [ $lower_ymd, $upper_ymd ],
-                    'type'    => 'NUMERIC',
-                    'compare' => 'BETWEEN',
+                    'relation' => 'OR',
+                    [
+                        'key'     => 'anime_status',
+                        'value'   => 'RELEASING',
+                        'compare' => '=',
+                    ],
+                    [
+                        'key'     => 'anime_start_date',
+                        'value'   => [ $lower_ymd, $upper_ymd ],
+                        'type'    => 'NUMERIC',
+                        'compare' => 'BETWEEN',
+                    ],
                 ],
             ],
         ] );
@@ -615,8 +646,8 @@ class Anime_Sync_YourAnimes_Fetcher {
         }
 
         $this->log_info( sprintf(
-            '[Cron] 每日同步完成：更新 %d、尚無資料 %d、失敗 %d（窗口 %s ~ %s）',
-            $ok, $empty, $fail, $lower_ymd, $upper_ymd
+            '[Cron] 每日同步完成：更新 %d、尚無資料 %d、失敗 %d（本批 %d 部；正在播映 或 窗口 %s ~ %s）',
+            $ok, $empty, $fail, count( $q->posts ), $lower_ymd, $upper_ymd
         ) );
 
         if ( $fail_detail ) {
