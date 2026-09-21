@@ -2306,7 +2306,13 @@ class Anime_Sync_API_Handler {
 
         $all_episodes = $this->fetch_bgm_episodes( $bangumi_id, false, 0 );
         if ( ! empty( $all_episodes ) ) {
-            update_post_meta( $post_id, 'anime_bgm_overlap', $this->count_bgm_overlap( $post_id, $all_episodes ) );
+            $overlap = $this->count_bgm_overlap( $post_id, $all_episodes );
+            if ( $overlap === null ) {
+                // 無從判斷,不留 0 假裝知道
+                delete_post_meta( $post_id, 'anime_bgm_overlap' );
+            } else {
+                update_post_meta( $post_id, 'anime_bgm_overlap', $overlap );
+            }
         }
 
         // 9. 更新同步時間
@@ -3441,14 +3447,14 @@ class Anime_Sync_API_Handler {
      * @param int   $post_id  文章 ID（取開播日與宣告集數）。
      * @param array $episodes 未經 select_episodes_for_post() 篩選的完整集數列表。
      */
-    private function count_bgm_overlap( int $post_id, array $episodes ): int {
+    private function count_bgm_overlap( int $post_id, array $episodes ): ?int {
         $raw = preg_replace( '/[^0-9]/', '', (string) get_post_meta( $post_id, 'anime_start_date', true ) );
         if ( strlen( $raw ) < 8 ) {
-            return 0;
+            return null; // 沒有開播日,無從比對
         }
         $start = strtotime( substr( $raw, 0, 4 ) . '-' . substr( $raw, 4, 2 ) . '-' . substr( $raw, 6, 2 ) );
         if ( ! $start ) {
-            return 0;
+            return null; // 開播日無法解析
         }
 
         // 宣告集數未定時用 13（一季）當跨度，週播一集。
@@ -3458,6 +3464,7 @@ class Anime_Sync_API_Handler {
         $hi       = $start + $span + 45 * DAY_IN_SECONDS; // 停播順延
 
         $n = 0;
+        $dated = 0; // 條目底下「有放送日」的本篇集數
         foreach ( $episodes as $ep ) {
             if ( (int) ( $ep['type'] ?? 0 ) !== 0 ) {
                 continue; // 只算本篇
@@ -3466,11 +3473,25 @@ class Anime_Sync_API_Handler {
             if ( $air === '' ) {
                 continue;
             }
+            $dated++;
             $ts = strtotime( $air );
             if ( $ts && $ts >= $lo && $ts <= $hi ) {
                 $n++;
             }
         }
+
+        /*
+         * 條目底下一集放送日都沒有時,回 null 而不是 0。
+         *
+         * 劇場版與單集作品在 Bangumi 常常不記逐集放送日,這種情況是「無從
+         * 判斷」,不是「對不到」。2026-09-21 回填時沒分開這兩者,1,580 筆
+         * overlap=0 裡有 1,126 筆屬於此類,會讓後台「對到 0 集」的篩選清單
+         * 七成是雜訊。呼叫端收到 null 要刪掉舊值,不要寫 0。
+         */
+        if ( $dated === 0 ) {
+            return null;
+        }
+
         return $n;
     }
     private function get_bangumi_data( int $bangumi_id ): array|WP_Error {
