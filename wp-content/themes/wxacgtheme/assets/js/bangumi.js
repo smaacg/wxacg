@@ -233,6 +233,15 @@
             });
         });
 
+        // 「總作品」卡＝顯示全部，直接複用工具列的重設（不另外寫一套清除邏輯）
+        qsa('[data-jump-reset]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                resetAllFilters();
+                var anchor = qs('#bgm-filters');
+                if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
         var reset = qs('#bgm-fil-reset');
         if (reset) reset.addEventListener('click', resetAllFilters);
 
@@ -244,11 +253,17 @@
         syncJumpButtons();   // 從網址帶篩選進來時，卡片也要呈現按下狀態
     }
 
-    /** 統計卡的按下狀態跟著 filterState.status 走（單一出處，避免兩邊各記一份）。 */
+    /** 統計卡的按下狀態跟著 filterState 走（單一出處，避免兩邊各記一份）。 */
     function syncJumpButtons() {
         qsa('[data-jump-status]').forEach(function (btn) {
             var on = filterState.status === (btn.getAttribute('data-jump-status') || '');
             btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+
+        // 「總作品」在完全沒有套用篩選時才算按下
+        var noFilter = ! hasActiveFilter();
+        qsa('[data-jump-reset]').forEach(function (btn) {
+            btn.setAttribute('aria-pressed', noFilter ? 'true' : 'false');
         });
     }
 

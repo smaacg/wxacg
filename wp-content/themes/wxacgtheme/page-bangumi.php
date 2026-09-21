@@ -896,10 +896,18 @@ get_header();
             </div>
 
             <div class="bgm-stats">
-                <div class="bgm-stat">
+                <?php
+                /*
+                 * 總作品這張卡＝「顯示全部」，點下去清掉所有篩選（含星期、新作/續作、
+                 * 搜尋字串），等同按下工具列的「重設」。沒有任何篩選時它呈現按下狀態，
+                 * 讀者一眼就知道現在看到的是完整清單。
+                 */
+                ?>
+                <button type="button" class="bgm-stat bgm-stat--jump" data-jump-reset="1"
+                        aria-pressed="true" aria-label="顯示全部作品，清除所有篩選">
                     <span class="bgm-stat-n"><?php echo (int) $stat_total; ?></span>
                     <span class="bgm-stat-l">總作品</span>
-                </div>
+                </button>
                 <div class="bgm-stat">
                     <span class="bgm-stat-n"><?php echo $avg_score !== null ? esc_html( $avg_score ) : '–'; ?></span>
                     <span class="bgm-stat-l">平均分</span>
