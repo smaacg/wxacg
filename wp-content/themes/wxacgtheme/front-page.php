@@ -1687,7 +1687,28 @@ $upcoming_query = new WP_Query(
         ],
     ]
 );
-?>
+
+/*
+ * 「近期更新」＝最近發布到站上的作品，不是「資料最近被改過」。
+ *
+ * 刻意不用 post_modified：自動同步（評分、封面、集數）一天就會改到上百篇，
+ * 2026-09-21 實測最近 1 小時 53 篇、1 天 105 篇、3 天 382 篇，那個順序跟
+ * 內容有沒有更新無關，排出來等於隨機。
+ *
+ * 用 post_date 而且只取 publish：匯入進來的是草稿，要由人工審過發布，
+ * 所以這個排序反映的是「站上真的新增了什麼」，不會被批次回填洗版
+ * （回填當天新增數千篇草稿，已發布數不受影響）。
+ */
+$recent_query = new WP_Query(
+    [
+        'post_type'      => 'anime',
+        'post_status'    => 'publish',
+        'posts_per_page' => 6,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+        'no_found_rows'  => true,
+    ]
+);?>
 
 <section
     class="section"
@@ -1733,6 +1754,16 @@ $upcoming_query = new WP_Query(
                     aria-selected="false"
                 >
                     即將開播
+                </button>
+
+                <button
+                    type="button"
+                    class="smacg-tab-btn"
+                    data-tab="recent"
+                    role="tab"
+                    aria-selected="false"
+                >
+                    近期更新
                 </button>
             </div>
 
@@ -1814,7 +1845,28 @@ $upcoming_query = new WP_Query(
                 </p>
             <?php endif; ?>
         </div>
-    </div>
+
+        <div
+            class="wxacg-anime-grid"
+            id="wxacg-tab-recent"
+            role="tabpanel"
+            hidden
+        >
+            <?php if ( $recent_query->have_posts() ) : ?>
+                <?php
+                while ( $recent_query->have_posts() ) {
+                    $recent_query->the_post();
+                    wxacg_home_anime_card( get_post() );
+                }
+
+                wp_reset_postdata();
+                ?>
+            <?php else : ?>
+                <p class="smacg-tab-empty">
+                    目前尚無新收錄的作品。
+                </p>
+            <?php endif; ?>
+        </div>    </div>
 </section>
 
 <script>
@@ -1834,6 +1886,9 @@ $upcoming_query = new WP_Query(
         ),
         upcoming: document.getElementById(
             'wxacg-tab-upcoming'
+        ),
+        recent: document.getElementById(
+            'wxacg-tab-recent'
         )
     };
 
