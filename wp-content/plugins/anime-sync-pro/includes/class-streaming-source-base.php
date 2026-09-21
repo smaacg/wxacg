@@ -400,6 +400,26 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			$last_build = (int) ( $this->status()['built'] ?? 0 );
 			$rebuild    = ( $last_build <= 0 ) || ( time() - $last_build ) >= self::REBUILD_INTERVAL_DAYS * DAY_IN_SECONDS;
 
+			/*
+			 * ★ 佇列式爬蟲（LINE TV、公視+）必須每輪都跑，否則佇列永遠不前進。
+			 *
+			 * 上面那個 6 天間隔是為「一次抓完整包」的來源設計的。但佇列式來源的
+			 * 前提相反——它把 7,142 頁（LINE TV）／1,160 頁（公視+）拆成每輪一批，
+			 * 要靠反覆執行才推得完。共用同一個條件的結果是：首輪抓完一批之後，
+			 * 接下來 6 天 rebuild 都是 false、collect_entries() 不會被呼叫，佇列就此凍住。
+			 *
+			 * 2026-09-21 實測：LINE TV 索引建於 9/16，當天跑了 5 次（07:12～11:57），
+			 * 每次日誌都是「索引 361 部」原地踏步，已抓 4,271／待抓 2,871 動也不動；
+			 * 照這個節奏剩下的要 140 天。公視+ 同樣卡在 120／1,040。
+			 *
+			 * index_is_complete() 預設回 true（整包型來源不受影響），
+			 * 佇列式來源覆寫成「佇列清空才算完成」——所以這一行只會讓它們恢復推進，
+			 * 爬完之後自動回到 6 天一次的節奏。
+			 */
+			if ( ! $rebuild && ! $this->index_is_complete() ) {
+				$rebuild = true;
+			}
+
 			$r = $this->run( [ 'write' => $write, 'rebuild' => $rebuild ] );
 
 			$this->log_result( $tag, $write, $r );
