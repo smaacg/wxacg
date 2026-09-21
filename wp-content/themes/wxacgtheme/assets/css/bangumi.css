@@ -548,6 +548,30 @@ body:has(.bgm-arc-main) .entry-content > * {
     box-shadow: 0 8px 24px var(--bgm-glow);
 }
 
+/*
+ * 可點的統計卡（追番中）。用 <button> 才有鍵盤操作與 aria-pressed，
+ * 但要先把瀏覽器預設的按鈕外觀清掉，否則會蓋掉 .bgm-stat 的玻璃質感。
+ * width:100% 是必要的——button 不像 div 會自動撐滿 grid 欄位。
+ */
+.bgm-stat--jump {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.bgm-stat--jump[aria-pressed="true"] {
+    border-color: var(--bgm-main);
+    box-shadow: 0 0 0 1px var(--bgm-main) inset, 0 8px 24px var(--bgm-glow);
+}
+
+.bgm-stat--jump:focus-visible {
+    outline: 2px solid var(--bgm-main);
+    outline-offset: 2px;
+}
+
 .bgm-stat-n {
     display: block;
     font-size: 32px;

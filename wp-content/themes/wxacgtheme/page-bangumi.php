@@ -905,14 +905,24 @@ get_header();
                     <span class="bgm-stat-l">平均分</span>
                 </div>
                 <?php if ( $current_uid > 0 ) : ?>
-                <div class="bgm-stat">
+                <button type="button" class="bgm-stat bgm-stat--jump" data-jump-status="__any__"
+                        aria-pressed="false" aria-label="只顯示已追蹤的作品">
                     <span class="bgm-stat-n"><?php echo (int) $stat_owned; ?></span>
                     <span class="bgm-stat-l">我的收藏</span>
-                </div>
-                <div class="bgm-stat">
+                </button>
+                <?php
+                /*
+                 * 追番中這張卡可以點：按下去等同把下方「追番狀態」篩選設成「追番中」，
+                 * 再按一次取消。數字本來就在眼前，讓它直接帶使用者看到那幾部。
+                 * 實際的篩選仍由 #bgm-fil-status 那個 select 負責（單一出處），
+                 * 這裡只是它的捷徑，見 assets/js/bangumi.js 的 data-jump-status。
+                 */
+                ?>
+                <button type="button" class="bgm-stat bgm-stat--jump" data-jump-status="watching"
+                        aria-pressed="false" aria-label="只顯示追番中的作品">
                     <span class="bgm-stat-n"><?php echo (int) $stat_watching; ?></span>
                     <span class="bgm-stat-l">追番中</span>
-                </div>
+                </button>
                 <?php endif; ?>
             </div>
         </div>
@@ -980,6 +990,14 @@ get_header();
             <?php if ( $current_uid > 0 ) : ?>
             <select class="bgm-fil" id="bgm-fil-status" data-filter="status" aria-label="追番狀態">
                 <option value="">全部追蹤狀態</option>
+                <?php
+                /*
+                 * 「已追蹤（全部）」＝有任何狀態，對應統計卡的「我的收藏」
+                 * （$stat_owned 的定義就是 user_status !== ''）。
+                 * 放在最前面，因為它是範圍最大的那一個。
+                 */
+                ?>
+                <option value="__any__">已追蹤（全部）</option>
                 <option value="want">想看</option>
                 <option value="watching">追番中</option>
                 <option value="completed">已完結</option>

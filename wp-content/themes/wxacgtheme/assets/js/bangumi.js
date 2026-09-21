@@ -184,6 +184,7 @@
                 filterState[key] = sel.value;
                 applyFilters();
                 writeFiltersToURL();
+                syncJumpButtons();   // 手動改下拉時，統計卡的按下狀態要跟著變
             });
         });
 
@@ -209,6 +210,29 @@
             }
         }
 
+        /*
+         * 統計卡捷徑（目前是「追番中」）：點一下等同把追番狀態篩選設成該值，
+         * 再點一次取消。不自己做一套比對邏輯——直接寫回 #bgm-fil-status 與
+         * filterState，走既有的 applyFilters()，行為與手動操作下拉完全一致。
+         */
+        qsa('[data-jump-status]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var want = btn.getAttribute('data-jump-status') || '';
+                var next = (filterState.status === want) ? '' : want;
+
+                filterState.status = next;
+                var sel = qs('#bgm-fil-status');
+                if (sel) sel.value = next;
+
+                applyFilters();
+                writeFiltersToURL();
+                syncJumpButtons();
+
+                var anchor = qs('#bgm-filters');
+                if (anchor && next) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
         var reset = qs('#bgm-fil-reset');
         if (reset) reset.addEventListener('click', resetAllFilters);
 
@@ -217,6 +241,15 @@
 
         // 初始套用
         applyFilters();
+        syncJumpButtons();   // 從網址帶篩選進來時，卡片也要呈現按下狀態
+    }
+
+    /** 統計卡的按下狀態跟著 filterState.status 走（單一出處，避免兩邊各記一份）。 */
+    function syncJumpButtons() {
+        qsa('[data-jump-status]').forEach(function (btn) {
+            var on = filterState.status === (btn.getAttribute('data-jump-status') || '');
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
     }
 
     function resetAllFilters() {
@@ -245,6 +278,7 @@
 
         applyFilters();
         writeFiltersToURL();
+        syncJumpButtons();   // 重設後卡片也要回到未按下
     }
 
     function cardMatches(card) {
@@ -277,7 +311,12 @@
         // status
         if (filterState.status) {
             var st = card.dataset.status || '__none__';
-            if (st !== filterState.status) return false;
+            if (filterState.status === '__any__') {
+                // 「已追蹤（全部）」＝有任何狀態；與統計卡「我的收藏」的定義一致
+                if (st === '__none__') return false;
+            } else if (st !== filterState.status) {
+                return false;
+            }
         }
         // search
         if (filterState.q) {
