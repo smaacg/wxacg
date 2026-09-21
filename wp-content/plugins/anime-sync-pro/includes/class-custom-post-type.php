@@ -36,12 +36,17 @@ class Anime_Sync_Custom_Post_Type {
 	public function add_admin_columns( array $columns ): array {
 		$new_columns = [];
 		foreach ( $columns as $key => $value ) {
+			// 留言欄對動漫資料沒有用途，佔掉橫向空間（使用者要求移除）。
+			if ( $key === 'comments' ) {
+				continue;
+			}
 			$new_columns[ $key ] = $value;
 
 			if ( $key === 'title' ) {
 				$new_columns['anime_cover']      = '封面';
 				$new_columns['anime_anilist_id'] = 'AniList ID';
 				$new_columns['anime_bgm_col']     = 'Bangumi 條目';
+				$new_columns['anime_watch_col']   = '線上看';
 				$new_columns['anime_status_col'] = '狀態';
 				$new_columns['anime_score']      = '評分';
 				$new_columns['anime_season_col'] = '季度';
@@ -121,6 +126,20 @@ class Anime_Sync_Custom_Post_Type {
 						'<br><span style="font-size:11px;color:#666;">對到 %d 集</span>',
 						(int) $overlap
 					);
+				}
+				break;
+			/*
+			 * 線上看（YouTube 嵌入）有沒有填。
+			 *
+			 * 只顯示有無，不顯示網址：網址很長會把表格撐爆，而這欄的用途是
+			 * 一眼掃出哪些作品還沒補上嵌入連結。
+			 */
+			case 'anime_watch_col':
+				$watch = trim( (string) get_post_meta( $post_id, 'anime_online_watch', true ) );
+				if ( $watch !== '' ) {
+					echo '<span style="color:#2ecc71;font-weight:600;" title="已填入線上看連結">有</span>';
+				} else {
+					echo '<span class="na" title="尚未填入線上看連結">—</span>';
 				}
 				break;
 			case 'anime_status_col':
