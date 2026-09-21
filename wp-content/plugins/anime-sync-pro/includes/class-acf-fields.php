@@ -2279,12 +2279,63 @@ $cast_prompt .= "以下是 JSON:\n";
     public function render_resync_metabox( WP_Post $post ): void {
         $bangumi_id = get_post_meta( $post->ID, 'anime_bangumi_id', true );
         $last_sync  = get_post_meta( $post->ID, 'anime_last_sync',  true );
+
+        /*
+         * 條目對照：AniList 與 Bangumi 的條目粒度不同（AniList 把 SP／OVA 與
+         * 分割放送拆開，Bangumi 常用一個 subject 涵蓋整部），所以多篇共用同一個
+         * bgm_id 是正常現象。但也可能是續作被配到前作條目——兩者從 ID 數字上
+         * 看不出差別，必須比對條目名稱與話數才分得出來。
+         *
+         * 刻意不加警告圖示：實測有 27 篇條目完全正確、只因 AniList 開播日與
+         * Bangumi 放送日基準不同而對不上，標警告會變成長期誤報。這裡只把兩邊
+         * 資料並排呈現，判斷交給人。
+         */
+        $bgm_name = (string) get_post_meta( $post->ID, 'anime_bgm_name',     true );
+        $bgm_eps  = (int)    get_post_meta( $post->ID, 'anime_bgm_eps',      true );
+        $bgm_date = (string) get_post_meta( $post->ID, 'anime_bgm_air_date', true );
+        $al_name  = (string) get_post_meta( $post->ID, 'anime_title_native', true );
+        $al_eps   = (int)    get_post_meta( $post->ID, 'anime_episodes',     true );
+        $al_date  = (string) get_post_meta( $post->ID, 'anime_start_date',   true );
+        $fmt_date = static function ( string $d ): string {
+            $d = preg_replace( '/[^0-9]/', '', $d );
+            return strlen( $d ) >= 8 ? substr( $d, 0, 4 ) . '-' . substr( $d, 4, 2 ) . '-' . substr( $d, 6, 2 ) : '';
+        };
         ?>
         <div id="anime-resync-wrap">
             <?php if ( $bangumi_id ) : ?>
                 <p style="margin:0 0 8px;">
                     Bangumi ID:<strong><?php echo esc_html( $bangumi_id ); ?></strong>
                 </p>
+                <?php if ( $bgm_name !== '' ) : ?>
+                    <table style="width:100%;margin:0 0 8px;font-size:11px;line-height:1.5;border-collapse:collapse;">
+                        <tr>
+                            <td style="color:#666;padding:1px 4px 1px 0;white-space:nowrap;vertical-align:top;">AniList</td>
+                            <td style="padding:1px 0;word-break:break-all;"><?php echo esc_html( $al_name ); ?></td>
+                        </tr>
+                        <tr>
+                            <td></td>
+                            <td style="color:#666;padding:0 0 4px;">
+                                <?php echo $al_eps > 0 ? esc_html( $al_eps . ' 話' ) : '話數未定'; ?>
+                                <?php echo esc_html( $fmt_date( $al_date ) ); ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color:#666;padding:1px 4px 1px 0;white-space:nowrap;vertical-align:top;">Bangumi</td>
+                            <td style="padding:1px 0;word-break:break-all;"><?php echo esc_html( $bgm_name ); ?></td>
+                        </tr>
+                        <tr>
+                            <td></td>
+                            <td style="color:#666;padding:0;">
+                                <?php echo $bgm_eps > 0 ? esc_html( $bgm_eps . ' 話' ) : '話數未定'; ?>
+                                <?php echo esc_html( $bgm_date ); ?>
+                            </td>
+                        </tr>
+                    </table>
+                <?php else : ?>
+                    <p style="margin:0 0 8px;font-size:11px;color:#999;">
+                        條目資訊尚未同步,按下方按鈕後顯示。
+                    </p>
+                <?php endif; ?>
             <?php else : ?>
                 <p style="margin:0 0 8px;color:#999;">尚未設定 Bangumi ID。</p>
             <?php endif; ?>

@@ -1856,6 +1856,27 @@ class Anime_Sync_Admin {
         }
         echo '</select> ';
 
+        /*
+         * Bangumi 條目對照篩選。
+         *
+         * 「對到 0 集」不等於配錯——2026-09-21 用 Bangumi 官方 dump 對全站實測，
+         * 454 篇切片為 0 的作品裡有 27 篇條目其實正確，只是兩邊放送日基準不同；
+         * 另有大量 SP／圖片劇場是 Bangumi 合併收錄的正常情況。所以選項名稱一律
+         * 用中性描述，不寫「錯誤」「異常」，避免把待人工判讀的清單講成缺陷清單。
+         */
+        $current_bgm = sanitize_text_field( $_GET['anime_bgm_filter'] ?? '' );
+        $bgm_options = [
+            ''         => '全部 Bangumi 對照',
+            'zero'     => '對到 0 集',
+            'no_brief' => '尚無條目資訊',
+            'no_id'    => '沒有 Bangumi ID',
+        ];
+        echo '<select name="anime_bgm_filter">';
+        foreach ( $bgm_options as $val => $label ) {
+            printf( '<option value="%s"%s>%s</option>', esc_attr( $val ), selected( $current_bgm, $val, false ), esc_html( $label ) );
+        }
+        echo '</select> ';
+
         $current_season = sanitize_text_field( $_GET['anime_season_filter'] ?? '' );
         $seasons        = get_terms( [ 'taxonomy' => 'anime_season_tax', 'hide_empty' => false, 'orderby' => 'name', 'order' => 'DESC', 'number' => 100 ] );
         echo '<select name="anime_season_filter">';
@@ -1920,6 +1941,19 @@ class Anime_Sync_Admin {
         $format = sanitize_text_field( $_GET['anime_format_filter'] ?? '' );
         if ( $format !== '' ) {
             $tax_query[] = [ 'taxonomy' => 'anime_format_tax', 'field' => 'slug', 'terms' => $format ];
+        }
+
+        $bgm_filter = sanitize_text_field( $_GET['anime_bgm_filter'] ?? '' );
+        if ( $bgm_filter === 'zero' ) {
+            $meta_query[] = [ 'key' => 'anime_bgm_overlap', 'value' => '0', 'compare' => '=' ];
+        } elseif ( $bgm_filter === 'no_brief' ) {
+            $meta_query[] = [
+                'relation' => 'AND',
+                [ 'key' => 'anime_bangumi_id', 'compare' => 'EXISTS' ],
+                [ 'key' => 'anime_bgm_name',   'compare' => 'NOT EXISTS' ],
+            ];
+        } elseif ( $bgm_filter === 'no_id' ) {
+            $meta_query[] = [ 'key' => 'anime_bangumi_id', 'compare' => 'NOT EXISTS' ];
         }
 
         $series = sanitize_text_field( $_GET['anime_series_filter'] ?? '' );

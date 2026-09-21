@@ -1102,6 +1102,29 @@ class Anime_Sync_Import_Manager {
 		}
 
 		/*
+		 * ★ Bangumi 條目的識別資訊（名稱／話數／放送日）
+		 *
+		 * 同樣刻意不放進 $meta_map：那個迴圈無條件寫入，這次同步沒拿到 BGM
+		 * 資料（條目暫時查不到、API 逾時）時會把既有值洗成空字串，後台就再
+		 * 也看不出這篇對到哪個條目。一律「有值才寫」。
+		 *
+		 * 用途是人工核對粒度：AniList 與 Bangumi 的條目切法不同，站上多篇
+		 * 共用同一個 bgm_id 是正常的，但也可能是續作被配到前作條目。存下
+		 * 條目名稱與話數，編輯畫面就能直接跟 AniList 那邊對照。
+		 */
+		foreach ( [ 'anime_bgm_name', 'anime_bgm_eps', 'anime_bgm_air_date' ] as $bgm_key ) {
+			if ( in_array( $bgm_key, $locked, true ) ) {
+				continue;
+			}
+			$bgm_val = $data[ $bgm_key ] ?? '';
+			if ( is_string( $bgm_val ) ) {
+				$bgm_val = trim( $bgm_val );
+			}
+			if ( $bgm_val !== '' && $bgm_val !== 0 ) {
+				update_post_meta( $post_id, $bgm_key, $bgm_val );
+			}
+		}
+		/*
 		 * ★ AniList ID 的「待驗證推測值」。
 		 *
 		 * MAL 匯入時由離線對照表（anime-offline-database）反查而來，準確率

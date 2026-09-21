@@ -575,6 +575,9 @@ class Anime_Sync_API_Handler {
             'anime_next_airing'      => $next_airing ? wp_json_encode( $next_airing ) : '',
             'anime_genres'           => $media['genres'] ?? [],
             'anime_tags'             => $anime_tags,
+            'anime_bgm_name'         => $this->bgm_brief( $bgm_data )['name'],
+            'anime_bgm_eps'          => $this->bgm_brief( $bgm_data )['eps'],
+            'anime_bgm_air_date'     => $this->bgm_brief( $bgm_data )['date'],
             '_bgm_raw'               => $bgm_data,
             '_needs_enrich'          => true,
         ];
@@ -813,6 +816,9 @@ class Anime_Sync_API_Handler {
             'anime_genres'           => $genres,
             'anime_tags'             => $tags,
             'anime_is_adult'         => $is_adult,
+            'anime_bgm_name'         => $this->bgm_brief( $bgm_data )['name'],
+            'anime_bgm_eps'          => $this->bgm_brief( $bgm_data )['eps'],
+            'anime_bgm_air_date'     => $this->bgm_brief( $bgm_data )['date'],
             '_bgm_raw'               => $bgm_data,
             '_needs_enrich'          => true,
         ];
@@ -1496,6 +1502,9 @@ class Anime_Sync_API_Handler {
             'anime_next_airing'      => $next_airing ? wp_json_encode( $next_airing ) : '',
             'anime_genres'           => $media['genres'] ?? [],
             'anime_tags'             => $anime_tags,
+            'anime_bgm_name'         => $this->bgm_brief( $bgm_data )['name'],
+            'anime_bgm_eps'          => $this->bgm_brief( $bgm_data )['eps'],
+            'anime_bgm_air_date'     => $this->bgm_brief( $bgm_data )['date'],
             '_bgm_raw'               => $bgm_data,
         ];
     }
@@ -2264,6 +2273,40 @@ class Anime_Sync_API_Handler {
                 update_post_meta( $post_id, 'anime_episodes_json', wp_slash( wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE ) ) );
                 $updated[] = 'anime_episodes_json';
             }
+        }
+
+        /*
+         * 8.5 條目識別資訊與集數重疊
+         *
+         * 供後台人工核對條目粒度用（編輯畫面的 AniList／Bangumi 對照表）。
+         * 三個識別欄位直接取自上面已抓回的 $bgm_data，不增加 API 呼叫。
+         *
+         * 重疊值要的是「條目底下全部的本篇集數」，不能用第 8 步的
+         * $bgm_episodes——那個值已經過 select_episodes_for_post() 篩選
+         * （單集 SP 對到母條目時只會回傳 SP 那一段），拿它算會是錯的分母。
+         * 帶 post_id=0 重新取一次即可拿到未篩選版本，且會命中同一個
+         * transient，不會多送 HTTP 請求。
+         */
+        $brief = $this->bgm_brief( is_array( $bgm_data ) ? $bgm_data : null );
+        foreach ( [
+            'anime_bgm_name'     => $brief['name'],
+            'anime_bgm_eps'      => $brief['eps'],
+            'anime_bgm_air_date' => $brief['date'],
+        ] as $bk => $bv ) {
+            if ( $bv === '' || $bv === 0 ) {
+                continue;
+            }
+            if ( $is_locked( $bk ) ) {
+                $skipped[] = $bk;
+                continue;
+            }
+            update_post_meta( $post_id, $bk, $bv );
+            $updated[] = $bk;
+        }
+
+        $all_episodes = $this->fetch_bgm_episodes( $bangumi_id, false, 0 );
+        if ( ! empty( $all_episodes ) ) {
+            update_post_meta( $post_id, 'anime_bgm_overlap', $this->count_bgm_overlap( $post_id, $all_episodes ) );
         }
 
         // 9. 更新同步時間
@@ -3344,6 +3387,92 @@ class Anime_Sync_API_Handler {
     // PRIVATE – Bangumi 資料（ACG：統一 User-Agent）
     // =========================================================================
 
+    /**
+     * 從 Bangumi 條目原始資料取出「識別用」的三個欄位。
+     *
+     * 為什麼需要：AniList 與 Bangumi 的條目粒度本來就不同（AniList 把 SP／OVA
+     * 拆成獨立條目、Bangumi 常用一個 subject 涵蓋整部），所以站上多篇文章共用
+     * 同一個 bgm_id 是正常現象，不是重複。但後台原本只存 bgm_id 數字，編輯畫面
+     * 看不出那個 ID 到底對到哪個條目，要核對只能自己開 bgm.tv 比對。
+     *
+     * 原始資料其實一直都在手上（$bgm_data），過去只取了簡介與評分就丟掉——
+     * 陣列裡的 '_bgm_raw' 不在 save_meta() 的 $meta_map 白名單內，全站 0 列。
+     * 這三個值直接取自已抓回的資料，不增加任何 API 呼叫。
+     *
+     * @param  array|null $bgm_data get_bangumi_data() 的回傳。
+     * @return array{name:string,eps:int,date:string}
+     */
+    private function bgm_brief( ?array $bgm_data ): array {
+        if ( ! is_array( $bgm_data ) ) {
+            return [ 'name' => '', 'eps' => 0, 'date' => '' ];
+        }
+
+        $name = trim( (string) ( $bgm_data['name_cn'] ?? '' ) );
+        if ( $name === '' ) {
+            $name = trim( (string) ( $bgm_data['name'] ?? '' ) );
+        }
+
+        // eps 是本篇話數、total_episodes 含 SP；劇場版兩者都可能是 0。
+        $eps = (int) ( $bgm_data['eps'] ?? 0 );
+        if ( $eps <= 0 ) {
+            $eps = (int) ( $bgm_data['total_episodes'] ?? 0 );
+        }
+
+        return [
+            'name' => $name,
+            'eps'  => $eps,
+            'date' => trim( (string) ( $bgm_data['date'] ?? $bgm_data['air_date'] ?? '' ) ),
+        ];
+    }
+
+    /**
+     * 這篇文章對得到 Bangumi 條目底下的幾集。
+     *
+     * Bangumi 常用一個 subject 涵蓋 AniList 拆成多筆的東西（續季、分割放送、
+     * SP），所以「站上多篇共用同一個 bgm_id」是正常的，各篇各自對應條目裡的
+     * 一段集數。這個數字就是那一段的長度，給後台人工核對用。
+     *
+     * ⚠ 這是參考值，不是錯誤判定，呼叫端不得拿它擋匯入。2026-09-21 以
+     * Bangumi 官方 dump 對全站 6,729 篇實測：切片為 0 的 454 篇裡，有 27 篇
+     * 條目其實完全正確，只是 AniList 的開播日與 Bangumi 的放送日基準不同
+     * （劇場先行、首播日認定差異）；另有大量 SP／圖片劇場是 Bangumi 合併
+     * 收錄的正常情況。當成錯誤會產生大量誤報。
+     *
+     * @param int   $post_id  文章 ID（取開播日與宣告集數）。
+     * @param array $episodes 未經 select_episodes_for_post() 篩選的完整集數列表。
+     */
+    private function count_bgm_overlap( int $post_id, array $episodes ): int {
+        $raw = preg_replace( '/[^0-9]/', '', (string) get_post_meta( $post_id, 'anime_start_date', true ) );
+        if ( strlen( $raw ) < 8 ) {
+            return 0;
+        }
+        $start = strtotime( substr( $raw, 0, 4 ) . '-' . substr( $raw, 4, 2 ) . '-' . substr( $raw, 6, 2 ) );
+        if ( ! $start ) {
+            return 0;
+        }
+
+        // 宣告集數未定時用 13（一季）當跨度，週播一集。
+        $declared = (int) get_post_meta( $post_id, 'anime_episodes', true );
+        $span     = ( $declared > 0 ? $declared : 13 ) * 7 * DAY_IN_SECONDS;
+        $lo       = $start - 21 * DAY_IN_SECONDS;   // 提前放送／宣傳集
+        $hi       = $start + $span + 45 * DAY_IN_SECONDS; // 停播順延
+
+        $n = 0;
+        foreach ( $episodes as $ep ) {
+            if ( (int) ( $ep['type'] ?? 0 ) !== 0 ) {
+                continue; // 只算本篇
+            }
+            $air = trim( (string) ( $ep['airdate'] ?? '' ) );
+            if ( $air === '' ) {
+                continue;
+            }
+            $ts = strtotime( $air );
+            if ( $ts && $ts >= $lo && $ts <= $hi ) {
+                $n++;
+            }
+        }
+        return $n;
+    }
     private function get_bangumi_data( int $bangumi_id ): array|WP_Error {
 
         $cache_key = 'anime_sync_bgm_subject_' . $bangumi_id;

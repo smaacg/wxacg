@@ -41,6 +41,7 @@ class Anime_Sync_Custom_Post_Type {
 			if ( $key === 'title' ) {
 				$new_columns['anime_cover']      = '封面';
 				$new_columns['anime_anilist_id'] = 'AniList ID';
+				$new_columns['anime_bgm_col']     = 'Bangumi 條目';
 				$new_columns['anime_status_col'] = '狀態';
 				$new_columns['anime_score']      = '評分';
 				$new_columns['anime_season_col'] = '季度';
@@ -84,6 +85,44 @@ class Anime_Sync_Custom_Post_Type {
 				}
 				break;
 
+			/*
+			 * Bangumi 條目對照。
+			 *
+			 * AniList 與 Bangumi 的條目粒度不同，多篇共用同一個 bgm_id 是正常的，
+			 * 所以這欄顯示的是「對到哪個條目、幾話」而不是錯誤標記。刻意不上色、
+			 * 不放警告圖示：實測有條目正確但集數對不上的情況（兩邊放送日基準不同），
+			 * 標警告會變成長期誤報。判斷交給人，這裡只負責讓人不用開 bgm.tv 比對。
+			 */
+			case 'anime_bgm_col':
+				$bgm_id   = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+				$bgm_name = (string) get_post_meta( $post_id, 'anime_bgm_name', true );
+				$overlap  = get_post_meta( $post_id, 'anime_bgm_overlap', true );
+
+				if ( $bgm_id <= 0 ) {
+					echo '<span class="na">—</span>';
+					break;
+				}
+
+				printf(
+					'<a href="https://bgm.tv/subject/%d" target="_blank" rel="noopener noreferrer">#%d</a>',
+					$bgm_id,
+					$bgm_id
+				);
+
+				if ( $bgm_name !== '' ) {
+					printf(
+						'<br><span style="font-size:11px;color:#666;">%s</span>',
+						esc_html( mb_strimwidth( $bgm_name, 0, 34, '…' ) )
+					);
+				}
+
+				if ( $overlap !== '' ) {
+					printf(
+						'<br><span style="font-size:11px;color:#666;">對到 %d 集</span>',
+						(int) $overlap
+					);
+				}
+				break;
 			case 'anime_status_col':
 				$status     = get_post_meta( $post_id, 'anime_status', true );
 				$status_map = [
