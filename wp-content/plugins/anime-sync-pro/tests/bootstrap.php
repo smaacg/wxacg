@@ -121,6 +121,45 @@ function get_the_title( $id ) { return ''; }
 function do_action() {}
 function apply_filters( $tag, $value ) { return $value; }
 
+/*
+ * 極簡 $wpdb 替身：只夠 check_gone() 撈「帶來源標記的作品 ID」。
+ * 直接查上面那個 postmeta 替身，不連資料庫——下架偵測是會刪正式站資料的路徑，
+ * 只驗程式碼字串擋不住行為回歸，測試必須真的跑得動它。
+ */
+class T_Fake_WPDB {
+	public $postmeta = 'wp_postmeta';
+	public function prepare( $sql, ...$args ) {
+		foreach ( $args as $v ) {
+			$sql = preg_replace( '/%s/', "'" . $v . "'", $sql, 1 );
+		}
+		return $sql;
+	}
+	/** @return string[] */
+	public function get_col( $sql ) {
+		if ( ! preg_match( "/meta_key = '([^']+)'/", (string) $sql, $m ) ) {
+			return [];
+		}
+		$out = [];
+		foreach ( $GLOBALS['__meta'] as $id => $kv ) {
+			if ( isset( $kv[ $m[1] ] ) ) {
+				$out[] = (string) $id;
+			}
+		}
+		return $out;
+	}
+}
+$GLOBALS['wpdb'] = new T_Fake_WPDB();
+
+/** 把索引直接塞進來源物件（private $index），免得測試去動硬碟上的索引檔。 */
+function t_set_index( object $src, array $index ): void {
+	$p = new ReflectionProperty( Anime_Sync_Streaming_Source_Base::class, 'index' );
+	$p->setAccessible( true );
+	$p->setValue( $src, $index );
+	$u = new ReflectionProperty( Anime_Sync_Streaming_Source_Base::class, 'index_urls' );
+	$u->setAccessible( true );
+	$u->setValue( $src, null );
+}
+
 require ANIME_SYNC_PRO_DIR . 'includes/class-youranimes-season-index.php';
 // 平台 key → 標籤／計費的單一出處；公視+ 的標籤有測試盯著，見 test-streaming-sources.php
 require ANIME_SYNC_PRO_DIR . 'includes/class-streaming-registry.php';

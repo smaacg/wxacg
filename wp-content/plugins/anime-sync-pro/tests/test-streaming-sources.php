@@ -340,6 +340,89 @@ t_is( strpos( $base_src, '$this->notify_removed(' ) !== false, false, '下架不
 t_is( strpos( $base_src, 'protected function notify_ending(' ) !== false, true, '到期前預告：notify_ending() 保留' );
 
 // ─────────────────────────────────────────────────────────
+// 5h. 平台改名不等於下架（2026-09-22）
+//     巴哈把「轉生成自動販賣機的我今天也在迷宮徘徊 第二季」列成不帶「第二季」的
+//     名稱，站上 sn=49485 從台灣 IP 實抓 200 正常播放頁，卻被 check_gone() 標疑似
+//     下架——它只拿標題去索引查，從不看站上那個網址還在不在索引裡。三輪後會刪掉
+//     正確的網址。量到同類誤判：litv/bahamut 各 1、catchplay 2。
+//
+//     索引就是平台現況快照：網址還列著就代表作品還在，這比標題可靠。
+// ─────────────────────────────────────────────────────────
+$gone_src = Anime_Sync_Streaming_Source_Base::make( 'catchplay' );
+$gone_url = 'https://www.catchplay.com/tw/video/abc123';
+$gone_idx = [
+	// 鍵是正規化後的標題；平台這輪把它列成「某作品」，站上標題是「某作品 第二季」
+	t_call( $gone_src, 'normalize', '某作品' ) => [ [ 'u' => $gone_url ] ],
+	t_call( $gone_src, 'normalize', '別部作品' ) => [ [ 'u' => 'https://www.catchplay.com/tw/video/zzz999' ] ],
+];
+
+t_set_index( $gone_src, $gone_idx );
+t_is( count( t_call( $gone_src, 'index_urls' ) ), 2, 'index_urls()：蒐集索引裡的每一個網址' );
+t_is( isset( t_call( $gone_src, 'index_urls' )[ $gone_url ] ), true, 'index_urls()：以網址為鍵，可直接 isset 查' );
+
+// ── 網址仍在索引 → 救回，不得標記疑似下架 ──
+t_meta_reset();
+$GLOBALS['__meta'][ 501 ] = [
+	'_anime_tw_streaming_src_catchplay' => 'auto',
+	'anime_tw_streaming_url_catchplay'  => $gone_url,
+];
+t_set_index( $gone_src, $gone_idx );
+$gone_r = t_call( $gone_src, 'check_gone', true );
+t_is( $gone_r['rescued'], 1, '改名救回：標題配不到但網址仍在索引 → 算救回' );
+t_is( $gone_r['marked'], 0, '改名救回：不標記疑似下架' );
+t_is( isset( $GLOBALS['__meta'][501]['_anime_tw_streaming_gone_catchplay'] ), false, '改名救回：不寫 gone 標記' );
+t_is( $GLOBALS['__meta'][501]['anime_tw_streaming_url_catchplay'], $gone_url, '改名救回：網址原封不動' );
+
+// ── 已經被標過 gone，這輪救回要把標記清掉（前台才會拿掉「可能已下架」）──
+t_meta_reset();
+$GLOBALS['__meta'][ 502 ] = [
+	'_anime_tw_streaming_src_catchplay'  => 'auto',
+	'anime_tw_streaming_url_catchplay'   => $gone_url,
+	'_anime_tw_streaming_gone_catchplay' => '2026-09-20|2',
+];
+t_set_index( $gone_src, $gone_idx );
+$gone_r = t_call( $gone_src, 'check_gone', true );
+t_is( isset( $GLOBALS['__meta'][502]['_anime_tw_streaming_gone_catchplay'] ), false, '改名救回：清掉既有的 gone 標記' );
+t_is( $gone_r['cleared'], 1, '改名救回：算進「恢復」數' );
+
+// ★ 最關鍵的一條：已累計到第 3 輪（滿 GONE_STRIKES）也不准刪，因為網址還在索引裡
+t_meta_reset();
+$GLOBALS['__meta'][ 503 ] = [
+	'_anime_tw_streaming_src_catchplay'  => 'auto',
+	'anime_tw_streaming_url_catchplay'   => $gone_url,
+	'_anime_tw_streaming_gone_catchplay' => '2026-09-20|2',   // +1 = 3，原本這輪就會刪
+];
+t_set_index( $gone_src, $gone_idx );
+$gone_r = t_call( $gone_src, 'check_gone', true );
+t_is( $gone_r['removed'], 0, '改名救回：滿三輪也不刪（救援在累計 strike 之前）' );
+t_is( $GLOBALS['__meta'][503]['anime_tw_streaming_url_catchplay'], $gone_url, '改名救回：滿三輪網址仍在' );
+
+// ── 真下架（網址也不在索引裡）必須照舊標記，救援不能把下架偵測整條廢掉 ──
+t_meta_reset();
+$GLOBALS['__meta'][ 504 ] = [
+	'_anime_tw_streaming_src_catchplay' => 'auto',
+	'anime_tw_streaming_url_catchplay'  => 'https://www.catchplay.com/tw/video/gone404',
+];
+t_set_index( $gone_src, $gone_idx );
+$gone_r = t_call( $gone_src, 'check_gone', true );
+t_is( $gone_r['rescued'], 0, '真下架：網址不在索引 → 不救' );
+t_is( $gone_r['marked'], 1, '真下架：照常標記疑似下架' );
+t_is( $GLOBALS['__meta'][504]['_anime_tw_streaming_gone_catchplay'], gmdate( 'Y-m-d' ) . '|1', '真下架：記第 1 輪' );
+
+// ── 沒有網址可比（欄位空）也不能救 ──
+t_meta_reset();
+$GLOBALS['__meta'][ 505 ] = [ '_anime_tw_streaming_src_catchplay' => 'auto' ];
+t_set_index( $gone_src, $gone_idx );
+$gone_r = t_call( $gone_src, 'check_gone', true );
+t_is( $gone_r['rescued'], 0, '空網址：不得當成救回' );
+t_is( $gone_r['marked'], 1, '空網址：照常標記' );
+
+// 重建索引後網址集合必須跟著失效，否則救援拿上一輪的舊快照判斷
+t_is( strpos( $base_src, '$this->index_urls = null;' ) !== false, true, 'save_index()：換索引時讓網址集合快取失效' );
+
+t_meta_reset();
+
+// ─────────────────────────────────────────────────────────
 // 6. 索引包基底：三家共用同一套讀檔與過期判斷
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {

@@ -190,6 +190,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	/** 記憶體中的索引，避免同一次請求重複讀檔。 */
 	private ?array $index = null;
 
+	/** 索引裡所有網址的集合，見 index_urls()。 */
+	private ?array $index_urls = null;
+
 	/**
 	 * 後台「立即執行」用的 admin-ajax 端點（nopriv，靠一次性 token）。
 	 *
@@ -447,10 +450,18 @@ abstract class Anime_Sync_Streaming_Source_Base {
 				$end .= sprintf( '、14 天內到期 %d', $r['end']['soon'] );
 			}
 		}
+		// 下架偵測只在有動作時才報，沒事不佔日誌
+		$gone = '';
+		if ( ! empty( $r['gone'] ) && ( $r['gone']['marked'] || $r['gone']['removed'] || ( $r['gone']['rescued'] ?? 0 ) ) ) {
+			$gone = sprintf(
+				'；下架偵測（疑似 %d、移除 %d、改名救回 %d）',
+				$r['gone']['marked'], $r['gone']['removed'], $r['gone']['rescued'] ?? 0
+			);
+		}
 		$this->log_info( sprintf(
-			'%s 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d%s',
+			'%s 索引 %d 部；比對 %d、命中 %d、多重候選 %d；%s %d%s%s',
 			$tag, $r['works'], $r['scanned'], $r['hit'], $r['multi'],
-			$write ? '已寫入' : '（dry-run，未寫入）', $r['written'], $end
+			$write ? '已寫入' : '（dry-run，未寫入）', $r['written'], $end, $gone
 		) );
 	}
 
@@ -513,7 +524,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		 * 會因為收不到任何條目而回 no_entries 錯誤，整輪中斷。
 		 */
 		if ( $this->verify_only() ) {
-			$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'removed' => 0, 'samples' => [] ];
+			$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'rescued' => 0, 'removed' => 0, 'samples' => [] ];
 			$stats['end']  = $this->recheck_urls( $write, $started );
 
 			if ( $write && ( ( $stats['end']['dead_removed'] ?? 0 ) + ( $stats['end']['removed'] ?? 0 ) ) > 0 ) {
@@ -597,7 +608,7 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		 * ── 4. 退路：主機打不到作品頁的來源（巴哈／車庫被 Cloudflare 擋、CatchPlay 被地區擋）
 		 *      只能用索引比對。索引比對會被譯名差異誤判成下架，所以僅限我們自己寫過的那些。
 		 */
-		$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'removed' => 0, 'samples' => [] ];
+		$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'rescued' => 0, 'removed' => 0, 'samples' => [] ];
 		if ( ! $this->provides_alive_check() && $this->index_is_complete() ) {
 			$stats['gone'] = $this->check_gone( $write );
 		}
@@ -944,6 +955,35 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	}
 
 	/**
+	 * 這輪索引裡出現過的所有網址，當集合用（鍵是網址，isset 查）。
+	 *
+	 * 給 check_gone() 的救援判定用：標題比對會被平台改名擊沉，網址不會。
+	 * 索引最大的來源有 1.7 萬筆，所以走訪一次就快取在物件上。
+	 *
+	 * @return array<string,true>
+	 */
+	protected function index_urls(): array {
+
+		if ( $this->index_urls !== null ) {
+			return $this->index_urls;
+		}
+
+		$urls = [];
+		foreach ( $this->load_index() as $rows ) {
+			foreach ( (array) $rows as $row ) {
+				$u = isset( $row['u'] ) ? (string) $row['u'] : '';
+				if ( $u !== '' ) {
+					$urls[ $u ] = true;
+				}
+			}
+		}
+
+		$this->index_urls = $urls;
+
+		return $urls;
+	}
+
+	/**
 	 * 反向檢查：我們寫過的作品，這輪索引裡還配得到嗎？
 	 *
 	 * ★ 只看帶來源標記的（我們自己寫的）。那些當初是「完全相符＋唯一」配到的，
@@ -954,17 +994,24 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 * 第一次配不到：記 gone meta「YYYY-MM-DD|1」，前台顯示「可能已下架」。
 	 * 連續 GONE_STRIKES 輪：取消勾選、刪網址與標記。中間任何一輪又配到：清掉 gone。
 	 *
-	 * @return array{checked:int,marked:int,cleared:int,removed:int,samples:string[]}
+	 * ★ 標題配不到還有第二道救援（$rescued）：站上那個網址本身仍列在這輪索引裡，
+	 *   就是平台改了名稱、作品沒下架。2026-09-22 實例：巴哈把「轉生成自動販賣機的我
+	 *   今天也在迷宮徘徊 第二季」列成不帶「第二季」的名稱，站上 sn=49485 實抓 200
+	 *   正常播放頁，卻被標疑似下架。索引就是平台現況快照，網址還列著就代表還在。
+	 *
+	 * @return array{checked:int,marked:int,cleared:int,rescued:int,removed:int,samples:string[]}
 	 */
 	protected function check_gone( bool $write ): array {
 		global $wpdb;
 
-		$r = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'removed' => 0, 'samples' => [] ];
+		$r = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'rescued' => 0, 'removed' => 0, 'samples' => [] ];
 
 		$ids = array_map( 'intval', (array) $wpdb->get_col( $wpdb->prepare(
 			"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s",
 			$this->src_meta_key()
 		) ) );
+
+		$index_urls = $this->index_urls();
 
 		foreach ( $ids as $id ) {
 
@@ -976,6 +1023,18 @@ abstract class Anime_Sync_Streaming_Source_Base {
 				if ( $gone !== '' ) {
 					delete_post_meta( $id, $this->gone_meta_key() );
 					$r['cleared']++;
+				}
+				continue;
+			}
+
+			// 標題配不到，但站上這個網址仍在本輪索引裡 → 平台只是改了名稱，不是下架
+			$url = (string) get_post_meta( $id, $this->url_meta_key(), true );
+			if ( $url !== '' && isset( $index_urls[ $url ] ) ) {
+				$r['rescued']++;
+				if ( $gone !== '' ) {
+					delete_post_meta( $id, $this->gone_meta_key() );
+					$r['cleared']++;
+					do_action( 'litespeed_purge_post', $id );
 				}
 				continue;
 			}
@@ -1010,8 +1069,9 @@ abstract class Anime_Sync_Streaming_Source_Base {
 			}
 		}
 
-		if ( $r['marked'] || $r['removed'] ) {
-			$this->log_warning( sprintf( '下架偵測：檢查 %d、疑似 %d、移除 %d、恢復 %d', $r['checked'], $r['marked'], $r['removed'], $r['cleared'] ) );
+		if ( $r['marked'] || $r['removed'] || $r['rescued'] ) {
+			$this->log_warning( sprintf( '下架偵測：檢查 %d、疑似 %d、移除 %d、恢復 %d、改名救回 %d',
+				$r['checked'], $r['marked'], $r['removed'], $r['cleared'], $r['rescued'] ) );
 		}
 
 		return $r;
@@ -1942,6 +2002,8 @@ abstract class Anime_Sync_Streaming_Source_Base {
 
 		file_put_contents( $path, (string) wp_json_encode( $index, JSON_UNESCAPED_UNICODE ) );
 		$this->index = $index;
+		// 換了索引，網址集合跟著失效——重建後同一次執行就會跑 check_gone()，不能餵它舊快照
+		$this->index_urls = null;
 	}
 
 	/** @return array<string,mixed> */
@@ -2046,8 +2108,9 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			WP_CLI::log( sprintf( '  已寫入 %d 部', $r['written'] ) );
 		}
 		if ( ! empty( $r['gone'] ) && $r['gone']['checked'] > 0 ) {
-			WP_CLI::log( sprintf( '下架偵測：檢查 %d｜疑似 %d｜恢復 %d｜移除 %d%s',
-				$r['gone']['checked'], $r['gone']['marked'], $r['gone']['cleared'], $r['gone']['removed'],
+			WP_CLI::log( sprintf( '下架偵測：檢查 %d｜疑似 %d｜恢復 %d｜改名救回 %d｜移除 %d%s',
+				$r['gone']['checked'], $r['gone']['marked'], $r['gone']['cleared'],
+				$r['gone']['rescued'] ?? 0, $r['gone']['removed'],
 				$write ? '' : '（dry-run 只標記不移除）' ) );
 			foreach ( $r['gone']['samples'] as $line ) {
 				WP_CLI::log( '  ' . $line );
