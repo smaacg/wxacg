@@ -39,6 +39,26 @@ class Anime_Sync_Streaming_Source_Catchplay extends Anime_Sync_Streaming_Source_
 		return 'catchplay';
 	}
 
+	/**
+	 * 索引不是平台的完整快照，所以不跑下架偵測。
+	 *
+	 * 2026-09-23 實例：「星期一的豐滿」（#58315）與其 SP（#58317）被判疑似下架，
+	 * 但從台灣 IP 實抓兩頁都回 200、og:title 正常（對照：亂編的 uuid 回 404，
+	 * 所以判斷方法可信）。作品活著，只是 CatchPlay 自己的 sitemap 沒列它們——
+	 * #58315 的 uuid 從來沒進過本機建包快取，#58317 有快取標題卻因這次 sitemap
+	 * 沒列而落榜（09/16 的索引包還有它，09/20 的就沒了）。
+	 *
+	 * 量測：寫過的 167 筆有 102 筆（61%）網址不在索引裡，其中 100 筆是靠標題
+	 * 配得到才沒被誤判——那是運氣，不是機制。
+	 *
+	 * 代價：CatchPlay 真的下架時不會自動偵測到。但主機（吉隆坡）抓作品頁一律被
+	 * 302 轉回首頁，本來就沒有可靠的偵測手段；與其留一個會刪掉正確資料的機制，
+	 * 不如關掉。索引仍照常用來「發現」新作品，只是不反推下架。
+	 */
+	protected function index_covers_platform(): bool {
+		return false;
+	}
+
 	/** 「SPY x FAMILY 間諜家家酒．第2季」→「SPY x FAMILY 間諜家家酒 第2季」；全形間隔點是 CatchPlay 的季別分隔 */
 	protected function work_name( string $title ): string {
 		$t = trim( html_entity_decode( $title, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );

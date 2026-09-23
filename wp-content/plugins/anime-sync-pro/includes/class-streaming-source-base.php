@@ -605,11 +605,14 @@ abstract class Anime_Sync_Streaming_Source_Base {
 		}
 
 		/*
-		 * ── 4. 退路：主機打不到作品頁的來源（巴哈／車庫被 Cloudflare 擋、CatchPlay 被地區擋）
-		 *      只能用索引比對。索引比對會被譯名差異誤判成下架，所以僅限我們自己寫過的那些。
+		 * ── 4. 退路：主機打不到作品頁的來源（巴哈／車庫被 Cloudflare 擋）只能用索引比對。
+		 *      索引比對會被譯名差異誤判成下架，所以僅限我們自己寫過的那些。
+		 *
+		 *      ⚠ CatchPlay 與 bangumi-data 系（bilibili）雖然也打不到作品頁，卻**不**走這條：
+		 *      它們的索引本身就有缺口，見 index_covers_platform()。
 		 */
 		$stats['gone'] = [ 'checked' => 0, 'marked' => 0, 'cleared' => 0, 'rescued' => 0, 'removed' => 0, 'samples' => [] ];
-		if ( ! $this->provides_alive_check() && $this->index_is_complete() ) {
+		if ( ! $this->provides_alive_check() && $this->index_is_complete() && $this->index_covers_platform() ) {
 			$stats['gone'] = $this->check_gone( $write );
 		}
 
@@ -948,6 +951,20 @@ abstract class Anime_Sync_Streaming_Source_Base {
 	 */
 	protected function index_is_complete(): bool {
 		return ! $this->incremental();
+	}
+
+	/**
+	 * 這個來源的索引是不是「平台上有什麼」的完整清單。
+	 *
+	 * ★ 跟 index_is_complete() 是兩件事，別合併：那個問的是「這一輪抓完了沒」
+	 *   （佇列式爬蟲用，回 false 會讓 run_scheduled() 強制重建索引）；這個問的是
+	 *   「就算抓完了，這份索引涵蓋得了整個平台嗎」。只有後者能當下架偵測的前提。
+	 *
+	 * 回 false 的來源不跑 check_gone()——索引本身就有缺口，拿它反推下架會刪掉
+	 * 正確的資料。索引照樣用來「發現」新作品，只是不反過來當下架的證據。
+	 */
+	protected function index_covers_platform(): bool {
+		return true;
 	}
 
 	protected function gone_meta_key(): string {

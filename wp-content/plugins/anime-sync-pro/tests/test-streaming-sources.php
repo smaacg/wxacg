@@ -423,6 +423,38 @@ t_is( strpos( $base_src, '$this->index_urls = null;' ) !== false, true, 'save_in
 t_meta_reset();
 
 // ─────────────────────────────────────────────────────────
+// 5i. 索引有缺口的來源不准跑下架偵測（2026-09-23）
+//     救援只擋得住「平台改名」，擋不住「索引根本沒收這部作品」。
+//     CatchPlay：寫過 167 筆有 102 筆（61%）網址不在索引裡，「星期一的豐滿」
+//     兩筆連標題都沒有——但台灣 IP 實抓 200、og:title 正常，作品活著，
+//     只是 CatchPlay 自己的 sitemap 沒列它。
+//     bilibili：索引是 bangumi-data 的 ID 對照表，從來不是平台目錄。
+// ─────────────────────────────────────────────────────────
+$cover = static function ( string $key ): bool {
+	$s = Anime_Sync_Streaming_Source_Base::make( $key );
+	return (bool) t_call( $s, 'index_covers_platform' );
+};
+
+t_is( $cover( 'catchplay' ), false, '索引缺口：CatchPlay 不當下架偵測的依據' );
+t_is( $cover( 'bilibili' ), false, '索引缺口：bangumi-data 系（bilibili）不當下架偵測的依據' );
+t_is( $cover( 'bahamut' ), true, '索引缺口：巴哈的 sitemap 夠完整，維持偵測' );
+t_is( $cover( 'garageplay' ), true, '索引缺口：車庫維持偵測' );
+
+// ★ 兩個概念不能共用同一個方法：index_is_complete() 回 false 會讓 run_scheduled()
+//   強制重建索引（佇列式爬蟲靠它推進），拿它來擋下架偵測會害這兩家每輪都重建。
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'catchplay' ), 'index_is_complete' ), true,
+	'索引缺口：CatchPlay 的 index_is_complete() 維持 true（否則每輪強制重建）' );
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'bilibili' ), 'index_is_complete' ), true,
+	'索引缺口：bilibili 的 index_is_complete() 維持 true' );
+// 佇列式爬蟲的語意不得被波及
+t_is( t_call( Anime_Sync_Streaming_Source_Base::make( 'ptsplus' ), 'index_covers_platform' ), true,
+	'索引缺口：公視+ 爬完整站，涵蓋率不受影響' );
+
+// check_gone 的守門條件必須三個都看
+t_is( strpos( $base_src, '$this->provides_alive_check() && $this->index_is_complete() && $this->index_covers_platform()' ) !== false,
+	true, '守門：check_gone() 同時看覆核能力、佇列完成、索引涵蓋率' );
+
+// ─────────────────────────────────────────────────────────
 // 6. 索引包基底：三家共用同一套讀檔與過期判斷
 // ─────────────────────────────────────────────────────────
 foreach ( [ 'bahamut', 'garageplay', 'catchplay' ] as $key ) {

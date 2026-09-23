@@ -217,6 +217,21 @@ abstract class Anime_Sync_Streaming_Source_Bangumi_Only extends Anime_Sync_Strea
 
 	abstract protected function url_for( string $site, string $id ): string;
 
+	/**
+	 * 索引不是平台的完整快照，所以不跑下架偵測。
+	 *
+	 * 這裡的「索引」是 bangumi-data 的 ID 對照表——只涵蓋那個開源資料集有對照的作品，
+	 * 從來就不是「這個平台現在有什麼」。拿它反推下架，等於用一份不完整的清單刪正確的資料。
+	 * 2026-09-23 量到 bilibili 寫過的 75 筆有 42 筆（56%）網址不在索引裡，
+	 * 它們沒被判下架純粹是標題剛好配得到，不是機制擋住的。
+	 *
+	 * 代價：這類來源真的下架時不會自動偵測到。bilibili 存的是搜尋頁連結，
+	 * 本來就沒有「這個網址失效」可言，偵測下架沒有意義。
+	 */
+	protected function index_covers_platform(): bool {
+		return false;
+	}
+
 	protected function sitemap_url(): string {
 		return '';
 	}
