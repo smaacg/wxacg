@@ -1877,6 +1877,22 @@ class Anime_Sync_Admin {
         }
         echo '</select> ';
 
+        /*
+         * 線上看篩選：對應列表「線上看」欄，判斷的是 anime_online_watch（YouTube 嵌入），
+         * 不是台灣串流平台網址（anime_tw_streaming_url_*）。
+         */
+        $current_watch = sanitize_text_field( $_GET['anime_watch_filter'] ?? '' );
+        $watch_options = [
+            ''    => '全部線上看',
+            'has' => '有線上看',
+            'no'  => '沒有線上看',
+        ];
+        echo '<select name="anime_watch_filter">';
+        foreach ( $watch_options as $val => $label ) {
+            printf( '<option value="%s"%s>%s</option>', esc_attr( $val ), selected( $current_watch, $val, false ), esc_html( $label ) );
+        }
+        echo '</select> ';
+
         $current_season = sanitize_text_field( $_GET['anime_season_filter'] ?? '' );
         $seasons        = get_terms( [ 'taxonomy' => 'anime_season_tax', 'hide_empty' => false, 'orderby' => 'name', 'order' => 'DESC', 'number' => 100 ] );
         echo '<select name="anime_season_filter">';
@@ -1954,6 +1970,18 @@ class Anime_Sync_Admin {
             ];
         } elseif ( $bgm_filter === 'no_id' ) {
             $meta_query[] = [ 'key' => 'anime_bangumi_id', 'compare' => 'NOT EXISTS' ];
+        }
+
+        // 線上看：與欄位顯示的 trim() 判斷一致，只有空白字元視為「沒有」
+        $watch_filter = sanitize_text_field( $_GET['anime_watch_filter'] ?? '' );
+        if ( $watch_filter === 'has' ) {
+            $meta_query[] = [ 'key' => 'anime_online_watch', 'value' => '[^[:space:]]', 'compare' => 'REGEXP' ];
+        } elseif ( $watch_filter === 'no' ) {
+            $meta_query[] = [
+                'relation' => 'OR',
+                [ 'key' => 'anime_online_watch', 'compare' => 'NOT EXISTS' ],
+                [ 'key' => 'anime_online_watch', 'value' => '[^[:space:]]', 'compare' => 'NOT REGEXP' ],
+            ];
         }
 
         $series = sanitize_text_field( $_GET['anime_series_filter'] ?? '' );
