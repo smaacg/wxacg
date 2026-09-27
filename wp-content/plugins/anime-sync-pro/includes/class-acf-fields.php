@@ -3899,6 +3899,18 @@ $cast_prompt .= "以下是 JSON:\n";
                 });
             });
 
+            // 所有 Key 都失敗時的訊息:依最後一次換 Key 的原因(後端回應的 cause)說明,
+            // 避免把模型壅塞或逾時誤報成「Key 失效」,讓編輯知道該換模型還是該檢查 Key
+            function aspAiAllKeysFailedMessage(maxKeys, cause) {
+                if (cause === 'server') {
+                    return `❌ 所有 ${maxKeys} 把 Key 都試過，AI 服務仍持續忙碌或連線不穩。這通常是模型端當下負載過高，建議改用其他模型或稍後再試。`;
+                }
+                if (cause === 'timeout') {
+                    return `❌ 所有 ${maxKeys} 把 Key 都試過，最後仍逾時。建議改用其他模型或稍後再試。`;
+                }
+                return `❌ 所有設定的 API Key (${maxKeys} 把) 皆已測試失敗。`;
+            }
+
             async function processCastTranslation(jsonStr, animeTitle, targetField) {
                 var taskName = 'CAST';
                 try {
@@ -3999,6 +4011,7 @@ $cast_prompt .= "以下是 JSON:\n";
                     var success = false;
                     var retries = 0;
                     var keyRetries = 0;
+                    var lastFailCause = ''; // 最近一次換 Key 的原因(key/server/timeout),供所有 Key 都失敗時說明
                     var maxKeys = 0; // 0 = 尚未知道，後端第一次回傳後才會設定
                     var retryAfterError = false; // 5xx 暫時性錯誤：是否要帶著旗標重打同一把 Key
                     var isDebug = $('#asp-ai-debug-mode').is(':checked');
@@ -4078,9 +4091,10 @@ $cast_prompt .= "以下是 JSON:\n";
                                 if (res.data && res.data.type === 'key_failed' && res.data.retry) {
                                     logAI(res.data.message, true);
                                     keyRetries++;
+                                    lastFailCause = res.data.cause || '';
                                     maxKeys = res.data.total_keys;
                                     if (keyRetries >= maxKeys) {
-                                        logAI(`❌ 所有設定的 API Key (${maxKeys} 把) 皆已測試失敗。`, true);
+                                        logAI(aspAiAllKeysFailedMessage(maxKeys, lastFailCause), true);
                                         throw new Error('All keys failed');
                                     }
                                     continue; // Try again with next key without incrementing `retries`
@@ -4302,6 +4316,7 @@ $cast_prompt .= "以下是 JSON:\n";
                             
                             var success = false;
                             var keyRetries = 0;
+                            var lastFailCause = ''; // 最近一次換 Key 的原因(key/server/timeout),供所有 Key 都失敗時說明
                             var maxKeys = 0; // 0 = 尚未知道，後端第一次回傳後才會設定
                             var retryAfterError = false; // 5xx 暫時性錯誤：是否要帶著旗標重打同一把 Key
                             var res;
@@ -4328,9 +4343,10 @@ $cast_prompt .= "以下是 JSON:\n";
                                     // Key 失敗：更新 maxKeys，印出警告，決定是否繼續
                                     logAI(res.data.message, true);
                                     keyRetries++;
+                                    lastFailCause = res.data.cause || '';
                                     maxKeys = res.data.total_keys;
                                     if (keyRetries >= maxKeys) {
-                                        logAI(`❌ 所有設定的 API Key (${maxKeys} 把) 皆已測試失敗。`, true);
+                                        logAI(aspAiAllKeysFailedMessage(maxKeys, lastFailCause), true);
                                         throw new Error('All keys failed');
                                     }
                                     // continue: 不需要寫，while 迴圈會自然進入下一圈
@@ -4554,8 +4570,8 @@ $cast_prompt .= "以下是 JSON:\n";
                 ] ),
             ] );
             if ( is_wp_error( $response ) ) {
-                // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
-                // 重試後仍失敗才換下一把 Key。
+                // 網路層失敗:逾時不重試,直接換下一把 Key;連線中斷等其他錯誤多半是暫時性問題,
+                // 比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才換下一把 Key。分類見 classify_network_failure()。
                 error_log( sprintf(
                     'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
                     $provider,
@@ -4565,7 +4581,7 @@ $cast_prompt .= "以下是 JSON:\n";
                     implode( '; ', $response->get_error_messages() )
                 ) );
                 $this->send_api_failure(
-                    [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
+                    $this->classify_network_failure( $response ),
                     $key_set,
                     $is_retry
                 );
@@ -4602,8 +4618,8 @@ $cast_prompt .= "以下是 JSON:\n";
                 ] ),
             ] );
             if ( is_wp_error( $response ) ) {
-                // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
-                // 重試後仍失敗才換下一把 Key。
+                // 網路層失敗:逾時不重試,直接換下一把 Key;連線中斷等其他錯誤多半是暫時性問題,
+                // 比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才換下一把 Key。分類見 classify_network_failure()。
                 error_log( sprintf(
                     'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
                     $provider,
@@ -4613,7 +4629,7 @@ $cast_prompt .= "以下是 JSON:\n";
                     implode( '; ', $response->get_error_messages() )
                 ) );
                 $this->send_api_failure(
-                    [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
+                    $this->classify_network_failure( $response ),
                     $key_set,
                     $is_retry
                 );
@@ -4654,8 +4670,8 @@ $cast_prompt .= "以下是 JSON:\n";
                 'body'    => wp_json_encode( $payload ),
             ] );
             if ( is_wp_error( $response ) ) {
-                // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
-                // 重試後仍失敗才換下一把 Key。
+                // 網路層失敗:逾時不重試,直接換下一把 Key;連線中斷等其他錯誤多半是暫時性問題,
+                // 比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才換下一把 Key。分類見 classify_network_failure()。
                 error_log( sprintf(
                     'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
                     $provider,
@@ -4665,7 +4681,7 @@ $cast_prompt .= "以下是 JSON:\n";
                     implode( '; ', $response->get_error_messages() )
                 ) );
                 $this->send_api_failure(
-                    [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
+                    $this->classify_network_failure( $response ),
                     $key_set,
                     $is_retry
                 );
@@ -5006,8 +5022,8 @@ $cast_prompt .= "以下是 JSON:\n";
                 ] ),
             ] );
             if ( is_wp_error( $response ) ) {
-                // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
-                // 重試後仍失敗才換下一把 Key。
+                // 網路層失敗:逾時不重試,直接換下一把 Key;連線中斷等其他錯誤多半是暫時性問題,
+                // 比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才換下一把 Key。分類見 classify_network_failure()。
                 error_log( sprintf(
                     'ASP AI 網路層失敗: provider=%s, key=%d/%d, is_retry=%s, error=%s',
                     $provider,
@@ -5017,7 +5033,7 @@ $cast_prompt .= "以下是 JSON:\n";
                     implode( '; ', $response->get_error_messages() )
                 ) );
                 $this->send_api_failure(
-                    [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
+                    $this->classify_network_failure( $response ),
                     $key_set,
                     $is_retry
                 );
@@ -5051,10 +5067,10 @@ $cast_prompt .= "以下是 JSON:\n";
                     ] ),
                 ] );
                 if ( is_wp_error( $response ) ) {
-                    // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
-                    // 重試後仍失敗才換下一把 Key。
+                    // 網路層失敗:逾時不重試,直接換下一把 Key;連線中斷等其他錯誤多半是暫時性問題,
+                    // 比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才換下一把 Key。分類見 classify_network_failure()。
                     $this->send_api_failure(
-                        [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
+                        $this->classify_network_failure( $response ),
                         $key_set,
                         $is_retry
                     );
@@ -5087,10 +5103,10 @@ $cast_prompt .= "以下是 JSON:\n";
                     'body'    => wp_json_encode( $payload ),
                 ] );
                 if ( is_wp_error( $response ) ) {
-                    // 網路層失敗(逾時、連線中斷等):多半是暫時性問題,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,
-                    // 重試後仍失敗才換下一把 Key。
+                    // 網路層失敗:逾時不重試,直接換下一把 Key;連線中斷等其他錯誤多半是暫時性問題,
+                    // 比照 5xx 先原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才換下一把 Key。分類見 classify_network_failure()。
                     $this->send_api_failure(
-                        [ 'type' => 'request', 'message' => '網路連線逾時或失敗: ' . $response->get_error_message(), 'retryable' => true ],
+                        $this->classify_network_failure( $response ),
                         $key_set,
                         $is_retry
                     );
@@ -5432,6 +5448,37 @@ $cast_prompt .= "以下是 JSON:\n";
     }
 
     /**
+     * 判斷網路層失敗(wp_remote_post() 回傳 WP_Error)屬於逾時還是其他連線錯誤。
+     *
+     * 逾時(含連不上伺服器的連線逾時)時,同一把 Key 再等多半又白等 45 秒,故不重試,直接換下一把 Key;
+     * 其他連線錯誤(連線被拒、中途斷線等)多為暫時性,比照 5xx 先原地等待 3 秒用同一把 Key 重試一次。
+     * 判斷依據:WordPress HTTP API 逾時時的錯誤訊息為「cURL error 28: ...」
+     * (fsockopen 傳輸為「fsocket timed out」),Windows 上連線逾時也可能是「cURL error 7: ...: Timed out」。
+     *
+     * @param WP_Error $error wp_remote_post() 回傳的錯誤。
+     * @return array 供 send_api_failure() 使用的失敗分類(結構同 classify_api_failure())。
+     */
+    private function classify_network_failure( WP_Error $error ): array {
+        $message    = $error->get_error_message();
+        $is_timeout = ( false !== stripos( $message, 'cURL error 28' ) )
+            || ( false !== stripos( $message, 'timed out' ) );
+
+        if ( $is_timeout ) {
+            return [
+                'type'    => 'request',
+                'message' => '網路連線逾時: ' . $message,
+                'timeout' => true,
+            ];
+        }
+
+        return [
+            'type'      => 'request',
+            'message'   => '網路連線失敗: ' . $message,
+            'retryable' => true,
+        ];
+    }
+
+    /**
      * 判斷 API 呼叫失敗屬於哪一類,決定要不要換下一把 Key。
      *
      * 原本所有失敗一律當成「Key 失效」並輪換,造成兩個問題:
@@ -5441,8 +5488,9 @@ $cast_prompt .= "以下是 JSON:\n";
      * @param int    $code     HTTP 狀態碼。
      * @param mixed  $body     已解碼的回應內容。
      * @param string $provider gemini|openai|claude。
-     * @return array{type:string, message:string}
+     * @return array{type:string, message:string, retryable?:bool, timeout?:bool}
      *         type:key=換下一把 Key / request=請求本身有問題 / content=有回應但沒有可用內容
+     *         retryable=true:5xx,先原地重試同一把 Key / timeout=true:408／504,不重試直接換 Key
      */
     private function classify_api_failure( int $code, $body, string $provider ): array {
         // 先取出 API 回傳的錯誤訊息(各家結構不同)
@@ -5495,6 +5543,15 @@ $cast_prompt .= "以下是 JSON:\n";
             return [
                 'type'    => 'request',
                 'message' => $message,
+            ];
+        }
+
+        if ( 408 === $code || 504 === $code ) {
+            // 請求逾時(408)／閘道逾時(504):同一把 Key 再等多半結果一樣,比照網路逾時不重試,直接換下一把 Key(與新聞部 cloud_engine.py 一致)
+            return [
+                'type'    => 'request',
+                'message' => "AI 服務回應逾時(HTTP {$code})",
+                'timeout' => true,
             ];
         }
 
@@ -5585,9 +5642,11 @@ $cast_prompt .= "以下是 JSON:\n";
      *
      * 只有 Key 層級的問題才推進游標並要求前端換下一把 Key;
      * 內容層級的失敗換 Key 也沒用,直接回不可重試,讓前端停止該項任務;
-     * retryable(5xx)則先讓前端原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才視同 Key 失效換下一把。
+     * retryable(5xx)則先讓前端原地等待 3 秒用同一把 Key 重試一次,重試後仍失敗才視同 Key 失效換下一把;
+     * timeout(網路逾時或 HTTP 408／504)不重試,直接推進游標換下一把 Key。
+     * 換 Key 的回應會帶 cause(key/server/timeout),供前端在所有 Key 都失敗時說明真正原因。
      *
-     * @param array $failure  classify_api_failure() 的結果。
+     * @param array $failure  classify_api_failure() 或 classify_network_failure() 的結果。
      * @param array $key_set  get_api_key_set() 的結果(內含 provider,游標由 advance_key_cursor() 依池推進)。
      * @param bool  $is_retry 是否為前端 3 秒後帶著 ai_retry_after_error 旗標送來的重試請求。
      * @return void 本方法一定會結束請求。
@@ -5596,12 +5655,13 @@ $cast_prompt .= "以下是 JSON:\n";
         $key_no = $key_set['index'] + 1;
 
         error_log( sprintf(
-            'ASP AI 失敗: provider=%s, key=%d/%d, type=%s, retryable=%s, is_retry=%s, message=%s',
+            'ASP AI 失敗: provider=%s, key=%d/%d, type=%s, retryable=%s, timeout=%s, is_retry=%s, message=%s',
             $key_set['provider'] ?? 'unknown',
             $key_no,
             $key_set['count'],
             $failure['type'],
             ! empty( $failure['retryable'] ) ? 'true' : 'false',
+            ! empty( $failure['timeout'] ) ? 'true' : 'false',
             $is_retry ? 'true' : 'false',
             $failure['message']
         ) );
@@ -5614,6 +5674,20 @@ $cast_prompt .= "以下是 JSON:\n";
                 'message'    => "⚠️ 第 {$key_no} 把 Key 失敗: {$failure['message']}，自動切換下一把 Key...",
                 'retry'      => true,
                 'total_keys' => $key_set['count'],
+                'cause'      => 'key',
+            ] );
+        }
+
+        // 逾時(網路逾時或 HTTP 408／504):同一把 Key 再等多半又白等,不重試,直接換下一把 Key(與新聞部 cloud_engine.py 一致)
+        if ( ! empty( $failure['timeout'] ) ) {
+            $this->advance_key_cursor( $key_set );
+
+            wp_send_json_error( [
+                'type'       => 'key_failed',
+                'message'    => "⚠️ 第 {$key_no} 把 Key 逾時: {$failure['message']}，不重試，自動切換下一把 Key...",
+                'retry'      => true,
+                'total_keys' => $key_set['count'],
+                'cause'      => 'timeout',
             ] );
         }
 
@@ -5636,6 +5710,7 @@ $cast_prompt .= "以下是 JSON:\n";
                 'message'    => "⚠️ 第 {$key_no} 把 Key 重試後仍失敗: {$failure['message']}，自動切換下一把 Key...",
                 'retry'      => true,
                 'total_keys' => $key_set['count'],
+                'cause'      => 'server',
             ] );
         }
 
