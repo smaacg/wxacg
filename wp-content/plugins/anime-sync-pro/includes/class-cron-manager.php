@@ -854,7 +854,11 @@ class Anime_Sync_Cron_Manager {
                 break;
             }
 
-            if ( get_post_status( $post_id ) !== 'publish' ) {
+            /*
+             * 草稿同樣要跑:佇列已納入草稿（見 build_daily_queue()）,這裡若仍
+             * 擋掉就等於白排。只排除垃圾桶與自動草稿這類不該動的狀態。
+             */
+            if ( ! in_array( get_post_status( $post_id ), [ 'publish', 'draft' ], true ) ) {
                 continue;
             }
 
@@ -1064,7 +1068,19 @@ class Anime_Sync_Cron_Manager {
 
         $candidate_ids = get_posts( [
             'post_type'      => 'anime',
-            'post_status'    => 'publish',
+            /*
+             * 候選池納入草稿。
+             *
+             * 原本只掃 publish,新匯入的作品在人工審核發布前完全不會被自動
+             * 維護——MAL ID 不補、狀態不更新、已播集數不動,使用者因此得一篇
+             * 篇手動整理（2026-09-28 回報）。
+             *
+             * 不會把回填的 7,000 篇舊番草稿灌進來:下面的日期條件已經擋住
+             * （FINISHED 要求結束日在 30 天內、NOT_YET_RELEASED 要求開播日落在
+             * 窗口內）。實測佇列由 330 筆變 594 筆,只多 264 筆,其中「剛完結」
+             * 僅多 3 筆。跑完一圈由 2.75 小時變 5 小時,AniList 配額吃得下。
+             */
+            'post_status'    => [ 'publish', 'draft' ],
             'posts_per_page' => -1,
             'fields'         => 'ids',
             'orderby'        => 'ID',
