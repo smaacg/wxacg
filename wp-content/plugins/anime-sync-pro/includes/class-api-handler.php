@@ -2230,12 +2230,34 @@ class Anime_Sync_API_Handler {
             }
         }
 
-        // 5. Bangumi 評分（評分不設鎖定，永遠更新）
+        /*
+         * 5. Bangumi 評分（評分不設鎖定，永遠更新）
+         *
+         * ★ 2026-09-29：只擋 null 是不夠的，0 也要擋。
+         *
+         *   Bangumi 對「還沒有人評分」的條目回的是 rating.score = 0，不是
+         *   null——實抓 20 部 2026-10 檔期作品就有 3 部是 0。0 !== null，
+         *   所以原本的 `$raw_score !== null` 放它過，算出 $score_bangumi = 0
+         *   之後無條件寫進去，等於用「上游還沒開分」覆蓋掉站上既有的分數。
+         *
+         *   目前唯一擋住它的是防護欄的 no_zero（class-meta-guard.php），
+         *   但那是一個可以隨時切成 observe／off 的 option，切掉就直接洗掉
+         *   資料而且沒有備份。同一支流程的兄弟程式碼
+         *  （class-cron-manager.php 的兩處 BGM 評分回填）本來就都有
+         *   `> 0` 前置檢查，只有這裡是裸的。
+         *
+         *   而且被防護欄擋下時 $updated[] 還是照記，把失敗回報成成功
+         *  （同 2026-09-29 拉拉熊那件事的同一個模式）。
+         *
+         *   刻意不塞進 $skipped[]：這個陣列在其餘各處的語意都是
+         *   「欄位被鎖定所以跳過」，混進「上游沒有資料」會讓回報失真。
+         */
         $raw_score = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
         if ( $raw_score !== null ) {
             $score_bangumi = (int) round( (float) $raw_score * 10 );
-            update_post_meta( $post_id, 'anime_score_bangumi', $score_bangumi );
-            $updated[] = 'anime_score_bangumi';
+            if ( $score_bangumi > 0 && update_post_meta( $post_id, 'anime_score_bangumi', $score_bangumi ) ) {
+                $updated[] = 'anime_score_bangumi';
+            }
         }
 
         // 6. 工作人員

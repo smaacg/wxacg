@@ -1074,6 +1074,24 @@ class Anime_Sync_Import_Manager {
     if ( $key === 'anime_anilist_id' && (int) $value <= 0 ) {
         continue;
     }
+
+    /*
+     * ★ anime_mal_id 為 0 時同樣完全不寫入,理由與上面的 anilist_id 一致。
+     *
+     * AniList 的 idMal 在 MAL 尚未建立條目時是 null,落到這裡會變成 0。
+     * 寫成 0 有兩個實際後果:
+     *   1. ACF 的 field_anime_mal_id 設了 min => 1,值為 0 會讓整篇文章
+     *      無法存檔或發布（2026-09-28 正式站有 274 篇草稿卡在這裡）。
+     *   2. 與 anilist_id 相同:下游用 REGEXP '^[0-9]+$' 篩選時,字串 "0"
+     *      會被當成有效 ID 通過。
+     *
+     * 不寫入不影響日後自動補上——cron-manager 的 sync_dynamic_for_post()
+     * 判斷式是 `$current_mal_id <= 0`,"meta 不存在" 與 "值為 0" 同樣命中,
+     * MAL 之後建立條目時仍會自動補寫並重跑 enrich。
+     */
+    if ( $key === 'anime_mal_id' && (int) $value <= 0 ) {
+        continue;
+    }
     update_post_meta( $post_id, $key, $this->prepare_meta_value( $key, $value ) );
 }
 
