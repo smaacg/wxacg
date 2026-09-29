@@ -1159,10 +1159,28 @@ class Anime_Sync_Cron_Manager {
     }
 
     private function _run_urgent_episode_check_inner(): void {
-        $candidate_ids = get_posts( [
+        /*
+         * ★ 2026-09-29 修正：開播時間的比較搬到 PHP，不能留在 meta_query。
+         *
+         *   原本這裡有一段 `anime_next_airing < time()` 的 NUMERIC 比較，
+         *   但 anime_next_airing 早就統一寫成 JSON
+         *   `{"airingAt":…,"episode":…}`（見 wxacg_encode_next_airing），
+         *   而 MySQL 把這種字串 CAST 成數字會得到 0，0 永遠小於 now——
+         *   等於這道篩選對新格式完全沒有作用。空字串也一樣 CAST 成 0。
+         *
+         *   後果不是漏抓而是反過來：每 15 分鐘無條件抓滿一批去打 AniList，
+         *   把「幾乎沒有額外額度負擔」變成固定 40 次/小時的開銷，
+         *   而且已經被防護欄擋住的作品會被無限重試（拉拉熊連續 15 輪以上）。
+         *
+         *   改法：SQL 只負責選出「連載中、AniList ID 還活著」的母體
+         *   （全站同時連載的作品是百位數等級，載入 ID 很便宜），
+         *   實際的時間判斷交給 wxacg_parse_next_airing()——那支本來就是
+         *   為了「兩種歷史格式都吃」而存在的唯一解析入口。
+         */
+        $releasing_ids = get_posts( [
             'post_type'      => 'anime',
             'post_status'    => 'publish',
-            'posts_per_page' => self::URGENT_EPISODE_BATCH_SIZE,
+            'posts_per_page' => -1,
             'fields'         => 'ids',
             'no_found_rows'  => true,
             'meta_query'     => [
@@ -1173,9 +1191,7 @@ class Anime_Sync_Cron_Manager {
                 ],
                 [
                     'key'     => 'anime_next_airing',
-                    'value'   => time(),
-                    'compare' => '<',
-                    'type'    => 'NUMERIC',
+                    'compare' => 'EXISTS',
                 ],
                 [
                     'key'     => self::ANILIST_DEAD_ID_META,
@@ -1183,6 +1199,24 @@ class Anime_Sync_Cron_Manager {
                 ],
             ],
         ] );
+
+        $now           = time();
+        $candidate_ids = [];
+
+        foreach ( $releasing_ids as $rid ) {
+            $parsed = wxacg_parse_next_airing( get_post_meta( (int) $rid, 'anime_next_airing', true ) );
+
+            // airingAt 為 0 代表值是空的或解析不出來，那不算「開播時間已經過去」
+            if ( $parsed['airingAt'] <= 0 || $parsed['airingAt'] >= $now ) {
+                continue;
+            }
+
+            $candidate_ids[] = (int) $rid;
+
+            if ( count( $candidate_ids ) >= self::URGENT_EPISODE_BATCH_SIZE ) {
+                break;
+            }
+        }
 
         if ( empty( $candidate_ids ) ) {
             return;
@@ -1573,8 +1607,28 @@ class Anime_Sync_Cron_Manager {
             }
             if ( $aired !== null ) {
                 $old_val = (int) get_post_meta( $post_id, 'anime_episodes_aired', true );
-                if ( $old_val !== $aired ) {
-                    update_post_meta( $post_id, 'anime_episodes_aired', $aired );
+
+                /*
+                 * ★ 2026-09-29：寫入結果必須納入判斷，不能寫完就當成功。
+                 *
+                 *   anime_episodes_aired 受防護欄（class-meta-guard.php 的
+                 *   no_decrease）保護，「集數變小」會被擋下——此時
+                 *   update_post_meta() 回 false，資料庫完全沒有改變。
+                 *
+                 *   原本這裡不看回傳值就把差異塞進 $diff，結果是：值沒變、
+                 *   log 卻報「已更新（已播 26→25集）」、$updated 照算、
+                 *   還多 purge 一次快取；而且值既然沒變，下一輪條件依然成立，
+                 *   於是每 15 分鐘重演一次，永遠不會收斂
+                 *   （2026-09-29 拉拉熊連續 15 輪以上）。這正是把失敗
+                 *   轉成假成功，比單純漏更新更難查。
+                 *
+                 *   短路求值保證 $old_val === $aired 時不會多打一次寫入，
+                 *   對「值沒變化」的情況行為與原本完全相同。
+                 */
+                $aired_written = ( $old_val !== $aired )
+                    && update_post_meta( $post_id, 'anime_episodes_aired', $aired );
+
+                if ( $aired_written ) {
                     $diff[] = '已播 ' . $old_val . '→' . $aired . '集';
 
                     /*
