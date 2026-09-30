@@ -137,8 +137,35 @@ class Wxacg_Api_Content_Slug {
 
         // ID 系列分類 → 日期 slug
         if ( array_intersect( $cats, $id_cats ) ) {
-            // ★ 修正：date() → current_time()，跟隨 WordPress 站台時區
-            $data['post_name'] = current_time( 'Ymd-His' ) . '-' . wp_rand( 100, 999 );
+            /*
+             * ★ 2026-09-30：只在「還沒有日期 slug」時才產生。
+             *
+             *   這個方法掛在 wp_insert_post_data，那個 filter 在「更新」文章時
+             *   同樣會跑。原本無條件覆寫 post_name，等於每存一次檔就換一次
+             *   網址——改標題、修錯字、補圖、用 API 改內容都會觸發。
+             *
+             *   實測正式站：時間戳 slug 的已發布新聞稿 170 篇，其中 113 篇
+             *  （66%）換過網址，累積 402 個廢棄網址，最嚴重一篇換了 16 次。
+             *   對照組（非時間戳 slug 的 21 篇）只累積 26 個，所以確定是這裡造成的。
+             *
+             *   那些舊網址目前只靠 WordPress 內建的 wp_old_slug_redirect 撐著
+             *   301。Rank Math 的 redirections_post_redirect 一旦被改回 on，
+             *   它會移除該機制，這 402 個會同時 404。
+             *
+             *   新文章（$post_id 為 0）照樣產生；分類後來才改成新聞、slug 還不是
+             *   日期格式的也會補上——只有「已經是日期 slug」才保持不動。
+             *
+             *   刻意讀資料庫而不是看 $data['post_name']：這個 filter 執行時
+             *   文章列還沒更新，get_post_field() 拿到的正是更新前的值，
+             *   而 $data 裡的值會被呼叫端傳入什麼影響。
+             */
+            $existing = $post_id > 0 ? (string) get_post_field( 'post_name', $post_id ) : '';
+
+            if ( ! preg_match( '/^\d{8}-\d{6}-\d{3}$/', $existing ) ) {
+                // ★ 修正：date() → current_time()，跟隨 WordPress 站台時區
+                $data['post_name'] = current_time( 'Ymd-His' ) . '-' . wp_rand( 100, 999 );
+            }
+
             return $data;
         }
 
