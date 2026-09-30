@@ -138,30 +138,37 @@ class Wxacg_Api_Content_Slug {
         // ID 系列分類 → 日期 slug
         if ( array_intersect( $cats, $id_cats ) ) {
             /*
-             * ★ 2026-09-30：只在「還沒有日期 slug」時才產生。
+             * 日期 slug 只在「現有的還不是日期格式」時才產生。
              *
-             *   這個方法掛在 wp_insert_post_data，那個 filter 在「更新」文章時
-             *   同樣會跑。原本無條件覆寫 post_name，等於每存一次檔就換一次
-             *   網址——改標題、修錯字、補圖、用 API 改內容都會觸發。
+             *   這個方法掛在 wp_insert_post_data，而那個 filter 在「更新」文章
+             *   時同樣會跑。若無條件覆寫 post_name，等於每存一次檔就換一次
+             *   網址——改標題、修錯字、補圖、透過 API 改內容都會觸發，舊網址
+             *   只能靠 WordPress 內建的 wp_old_slug_redirect 撐著 301；而
+             *   Rank Math 的 redirections_post_redirect 一旦開啟就會移除該
+             *   機制，屆時所有累積的舊網址會同時 404。
              *
-             *   實測正式站：時間戳 slug 的已發布新聞稿 170 篇，其中 113 篇
-             *  （66%）換過網址，累積 402 個廢棄網址，最嚴重一篇換了 16 次。
-             *   對照組（非時間戳 slug 的 21 篇）只累積 26 個，所以確定是這裡造成的。
+             *   新文章（$post_id 為 0）照樣產生；分類後來才改成新聞、slug 還
+             *   不是日期格式的也會補上——只有「已經是日期 slug」保持原值。
              *
-             *   那些舊網址目前只靠 WordPress 內建的 wp_old_slug_redirect 撐著
-             *   301。Rank Math 的 redirections_post_redirect 一旦被改回 on，
-             *   它會移除該機制，這 402 個會同時 404。
+             *   ⚠ 已有日期 slug 時要「明確寫回原值」，不能只是不動 $data。
+             *   核心在 wp_insert_post() 裡有一段：狀態為 pending 且當下使用者
+             *   對該篇沒有 publish_post 權限時（沒有登入使用者的 cron／CLI
+             *   也算），會先把 $post_name 清成空字串；而寫入後那段補救
+             *   （if empty post_name…）刻意排除 pending，不會補回來。
+             *   此時若這裡不寫值，空字串就會被寫進資料庫、網址直接壞掉。
              *
-             *   新文章（$post_id 為 0）照樣產生；分類後來才改成新聞、slug 還不是
-             *   日期格式的也會補上——只有「已經是日期 slug」才保持不動。
-             *
-             *   刻意讀資料庫而不是看 $data['post_name']：這個 filter 執行時
-             *   文章列還沒更新，get_post_field() 拿到的正是更新前的值，
-             *   而 $data 裡的值會被呼叫端傳入什麼影響。
+             *   讀資料庫而不是看 $data['post_name']：$data 的值取決於呼叫端
+             *   傳了什麼。用 'raw' 情境取值，跳過 sanitize_post_field() 的
+             *   display 處理，日後有人掛 post_name filter 也不會讓判斷失準。
+             *   注意這裡拿到的「更新前的值」有一個例外：把文章丟進垃圾桶時，
+             *   核心會在本 filter 之前就把 __trashed 後綴寫進資料庫並清快取，
+             *   所以 trash 那一次讀到的是帶後綴的值、不會符合日期格式。
              */
-            $existing = $post_id > 0 ? (string) get_post_field( 'post_name', $post_id ) : '';
+            $existing = $post_id > 0 ? (string) get_post_field( 'post_name', $post_id, 'raw' ) : '';
 
-            if ( ! preg_match( '/^\d{8}-\d{6}-\d{3}$/', $existing ) ) {
+            if ( preg_match( '/^\d{8}-\d{6}-\d{3}$/', $existing ) ) {
+                $data['post_name'] = $existing;
+            } else {
                 // ★ 修正：date() → current_time()，跟隨 WordPress 站台時區
                 $data['post_name'] = current_time( 'Ymd-His' ) . '-' . wp_rand( 100, 999 );
             }
