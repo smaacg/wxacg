@@ -493,8 +493,10 @@ $hero_posters = [
          *
          * action=register：點擊開註冊彈窗，不是跳頁。
          * 彈窗來自 header.js 的 window.smacgOpenLoginModal('register')（header.js:145），
-         * 而 Modal 本身只對未登入者輸出（header.php:55）——所以這一格在下面
-         * 會被整個濾掉，登入者根本看不到，不需要在這裡處理備援。
+         * 而 Modal 本身只對未登入者輸出（header.php:55）。
+         * 會員也看得到這一格（使用者決定保留），但點了不會有反應：函式存在、
+         * Modal 不存在，openModal() 直接 return，也不會走到下方的 fallback。
+         * 這是刻意接受的行為，不是漏處理。
          * url 仍保留一個真實網址，作為 JS 失效時的退路（見輸出區的 fallback）。
          */
         'img'    => 'https://weixiaoacg.com/wp-content/uploads/2026/09/hero-poster-signup.webp',
@@ -515,6 +517,8 @@ $hero_posters = [
         'external' => true,
     ],
     [
+        // key 供下方「會員版換成追番清單」辨識這一格，不依賴標題或網址比對。
+        'key'   => 'join',
         'img'   => 'https://weixiaoacg.com/wp-content/uploads/2026/07/zyYiYfQY.webp',
         'title' => '加入微笑動漫',
         'url'   => home_url( '/join/' ),
@@ -523,7 +527,7 @@ $hero_posters = [
 ];
 
 /*
- * 「會員版把註冊那格換成追番清單」的邏輯不放這裡，改放在下方
+ * 「會員版把加入微笑動漫那格換成追番清單」的邏輯不放這裡，改放在下方
  * $hero_poster_slots 切片處（搜尋 hero_poster_slots）。
  *
  * 原因：那個替換的條件之一是「倒數已結束」，而 $hero_countdown 要到
@@ -677,18 +681,19 @@ $hero_countdown   = wxacg_home_season_countdown();
              *   兩種狀態下都維持三格，版面高度不會跳動。
              */
             /*
-             * 會員版：倒數結束後，把「立即註冊」那格換成「追番清單」
-             * （媒體庫 ID 61453、567x1024 ≈ 5:9）。
+             * 會員版：倒數結束後，把第三格「加入微笑動漫」換成「追番清單」
+             * （媒體庫 ID 61453、567x1024 ≈ 5:9）；第一格「立即註冊」維持原樣。
              *
              * ★ 兩個條件缺一不可，而且是「替換」不是「移除」：
-             *   ・倒數期間不換——第三格被倒數卡佔著，三格已滿，
-             *     這時換掉註冊格對訪客與會員都沒有好處。
+             *   ・倒數期間不換——第三格被倒數卡佔著，本來就不會顯示，
+             *     換了也看不到。
              *   ・少一格不會自動補滿：.hero-side 桌機固定寬
              *     calc(250px*3 + 12px*2)（style.css:2577），而 .hero-posters 是
              *     justify-content:flex-end、海報固定 250px 不伸縮，
              *     移除會變成靠右對齊、左側空出約 262px。
              *
              * 替換後的項目刻意不帶 action：它是一般連結，不觸發註冊彈窗。
+             * 新項目沒有 key：替換只做一次，之後不需要再辨識它。
              *
              * 依登入狀態輸出不同內容在這個站是安全的：setup-theme.php 的
              * template_redirect 對登入者一律送 nocache_headers()，
@@ -696,7 +701,7 @@ $hero_countdown   = wxacg_home_season_countdown();
              */
             if ( ! $hero_countdown && is_user_logged_in() ) {
                 foreach ( $hero_posters as $i => $p ) {
-                    if ( empty( $p['action'] ) || 'register' !== $p['action'] ) {
+                    if ( empty( $p['key'] ) || 'join' !== $p['key'] ) {
                         continue;
                     }
                     $hero_posters[ $i ] = [
@@ -780,7 +785,8 @@ $hero_countdown   = wxacg_home_season_countdown();
                 /*
                  * 註冊海報：開 header 的登入/註冊 Modal，不跳頁。
                  * smacgOpenLoginModal 定義在 header.js:145；Modal 只對訪客輸出
-                 * （header.php:55），而這一格也只有訪客看得到，兩邊條件一致。
+                 * （header.php:55）。會員也看得到這一格，但沒有 Modal 可開，
+                 * 點了不會有反應（使用者接受，見 $hero_posters 註解）。
                  * 函式不存在時（JS 失效／載入順序意外）退回 data-fallback 的網址，
                  * 不讓點擊變成「什麼都沒發生」。
                  */
