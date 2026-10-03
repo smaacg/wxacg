@@ -37,7 +37,7 @@ class Anime_Sync_ACF_Fields {
     /**
      * 全站共用 AI API Key 池(依供應商分池)。
      * 結構:[ 'gemini' => "key1\nkey2", 'openai' => '', 'claude' => '' ]
-     * OpenAI / Claude 兩池目前保留供日後擴充,預設為空。
+     * OpenAI / Claude 兩池預設為空,要使用時由管理員填入。
      */
     const SHARED_KEYS_OPTION = 'asp_ai_shared_keys';
 
@@ -52,6 +52,16 @@ class Anime_Sync_ACF_Fields {
 
     /** 解鎖 token 有效秒數(僅為 transient 上限,實際重整頁面就要重新解鎖) */
     const UNLOCK_TTL = 1800;
+
+    /**
+     * Claude 請求的 max_tokens。
+     * Sonnet 5.5／Opus 5.5 的思考無法關閉(由模型自行決定想多少),思考用的 token 也算在這個上限內,
+     * CAST 一批最多 120 筆加上思考容易超過 8192,因此用 16000(非串流請求的建議值)。
+     */
+    const CLAUDE_MAX_TOKENS = 16000;
+
+    /** Claude 請求逾時秒數。要涵蓋思考時間,45 秒對 Opus 不夠,逾時會被當成 Key 失敗而換下一把 Key。 */
+    const CLAUDE_TIMEOUT = 120;
 
     /**
      * 儲存前記下的短評舊值,供 auto_assign_editorial_reviewer() 判斷這次存檔短評是否真的有變動。
@@ -3138,7 +3148,8 @@ $cast_prompt .= "以下是 JSON:\n";
         </style>
         <script>
         jQuery(document).ready(function($) {
-            // 模型下拉選單：依供應商切換，目前主要用 Gemini(4個型號),OpenAI/Claude 先各給一個預設值,保留後續擴充空間
+            // 模型下拉選單：依供應商切換，目前主要用 Gemini(4個型號),OpenAI 先給一個預設值,保留後續擴充空間;
+            // Claude 清單由 get_claude_model_options() 輸出,與後端 resolve_claude_model() 的驗證共用同一份
             var AI_MODEL_OPTIONS = {
                 gemini: [
                     { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
@@ -3149,9 +3160,7 @@ $cast_prompt .= "以下是 JSON:\n";
                 openai: [
                     { value: 'gpt-4o', label: 'GPT-4o' }
                 ],
-                claude: [
-                    { value: 'claude-3-5-sonnet-20240620', label: 'Claude 3.5 Sonnet' }
-                ]
+                claude: <?php echo wp_json_encode( $this->get_claude_model_options() ); ?>
             };
 
             function renderModelOptions(provider, preferredModel) {
@@ -4600,9 +4609,10 @@ $cast_prompt .= "以下是 JSON:\n";
                 );
             }
         } elseif ( $provider === 'claude' ) {
-            if ( empty( $model ) ) $model = 'claude-3-5-sonnet-20240620';
+            // user_meta 可能留著已退役或空白的型號,一律收斂到目前可選的清單
+            $model = $this->resolve_claude_model( (string) $model );
             $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', [
-                'timeout' => 45,
+                'timeout' => self::CLAUDE_TIMEOUT,
                 'headers' => [
                     'Content-Type'      => 'application/json',
                     'x-api-key'         => $current_key,
@@ -4610,7 +4620,7 @@ $cast_prompt .= "以下是 JSON:\n";
                 ],
                 'body' => wp_json_encode( [
                     'model'      => $model,
-                    'max_tokens' => 8192,
+                    'max_tokens' => self::CLAUDE_MAX_TOKENS,
                     'system'     => $system_prompt,
                     'messages'   => [
                         [ 'role' => 'user', 'content' => $user_prompt ],
@@ -4636,8 +4646,10 @@ $cast_prompt .= "以下是 JSON:\n";
             }
             $code = (int) wp_remote_retrieve_response_code( $response );
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
-            if ( $code === 200 && isset( $body['content'][0]['text'] ) ) {
-                $result_text = $body['content'][0]['text'];
+            // 回應第一個區塊可能是 thinking,不能只讀 content[0];被拒絕或被截斷時視為沒有可用內容
+            $claude_text = ( $code === 200 ) ? $this->extract_claude_text( $body ) : null;
+            if ( null !== $claude_text ) {
+                $result_text = $claude_text;
                 $this->advance_key_cursor( $key_set );
             } else {
                 // 依失敗類型決定要不要換 Key,避免請求層級錯誤或安全阻擋也白白輪完所有 Key
@@ -5055,13 +5067,14 @@ $cast_prompt .= "以下是 JSON:\n";
             }
 
         } elseif ( $provider === 'claude' ) {
-            if ( empty( $model ) ) $model = 'claude-3-5-sonnet-20240620';
+            // user_meta 可能留著已退役或空白的型號,一律收斂到目前可選的清單
+            $model = $this->resolve_claude_model( (string) $model );
                 $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', [
-                    'timeout' => 45,
+                    'timeout' => self::CLAUDE_TIMEOUT,
                     'headers' => [ 'Content-Type' => 'application/json', 'x-api-key' => $current_key, 'anthropic-version' => '2023-06-01' ],
                     'body' => wp_json_encode( [
                         'model' => $model,
-                        'max_tokens' => 8192,
+                        'max_tokens' => self::CLAUDE_MAX_TOKENS,
                         'system' => $system_prompt,
                         'messages' => [ [ 'role' => 'user', 'content' => $user_prompt ] ],
                     ] ),
@@ -5077,8 +5090,10 @@ $cast_prompt .= "以下是 JSON:\n";
                 }
                 $code = (int) wp_remote_retrieve_response_code( $response );
                 $body = json_decode( wp_remote_retrieve_body( $response ), true );
-                if ( $code === 200 && isset( $body['content'][0]['text'] ) ) {
-                    $result_text = $body['content'][0]['text'];
+                // 回應第一個區塊可能是 thinking,不能只讀 content[0];被拒絕或被截斷時視為沒有可用內容
+                $claude_text = ( $code === 200 ) ? $this->extract_claude_text( $body ) : null;
+                if ( null !== $claude_text ) {
+                    $result_text = $claude_text;
                     $this->advance_key_cursor( $key_set );
                 } else {
                     // 依失敗類型決定要不要換 Key。CAST 每批 150 筆容易超出 max_tokens,
@@ -5206,6 +5221,74 @@ $cast_prompt .= "以下是 JSON:\n";
             'claude' => 'Anthropic Claude',
         ];
         return $labels[ $provider ] ?? $provider;
+    }
+
+    /**
+     * Claude 可選型號,第一個為預設。
+     *
+     * 前端下拉選單與後端 resolve_claude_model() 共用這份清單,避免兩邊各寫一份而不一致。
+     * 型號退役後 API 會回 404(例如 claude-3-5-sonnet-20240620),清單要跟著 Anthropic 的型號更新。
+     *
+     * @return array<int,array{value:string,label:string}>
+     */
+    private function get_claude_model_options(): array {
+        return [
+            [ 'value' => 'claude-sonnet-5-5', 'label' => 'Claude Sonnet 5.5' ],
+            [ 'value' => 'claude-opus-5-5',   'label' => 'Claude Opus 5.5' ],
+            [ 'value' => 'claude-haiku-4-5',  'label' => 'Claude Haiku 4.5' ],
+        ];
+    }
+
+    /**
+     * 把 user_meta 讀到的 Claude 型號收斂到可選清單。
+     *
+     * 型號存在 user_meta,前端下拉選單換了清單後,使用者沒按「儲存 AI 設定」之前
+     * 後端讀到的仍是舊值;不在清單內(含已退役型號)就改用預設型號,空值也用預設型號。
+     */
+    private function resolve_claude_model( string $model ): string {
+        $allowed = array_column( $this->get_claude_model_options(), 'value' );
+
+        if ( in_array( $model, $allowed, true ) ) {
+            return $model;
+        }
+
+        if ( '' !== $model ) {
+            error_log( "ASP AI: Claude 型號 {$model} 不在可選清單內,改用預設型號 {$allowed[0]}(請到「⚙️ AI 帳號設定面板」重新儲存)" );
+        }
+
+        return $allowed[0];
+    }
+
+    /**
+     * 從 Claude Messages API 的回應取出可用的文字內容。
+     *
+     * content 是多個區塊組成的陣列:Sonnet 5.5／Opus 5.5 可能先輸出 thinking 區塊,
+     * text 不一定在第一個,所以要依序串接所有 type=text 的區塊。
+     * 只有正常結束(stop_reason 為 end_turn、stop_sequence 或未提供)才算成功;
+     * refusal(被安全機制拒絕)、max_tokens(被長度上限截斷)等其他原因,
+     * 就算有部分文字也不完整,回傳 null 交給 classify_api_failure() 說明原因。
+     *
+     * @param mixed $body 已解碼的回應內容。
+     * @return string|null 沒有可用內容時回傳 null;有 text 區塊但內容為空字串時回傳空字串。
+     */
+    private function extract_claude_text( $body ): ?string {
+        if ( ! is_array( $body ) || ! isset( $body['content'] ) || ! is_array( $body['content'] ) ) {
+            return null;
+        }
+
+        $stop = ( isset( $body['stop_reason'] ) && is_string( $body['stop_reason'] ) ) ? $body['stop_reason'] : '';
+        if ( ! in_array( $stop, [ 'end_turn', 'stop_sequence', '' ], true ) ) {
+            return null;
+        }
+
+        $texts = [];
+        foreach ( $body['content'] as $block ) {
+            if ( is_array( $block ) && 'text' === ( $block['type'] ?? '' ) && isset( $block['text'] ) && is_string( $block['text'] ) ) {
+                $texts[] = $block['text'];
+            }
+        }
+
+        return empty( $texts ) ? null : implode( '', $texts );
     }
 
     /**
@@ -5579,7 +5662,7 @@ $cast_prompt .= "以下是 JSON:\n";
     /**
      * HTTP 200 卻取不到文字內容時,找出真正原因。
      *
-     * 這類情形最常見於 Gemini 因題材敏感而阻擋(SAFETY),
+     * 這類情形最常見於 Gemini 因題材敏感而阻擋(SAFETY)、Claude 被安全機制拒絕(refusal),
      * 以及單批資料太多導致回應被長度上限截斷(MAX_TOKENS)。
      *
      * @param mixed  $body     已解碼的回應內容。
@@ -5609,6 +5692,25 @@ $cast_prompt .= "以下是 JSON:\n";
 
             if ( 'max_tokens' === $stop ) {
                 return '回應因 max_tokens 上限被截斷,請縮小單次處理的份量';
+            }
+
+            /*
+             * 被安全機制拒絕:HTTP 200,stop_details.category 標示類別(可能為 null,只當補充資訊)。
+             *
+             * 目前刻意不啟用 server-side fallbacks(被拒時由 Anthropic 改用其他模型重跑):
+             * Sonnet 5.5 只重跑 cyber／frontier_llm 類別,Opus 5.5 的安全分類以 cyber／bio 為主,
+             * 動畫簡介、FAQ、角色名翻譯幾乎碰不到;較可能踩到成人、暴力題材的是 Sonnet 5.5 的 general_harms,
+             * fallbacks 不重跑這一類。若 Log 出現 cyber 或 frontier_llm 類別的拒絕,
+             * 再評估對 Sonnet 5.5／Opus 5.5 加上 fallbacks: "default"(beta header server-side-fallback-2026-07-01)。
+             */
+            if ( 'refusal' === $stop ) {
+                $category = ( isset( $body['stop_details']['category'] ) && is_string( $body['stop_details']['category'] ) )
+                    ? $body['stop_details']['category']
+                    : '';
+
+                return ( '' !== $category )
+                    ? "請求被 Claude 安全機制拒絕(類別: {$category}),建議改用人工填寫"
+                    : '請求被 Claude 安全機制拒絕(未提供類別),建議改用人工填寫';
             }
 
             return ( '' !== $stop ) ? "AI 未回傳內容(stop_reason: {$stop})" : 'AI 未回傳任何內容';
